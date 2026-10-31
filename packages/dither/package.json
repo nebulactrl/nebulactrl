@@ -119,22 +119,22 @@
 	},
 	"dependencies": {
 		"@nebulactrl/tokens": "workspace:*",
-		"cn": "0.3.2"
+		"cn": "0.5.0"
 	},
 	"devDependencies": {
-		"@base-ui/react": "1.8.0",
-		"@biomejs/biome": "2.5.14",
-		"@types/bun": "1.4.2",
+		"@base-ui/react": "1.9.0",
+		"@biomejs/biome": "2.6.3",
+		"@types/bun": "1.4.4",
 		"@types/react": "19.3.0",
 		"@types/react-dom": "19.3.0",
-		"react": "19.3.0",
-		"react-dom": "19.3.0",
+		"react": "19.3.1",
+		"react-dom": "19.3.1",
 		"recharts": "3.10.1",
 		"typescript": "7.0.2"
 	},
 	"peerDependencies": {
-		"@base-ui/react": "1.8.0",
-		"react": "19.3.0",
+		"@base-ui/react": "1.9.0",
+		"react": "19.3.1",
 		"recharts": "3.10.1"
 	}
 }
