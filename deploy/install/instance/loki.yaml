@@ -1,0 +1,52 @@
+# Loki of the built-in log store (mounted at /etc/loki/config.yaml).
+# Written by install.sh; a re-run of the installer overwrites it.
+#
+# One tenant per team: the control plane's tunnel forwarder sets X-Scope-OrgID from the
+# agent's team on every push and never forwards a client-supplied value, which is why
+# multi-tenancy is on. Logs are kept 7 days.
+auth_enabled: true
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9096
+  log_level: warn
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+
+schema_config:
+  configs:
+    - from: "2024-01-01"
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+# Retention needs the compactor, and the 24 h index period above.
+compactor:
+  working_directory: /loki/compactor
+  retention_enabled: true
+  retention_delete_delay: 2h
+  delete_request_store: filesystem
+
+limits_config:
+  retention_period: 168h
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+  max_query_series: 5000
+
+analytics:
+  reporting_enabled: false

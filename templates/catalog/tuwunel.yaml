@@ -1,0 +1,61 @@
+schema: 1
+id: tuwunel
+revision: 1
+name: Tuwunel
+summary: Lightweight, high-performance Matrix homeserver written in Rust with federation and an embedded database.
+description: Tuwunel is a Matrix homeserver, the successor of conduwuit, that stores everything in an embedded RocksDB database. This template serves Matrix on the generated domain, publishes the federation and client well-known files itself, and requires a registration token to create accounts.
+category: productivity
+tags: [matrix, chat, messaging, federation]
+icon: matrix
+links:
+  website: https://tuwunel.chat
+  docs: https://matrix-construct.github.io/tuwunel/
+  source: https://github.com/matrix-construct/tuwunel
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/matrix-construct/tuwunel/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/tuwunel
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: REGISTRATION_TOKEN, label: Registration token (needed to create an account), secret: true, default: "${{secret(24)}}"}
+services:
+  - key: tuwunel
+    name: Tuwunel
+    kind: app
+    image: ghcr.io/matrix-construct/tuwunel:v1.9.4
+    digest: sha256:0e86c6164d6c9f5b60291938eb61ad8395021c37fe58d47a963ea7edddbedaec
+    port: 6167
+    healthcheck:
+      type: http
+      path: /_matrix/client/versions
+      startPeriodSeconds: 20
+      deadlineSeconds: 900
+    domains:
+      - generate: true
+    env:
+      TUWUNEL_SERVER_NAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      TUWUNEL_ADDRESS: 0.0.0.0
+      TUWUNEL_PORT: "6167"
+      TUWUNEL_DATABASE_PATH: /var/lib/tuwunel
+      TUWUNEL_ALLOW_REGISTRATION: "true"
+      TUWUNEL_REGISTRATION_TOKEN: ${input:REGISTRATION_TOKEN}
+      TUWUNEL_WELL_KNOWN__CLIENT: ${{NEBULA_PUBLIC_URL}}
+      TUWUNEL_WELL_KNOWN__SERVER: ${{NEBULA_PUBLIC_DOMAIN}}:443
+    volumes:
+      - name: data
+        path: /var/lib/tuwunel
+    resources:
+      memoryMb: 512
+    stopGraceSeconds: 1800
+group: Tuwunel
+notes:
+  - "Create your account in a Matrix client (for example Element) with the homeserver set to the generated address and the registration token from the TUWUNEL_REGISTRATION_TOKEN variable; the first account registered becomes the server administrator."
+  - "The server name is the generated domain and cannot be changed later without wiping the database, so do not switch the service to another domain."
+  - "The stop grace period is 30 minutes on purpose: an upgrade can run a database migration that must not be killed."

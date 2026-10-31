@@ -1,0 +1,55 @@
+schema: 1
+id: flatnotes
+revision: 1
+name: flatnotes
+summary: Database-free note-taking web app that keeps every note as a plain Markdown file.
+description: flatnotes is a distraction-free notes app with full-text search, tags and a WYSIWYG or raw Markdown editor. This template runs the official image with password login and one data volume.
+category: productivity
+tags: [notes, markdown, wiki, self-hosted]
+links:
+  website: https://github.com/dullage/flatnotes
+  docs: https://github.com/dullage/flatnotes/wiki
+  source: https://github.com/dullage/flatnotes
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/dullage/flatnotes/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/flatnotes
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, default: admin, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: flatnotes
+    name: flatnotes
+    kind: app
+    image: dullage/flatnotes:v5.5.5
+    digest: sha256:ca4b40ee7491aabf6b52bbb20ab140145cb96981d4b3fe96ab1e797ac6cd93e5
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      FLATNOTES_AUTH_TYPE: password
+      FLATNOTES_USERNAME: ${input:ADMIN_USERNAME}
+      FLATNOTES_PASSWORD: ${input:ADMIN_PASSWORD}
+      FLATNOTES_SECRET_KEY: ${{secret(32)}}
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 256
+group: flatnotes
+notes:
+  - "Sign in with the admin username and password from the install form."

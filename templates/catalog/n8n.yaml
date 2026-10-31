@@ -1,0 +1,72 @@
+schema: 1
+id: n8n
+revision: 1
+name: n8n
+summary: Workflow automation with a visual editor, 400+ integrations and native AI nodes.
+description: n8n is a fair-code workflow automation platform. This template runs n8n with a managed Postgres database, a generated encryption key for stored credentials and a public webhook URL.
+category: automation
+tags: [automation, workflows, integrations, webhooks, ai]
+icon: n8n
+links:
+  website: https://n8n.io
+  docs: https://docs.n8n.io
+  source: https://github.com/n8n-io/n8n
+upstream:
+  license: Sustainable Use License
+  licenseUrl: https://github.com/n8n-io/n8n/blob/master/LICENSE.md
+  class: source-available
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name, used by schedule triggers)", default: UTC}
+services:
+  - key: app
+    name: n8n
+    kind: app
+    image: n8nio/n8n:2.44.7
+    digest: sha256:942bc274709f27f99f7c6024a785d8e8f75ac06838cabcba448abb8d9127ec7b
+    port: 5678
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DB_TYPE: postgresdb
+      DB_POSTGRESDB_HOST: ${{db.DATABASE_HOST}}
+      DB_POSTGRESDB_PORT: ${{db.DATABASE_PORT}}
+      DB_POSTGRESDB_DATABASE: ${{db.DATABASE_NAME}}
+      DB_POSTGRESDB_USER: ${{db.DATABASE_USER}}
+      DB_POSTGRESDB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      N8N_ENCRYPTION_KEY: ${{secret(32)}}
+      N8N_HOST: ${{NEBULA_PUBLIC_DOMAIN}}
+      N8N_PROTOCOL: https
+      N8N_PORT: "5678"
+      N8N_PROXY_HOPS: "1"
+      WEBHOOK_URL: ${{NEBULA_PUBLIC_URL}}/
+      GENERIC_TIMEZONE: ${input:TIMEZONE}
+      TZ: ${input:TIMEZONE}
+      N8N_RUNNERS_ENABLED: "true"
+      N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS: "true"
+    volumes:
+      - {name: data, path: /home/node/.n8n}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: n8n DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: n8n
+group: n8n
+notes:
+  - "Open the app and create the owner account on first visit; there is no default login."
+  - "The encryption key (N8N_ENCRYPTION_KEY) protects every credential stored in n8n. Back it up: restoring the database without it makes saved credentials unreadable."
+  - "Webhooks are served on the public URL of this service."

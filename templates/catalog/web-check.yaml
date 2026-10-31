@@ -1,0 +1,43 @@
+schema: 1
+id: web-check
+revision: 1
+name: Web-Check
+summary: All-in-one OSINT tool that analyses a website's DNS, headers, TLS, hosting, security and performance.
+description: Web-Check runs a large set of checks against any URL you enter and shows the results in one dashboard. It needs no database and no API keys; optional keys only unlock extra checks.
+category: security
+tags: [osint, website-analysis, security, dns, seo]
+links:
+  website: https://web-check.xyz
+  docs: https://github.com/Lissy93/web-check#readme
+  source: https://github.com/Lissy93/web-check
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/Lissy93/web-check/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/web-check.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 1
+services:
+  - key: web-check
+    name: Web-Check
+    kind: app
+    image: lissy93/web-check:2.3.9
+    digest: sha256:106965906c912b49516636f16827b5e57e2e45a2296d925ce41123580f765562
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Web-Check
+notes:
+  - "The app has no login: anyone who knows the address can make your server request arbitrary sites. Put access control (for example an allow-list) in front of it before sharing the domain."

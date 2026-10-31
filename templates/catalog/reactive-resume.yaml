@@ -1,0 +1,64 @@
+schema: 1
+id: reactive-resume
+revision: 1
+name: Reactive Resume
+summary: Free, privacy-focused resume builder with templates, PDF export and sharing links.
+description: Reactive Resume is a resume and CV builder with live preview, many templates and PDF export. This template runs the official image with a managed Postgres database and local file storage on a volume.
+category: productivity
+tags: [resume, cv, documents, pdf]
+icon: reactiveresume
+links:
+  website: https://rxresu.me
+  docs: https://docs.rxresu.me/self-hosting/docker
+  source: https://github.com/reactive-resume/reactive-resume
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/reactive-resume/reactive-resume/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/reactive-resume.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 3
+services:
+  - key: app
+    name: Reactive Resume
+    kind: app
+    image: amruthpillai/reactive-resume:v6.0.7
+    digest: sha256:14135a2faf962b575f1dc2804ceb53873bb07cf85989193d693bf0fb922387b3
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      AUTH_SECRET: ${{randomBytes(32,"hex")}}
+      ENCRYPTION_SECRET: ${{randomBytes(32,"hex")}}
+      FLAG_DISABLE_SIGNUPS: "false"
+      FLAG_DISABLE_EMAIL_AUTH: "false"
+    volumes:
+      - name: data
+        path: /app/data
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Reactive Resume DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: reactive_resume
+group: Reactive Resume
+notes:
+  - "Open the site and create your account; you are signed in right away. Without SMTP settings the verification link is only written to the app log."
+  - "Sign-ups stay open to everyone: after creating your account set FLAG_DISABLE_SIGNUPS=true on the service and redeploy to keep the instance private."
+  - "Uploads live in the data volume. Email (SMTP_*), social sign-in and AI features are optional variables, see https://docs.rxresu.me/self-hosting/environment-variables."

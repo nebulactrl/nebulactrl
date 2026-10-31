@@ -1,0 +1,109 @@
+schema: 1
+id: homepage
+revision: 1
+name: Homepage
+summary: Fast, static, highly customizable application dashboard configured with YAML files, with service and information widgets.
+description: Homepage shows your services, bookmarks and live widgets on a single start page and is configured entirely through YAML files. The initial configuration files are stored with the service and can be edited there. Password sign-in is enabled.
+category: homelab
+tags: [dashboard, startpage, bookmarks, widgets]
+icon: homepage
+links:
+  website: https://gethomepage.dev
+  docs: https://gethomepage.dev/configs/
+  source: https://github.com/gethomepage/homepage
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/gethomepage/homepage/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/homepage.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: PASSWORD, label: Dashboard password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: app
+    name: Homepage
+    kind: app
+    image: ghcr.io/gethomepage/homepage:v2.7.0
+    digest: sha256:19c5c09184458a41b7b5915e71463a39f36cd33540f41bdbed008791b8182d5f
+    port: 3000
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/api/healthcheck || exit 1"]
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      HOMEPAGE_ALLOWED_HOSTS: ${{NEBULA_PUBLIC_DOMAIN}}
+      HOMEPAGE_AUTH_ENABLED: "true"
+      HOMEPAGE_AUTH_SECRET: ${{secret(48)}}
+      HOMEPAGE_AUTH_PASSWORD: ${input:PASSWORD}
+      HOMEPAGE_EXTERNAL_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: images
+        path: /app/public/images
+    files:
+      - path: /app/config/settings.yaml
+        content: |
+          ---
+          # For configuration options and examples, please see:
+          # https://gethomepage.dev/configs/settings
+
+          title: Homepage
+      - path: /app/config/services.yaml
+        content: |
+          ---
+          # For configuration options and examples, please see:
+          # https://gethomepage.dev/configs/services
+
+          - My First Group:
+              - Homepage Docs:
+                  href: https://gethomepage.dev
+                  description: Configure this dashboard
+      - path: /app/config/bookmarks.yaml
+        content: |
+          ---
+          # For configuration options and examples, please see:
+          # https://gethomepage.dev/configs/bookmarks
+
+          - Developer:
+              - Github:
+                  - abbr: GH
+                    href: https://github.com/
+
+          - Social:
+              - Reddit:
+                  - abbr: RE
+                    href: https://reddit.com/
+
+          - Entertainment:
+              - YouTube:
+                  - abbr: YT
+                    href: https://youtube.com/
+      - path: /app/config/widgets.yaml
+        content: |
+          ---
+          # For configuration options and examples, please see:
+          # https://gethomepage.dev/widgets/
+
+          - resources:
+              cpu: true
+              memory: true
+              disk: /
+
+          - search:
+              provider: duckduckgo
+              target: _blank
+    resources:
+      memoryMb: 256
+group: Homepage
+notes:
+  - "Sign in with the dashboard password from the install form (stored as HOMEPAGE_AUTH_PASSWORD in the service variables)."
+  - "Edit the configuration files (services.yaml, bookmarks.yaml, widgets.yaml, settings.yaml) in the service's Files settings and redeploy to apply changes."
+  - "Docker and Kubernetes integrations are not available, because they need access to the host's Docker socket."

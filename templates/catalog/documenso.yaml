@@ -1,0 +1,123 @@
+schema: 1
+id: documenso
+revision: 1
+name: Documenso
+summary: Open-source document signing platform, an alternative to DocuSign, with a generated signing certificate and Postgres.
+description: Documenso lets you send documents for electronic signature, collect signatures and seal PDFs with your own certificate. This template runs the official image with a managed Postgres. On first start it creates a self-signed PKCS#12 signing certificate and keeps it on a volume; replace it with your own certificate for trusted signatures. Email delivery (SMTP) is required because accounts must verify their address before signing in.
+category: productivity
+tags: [e-signature, documents, pdf, signing, docusign-alternative]
+links:
+  website: https://documenso.com
+  docs: https://docs.documenso.com/docs/self-hosting
+  source: https://github.com/documenso/documenso
+upstream:
+  license: AGPL-3.0 (core) with the Documenso Commercial License for packages/ee
+  licenseUrl: https://github.com/documenso/documenso/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/documenso.yaml
+  commit: 69bc72a
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: SMTP_HOST, label: SMTP host, format: hostname, required: true}
+  - {key: SMTP_PORT, label: SMTP port, format: number, default: "587"}
+  - {key: SMTP_USERNAME, label: SMTP username}
+  - {key: SMTP_PASSWORD, label: SMTP password, secret: true}
+  - {key: SMTP_FROM_ADDRESS, label: Sender address (must be allowed by your SMTP provider), format: email, required: true}
+  - {key: SMTP_FROM_NAME, label: Sender name, default: Documenso}
+  - {key: CERT_ORGANIZATION, label: Organization name in the generated signing certificate, default: Documenso}
+  - {key: CERT_VALID_DAYS, label: Validity of the generated signing certificate in days, format: number, default: "3650"}
+  - key: DISABLE_SIGNUP
+    label: Disable public sign-up
+    default: "false"
+    options: ["true", "false"]
+services:
+  - key: documenso
+    name: Documenso
+    kind: app
+    image: documenso/documenso:v2.21.1
+    digest: sha256:41a69062febc915d1508b87be8c5bbe72ecd3c49232ddcd983490f5f7832f053
+    port: 3000
+    command: [sh, /opt/nebula/start.sh]
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    env:
+      CERT_CN: ${{NEBULA_PUBLIC_DOMAIN}}
+      CERT_ORGANIZATION: ${input:CERT_ORGANIZATION}
+      CERT_VALID_DAYS: ${input:CERT_VALID_DAYS}
+      NEXTAUTH_SECRET: ${{secret(48)}}
+      NEXT_PRIVATE_DATABASE_URL: ${{database.DATABASE_URL}}
+      NEXT_PRIVATE_DIRECT_DATABASE_URL: ${{database.DATABASE_URL}}
+      NEXT_PRIVATE_ENCRYPTION_KEY: ${{secret(48)}}
+      NEXT_PRIVATE_ENCRYPTION_SECONDARY_KEY: ${{secret(48)}}
+      NEXT_PRIVATE_INTERNAL_WEBAPP_URL: http://localhost:3000
+      NEXT_PRIVATE_SIGNING_LOCAL_FILE_PATH: /opt/documenso/cert.p12
+      NEXT_PRIVATE_SIGNING_PASSPHRASE: ${{secret(32)}}
+      NEXT_PRIVATE_SIGNING_TRANSPORT: local
+      NEXT_PRIVATE_SMTP_FROM_ADDRESS: ${input:SMTP_FROM_ADDRESS}
+      NEXT_PRIVATE_SMTP_FROM_NAME: ${input:SMTP_FROM_NAME}
+      NEXT_PRIVATE_SMTP_HOST: ${input:SMTP_HOST}
+      NEXT_PRIVATE_SMTP_PASSWORD: ${input:SMTP_PASSWORD}
+      NEXT_PRIVATE_SMTP_PORT: ${input:SMTP_PORT}
+      NEXT_PRIVATE_SMTP_TRANSPORT: smtp-auth
+      NEXT_PRIVATE_SMTP_USERNAME: ${input:SMTP_USERNAME}
+      NEXT_PUBLIC_DISABLE_SIGNUP: ${input:DISABLE_SIGNUP}
+      NEXT_PUBLIC_UPLOAD_TRANSPORT: database
+      NEXT_PUBLIC_WEBAPP_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: certs
+        path: /opt/documenso
+    files:
+      - path: /opt/nebula/start.sh
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          set -e
+          CERT_FILE=/opt/documenso/cert.p12
+          # Create the self-signed signing certificate once; the .p12 is kept on the volume.
+          # A certificate supplied in NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS takes precedence and skips this.
+          if [ -z "$NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS" ] && [ ! -s "$CERT_FILE" ]; then
+            WORK="$(mktemp -d)"
+            cat > "$WORK/openssl.cnf" <<EOF
+          [ req ]
+          distinguished_name = dn
+          prompt = no
+          [ dn ]
+          O  = ${CERT_ORGANIZATION}
+          CN = ${CERT_CN}
+          EOF
+            openssl genrsa -out "$WORK/private.key" 2048
+            openssl req -new -x509 -key "$WORK/private.key" -out "$WORK/certificate.crt" -days "${CERT_VALID_DAYS}" -config "$WORK/openssl.cnf"
+            openssl pkcs12 -export -out "$CERT_FILE" -inkey "$WORK/private.key" -in "$WORK/certificate.crt" -passout env:NEXT_PRIVATE_SIGNING_PASSPHRASE
+            chmod 600 "$CERT_FILE"
+            rm -rf "$WORK"
+          fi
+          exec sh start.sh
+    domains:
+      - generate: true
+    dependsOn: [database]
+    resources:
+      memoryMb: 1024
+    docker:
+      user: "0"
+  - key: database
+    name: Documenso Postgres
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: documenso
+group: Documenso
+notes:
+  - "Open the generated domain and create the first account on the sign-up page. Documenso emails a verification link, so the SMTP settings must work before anyone can sign in; check the container logs if the mail does not arrive."
+  - "Every account created through sign-up is a regular user. Admin rights are granted directly in the database (set the role to ADMIN on the user row). Set Disable public sign-up to true after your accounts exist."
+  - "Signing uses a self-signed certificate generated on first start and stored on the volume at /opt/documenso/cert.p12 (passphrase in NEXT_PRIVATE_SIGNING_PASSPHRASE). Viewers such as Adobe Reader show it as untrusted. For trusted signatures put your own base64-encoded .p12 in NEXT_PRIVATE_SIGNING_LOCAL_FILE_CONTENTS and its passphrase in NEXT_PRIVATE_SIGNING_PASSPHRASE on the service, then redeploy."
+  - "The container runs as root so it can write the certificate to the volume. Uploaded documents are stored in the database (NEXT_PUBLIC_UPLOAD_TRANSPORT=database); switch to S3 on the service for large installs."
+  - "Open-core licensing: the core is AGPL-3.0; the packages/ee code in the image is under Documenso's Commercial License (production use of those features needs an agreement with Documenso)."

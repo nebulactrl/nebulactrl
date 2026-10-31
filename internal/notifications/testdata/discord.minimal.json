@@ -1,0 +1,16 @@
+{
+  "username": "NebulaCtrl",
+  "allowed_mentions": {
+    "parse": []
+  },
+  "embeds": [
+    {
+      "title": "edge-1 is back online",
+      "color": 5030794,
+      "footer": {
+        "text": "NebulaCtrl · server.online"
+      },
+      "timestamp": "2026-10-26T14:30:05Z"
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+schema: 1
+id: tandoor-recipes
+revision: 1
+name: Tandoor Recipes
+summary: Self-hosted recipe manager with meal planning, shopping lists, recipe import and sharing.
+description: Tandoor Recipes stores and organises recipes, imports them from websites, plans meals and builds shopping lists for households. This template runs the project's image with a managed Postgres database and persistent media and static volumes. Tandoor is AGPL-3.0 with the Commons Clause, which forbids selling the software.
+category: homelab
+tags: [recipes, meal-planning, shopping-list, cooking]
+links:
+  website: https://tandoor.dev
+  docs: https://docs.tandoor.dev
+  source: https://github.com/TandoorRecipes/recipes
+upstream:
+  license: AGPL-3.0 with Commons Clause
+  licenseUrl: https://github.com/TandoorRecipes/recipes/blob/master/LICENSE.md
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/tandoor-recipes
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: tandoor
+    name: Tandoor Recipes
+    kind: app
+    image: vabene1111/recipes:2.7.2
+    digest: sha256:7e07c5c6b681e4f9aaa2be2c7e7fdbb9ec9bb00897330e09f105ba892a60b0f0
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [db]
+    env:
+      SECRET_KEY: ${{secret(64)}}
+      ALLOWED_HOSTS: "*"
+      CSRF_TRUSTED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+      DB_ENGINE: django.db.backends.postgresql
+      POSTGRES_HOST: ${{db.DATABASE_HOST}}
+      POSTGRES_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_DB: ${{db.DATABASE_NAME}}
+      POSTGRES_USER: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - name: staticfiles
+        path: /opt/recipes/staticfiles
+      - name: mediafiles
+        path: /opt/recipes/mediafiles
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Tandoor DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: tandoor
+group: Tandoor Recipes
+notes:
+  - "Open the site and follow the setup page to create the first (admin) account."
+  - "ALLOWED_HOSTS is open (*) because the platform proxy routes by host; set it to your domain if you want Django to enforce it."

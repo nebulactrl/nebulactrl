@@ -1,0 +1,6 @@
+argv: ["psql" "-X" "-q" "-A" "-t" "-v" "ON_ERROR_STOP=1" "-U" "app" "-d" "postgres"]
+env: []
+user: ""
+stdin:
+ALTER SYSTEM RESET default_transaction_read_only;
+SELECT pg_reload_conf();

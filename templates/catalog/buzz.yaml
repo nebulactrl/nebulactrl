@@ -1,0 +1,143 @@
+schema: 1
+id: buzz
+revision: 1
+name: Buzz
+summary: Self-hostable workspace where humans and AI agents collaborate over a Nostr relay you own.
+description: Buzz is Block's open-source communication platform for people and AI agents. This template runs the Buzz relay with managed Postgres and Redis, an S3-compatible object store (Silo, the MinIO-compatible server the project's own compose files use) for media, and a one-shot job that creates the media bucket.
+category: productivity
+tags: [chat, nostr, agents, ai, collaboration, relay]
+links:
+  website: https://github.com/block/buzz
+  docs: https://github.com/block/buzz/blob/main/deploy/compose/README.md
+  source: https://github.com/block/buzz
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/block/buzz/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/buzz.yaml
+  commit: 69bc72a
+  license: Apache-2.0
+requires:
+  memoryMb: 1536
+  diskGb: 10
+inputs:
+  - {key: RELAY_OWNER_PUBKEY, label: "Relay owner Nostr public key (64 hex characters, optional)"}
+  - {key: BUZZ_S3_BUCKET, label: Media bucket name, default: buzz-media}
+  - key: BUZZ_REQUIRE_AUTH_TOKEN
+    label: Require NIP-98 authentication on API requests
+    default: "true"
+    options: ["true", "false"]
+services:
+  - key: buzz
+    name: Buzz
+    kind: app
+    image: ghcr.io/block/buzz:0.2.1
+    digest: sha256:4e31b7c7abb7d00b6f513dc559e58d2b980416f1dc400aa01bcf762cf2989cfc
+    port: 3000
+    healthcheck:
+      type: http
+      path: /_readiness
+      port: 8080
+      intervalSeconds: 10
+      timeoutSeconds: 5
+      startPeriodSeconds: 45
+      deadlineSeconds: 165
+    env:
+      BUZZ_ALLOW_NIP_OA_AUTH: "true"
+      BUZZ_AUTO_MIGRATE: "true"
+      BUZZ_BIND_ADDR: 0.0.0.0:3000
+      BUZZ_CORS_ORIGINS: ${{NEBULA_PUBLIC_URL}},tauri://localhost,http://tauri.localhost
+      BUZZ_GIT_CONFORMANCE_PROBE: "true"
+      BUZZ_GIT_HOOK_HMAC_SECRET: ${{randomBytes(32,"hex")}}
+      BUZZ_GIT_REPO_PATH: /data/git
+      BUZZ_HEALTH_PORT: "8080"
+      BUZZ_MEDIA_BASE_URL: ${{NEBULA_PUBLIC_URL}}/media
+      BUZZ_MEDIA_SERVER_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      BUZZ_METRICS_PORT: "9102"
+      BUZZ_RELAY_PRIVATE_KEY: ${{randomBytes(32,"hex")}}
+      BUZZ_REQUIRE_AUTH_TOKEN: ${input:BUZZ_REQUIRE_AUTH_TOKEN}
+      BUZZ_REQUIRE_RELAY_MEMBERSHIP: "false"
+      BUZZ_S3_ACCESS_KEY: ${{minio.MINIO_ROOT_USER}}
+      BUZZ_S3_ADDRESSING_STYLE: path
+      BUZZ_S3_BUCKET: ${input:BUZZ_S3_BUCKET}
+      BUZZ_S3_ENDPOINT: http://${{minio.NEBULA_PRIVATE_HOST}}:9000
+      BUZZ_S3_SECRET_KEY: ${{minio.MINIO_ROOT_PASSWORD}}
+      DATABASE_URL: ${{postgres.DATABASE_URL}}
+      REDIS_URL: ${{redis.REDIS_URL}}
+      RELAY_OWNER_PUBKEY: ${input:RELAY_OWNER_PUBKEY}
+      RELAY_URL: wss://${{NEBULA_PUBLIC_DOMAIN}}
+      RUST_LOG: buzz_relay=info,buzz_db=info,buzz_auth=info,buzz_pubsub=info,tower_http=info
+    secrets: [BUZZ_S3_ACCESS_KEY]
+    volumes:
+      - name: git-data
+        path: /data/git
+    domains:
+      - generate: true
+    dependsOn: [postgres, redis, minio, minio-init]
+    resources:
+      memoryMb: 512
+  - key: postgres
+    name: Buzz Postgres
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: buzz
+  - key: redis
+    name: Buzz Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+  - key: minio
+    name: Buzz Storage
+    kind: worker
+    image: pgsty/silo:RELEASE.2026-10-26T00-00-00Z
+    digest: sha256:7bb2aff6b89efe1cb1303c10fc21d579447434ed06649ac9ec05a5e2dbf30ad7
+    command: [server, /data, --console-address, ":9001"]
+    healthcheck:
+      type: http
+      path: /minio/health/live
+      port: 9000
+      intervalSeconds: 5
+      timeoutSeconds: 5
+      startPeriodSeconds: 10
+      deadlineSeconds: 70
+    env:
+      MINIO_ROOT_PASSWORD: ${{secret(32)}}
+      MINIO_ROOT_USER: ${{secret(16)}}
+    volumes:
+      - name: minio-data
+        path: /data
+    resources:
+      memoryMb: 256
+  - key: minio-init
+    name: Buzz Bucket Init
+    kind: worker
+    image: pgsty/mc:RELEASE.2026-10-26T00-00-00Z
+    digest: sha256:ce62c9053c69ce12a527a322345b5ad9f44b5f8a7b8189f82e516f2e3f30f1d8
+    env:
+      BUZZ_S3_ACCESS_KEY: ${{minio.MINIO_ROOT_USER}}
+      BUZZ_S3_BUCKET: ${input:BUZZ_S3_BUCKET}
+      BUZZ_S3_SECRET_KEY: ${{minio.MINIO_ROOT_PASSWORD}}
+      S3_HOST: ${{minio.NEBULA_PRIVATE_HOST}}
+    secrets: [BUZZ_S3_ACCESS_KEY]
+    dependsOn: [minio]
+    oneshot: true
+    docker:
+      entrypoint:
+        - /bin/sh
+        - -euc
+        - |
+          mc alias set local "http://${S3_HOST}:9000" "${BUZZ_S3_ACCESS_KEY}" "${BUZZ_S3_SECRET_KEY}"
+          mc mb --ignore-existing "local/${BUZZ_S3_BUCKET}"
+          mc anonymous set none "local/${BUZZ_S3_BUCKET}"
+group: Buzz
+notes:
+  - "Open the generated domain and connect a Buzz client (desktop or mobile) to it. The relay is open to anyone who can authenticate; membership is not required (BUZZ_REQUIRE_RELAY_MEMBERSHIP=false)."
+  - "To own the relay, generate a Nostr keypair (for example with the Buzz desktop app) and set RELAY_OWNER_PUBKEY to its 64-character hex public key before the first start; a malformed value stops the relay from booting. Leave it empty to start without an owner and set it later on the service."
+  - "To close the relay to outsiders, set BUZZ_REQUIRE_RELAY_MEMBERSHIP=true on the Buzz service after the owner key is set."
+  - "The relay signing key and the git hook secret are generated once. Back them up: changing them breaks existing identities."
+  - "Media is stored in the bundled Silo object store (MinIO-compatible, the one the project's compose files use); the one-shot bucket job creates the bucket on every deploy and is safe to repeat."

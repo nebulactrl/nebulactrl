@@ -1,0 +1,55 @@
+# Headscale for the mesh tests and for trying the mesh by hand
+# (docker compose --profile mesh up headscale; see deploy/dev/docker-compose.yml).
+#
+# Everything that depends on where the container runs is overridden by
+# HEADSCALE_* environment variables, so the same file serves compose and
+# tests/integration/meshfixture_test.go:
+#   HEADSCALE_SERVER_URL    the URL nodes dial (must be reachable from every Docker
+#                           daemon involved, so never localhost)
+#   HEADSCALE_LISTEN_ADDR   0.0.0.0:<port>, the port of server_url
+#
+# policy.mode is `database`: NebulaCtrl writes the ACL policy through the API
+# (PUT /api/v1/policy). The DERP map is Tailscale's public one, exactly like the
+# platform's managed Headscale (internal/platform/render.go, disclosed in the
+# docs): two Docker daemons on one machine have no direct UDP path between their
+# bridges (host2 is behind its own NAT), so the tunnel is carried by a public
+# relay, end-to-end encrypted. This needs outbound internet from the containers.
+# An own relay over plain HTTP does not help: Tailscale clients speak TLS to DERP
+# and only accept a certificate they trust (or TS_DEBUG_USE_DERP_HTTP on every node).
+server_url: http://127.0.0.1:18080
+listen_addr: 0.0.0.0:18080
+metrics_listen_addr: 127.0.0.1:9090
+grpc_listen_addr: 127.0.0.1:50443
+noise:
+  private_key_path: /var/lib/headscale/noise_private.key
+prefixes:
+  v4: 100.64.0.0/10
+  v6: fd7a:115c:a1e0::/48
+derp:
+  server:
+    enabled: false
+  urls:
+    - https://controlplane.tailscale.com/derpmap/default
+  auto_update_enabled: true
+  update_frequency: 3h
+disable_check_updates: true
+database:
+  type: sqlite
+  sqlite:
+    path: /var/lib/headscale/db.sqlite
+    write_ahead_log: true
+log:
+  level: info
+policy:
+  mode: database
+dns:
+  magic_dns: true
+  base_domain: tailnet.internal
+  override_local_dns: false
+  nameservers:
+    global:
+      - 1.1.1.1
+unix_socket: /var/run/headscale/headscale.sock
+unix_socket_permission: "0770"
+logtail:
+  enabled: false

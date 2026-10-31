@@ -1,0 +1,71 @@
+schema: 1
+id: gatus
+revision: 1
+name: Gatus
+summary: Health dashboard and status page that probes HTTP, TCP, DNS, ICMP and other endpoints on a schedule.
+description: Gatus checks your services against conditions you define in a YAML config and shows the results on a status page. This template runs the official image with a starter config, an SQLite history on a volume and one example endpoint.
+category: analytics
+tags: [monitoring, status-page, uptime, health-checks]
+links:
+  website: https://gatus.io
+  docs: https://github.com/TwiN/gatus#configuration
+  source: https://github.com/TwiN/gatus
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/TwiN/gatus/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/gatus
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 1
+inputs:
+  - {key: TITLE, label: Status page title, default: Gatus}
+  - {key: MONITOR_NAME, label: Name of the first monitored endpoint, default: Example website}
+  - {key: MONITOR_URL, format: url, label: URL of the first monitored endpoint, default: "https://example.org/"}
+services:
+  - key: gatus
+    name: Gatus
+    kind: app
+    image: ghcr.io/twin/gatus:v5.37.0
+    digest: sha256:094eb186e55235db367e90e9d56140e5897b7044c41de23cde4cc18e6da1242e
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 5
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    volumes:
+      - name: data
+        path: /data
+    files:
+      - path: /config/config.yaml
+        mode: "0444"
+        content: |
+          storage:
+            type: sqlite
+            path: /data/data.db
+
+          ui:
+            title: "${input:TITLE}"
+            header: "${input:TITLE}"
+
+          endpoints:
+            - name: "${input:MONITOR_NAME}"
+              group: external
+              url: "${input:MONITOR_URL}"
+              interval: 5m
+              conditions:
+                - "[STATUS] == 200"
+                - "[CERTIFICATE_EXPIRATION] > 48h"
+    resources:
+      memoryMb: 128
+group: Gatus
+notes:
+  - "The status page is public. Endpoints are defined in /config/config.yaml (Settings > Files); edit it and redeploy to add more checks."
+  - "The example check also requires the certificate to be valid for another 48 hours; remove that condition for plain-HTTP targets."

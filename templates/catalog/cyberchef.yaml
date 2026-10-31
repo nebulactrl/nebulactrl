@@ -1,0 +1,44 @@
+schema: 1
+id: cyberchef
+revision: 1
+name: CyberChef
+summary: "The Cyber Swiss Army Knife: a browser app for encoding, encryption, compression and data analysis."
+description: CyberChef is a static web app from GCHQ that chains hundreds of operations such as Base64, hashing, AES or gzip into recipes. All processing happens in your browser, so the container only serves files.
+category: devtools
+tags: [encoding, encryption, compression, data-analysis, security, tools]
+icon: cyberchef
+links:
+  website: https://gchq.github.io/CyberChef/
+  docs: https://github.com/gchq/CyberChef/wiki
+  source: https://github.com/gchq/CyberChef
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/gchq/CyberChef/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/cyberchef.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 64
+  diskGb: 1
+services:
+  - key: cyberchef
+    name: CyberChef
+    kind: app
+    image: ghcr.io/gchq/cyberchef:11.5.0
+    digest: sha256:f04a39926344faf8e4cbbc8c92fb125d2b466f9be62db09aff23c7c406101a51
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 64
+group: CyberChef
+notes:
+  - "CyberChef has no login and no server-side state: restrict access to the domain if you do not want it public."

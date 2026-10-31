@@ -1,0 +1,57 @@
+schema: 1
+id: trmnl-larapaper
+revision: 1
+name: LaraPaper
+summary: Self-hosted server for TRMNL e-ink displays that manages devices, plugins and screens.
+description: LaraPaper (the Laravel BYOS server for TRMNL e-ink devices) lets you run your own display backend instead of the TRMNL cloud. This template runs the app with SQLite and volumes for the database and generated images.
+category: homelab
+tags: [e-ink, trmnl, display, dashboard, laravel]
+links:
+  website: https://github.com/usetrmnl/larapaper
+  docs: https://github.com/usetrmnl/larapaper#readme
+  source: https://github.com/usetrmnl/larapaper
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/usetrmnl/larapaper/blob/main/LICENSE.md
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/trmnl-larapaper
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 2
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: larapaper
+    name: LaraPaper
+    kind: app
+    image: ghcr.io/usetrmnl/larapaper:0.45.1
+    digest: sha256:cde6a1f47f181260a0dc0d5d0c5fa3ad9cad2a225cb5cd242d5c369afba34785
+    port: 8080
+    healthcheck:
+      type: http
+      path: /up
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      APP_KEY: base64:${{randomBytes(32,"base64")}}
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      APP_TIMEZONE: ${input:TIMEZONE}
+      DB_DATABASE: database/storage/database.sqlite
+      FORCE_HTTPS: "true"
+      PHP_OPCACHE_ENABLE: "1"
+      REGISTRATION_ENABLED: "1"
+    volumes:
+      - {name: database, path: /var/www/html/database/storage}
+      - {name: images, path: /var/www/html/storage/app/public/images/generated}
+    resources:
+      memoryMb: 1024
+group: LaraPaper
+notes:
+  - "Open the site and register: set REGISTRATION_ENABLED to 0 in the service variables once you have your account if the server is only for you."
+  - "Point your TRMNL device at this service's public URL (see the project README for the device setup)."

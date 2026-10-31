@@ -1,0 +1,30 @@
+/bin/
+/cli
+/dist/
+/node_modules/
+/apps/*/node_modules/
+/packages/*/node_modules/
+/apps/site/dist/
+/apps/web/dist/
+/apps/web/test-results/
+/apps/web/playwright-report/
+/internal/webui/dist/*
+!/internal/webui/dist/.keep
+.tanstack/
+.env
+# Example .env files of upstream compose fixtures (no secrets) are test data.
+!**/testdata/**/.env
+*.local
+.DS_Store
+/tmp/
+coverage.out
+
+# Internal notes kept out of the public repository (they stay on the maintainer's disk).
+/DESIGN.md
+/PRODUCT.md
+/packages/dither/skill/
+/docs/architecture/platform-services-research.md
+# Working directory of tools/template-translate (drafts, SKIPPED.txt, REJECTED.txt).
+/templates/drafts/
+# Local AI-agent settings.
+.claude/

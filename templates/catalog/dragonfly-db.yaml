@@ -1,0 +1,48 @@
+schema: 1
+id: dragonfly-db
+revision: 1
+name: Dragonfly
+summary: Redis- and Memcached-compatible in-memory data store built for multi-core servers.
+description: Runs the official Dragonfly image with a generated password and a persistent data volume. The Redis port is reachable only from other services in the project.
+category: data
+tags: [database, redis, cache, in-memory, key-value]
+links:
+  website: https://www.dragonflydb.io
+  docs: https://www.dragonflydb.io/docs
+  source: https://github.com/dragonflydb/dragonfly
+upstream:
+  license: BUSL-1.1
+  licenseUrl: https://github.com/dragonflydb/dragonfly/blob/main/LICENSE.md
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/dragonfly-db
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: dragonflydb
+    name: Dragonfly
+    kind: app
+    image: ghcr.io/dragonflydb/dragonfly:v2.0.2
+    digest: sha256:061f00b201b58e12f974e4e96c761a881ee1c05e9d8ee967466a604b7299753b
+    healthcheck:
+      type: tcp
+      port: 6379
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      DFLY_requirepass: ${{secret(32)}}
+    ports:
+      - {name: redis, port: 6379, protocol: tcp}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 512
+group: Dragonfly
+notes:
+  - "Connect from other services in the project with the Redis protocol on port 6379 at the service's private host, authenticating with the generated DFLY_requirepass value."
+  - "The licence is the Business Source License: free to run for your own products, but not to offer Dragonfly itself as an in-memory data store service."

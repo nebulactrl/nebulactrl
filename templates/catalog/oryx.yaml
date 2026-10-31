@@ -1,0 +1,54 @@
+schema: 1
+id: oryx
+revision: 1
+name: Oryx
+summary: Live streaming and video server built on SRS with RTMP, SRT and WebRTC ingest, HLS playback, recording and forwarding.
+description: Runs the official Oryx (formerly SRS Stack) image with a web console, an embedded SRS media server and Redis. RTMP, WebRTC and SRT ports are published for streaming; the console is served on the generated domain.
+category: media
+tags: [streaming, rtmp, webrtc, srt, hls, media-server]
+links:
+  website: https://ossrs.io
+  docs: https://ossrs.io/lts/en-us/docs/v6/doc/getting-started-oryx
+  source: https://github.com/ossrs/oryx
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/ossrs/oryx/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/oryx
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - {key: MGMT_PASSWORD, label: Console admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: oryx
+    name: Oryx
+    kind: app
+    image: ossrs/oryx:7.15.26
+    digest: sha256:fcc6978b9b5ab43f10c2c7824e22cc1634aa5b84379372f09b3736882d7a527f
+    port: 2022
+    healthcheck:
+      type: http
+      path: /terraform/v1/mgmt/versions
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    env:
+      MGMT_PASSWORD: ${input:MGMT_PASSWORD}
+    ports:
+      - {name: rtmp, port: 1935, protocol: tcp, publish: true}
+      - {name: webrtc, port: 8000, protocol: udp, publish: true}
+      - {name: srt, port: 10080, protocol: udp, publish: true}
+    volumes:
+      - {name: data, path: /data}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: Oryx
+notes:
+  - "Sign in to the console with the admin password from the install form (variable MGMT_PASSWORD). Use the server's address, not the web domain, for RTMP (1935), WebRTC (8000/udp) and SRT (10080/udp) clients."
+  - "Browser WebRTC publishing and playback need the console to be opened over HTTPS."

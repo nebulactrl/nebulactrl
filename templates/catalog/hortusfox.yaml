@@ -1,0 +1,91 @@
+schema: 1
+id: hortusfox
+revision: 1
+name: HortusFox
+summary: "Collaborative plant management for your home or garden: care tasks, watering, photos and inventory."
+description: HortusFox is a self-hosted plant tracker for households and communities. This template runs the official PHP image with a managed MariaDB database and volumes for images, attachments, logs, backups and themes.
+category: homelab
+tags: [plants, gardening, inventory, tasks, php]
+links:
+  website: https://www.hortusfox.com
+  docs: https://www.hortusfox.com/documentation
+  source: https://github.com/danielbrendel/hortusfox-web
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/danielbrendel/hortusfox-web/blob/main/LICENSE.txt
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/hortusfox
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 3
+inputs:
+  - key: ADMIN_EMAIL
+    format: email
+    label: Admin email
+    description: Email address of the first administrator account.
+    required: true
+  - key: ADMIN_PASSWORD
+    label: Admin password
+    description: Password of the first administrator account. Generated when left empty.
+    secret: true
+    default: "${{secret(20)}}"
+  - key: TIMEZONE
+    label: Timezone
+    description: IANA timezone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: app
+    name: HortusFox
+    kind: app
+    image: ghcr.io/danielbrendel/hortusfox-web:v6.4
+    digest: sha256:bea58ac1f2884d672277ad2444de372b0a5032ef827bdc51d2b368285dbdb4dd
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      APP_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      APP_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      APP_TIMEZONE: ${input:TIMEZONE}
+      APP_DEBUG: "false"
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_DATABASE: ${{db.DATABASE_NAME}}
+      DB_USERNAME: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      DB_CHARSET: utf8mb4
+    volumes:
+      - name: images
+        path: /var/www/html/public/img
+      - name: attachments
+        path: /var/www/html/public/attachments
+      - name: logs
+        path: /var/www/html/app/logs
+      - name: backup
+        path: /var/www/html/public/backup
+      - name: themes
+        path: /var/www/html/public/themes
+      - name: migrations
+        path: /var/www/html/app/migrations
+    resources:
+      memoryMb: 512
+  - key: db
+    name: HortusFox DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: hortusfox
+group: HortusFox
+notes:
+  - "Sign in with the admin email and password you set; the account is created on first start."
+  - "Email notifications, plant identification and weather need SMTP or API keys, which are configured in the app's admin settings."

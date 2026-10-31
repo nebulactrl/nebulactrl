@@ -1,0 +1,63 @@
+schema: 1
+id: portabase
+revision: 1
+name: Portabase
+summary: Dashboard for scheduling, storing and restoring database backups through Portabase agents.
+description: Portabase manages backup and restore jobs for PostgreSQL, MySQL, MariaDB, MongoDB and other databases that run Portabase agents, with storage targets and notifications. This template runs the dashboard with a managed Postgres database.
+category: data
+tags: [backup, database, restore, scheduling, postgres]
+links:
+  website: https://portabase.io
+  docs: https://portabase.io/docs
+  source: https://github.com/Portabase/portabase
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/Portabase/portabase/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/portabase.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 768
+  diskGb: 5
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name, used by backup schedules)", default: UTC}
+services:
+  - key: portabase
+    name: Portabase
+    kind: app
+    image: portabase/portabase:1.34.1
+    digest: sha256:8df7c123e09a12b93c215d5f85347a341c96c4ca8f772f8ef967a9a309289a13
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [postgres]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{postgres.DATABASE_URL}}?schema=public
+      PROJECT_NAME: Portabase
+      PROJECT_URL: ${{NEBULA_PUBLIC_URL}}
+      PROJECT_SECRET: ${{secret(64)}}
+      TZ: ${input:TIMEZONE}
+      TELEMETRY: "false"
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 768
+  - key: postgres
+    name: Portabase DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: portabase
+group: Portabase
+notes:
+  - "Open the site right after the deploy and complete the onboarding: whoever reaches it first creates the admin account."
+  - "To back up a database, run a Portabase agent next to it and register it in the dashboard; the dashboard URL is this service's public URL. Email notifications need SMTP_* variables."

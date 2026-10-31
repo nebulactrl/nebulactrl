@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>ASCII scenes</title>
+		<style>
+			@font-face {
+				font-family: "IBM Plex Mono";
+				font-weight: 400;
+				src: url("/plex-mono-400.woff2") format("woff2");
+			}
+			:root {
+				color-scheme: dark;
+				--void: oklch(0.13 0.025 285);
+				--ink: oklch(0.93 0.01 262);
+				--ink-2: oklch(0.78 0.015 262);
+				--accent: oklch(0.72 0.14 280);
+				--mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+			}
+			* { box-sizing: border-box; }
+			body {
+				margin: 0;
+				padding: 24px;
+				background: var(--void);
+				color: var(--ink);
+				font: 14px/1.5 system-ui, sans-serif;
+			}
+			nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; font: 13px var(--mono); }
+			nav a { color: var(--ink-2); padding: 4px 10px; border: 1px solid oklch(1 0 0 / 0.12); border-radius: 6px; text-decoration: none; }
+			nav a[aria-current] { color: var(--ink); border-color: var(--accent); }
+			.row { display: flex; gap: 24px; align-items: flex-start; flex-wrap: wrap; }
+			figure { margin: 0; }
+			figcaption { font: 12px var(--mono); color: var(--ink-2); margin-bottom: 8px; }
+			.frame { position: relative; overflow: hidden; background: var(--void); outline: 1px solid oklch(1 0 0 / 0.1); }
+			.frame.header { width: 1440px; height: 480px; }
+			.frame.mobile { width: 390px; height: 320px; }
+			.frame canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+			.copy { position: absolute; z-index: 1; }
+			.copy.left { left: 64px; top: 96px; max-width: 560px; }
+			.mobile .copy.left { left: 24px; top: 48px; max-width: 342px; }
+			.copy.mid { left: 50%; top: 50%; transform: translate(-50%, -50%); text-align: center; width: 520px; }
+			.mobile .copy.mid { width: 300px; }
+			.copy .eyebrow { font: 12px var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin: 0 0 12px; }
+			.copy h1 { font: 600 40px/1.1 system-ui, sans-serif; margin: 0 0 12px; letter-spacing: -0.02em; }
+			.mobile .copy h1 { font-size: 28px; }
+			.copy p { margin: 0; color: var(--ink-2); font-size: 16px; }
+			.copy .code { font: 96px/1 var(--mono); margin: 0 0 8px; letter-spacing: -0.04em; }
+			.mobile .copy .code { font-size: 64px; }
+			.stat { font: 11px var(--mono); color: var(--ink-2); margin-top: 6px; min-height: 16px; }
+		</style>
+	</head>
+	<body>
+		<nav id="nav"></nav>
+		<div class="row" id="row"></div>
+		<script src="/main.js" type="module"></script>
+	</body>
+</html>

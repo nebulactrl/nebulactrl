@@ -1,0 +1,56 @@
+schema: 1
+id: radarr
+revision: 1
+name: Radarr
+summary: Movie collection manager that monitors releases and hands downloads to your torrent or Usenet client.
+description: Radarr tracks the movies you want, searches your indexers and organises finished downloads into your library. Radarr publishes no Docker image of its own; this template runs the linuxserver.io image listed in the Radarr Docker documentation, with config and data volumes.
+category: media
+tags: [movies, arr, media-management, automation, downloads]
+icon: radarr
+links:
+  website: https://radarr.video
+  docs: https://wiki.servarr.com/radarr
+  source: https://github.com/Radarr/Radarr
+upstream:
+  license: GPL-3.0-only
+  licenseUrl: https://github.com/Radarr/Radarr/blob/develop/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/radarr.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: TZ, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: radarr
+    name: Radarr
+    kind: app
+    image: lscr.io/linuxserver/radarr:6.4.4
+    digest: sha256:084b3b2ab1d0ef930660727259546a241f2bdf67c9ed085d54bf1486a6887c9b
+    port: 7878
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${input:TZ}
+    volumes:
+      - name: radarr-config
+        path: /config
+      - name: radarr-data
+        path: /data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Radarr
+notes:
+  - "On the first visit Radarr asks you to set up authentication: choose a user name and password straight away, because the address is public."
+  - "Add your download client and indexers under Settings. The /data volume is private to this service; point a download client's completed-download folder to a path Radarr can reach."

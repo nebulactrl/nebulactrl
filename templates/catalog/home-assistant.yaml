@@ -1,0 +1,54 @@
+schema: 1
+id: home-assistant
+revision: 1
+name: Home Assistant
+summary: Open-source home automation that puts local control and privacy first.
+description: Home Assistant Container runs the core home automation platform with a persistent /config volume. Add-ons and the Supervisor are not part of the container installation.
+category: homelab
+tags: [home-automation, iot, smart-home]
+icon: homeassistant
+links:
+  website: https://www.home-assistant.io
+  docs: https://www.home-assistant.io/docs/
+  source: https://github.com/home-assistant/core
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/home-assistant/core/blob/dev/LICENSE.md
+  class: permissive
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - key: TZ
+    label: Time zone
+    description: IANA time zone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: app
+    name: Home Assistant
+    kind: app
+    image: ghcr.io/home-assistant/home-assistant:2026.10.4
+    digest: sha256:23f4dfbb69ce76315dbc4de7915504f1c2dcecd7ca2648113a493a385972e133
+    port: 8123
+    healthcheck:
+      type: http
+      path: /manifest.json
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    domains:
+      - generate: true
+    env:
+      TZ: ${input:TZ}
+    volumes:
+      - name: config
+        path: /config
+    resources:
+      memoryMb: 1024
+group: Home Assistant
+notes:
+  - "Reverse proxy setup is required before the domain works: a fresh Home Assistant rejects proxied requests with `400: Bad Request`. Edit /config/configuration.yaml in the `config` volume and add the block below, then restart the service. Open the domain afterwards to create your account."
+  - "http:\n  use_x_forwarded_for: true\n  trusted_proxies:\n    - 10.0.0.0/8\n    - 172.16.0.0/12\n    - 192.168.0.0/16\n    - fd00::/8"
+  - "Home Assistant starts first without a configuration.yaml block, so wait for the first deployment to become healthy (it creates the file), then add the block."
+  - "Automatic discovery of devices (mDNS/SSDP, Zeroconf, DHCP), Bluetooth and USB radios need host networking or device access, which NebulaCtrl does not support. Integrations that connect by IP or cloud (MQTT, Hue by IP, Shelly by IP, HTTP APIs) work normally."

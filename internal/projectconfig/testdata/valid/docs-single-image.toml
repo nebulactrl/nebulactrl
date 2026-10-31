@@ -1,0 +1,19 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+server = "fra-1"
+
+[services.whoami]
+image = "traefik/whoami:v1.10"
+port  = 80
+
+[services.whoami.health_check]
+type = "http"
+path = "/health"
+
+[services.whoami.variables]
+GREETING = "hello"
+
+[services.whoami.domains."whoami.acme.com"]
+
+[services.whoami.scale]
+replicas = 2

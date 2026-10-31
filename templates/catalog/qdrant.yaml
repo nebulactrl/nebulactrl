@@ -1,0 +1,51 @@
+schema: 1
+id: qdrant
+revision: 1
+name: Qdrant
+summary: Vector database and similarity search engine for embeddings, with filtering and a REST and gRPC API.
+description: Qdrant stores and searches vectors with attached payloads for semantic search and RAG. This template runs a single node protected by an API key, with a persistent storage volume.
+category: ai
+tags: [vector-database, embeddings, semantic-search, rag, llm]
+icon: qdrant
+links:
+  website: https://qdrant.tech
+  docs: https://qdrant.tech/documentation/
+  source: https://github.com/qdrant/qdrant
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/qdrant/qdrant/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/qdrant.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: API_KEY, label: API key for clients, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: qdrant
+    name: Qdrant
+    kind: app
+    image: qdrant/qdrant:v1.20.0
+    digest: sha256:9bfc89f9914fc14876a88c05270685921a55b8877b254a98bcc1cc2f0a424cd2
+    port: 6333
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      QDRANT__SERVICE__API_KEY: ${input:API_KEY}
+    volumes:
+      - {name: storage, path: /qdrant/storage}
+    resources:
+      memoryMb: 1024
+group: Qdrant
+notes:
+  - "Send the API key from the install form in the api-key header of every request to the REST API (<domain>/collections, ...)."
+  - "The web dashboard is at <domain>/dashboard and asks for the same API key."

@@ -1,0 +1,55 @@
+schema: 1
+id: bytestash
+revision: 1
+name: ByteStash
+summary: Self-hosted code snippet manager with tags, search, sharing and an API.
+description: ByteStash stores, organises and shares code snippets. This template runs the app with its built-in SQLite database on a persistent volume and a generated JWT secret.
+category: devtools
+tags: [snippets, code, developer-tools, notes]
+links:
+  website: https://github.com/jordan-dalby/ByteStash
+  docs: https://github.com/jordan-dalby/ByteStash/wiki
+  source: https://github.com/jordan-dalby/ByteStash
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/jordan-dalby/ByteStash/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/bytestash
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: TOKEN_EXPIRY, label: "Login session lifetime (for example 24h, 7d)", default: 24h}
+services:
+  - key: bytestash
+    name: ByteStash
+    kind: app
+    image: ghcr.io/jordan-dalby/bytestash:1.6.0
+    digest: sha256:4326e143e2bd4a0fe4a360d58a86c95ef47d67a7bf8ced8eb830ac257dd89844
+    port: 5000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      JWT_SECRET: ${{secret(32)}}
+      TOKEN_EXPIRY: ${input:TOKEN_EXPIRY}
+      ALLOW_NEW_ACCOUNTS: "true"
+      DISABLE_ACCOUNTS: "false"
+      DISABLE_INTERNAL_ACCOUNTS: "false"
+      DEBUG: "false"
+    volumes:
+      - name: snippets
+        path: /data/snippets
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: ByteStash
+notes:
+  - "Open the site and register the first account. Registration stays open to everyone: set ALLOW_NEW_ACCOUNTS to false on the service once your users exist."

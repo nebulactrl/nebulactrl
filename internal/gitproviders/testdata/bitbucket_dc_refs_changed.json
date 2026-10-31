@@ -1,0 +1,9 @@
+{
+  "eventKey": "repo:refs_changed",
+  "actor": {"name": "admin", "displayName": "Administrator"},
+  "repository": {"slug": "webapp", "name": "webapp", "project": {"key": "TEAM", "name": "Team"}},
+  "changes": [
+    {"ref": {"id": "refs/heads/master", "displayId": "master", "type": "BRANCH"}, "fromHash": "ecddabb624f6f5ba43816f5926e580a5f680a932", "toHash": "178864a7d521b6f5e720b386b2c2b0ef8563e0dc", "type": "UPDATE"},
+    {"ref": {"id": "refs/heads/old", "displayId": "old", "type": "BRANCH"}, "fromHash": "ecddabb624f6f5ba43816f5926e580a5f680a932", "toHash": "0000000000000000000000000000000000000000", "type": "DELETE"}
+  ]
+}

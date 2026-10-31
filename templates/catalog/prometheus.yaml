@@ -1,0 +1,72 @@
+schema: 1
+id: prometheus
+revision: 1
+name: Prometheus
+summary: Time-series database and monitoring system that scrapes metrics from your services and evaluates alert rules.
+description: Prometheus collects metrics over HTTP, stores them in a local time-series database and answers PromQL queries. This template runs the official image with a minimal scrape config you can edit in the service files.
+category: analytics
+tags: [monitoring, metrics, alerting, observability, timeseries]
+icon: prometheus
+links:
+  website: https://prometheus.io
+  docs: https://prometheus.io/docs/introduction/overview/
+  source: https://github.com/prometheus/prometheus
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/prometheus/prometheus/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/prometheus
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 10
+inputs:
+  - {key: RETENTION, label: "How long to keep metrics (for example 15d, 30d, 1y)", default: 15d}
+services:
+  - key: prometheus
+    name: Prometheus
+    kind: app
+    image: prom/prometheus:v3.15.1
+    digest: sha256:fa3302279710be2f21a8301ec17a8b4f2301fd829bd113839b3b6b02b6f191a2
+    port: 9090
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=${input:RETENTION}
+    healthcheck:
+      type: http
+      path: /-/healthy
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    volumes:
+      - name: prometheus-data
+        path: /prometheus
+    files:
+      - path: /etc/prometheus/prometheus.yml
+        mode: "0444"
+        content: |
+          # https://prometheus.io/docs/prometheus/latest/configuration/configuration/
+          global:
+            scrape_interval: 15s
+            evaluation_interval: 15s
+
+          scrape_configs:
+            - job_name: prometheus
+              static_configs:
+                - targets: ["localhost:9090"]
+
+            # Add your own targets, for example:
+            # - job_name: node
+            #   static_configs:
+            #     - targets: ["node-exporter:9100"]
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Prometheus
+notes:
+  - "Prometheus has no login: anyone who can open the address can query it. Put access control in front of the domain before exposing it."
+  - "Scrape targets live in /etc/prometheus/prometheus.yml (service Files tab); the template starts with Prometheus scraping itself. Edit the file and redeploy to apply changes."

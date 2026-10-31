@@ -1,0 +1,82 @@
+schema: 1
+id: docmost
+revision: 1
+name: Docmost
+summary: Open-source collaborative wiki and documentation platform with real-time editing, spaces and permissions.
+description: Docmost is a self-hosted wiki for teams with real-time collaborative pages, spaces, comments and page history. This template runs the app with a managed Postgres database and a managed Valkey instance.
+category: productivity
+tags: [wiki, documentation, knowledge-base, collaboration, notion-alternative]
+icon: docmost
+links:
+  website: https://docmost.com
+  docs: https://docmost.com/docs
+  source: https://github.com/docmost/docmost
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/docmost/docmost/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/docmost.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: MAIL_FROM_ADDRESS, label: "Sender address for outgoing mail (optional)"}
+  - {key: SMTP_HOST, label: "SMTP host (optional; needed for invitations and password resets)"}
+  - {key: SMTP_PORT, format: number, label: SMTP port, default: "587"}
+  - {key: SMTP_USERNAME, label: SMTP username}
+  - {key: SMTP_PASSWORD, label: SMTP password, secret: true}
+  - {key: SMTP_SECURE, label: "Use implicit TLS (true for port 465)", default: "false", options: ["false", "true"]}
+services:
+  - key: docmost
+    name: Docmost
+    kind: app
+    image: docmost/docmost:0.97.0
+    digest: sha256:40c454d74ffdd9ecb15833e4d96f3a630d59aad862a1869381ae6ee086454419
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    dependsOn: [db, redis]
+    domains:
+      - generate: true
+    env:
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      APP_SECRET: ${{randomBytes(32,"hex")}}
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      REDIS_URL: ${{redis.REDIS_URL}}
+      MAIL_DRIVER: smtp
+      MAIL_FROM_NAME: Docmost
+      MAIL_FROM_ADDRESS: ${input:MAIL_FROM_ADDRESS}
+      SMTP_HOST: ${input:SMTP_HOST}
+      SMTP_PORT: ${input:SMTP_PORT}
+      SMTP_USERNAME: ${input:SMTP_USERNAME}
+      SMTP_PASSWORD: ${input:SMTP_PASSWORD}
+      SMTP_SECURE: ${input:SMTP_SECURE}
+    volumes:
+      - name: storage
+        path: /app/data/storage
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Docmost DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: docmost
+  - key: redis
+    name: Docmost Valkey
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Docmost
+notes:
+  - "Open the domain and complete the setup form to create the workspace and the first admin account."
+  - "Without SMTP settings Docmost cannot send invitations or password resets; add them under Variables later if you skipped them."

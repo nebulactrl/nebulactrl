@@ -1,0 +1,62 @@
+schema: 1
+id: matomo
+revision: 1
+name: Matomo
+summary: Web analytics platform that gives you full ownership of your visitor data, a self-hosted Google Analytics alternative.
+description: Matomo tracks websites and apps with reports, goals, funnels and heatmap-ready data. This template runs the official Apache image with a managed MariaDB database; the database details are pre-filled in the web installer.
+category: analytics
+tags: [analytics, web-analytics, privacy, statistics, tracking]
+icon: matomo
+links:
+  website: https://matomo.org
+  docs: https://matomo.org/docs
+  source: https://github.com/matomo-org/matomo
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://github.com/matomo-org/matomo/blob/6.x-dev/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/matomo
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: matomo
+    name: Matomo
+    kind: app
+    image: matomo:5.14.2-apache
+    digest: sha256:b6b7c5b3eb11971d4c4327cee851881c9b28eecb216ff2d89a3127fdb8c258a0
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    env:
+      MATOMO_DATABASE_ADAPTER: mysql
+      MATOMO_DATABASE_HOST: ${{db.DATABASE_HOST}}
+      MATOMO_DATABASE_USERNAME: ${{db.DATABASE_USER}}
+      MATOMO_DATABASE_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      MATOMO_DATABASE_DBNAME: ${{db.DATABASE_NAME}}
+    volumes:
+      - name: html
+        path: /var/www/html
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Matomo DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: matomo
+group: Matomo
+notes:
+  - "Open the site to run the installation wizard: the database step is pre-filled; then create the super user and add your first website."
+  - "Matomo sits behind the platform's TLS proxy: after the wizard, add assume_secure_protocol = 1 and proxy_client_headers[] = HTTP_X_FORWARDED_FOR under [General] in config.ini.php so tracking links use https and visitor IPs are right (https://matomo.org/faq/how-to-install/faq_98/)."

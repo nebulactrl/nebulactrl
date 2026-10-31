@@ -1,0 +1,63 @@
+schema: 1
+id: rabbitmq
+revision: 2
+name: RabbitMQ
+summary: Message broker supporting AMQP, MQTT and STOMP, with the management web UI enabled.
+description: RabbitMQ routes messages between applications with queues, exchanges and streams. This template runs the official image with the management plugin, a persistent data volume and a generated administrator password.
+category: devtools
+tags: [message-broker, queue, amqp, mqtt, messaging]
+icon: rabbitmq
+links:
+  website: https://www.rabbitmq.com
+  docs: https://www.rabbitmq.com/docs
+  source: https://github.com/rabbitmq/rabbitmq-server
+upstream:
+  license: MPL-2.0
+  licenseUrl: https://github.com/rabbitmq/rabbitmq-server/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/rabbitmq.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: RABBITMQ_USER, label: Administrator username, required: true, default: admin}
+  - {key: RABBITMQ_PASSWORD, label: Administrator password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: rabbitmq
+    name: RabbitMQ
+    kind: app
+    image: rabbitmq:4.3.7-management
+    digest: sha256:2fe9ea865f74108495626992eda210f196fa0a9b00461d8f8ea0f2f5e26bebb8
+    port: 15672
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "rabbitmq-diagnostics -q check_port_connectivity"]
+      intervalSeconds: 10
+      timeoutSeconds: 30
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    domains:
+      - generate: true
+    env:
+      RABBITMQ_DEFAULT_USER: ${input:RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${input:RABBITMQ_PASSWORD}
+    volumes:
+      - name: data
+        path: /var/lib/rabbitmq
+    ports:
+      - name: amqp
+        port: 5672
+        protocol: tcp
+    docker:
+      hostname: rabbitmq
+    resources:
+      memoryMb: 1024
+group: RabbitMQ
+notes:
+  - "RabbitMQ keeps its data under a directory named after the node, and the node name comes from the container hostname. The template pins the hostname to rabbitmq, so the data survives every redeploy."
+  - "The management UI is on the service's domain; sign in with the administrator username and password from the install form."
+  - "AMQP (port 5672) is reachable by other services on the private network at the service's private host. It is not published to the internet; publish the port on the service only if external clients need it."

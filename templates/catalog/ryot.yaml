@@ -1,0 +1,63 @@
+schema: 1
+id: ryot
+revision: 1
+name: Ryot
+summary: Self-hosted tracker for the media you consume and your workouts, with imports and media-server integrations.
+description: Ryot tracks movies, shows, books, games, music and fitness in one place. This template runs the official all-in-one image (web app, API and proxy) with a managed Postgres database.
+category: productivity
+tags: [tracker, media, fitness, movies, books]
+links:
+  website: https://ryot.io/
+  docs: https://docs.ryot.io
+  source: https://github.com/IgnisDa/ryot
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/IgnisDa/ryot/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/ryot.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 3
+inputs:
+  - key: TZ
+    label: Timezone
+    description: IANA timezone name, for example Europe/Amsterdam.
+    default: UTC
+services:
+  - key: ryot
+    name: Ryot
+    kind: app
+    image: ignisda/ryot:v10.5.0
+    digest: sha256:a752b6aee5378527b20e69076a3e9bd53dae6b550d2c2d67f7f71c7aadbc69cc
+    port: 8000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      SERVER_ADMIN_ACCESS_TOKEN: ${{secret(48)}}
+      FRONTEND_URL: ${{NEBULA_PUBLIC_URL}}
+      DISABLE_TELEMETRY: "true"
+      TZ: ${input:TZ}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Ryot DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: ryot
+group: Ryot
+notes:
+  - "Open the site and register: sign-up is open by default, so create your account first and then set USERS_ALLOW_REGISTRATION to false on the service to close it."
+  - "Movie, show, game and other metadata providers need their own API tokens (for example MOVIES_AND_SHOWS_TMDB_ACCESS_TOKEN); see https://docs.ryot.io/configuration.html."

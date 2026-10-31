@@ -1,0 +1,63 @@
+schema: 1
+id: miniflux
+revision: 1
+name: Miniflux
+summary: Minimalist and opinionated feed reader with a managed PostgreSQL database.
+description: Miniflux is a fast, minimalist RSS and Atom feed reader with a clean web interface, keyboard shortcuts, content fetching and an API compatible with many mobile readers. This template runs it with a managed Postgres database and creates the admin account on first start.
+category: media
+tags: [rss, feed-reader, news, reader]
+icon: miniflux
+links:
+  website: https://miniflux.app
+  docs: https://miniflux.app/docs/index.html
+  source: https://github.com/miniflux/v2
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/miniflux/v2/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/miniflux.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: miniflux
+    name: Miniflux
+    kind: app
+    image: ghcr.io/miniflux/miniflux:2.3.4
+    digest: sha256:72e49f513a63104506aab98ba8cfc3a409d4fde23550a583dec07ec941f1e94e
+    port: 8080
+    healthcheck:
+      type: http
+      path: /healthcheck
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      DATABASE_URL: ${{db.DATABASE_URL}}?sslmode=disable
+      RUN_MIGRATIONS: "1"
+      CREATE_ADMIN: "1"
+      ADMIN_USERNAME: ${input:ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Miniflux DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: miniflux
+group: Miniflux
+notes:
+  - "Sign in with the admin username and password from the install form; the account is created on the first start."
+  - "Add feeds under Feeds > Add subscription, or import an OPML file under Settings > Import."

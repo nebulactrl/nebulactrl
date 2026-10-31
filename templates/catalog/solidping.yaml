@@ -1,0 +1,60 @@
+schema: 1
+id: solidping
+revision: 1
+name: SolidPing
+summary: Self-hosted uptime monitoring with many check types, status pages, incidents and alerting in one Go binary.
+description: SolidPing runs HTTP, TCP, DNS and many other checks, publishes status pages and sends alerts. This template runs the app with a managed Postgres database.
+category: analytics
+tags: [monitoring, uptime, status-page, alerts, observability]
+links:
+  website: https://solidping.io
+  docs: https://docs.solidping.io
+  source: https://github.com/fclairamb/solidping
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/fclairamb/solidping/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/solidping
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: app
+    name: SolidPing
+    kind: app
+    image: ghcr.io/fclairamb/solidping:0.42.0
+    digest: sha256:a1a80bd47d4fe0e92d8222552b130187fb6d61f4ea2d34008052f59abdf5c9bb
+    port: 4000
+    healthcheck:
+      type: http
+      path: /api/mgmt/health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      SP_DB_TYPE: postgres
+      SP_DB_URL: ${{db.DATABASE_URL}}?sslmode=disable
+      SP_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      SP_NODE_NAME: solidping
+      SP_AUTH_JWT_SECRET: ${{secret(48)}}
+      SP_ENCRYPTION_MASTER_KEY: ${{randomBytes(32,"base64")}}
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: SolidPing DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: solidping
+group: SolidPing
+notes:
+  - "Sign in with admin@solidping.io / solidpass right after deploying and choose a new password: the default pair is public, and SolidPing forces the change on first login."

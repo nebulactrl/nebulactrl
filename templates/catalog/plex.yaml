@@ -1,0 +1,64 @@
+schema: 1
+id: plex
+revision: 1
+name: Plex Media Server
+summary: Stream your personal media library of movies, shows, music and photos with the official Plex Media Server.
+description: Runs the official plexinc/pms-docker image with persistent configuration, transcode and media volumes. A Plex account is required to sign in to the server.
+category: media
+tags: [media, streaming, video, music]
+icon: plex
+links:
+  website: https://www.plex.tv
+  docs: https://support.plex.tv/articles/
+  source: https://github.com/plexinc/pms-docker
+upstream:
+  license: Proprietary
+  licenseUrl: https://www.plex.tv/about/privacy-legal/plex-terms-of-service/
+  class: proprietary
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - key: PLEX_CLAIM
+    label: Plex claim token (optional)
+    description: Get a token from https://plex.tv/claim; it is valid for four minutes, so deploy right after copying it. Leave empty to claim the server later.
+  - key: TZ
+    label: Time zone
+    description: IANA time zone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: app
+    name: Plex
+    kind: app
+    image: plexinc/pms-docker:1.43.5.11079-b3b13e506
+    digest: sha256:6d778d41daae68f89115aa87a44ae14a96b23e71a2093da173b5a9aac4091336
+    port: 32400
+    healthcheck:
+      type: http
+      path: /identity
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    domains:
+      - generate: true
+    env:
+      PLEX_CLAIM: ${input:PLEX_CLAIM}
+      TZ: ${input:TZ}
+      ADVERTISE_IP: ${{NEBULA_PUBLIC_URL}}:443
+    volumes:
+      - name: config
+        path: /config
+      - name: transcode
+        path: /transcode
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 2048
+group: Plex
+notes:
+  - "Plex is closed-source freeware; the image is published by Plex itself. A free Plex account is required."
+  - "Enter a claim token (https://plex.tv/claim, valid four minutes) when installing so the server is linked to your Plex account on first start. An unclaimed server only offers its setup wizard to clients on its own local network, which a proxied domain does not count as; if you skipped the token, set PLEX_CLAIM on the service and redeploy the first time."
+  - "Add libraries from the `data` volume (mounted at /data). To use existing files on the host, mount that folder into the service as well."
+  - "LAN discovery (GDM), DLNA and local-network auto-detection need host networking, which NebulaCtrl does not support. Remote access works through the domain: in Plex Settings, Network, set the custom server access URL to the generated https domain."
+  - "Hardware transcoding needs a Plex Pass and the host's GPU. On a server an instance admin marked unrestricted, open the service's Docker options, add the device /dev/dri/renderD128 and the host's render group ID (getent group render | cut -d: -f3) as a group, then enable hardware transcoding in Plex Settings, Transcoder. NVIDIA GPUs use the GPUs option (nvidia, all, with the video and compute capabilities) instead of the device."

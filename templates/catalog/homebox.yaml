@@ -1,0 +1,80 @@
+schema: 1
+id: homebox
+revision: 1
+name: Homebox
+summary: Inventory and organization system for the home, with item tracking, labels, locations, attachments and warranty dates.
+description: Homebox catalogues the belongings in your home with locations, labels, custom fields, photos and receipts. This template runs the app against a managed Postgres database and keeps attachments in a data volume.
+category: homelab
+tags: [inventory, home, organization, assets]
+icon: homebox
+links:
+  website: https://homebox.software
+  docs: https://homebox.software/en/quick-start/install
+  source: https://github.com/sysadminsmedia/homebox
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/sysadminsmedia/homebox/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/homebox.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: ALLOW_REGISTRATION, label: "Allow self-registration (set to false after creating your account)", default: "true", options: ["true", "false"]}
+  - {key: MAILER_HOST, format: hostname, label: "SMTP host (optional, enables email)"}
+  - {key: MAILER_PORT, format: number, label: SMTP port, default: "587"}
+  - {key: MAILER_USERNAME, label: SMTP username}
+  - {key: MAILER_PASSWORD, label: SMTP password, secret: true}
+  - {key: MAILER_FROM, label: SMTP from address}
+services:
+  - key: app
+    name: Homebox
+    kind: app
+    image: ghcr.io/sysadminsmedia/homebox:0.27.1
+    digest: sha256:9d0b64776c694f018c0ca06faf52105a33ca376024f46bb58e6ab0e2b728bb61
+    port: 7745
+    healthcheck:
+      type: http
+      path: /api/v1/status
+      startPeriodSeconds: 10
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      HBOX_DATABASE_DRIVER: postgres
+      HBOX_DATABASE_HOST: ${{db.DATABASE_HOST}}
+      HBOX_DATABASE_PORT: ${{db.DATABASE_PORT}}
+      HBOX_DATABASE_DATABASE: ${{db.DATABASE_NAME}}
+      HBOX_DATABASE_USERNAME: ${{db.DATABASE_USER}}
+      HBOX_DATABASE_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      HBOX_DATABASE_SSL_MODE: disable
+      HBOX_AUTH_API_KEY_PEPPER: ${{secret(48)}}
+      HBOX_OPTIONS_TRUST_PROXY: "true"
+      HBOX_OPTIONS_ALLOW_REGISTRATION: ${input:ALLOW_REGISTRATION}
+      HBOX_MAILER_HOST: ${input:MAILER_HOST}
+      HBOX_MAILER_PORT: ${input:MAILER_PORT}
+      HBOX_MAILER_USERNAME: ${input:MAILER_USERNAME}
+      HBOX_MAILER_PASSWORD: ${input:MAILER_PASSWORD}
+      HBOX_MAILER_FROM: ${input:MAILER_FROM}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Homebox DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: homebox
+group: Homebox
+notes:
+  - "Open the app and register the first account; it becomes the owner of the new group."
+  - "Registration is open by default so the first account can be created. Afterwards, redeploy with HBOX_OPTIONS_ALLOW_REGISTRATION=false in the service variables to close it."
+  - "HBOX_AUTH_API_KEY_PEPPER is generated once; rotating it invalidates all issued API keys."

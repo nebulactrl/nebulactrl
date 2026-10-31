@@ -1,0 +1,47 @@
+schema: 1
+id: readeck
+revision: 1
+name: Readeck
+summary: Read-it-later app that saves the readable content of web pages, with highlights, labels and full-text search.
+description: Readeck keeps articles, videos and pictures you save from the web in your own collection, with a browser extension and mobile-friendly reader. This template runs the official image with its database and bookmark files in a persistent volume.
+category: productivity
+tags: [read-it-later, bookmarks, articles, archive, reader]
+icon: readeck
+links:
+  website: https://readeck.org
+  docs: https://readeck.org/en/docs/
+  source: https://codeberg.org/readeck/readeck
+upstream:
+  license: AGPL-3.0-only
+  licenseUrl: https://codeberg.org/readeck/readeck/src/branch/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/readeck.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: readeck
+    name: Readeck
+    kind: app
+    image: codeberg.org/readeck/readeck:0.23.5
+    digest: sha256:17dea468f4f713930338062f58a3a5e0d04e37d2961ddb827792e223f3db91b4
+    port: 8000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    volumes:
+      - name: data
+        path: /readeck
+    resources:
+      memoryMb: 256
+group: Readeck
+notes:
+  - "Open the site right after deploying: the first-run onboarding page creates the first user account."

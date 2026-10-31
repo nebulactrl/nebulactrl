@@ -1,0 +1,52 @@
+schema: 1
+id: imgproxy
+revision: 1
+name: imgproxy
+summary: Fast and secure standalone server for resizing and converting images on the fly.
+description: imgproxy resizes, crops and converts remote images through signed URLs. This template runs the official image with a generated signing key and salt.
+category: media
+tags: [images, resize, proxy, thumbnails, webp]
+links:
+  website: https://imgproxy.net
+  docs: https://docs.imgproxy.net
+  source: https://github.com/imgproxy/imgproxy
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/imgproxy/imgproxy/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/imgproxy
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 1
+services:
+  - key: imgproxy
+    name: imgproxy
+    kind: app
+    image: ghcr.io/imgproxy/imgproxy:v4.0.20
+    digest: sha256:f5db62d528ab08e7b12f14e759fd7d62c09aeabf2e629d0e2a3963da692d0130
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 5
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    env:
+      IMGPROXY_KEY: ${{randomBytes(32,"hex")}}
+      IMGPROXY_SALT: ${{randomBytes(32,"hex")}}
+      IMGPROXY_ENABLE_WEBP_DETECTION: "true"
+      IMGPROXY_ENABLE_AVIF_DETECTION: "true"
+      IMGPROXY_MAX_SRC_RESOLUTION: "50"
+      IMGPROXY_MAX_SRC_FILE_SIZE: "20971520"
+      IMGPROXY_USE_ETAG: "true"
+    resources:
+      memoryMb: 512
+group: imgproxy
+notes:
+  - "URLs must be signed: read IMGPROXY_KEY and IMGPROXY_SALT from the service variables and sign each processing URL as described in the imgproxy docs."
+  - "To restrict which origins can be fetched, add IMGPROXY_ALLOWED_SOURCES (for example https://cdn.example.com/) to the service variables."

@@ -1,0 +1,65 @@
+schema: 1
+id: kanbn
+revision: 1
+name: Kan
+summary: Open-source Kanban board and project management tool, an alternative to Trello.
+description: Kan is a collaborative Kanban app with boards, lists, cards and workspaces. This template runs the app, a one-shot migration job and a managed Postgres database.
+category: productivity
+tags: [kanban, boards, project-management, tasks, trello]
+links:
+  website: https://kan.bn
+  docs: https://docs.kan.bn
+  source: https://github.com/kanbn/kan
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/kanbn/kan/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/kanbn
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 2
+services:
+  - key: app
+    name: Kan
+    kind: app
+    image: ghcr.io/kanbn/kan:0.6.0
+    digest: sha256:0087a72a123d8462c66ddce3a303049d4ec92f03cfba297d41466605ef8cb5b5
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/v1/health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [migrate]
+    domains:
+      - generate: true
+    env:
+      NEXT_PUBLIC_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      BETTER_AUTH_SECRET: ${{secret(32)}}
+      POSTGRES_URL: ${{db.DATABASE_URL}}
+      NEXT_PUBLIC_ALLOW_CREDENTIALS: "true"
+    resources:
+      memoryMb: 512
+  - key: migrate
+    name: Kan Migrate
+    kind: worker
+    image: ghcr.io/kanbn/kan-migrate:0.6.0
+    digest: sha256:3296fd28e037a93dda478981494a72c6905ecd4f0d0739e79139172844acbc4b
+    dependsOn: [db]
+    oneshot: true
+    env:
+      POSTGRES_URL: ${{db.DATABASE_URL}}
+  - key: db
+    name: Kan DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: kan
+group: Kan
+notes:
+  - "Open the domain and sign up: email and password sign-up is enabled and there is no default account. Email features (magic links, invites by mail) need SMTP settings added to the Kan service."

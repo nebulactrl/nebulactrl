@@ -1,0 +1,14 @@
+# expect: unset_in_base
+# schema: reject
+# `unset` removes keys from the merged service and exists only in
+# [environments.<slug>.services.<slug>] blocks.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+unset = ["scale"]
+
+[services.web.scale]
+replicas = 2

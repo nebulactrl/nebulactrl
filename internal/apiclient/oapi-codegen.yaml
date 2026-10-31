@@ -1,0 +1,6 @@
+# oapi-codegen v2.8.0. Run from the repo root (make generate) or via go generate in this package.
+package: apiclient
+output: internal/apiclient/client.gen.go
+generate:
+  models: true
+  client: true

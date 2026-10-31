@@ -1,0 +1,44 @@
+schema: 1
+id: mazanoke
+revision: 1
+name: MAZANOKE
+summary: Image optimizer that compresses, resizes and converts images entirely in the browser; no uploads to the server.
+description: MAZANOKE is a small static web app for optimising images locally in the browser and removing EXIF data. This template serves the project's own image and keeps no data.
+category: media
+tags: [images, optimizer, compression, privacy]
+links:
+  website: https://mazanoke.com
+  docs: https://github.com/civilblur/mazanoke#readme
+  source: https://github.com/civilblur/mazanoke
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/civilblur/mazanoke/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/mazanoke
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 64
+  diskGb: 1
+services:
+  - key: mazanoke
+    name: MAZANOKE
+    kind: app
+    image: ghcr.io/civilblur/mazanoke:v1.1.7
+    digest: sha256:ca83cddd90cd1e4b43102884bf39025731a1c7569f3bbda9d6530de72528cbab
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 64
+group: MAZANOKE
+notes:
+  - "Open the generated address: there is nothing to set up. Images are processed in the visitor's browser."
+  - "The app is open to anyone with the address. Setting the USERNAME and PASSWORD variables enables basic authentication (the health check then needs a path that answers without it, so leave them unset unless you also change the health check)."

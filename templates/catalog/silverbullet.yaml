@@ -1,0 +1,59 @@
+schema: 1
+id: silverbullet
+revision: 1
+name: SilverBullet
+summary: Markdown-based note-taking and personal knowledge base that works offline and can be scripted with Lua.
+description: SilverBullet is a web-based Markdown notebook with backlinks, queries and plugins. This template runs the official slim image (without the bundled Chromium) in single-user mode with a password, keeping the notes in a persistent volume.
+category: productivity
+tags: [notes, markdown, pkm, knowledge-base, wiki]
+icon: silverbullet
+links:
+  website: https://silverbullet.md
+  docs: https://silverbullet.md/Install/Configuration
+  source: https://github.com/silverbulletmd/silverbullet
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/silverbulletmd/silverbullet/blob/main/LICENSE.md
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/silverbullet.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - key: SB_USERNAME
+    label: Username
+    default: admin
+    required: true
+  - key: SB_PASSWORD
+    label: Password
+    description: Password for the single user. Generated when left empty.
+    secret: true
+    default: "${{secret(24)}}"
+services:
+  - key: silverbullet
+    name: SilverBullet
+    kind: app
+    image: ghcr.io/silverbulletmd/silverbullet:2.12.1-slim
+    digest: sha256:7e24c16d31a3f4b4a4832ed64ec585e605a1e275b7c35917d385176f0b40415c
+    port: 3000
+    healthcheck:
+      type: http
+      path: /.ping
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      SB_USER: ${input:SB_USERNAME}:${input:SB_PASSWORD}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 256
+group: SilverBullet
+notes:
+  - "Sign in with the username and password you set (SB_USER is username:password). If you left the password empty, read the generated one from the SB_USER variable."

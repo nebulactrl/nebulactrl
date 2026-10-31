@@ -1,0 +1,56 @@
+schema: 1
+id: libretranslate
+revision: 1
+name: LibreTranslate
+summary: Free, offline machine translation with a web UI and an API compatible with common translation clients.
+description: LibreTranslate translates text and documents with Argos Translate language models that run entirely on your own server. This template downloads the language models you choose on first start and keeps them on a volume.
+category: ai
+tags: [translation, nlp, api, language]
+icon: libretranslate
+links:
+  website: https://libretranslate.com
+  docs: https://docs.libretranslate.com
+  source: https://github.com/LibreTranslate/LibreTranslate
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/LibreTranslate/LibreTranslate/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/libretranslate.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: LOAD_ONLY, label: "Language codes to load (comma separated, empty loads every language)", default: "en,es,fr,de,ja"}
+services:
+  - key: libretranslate
+    name: LibreTranslate
+    kind: app
+    image: libretranslate/libretranslate:v1.9.6
+    digest: sha256:1de2d7056bb8ad607a412f4563d9abe324ff632b43b5be9428bcc8e213aebb32
+    port: 5000
+    healthcheck:
+      type: http
+      path: /health
+      intervalSeconds: 15
+      timeoutSeconds: 10
+      startPeriodSeconds: 120
+      deadlineSeconds: 1200
+    domains:
+      - generate: true
+    env:
+      LT_SSL: "true"
+      LT_UPDATE_MODELS: "true"
+      LT_LOAD_ONLY: ${input:LOAD_ONLY}
+    volumes:
+      - name: models
+        path: /home/libretranslate/.local
+    resources:
+      memoryMb: 2048
+group: LibreTranslate
+notes:
+  - "The first deploy downloads the language models, which can take several minutes. The service reports healthy once translation is available."
+  - "The API is open to anyone who reaches the domain. Restrict it with an access-controlled domain, or enable API keys and rate limits (LT_API_KEYS, LT_REQ_LIMIT)."

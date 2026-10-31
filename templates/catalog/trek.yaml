@@ -1,0 +1,66 @@
+schema: 1
+id: trek
+revision: 1
+name: TREK
+summary: Self-hosted trip planner with itineraries, maps, budgets, packing lists and real-time collaboration.
+description: Runs the official TREK image (SQLite storage) with data and uploads on persistent volumes and an admin account created from the install form on first start.
+category: productivity
+tags: [travel, trip-planner, maps, collaboration]
+links:
+  website: https://github.com/liketrek/TREK
+  docs: https://github.com/liketrek/TREK/wiki
+  source: https://github.com/liketrek/TREK
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/liketrek/TREK/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/trek
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin e-mail, required: true}
+  - key: ADMIN_PASSWORD
+    label: Admin password
+    secret: true
+    default: "${{secret(20)}}"
+  - {key: TIMEZONE, label: "Timezone (IANA name, used for logs and reminders)", default: UTC}
+services:
+  - key: trek
+    name: TREK
+    kind: app
+    image: mauriceboe/trek:5.0.0
+    digest: sha256:0c0a8f5b488fc2967248695e04bb000bb177d0b63d3385089d33dca6fde4daf9
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      NODE_ENV: production
+      ENCRYPTION_KEY: ${{randomBytes(32,"hex")}}
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      ALLOWED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+      TRUST_PROXY: "1"
+      ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      TZ: ${input:TIMEZONE}
+      LOG_LEVEL: info
+    volumes:
+      - name: data
+        path: /app/data
+      - name: uploads
+        path: /app/uploads
+    resources:
+      memoryMb: 512
+group: TREK
+notes:
+  - "Sign in with the admin e-mail and password from the install form; the account is only created on the first start, while no users exist."
+  - "ENCRYPTION_KEY protects secrets stored in the database: keep it with your backups."

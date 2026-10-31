@@ -1,0 +1,85 @@
+schema: 1
+id: zabbix
+revision: 1
+name: Zabbix
+summary: Enterprise-grade monitoring for servers, networks, VMs and cloud services with alerting, dashboards and auto-discovery.
+description: Zabbix collects and graphs metrics from agents, SNMP and other sources. This template runs the Zabbix server and the Nginx web frontend with a managed Postgres, and publishes the server port 10051 for agents.
+category: analytics
+tags: [monitoring, infrastructure, alerting, snmp, metrics]
+links:
+  website: https://www.zabbix.com
+  docs: https://www.zabbix.com/documentation/current/en/manual/installation/containers
+  source: https://github.com/zabbix/zabbix
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/zabbix/zabbix/blob/master/COPYING
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/zabbix
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1536
+  diskGb: 10
+inputs:
+  - {key: PHP_TZ, label: "Timezone of the web interface (PHP name, e.g. Europe/Berlin)", default: UTC}
+  - {key: ZBX_SERVER_NAME, label: Installation name shown in the web interface, default: Zabbix}
+services:
+  - key: server
+    name: Zabbix Server
+    kind: worker
+    image: zabbix/zabbix-server-pgsql:alpine-7.4.16
+    digest: sha256:546f7cae8f04b287ab4ffd3cc81193f2ea99f2da1d0564217b65d93438f44454
+    healthcheck:
+      type: tcp
+      port: 10051
+      startPeriodSeconds: 30
+      deadlineSeconds: 600
+    dependsOn: [db]
+    ports:
+      - {name: trapper, port: 10051, protocol: tcp, publish: true}
+    env:
+      DB_SERVER_HOST: ${{db.DATABASE_HOST}}
+      DB_SERVER_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_DB: ${{db.DATABASE_NAME}}
+      POSTGRES_USER: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    resources:
+      memoryMb: 768
+  - key: web
+    name: Zabbix
+    kind: app
+    image: zabbix/zabbix-web-nginx-pgsql:alpine-7.4.16
+    digest: sha256:898f28064ef8fdac969da0088663b27e2a66c28e5f865ebaf642839106e65fde
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 600
+    dependsOn: [server, db]
+    domains:
+      - generate: true
+    env:
+      DB_SERVER_HOST: ${{db.DATABASE_HOST}}
+      DB_SERVER_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_DB: ${{db.DATABASE_NAME}}
+      POSTGRES_USER: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      ZBX_SERVER_HOST: ${{server.NEBULA_PRIVATE_HOST}}
+      ZBX_SERVER_NAME: ${input:ZBX_SERVER_NAME}
+      PHP_TZ: ${input:PHP_TZ}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Zabbix DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: zabbix
+group: Zabbix
+notes:
+  - "Sign in to the web interface as Admin with the password zabbix, then change it under Users."
+  - "Agents connect to the server on TCP 10051 of this host. The first start creates the database schema and can take a few minutes."

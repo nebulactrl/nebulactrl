@@ -1,0 +1,19 @@
+set -eu
+umask 077
+f="$PGDATA/pg_hba.conf"
+[ -f "$f" ] || { echo "pg_hba.conf not found in $PGDATA" >&2; exit 4; }
+B='# BEGIN nebulactrl-replication'
+E='# END nebulactrl-replication'
+rest=$(awk -v b="$B" -v e="$E" '$0==b{s=1;next} $0==e{s=0;next} !s{print}' "$f")
+cur=$(awk -v b="$B" -v e="$E" '$0==b{s=1;next} $0==e{s=0;next} s{print}' "$f")
+case "$NC_HBA_ACTION" in
+add) lines=$(printf '%s\n%s\n' "$cur" "$NC_HBA_LINE" | awk 'NF && !seen[$0]++') ;;
+remove) lines=$(printf '%s\n' "$cur" | awk -v l="$NC_HBA_LINE" 'NF && $0!=l') ;;
+*) echo "unknown action $NC_HBA_ACTION" >&2; exit 2 ;;
+esac
+tmp="$f.nebula-new"
+{
+  printf '%s\n' "$rest"
+  if [ -n "$lines" ]; then printf '%s\n%s\n%s\n' "$B" "$lines" "$E"; fi
+} > "$tmp"
+mv "$tmp" "$f"

@@ -1,0 +1,52 @@
+schema: 1
+id: lubelogger
+revision: 1
+name: LubeLogger
+summary: Self-hosted vehicle maintenance, fuel mileage and expense tracker with service reminders.
+description: LubeLogger keeps service records, repairs, fuel logs, taxes and reminders for the vehicles you own. This template runs the official image with its SQLite database and configuration in a persistent volume.
+category: homelab
+tags: [vehicles, maintenance, fuel, mileage, garage]
+links:
+  website: https://lubelogger.com/
+  docs: https://docs.lubelogger.com/
+  source: https://github.com/hargata/lubelog
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/hargata/lubelog/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/lubelogger
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: lubelogger
+    name: LubeLogger
+    kind: app
+    image: ghcr.io/hargata/lubelogger:v1.7.4
+    digest: sha256:483a9d7582c4e6258615fd822b3de4193b4fcc4230d0a92432c6d407faf75af2
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      LUBELOGGER_DOMAIN: ${{NEBULA_PUBLIC_URL}}
+      LC_ALL: en_US.UTF-8
+      LANG: en_US.UTF-8
+    volumes:
+      - name: data
+        path: /App/data
+      - name: keys
+        path: /root/.aspnet/DataProtection-Keys
+    resources:
+      memoryMb: 256
+group: LubeLogger
+notes:
+  - "Authentication is off after the first start, so anyone with the address has full access. Open Settings and switch on Enable Authentication to create the login right away."

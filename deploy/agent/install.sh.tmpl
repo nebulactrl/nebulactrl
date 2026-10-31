@@ -1,0 +1,366 @@
+#!/bin/sh
+# NebulaCtrl agent installer.
+#
+#   curl -fsSL {{.DefaultURL}}/install-agent.sh | sudo sh -s -- --url {{.DefaultURL}} --token <enrollment-token>
+#
+# Installs /usr/local/bin/nebulactrl-agent and a systemd unit, then enrolls this
+# host with the control plane on first start. Re-running upgrades the binary and
+# keeps the stored identity. Requires root, systemd and Docker Engine 24 or newer.
+#
+#   ... | sudo sh -s -- --uninstall           remove the agent, keep its identity
+#   ... | sudo sh -s -- --uninstall --purge   also delete the identity (re-enroll needed)
+#
+# Containers started by the agent are never touched by install or uninstall.
+# The unit written below mirrors deploy/agent/nebulactrl-agent.service.
+set -eu
+
+DEFAULT_URL='{{.DefaultURL}}'
+URL="$DEFAULT_URL"
+TOKEN=''
+TOKEN_FILE=''
+# The release this control plane is (empty for a development build) and the minisign
+# public key its signatures verify under (releasesign.PublicKey in the control plane).
+RELEASE_VERSION='{{.Version}}'
+RELEASE_PUBKEY='{{.ReleasePubKey}}'
+NO_VERIFY=0
+INSECURE_DEV=0
+HTTP_PORT=''
+HTTPS_PORT=''
+ADMIN_PORT=''
+UNINSTALL=0
+DEFER_ENROLL=0
+PURGE=0
+MIN_DOCKER_MAJOR=24
+BIN=/usr/local/bin/nebulactrl-agent
+STATE_DIR=/var/lib/nebulactrl-agent
+UNIT=/etc/systemd/system/nebulactrl-agent.service
+ENV_FILE=/etc/nebulactrl-agent.env
+
+say() { printf '%s\n' "$*"; }
+die() { printf 'nebulactrl-agent install: %s\n' "$*" >&2; exit 1; }
+
+# >>> nc_verify_minisig
+# nc_verify_minisig <file> <signature-file> <public-key>: returns 0 only when the minisign
+# signature verifies, 1 when it does not, 2 when this host has no tool to check it. It uses
+# minisign when that is installed, else openssl 3.x: a minisign signature is Ed25519 over the
+# BLAKE2b-512 of the file ("ED", what `minisign -S` writes), and openssl does both, so the host
+# needs no extra package. The same function is in deploy/agent/install.sh.tmpl and
+# deploy/install/install.sh (a test keeps them identical).
+nc_verify_minisig() {
+	nc_v_file=$1 nc_v_sig=$2 nc_v_key=$3
+	[ -r "$nc_v_file" ] && [ -r "$nc_v_sig" ] || return 1
+	if [ -z "${NC_VERIFY_NO_MINISIGN:-}" ] && command -v minisign >/dev/null 2>&1; then
+		minisign -Vq -P "$nc_v_key" -x "$nc_v_sig" -m "$nc_v_file" >/dev/null 2>&1 && return 0
+		return 1
+	fi
+	command -v openssl >/dev/null 2>&1 || return 2
+	nc_v_dir=$(mktemp -d) || return 1
+	nc_v_rc=1
+	{
+		printf '%s' "$nc_v_key" | base64 -d >"$nc_v_dir/key" &&
+			sed -n 2p "$nc_v_sig" | tr -d '\r' | base64 -d >"$nc_v_dir/sig" &&
+			[ "$(wc -c <"$nc_v_dir/key" | tr -d ' ')" = 42 ] &&
+			[ "$(wc -c <"$nc_v_dir/sig" | tr -d ' ')" = 74 ] &&
+			[ "$(head -c 2 "$nc_v_dir/sig")" = ED ] &&
+			[ "$(head -c 10 "$nc_v_dir/key" | tail -c 8 | od -An -tx1 | tr -d ' \n')" = "$(head -c 10 "$nc_v_dir/sig" | tail -c 8 | od -An -tx1 | tr -d ' \n')" ] &&
+			{ printf '%s' MCowBQYDK2VwAyEA | base64 -d && tail -c 32 "$nc_v_dir/key"; } >"$nc_v_dir/pub.der" &&
+			tail -c 64 "$nc_v_dir/sig" >"$nc_v_dir/sig.bin" &&
+			openssl dgst -blake2b512 -binary "$nc_v_file" >"$nc_v_dir/hash" &&
+			openssl pkeyutl -verify -pubin -inkey "$nc_v_dir/pub.der" -keyform DER -rawin -in "$nc_v_dir/hash" -sigfile "$nc_v_dir/sig.bin"
+	} >/dev/null 2>&1 && nc_v_rc=0
+	rm -rf "$nc_v_dir"
+	return $nc_v_rc
+}
+# <<< nc_verify_minisig
+
+usage() {
+	cat <<EOF
+Usage: install-agent.sh [--url <control-plane-url>] [--token <enrollment-token> | --token-file <file>]
+                        [--proxy-http-port N] [--proxy-https-port N] [--proxy-admin-port N]
+                        [--insecure-dev] [--no-verify]
+       install-agent.sh --uninstall [--purge]
+
+  --url              Control plane base URL (https://...).
+  --token            One-time enrollment token from the NebulaCtrl UI. Required on the
+                     first install; not needed when upgrading an enrolled agent. A token on
+                     the command line is visible to other users of this host while the script
+                     runs: --token-file or the NEBULACTRL_ENROLL_TOKEN environment variable avoid that.
+  --token-file       File whose first line is the enrollment token.
+  --proxy-http-port  Host port for the managed Traefik's HTTP listener (default 80).
+  --proxy-https-port Host port for the managed Traefik's HTTPS listener (default 443).
+  --proxy-admin-port Host port (127.0.0.1 only) of Traefik's authenticated admin
+                     entrypoint, which the agent uses to push routes (default 9000).
+  --insecure-dev     Allow a plain http:// control plane URL (development only).
+  --no-verify        Install the agent binary without checking its release signature. Only for a
+                     development control plane, or an image you built yourself: a release is always
+                     verified (against the NebulaCtrl release key, with openssl or minisign).
+  --defer-enroll     Do not require the agent to stay up for the first seconds: it keeps
+                     retrying while the control plane is not ready to enroll it (used by the
+                     NebulaCtrl installer for the control-plane host, which enrolls once the
+                     admin account exists).
+  --uninstall        Stop and remove the agent service and binary. Keeps the stored
+                     identity and the Docker containers/volumes of your services.
+  --purge            With --uninstall: also delete the agent state directory (identity,
+                     build cache). The server must then be re-enrolled with a new token.
+EOF
+}
+
+while [ $# -gt 0 ]; do
+	case "$1" in
+	--url) [ $# -ge 2 ] || die "--url needs a value"; URL=$2; shift 2 ;;
+	--url=*) URL=${1#--url=}; shift ;;
+	--token) [ $# -ge 2 ] || die "--token needs a value"; TOKEN=$2; shift 2 ;;
+	--token=*) TOKEN=${1#--token=}; shift ;;
+	--token-file) [ $# -ge 2 ] || die "--token-file needs a value"; TOKEN_FILE=$2; shift 2 ;;
+	--token-file=*) TOKEN_FILE=${1#--token-file=}; shift ;;
+	--no-verify) NO_VERIFY=1; shift ;;
+	--proxy-http-port) [ $# -ge 2 ] || die "--proxy-http-port needs a value"; HTTP_PORT=$2; shift 2 ;;
+	--proxy-http-port=*) HTTP_PORT=${1#--proxy-http-port=}; shift ;;
+	--proxy-https-port) [ $# -ge 2 ] || die "--proxy-https-port needs a value"; HTTPS_PORT=$2; shift 2 ;;
+	--proxy-https-port=*) HTTPS_PORT=${1#--proxy-https-port=}; shift ;;
+	--proxy-admin-port) [ $# -ge 2 ] || die "--proxy-admin-port needs a value"; ADMIN_PORT=$2; shift 2 ;;
+	--proxy-admin-port=*) ADMIN_PORT=${1#--proxy-admin-port=}; shift ;;
+	--insecure-dev) INSECURE_DEV=1; shift ;;
+	--uninstall) UNINSTALL=1; shift ;;
+	--defer-enroll) DEFER_ENROLL=1; shift ;;
+	--purge) PURGE=1; shift ;;
+	-h | --help) usage; exit 0 ;;
+	*) usage >&2; die "unknown argument: $1" ;;
+	esac
+done
+if [ -n "$TOKEN_FILE" ]; then
+	[ -r "$TOKEN_FILE" ] || die "cannot read --token-file $TOKEN_FILE"
+	TOKEN=$(head -n 1 "$TOKEN_FILE" | tr -d ' \r\n')
+elif [ -z "$TOKEN" ]; then
+	TOKEN=${NEBULACTRL_ENROLL_TOKEN:-}
+fi
+
+# ---- uninstall ----
+if [ "$UNINSTALL" = 1 ]; then
+	[ "$(id -u)" = 0 ] || die "must run as root (try: sudo sh)"
+	if command -v systemctl >/dev/null 2>&1; then
+		systemctl disable --now nebulactrl-agent 2>/dev/null || true
+	fi
+	rm -f "$UNIT" "$ENV_FILE" "$BIN"
+	command -v systemctl >/dev/null 2>&1 && systemctl daemon-reload || true
+	if [ "$PURGE" = 1 ]; then
+		rm -rf "$STATE_DIR"
+		say "Agent removed and state deleted. Re-enroll this host with a new token to use it again."
+	else
+		say "Agent removed. Identity kept in $STATE_DIR (re-run the installer without a token to reconnect)."
+	fi
+	say "Containers, volumes and the nebulactrl-traefik proxy created for your services are untouched;"
+	say "remove them with docker if you no longer need them (see docs/installing/uninstall.md)."
+	exit 0
+fi
+[ "$PURGE" = 0 ] || die "--purge only applies together with --uninstall"
+
+# ---- validate input (it ends up in a systemd unit) ----
+URL=${URL%/}
+[ -n "$URL" ] || die "no control plane URL: pass --url"
+case "$URL" in
+http://* | https://*) ;;
+*) die "--url must start with https:// (or http:// with --insecure-dev)" ;;
+esac
+case "$URL" in
+*[!A-Za-z0-9._:/@%+=~-]*) die "--url contains unsupported characters" ;;
+esac
+case "$URL" in
+http://127.0.0.1 | http://127.0.0.1:* | http://127.0.0.1/* | http://localhost | http://localhost:* | http://localhost/* | http://\[::1\]*) ;; # loopback: never leaves the machine
+http://*) [ "$INSECURE_DEV" = 1 ] || die "refusing plain http:// control plane URL; use https:// or pass --insecure-dev (plaintext is only accepted for loopback addresses)" ;;
+esac
+if [ -n "$TOKEN" ]; then
+	case "$TOKEN" in
+	nct_enroll_*) ;;
+	*) die "--token is not an enrollment token (expected nct_enroll_...)" ;;
+	esac
+	case "$TOKEN" in
+	*[!a-z0-9_]*) die "--token contains unsupported characters" ;;
+	esac
+fi
+
+for pair in "proxy-http-port:$HTTP_PORT" "proxy-https-port:$HTTPS_PORT" "proxy-admin-port:$ADMIN_PORT"; do
+	v=${pair#*:}
+	[ -z "$v" ] && continue
+	case "$v" in
+	*[!0-9]*) die "--${pair%%:*} must be a number" ;;
+	esac
+	[ "$v" -ge 1 ] && [ "$v" -le 65535 ] || die "--${pair%%:*} must be between 1 and 65535"
+done
+
+# ---- preflight ----
+[ "$(id -u)" = 0 ] || die "must run as root (try: sudo sh)"
+[ "$(uname -s)" = Linux ] || die "only Linux hosts are supported"
+command -v systemctl >/dev/null 2>&1 || die "systemd (systemctl) is required"
+command -v docker >/dev/null 2>&1 || die "docker is not installed; install Docker Engine first (https://docs.docker.com/engine/install/)"
+docker info >/dev/null 2>&1 || die "docker is installed but the daemon is not reachable; start it and retry"
+DOCKER_VERSION=$(docker version -f '{{"{{.Server.Version}}"}}' 2>/dev/null || true)
+DOCKER_MAJOR=${DOCKER_VERSION%%.*}
+case "$DOCKER_MAJOR" in
+'' | *[!0-9]*) say "warning: could not determine the Docker Engine version; Docker $MIN_DOCKER_MAJOR or newer is required" ;;
+*) [ "$DOCKER_MAJOR" -ge "$MIN_DOCKER_MAJOR" ] || die "Docker Engine $DOCKER_VERSION is too old; $MIN_DOCKER_MAJOR or newer is required" ;;
+esac
+
+# Compose stacks need the Docker Compose plugin 2.24 or newer. Not fatal: only stack
+# deploys are refused on a host without it.
+COMPOSE_VERSION=$(docker compose version --short 2>/dev/null || true)
+COMPOSE_VERSION=${COMPOSE_VERSION#v}
+case "$COMPOSE_VERSION" in
+'') say "warning: the Docker Compose plugin (docker compose) is not installed; Compose stacks cannot be deployed to this host. Install docker-compose-plugin from Docker's repository (https://docs.docker.com/compose/install/linux/)." ;;
+*)
+	CMAJ=${COMPOSE_VERSION%%.*}
+	CREST=${COMPOSE_VERSION#*.}
+	CMIN=${CREST%%.*}
+	case "$CMAJ$CMIN" in
+	*[!0-9]*) ;;
+	*) if [ "$CMAJ" -lt 2 ] || { [ "$CMAJ" = 2 ] && [ "$CMIN" -lt 24 ]; }; then
+		say "warning: Docker Compose plugin $COMPOSE_VERSION is older than 2.24; Compose stacks cannot be deployed to this host. Upgrade docker-compose-plugin."
+	fi ;;
+	esac ;;
+esac
+
+# The agent runs its own Traefik on the host's HTTP/HTTPS ports. Warn (do not fail:
+# on an upgrade our own Traefik already holds them) when something else listens there.
+port_busy() {
+	if command -v ss >/dev/null 2>&1; then
+		ss -H -ltn "sport = :$1" 2>/dev/null | grep -q .
+	else
+		return 1
+	fi
+}
+if ! docker inspect nebulactrl-traefik >/dev/null 2>&1; then
+	for port in "${HTTP_PORT:-80}" "${HTTPS_PORT:-443}" "${ADMIN_PORT:-9000}"; do
+		if port_busy "$port"; then
+			say "warning: port $port is already in use on this host; the proxy cannot start until it is free"
+			say "         (free it, or pass --proxy-http-port / --proxy-https-port to use other ports)"
+		fi
+	done
+fi
+
+if [ -z "$TOKEN" ] && [ ! -s "$STATE_DIR/agent.db" ]; then
+	die "no enrollment token and this host is not enrolled yet: pass --token"
+fi
+
+case "$(uname -m)" in
+x86_64 | amd64) ARCH=amd64 ;;
+aarch64 | arm64) ARCH=arm64 ;;
+*) die "unsupported CPU architecture: $(uname -m)" ;;
+esac
+
+if command -v curl >/dev/null 2>&1; then
+	fetch() { curl -fsSL --retry 3 -o "$2" "$1"; }
+	fetch_https() { curl -fsSL --proto '=https' --proto-redir '=https' --retry 3 -o "$2" "$1"; }
+elif command -v wget >/dev/null 2>&1; then
+	fetch() { wget -q -O "$2" "$1"; }
+	fetch_https() { wget -q --https-only -O "$2" "$1"; }
+else
+	die "curl or wget is required"
+fi
+
+# ---- install the binary ----
+TMP=$(mktemp "${TMPDIR:-/tmp}/nebulactrl-agent.XXXXXX")
+SIGFILE=$(mktemp "${TMPDIR:-/tmp}/nebulactrl-agent.sig.XXXXXX")
+trap 'rm -f "$TMP" "$SIGFILE"' EXIT
+say "Downloading agent ($ARCH) from $URL ..."
+fetch "$URL/agent/v1/download/$ARCH" "$TMP" || die "download failed: $URL/agent/v1/download/$ARCH"
+[ -s "$TMP" ] || die "downloaded agent binary is empty"
+
+# The binary runs as root, so it is installed only when the release signature verifies:
+# CI signs the agent binaries of every release (minisign) and publishes the signatures with
+# the release. The digest the control plane publishes (below) only catches a damaged download.
+if [ "$NO_VERIFY" = 1 ]; then
+	say "warning: the release signature of the agent is NOT checked (--no-verify)"
+else
+	[ -n "$RELEASE_VERSION" ] || die "this control plane is a development build, so its agent binary has no release signature to check. Install from a release, or pass --no-verify for a build you made yourself"
+	SIG_BASE=${NC_RELEASE_BASE:-https://nebulactrl.com/releases/$RELEASE_VERSION}
+	case "$SIG_BASE" in
+	https://*) ;;
+	*) die "NC_RELEASE_BASE must be an https:// URL" ;;
+	esac
+	SIG_URL=${SIG_BASE%/}/nebulactrl-agent-linux-$ARCH.minisig
+	fetch_https "$SIG_URL" "$SIGFILE" || die "could not download the release signature $SIG_URL (a host without internet access: mirror the release files and set NC_RELEASE_BASE)"
+	VERIFY_RC=0
+	nc_verify_minisig "$TMP" "$SIGFILE" "$RELEASE_PUBKEY" || VERIFY_RC=$?
+	case "$VERIFY_RC" in
+	0) say "Signature verified (NebulaCtrl release $RELEASE_VERSION)" ;;
+	2) die "cannot check the release signature: install openssl (or minisign), or pass --no-verify" ;;
+	*) die "the agent binary served by $URL is not the one NebulaCtrl signed for release $RELEASE_VERSION; nothing was installed" ;;
+	esac
+fi
+
+SUMFILE=$(mktemp "${TMPDIR:-/tmp}/nebulactrl-agent.sum.XXXXXX")
+if fetch "$URL/agent/v1/download/$ARCH/sha256" "$SUMFILE" 2>/dev/null && [ -s "$SUMFILE" ] && command -v sha256sum >/dev/null 2>&1; then
+	WANT_SUM=$(cut -d' ' -f1 "$SUMFILE")
+	GOT_SUM=$(sha256sum "$TMP" | cut -d' ' -f1)
+	[ "$WANT_SUM" = "$GOT_SUM" ] || { rm -f "$SUMFILE"; die "checksum mismatch: the downloaded agent has SHA-256 $GOT_SUM, the control plane publishes $WANT_SUM"; }
+	say "Checksum verified (sha256 $GOT_SUM)"
+fi
+rm -f "$SUMFILE" "$SIGFILE"
+chmod 0755 "$TMP"
+
+if systemctl is-active --quiet nebulactrl-agent 2>/dev/null; then
+	say "Stopping running agent for upgrade ..."
+	systemctl stop nebulactrl-agent || true
+fi
+mv "$TMP" "$BIN"
+trap - EXIT
+mkdir -p "$STATE_DIR"
+chmod 0700 "$STATE_DIR"
+
+# ---- configuration ----
+if [ -n "$TOKEN" ]; then
+	umask 077
+	printf 'NEBULACTRL_ENROLL_TOKEN=%s\n' "$TOKEN" >"$ENV_FILE"
+	chmod 0600 "$ENV_FILE"
+fi
+
+EXTRA=''
+[ -z "$HTTP_PORT" ] || EXTRA="$EXTRA --proxy-http-port $HTTP_PORT"
+[ -z "$HTTPS_PORT" ] || EXTRA="$EXTRA --proxy-https-port $HTTPS_PORT"
+[ -z "$ADMIN_PORT" ] || EXTRA="$EXTRA --proxy-admin-port $ADMIN_PORT"
+[ "$INSECURE_DEV" = 1 ] && EXTRA="$EXTRA --insecure-dev"
+
+cat >"$UNIT" <<EOF
+[Unit]
+Description=NebulaCtrl agent
+Documentation=$URL
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+ExecStart=$BIN --url $URL --state-dir $STATE_DIR$EXTRA
+EnvironmentFile=-$ENV_FILE
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+# Docker access is root-equivalent; the agent needs the Docker socket.
+User=root
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 0644 "$UNIT"
+
+systemctl daemon-reload
+systemctl enable nebulactrl-agent
+systemctl restart nebulactrl-agent
+
+# Fail loudly if the service does not stay up (bad URL syntax, revoked identity, ...).
+# --defer-enroll skips this: the agent is allowed to fail enrolling and restart until
+# the control plane accepts its token.
+sleep 3
+if [ "$DEFER_ENROLL" = 0 ] && ! systemctl is-active --quiet nebulactrl-agent; then
+	journalctl -u nebulactrl-agent -n 20 --no-pager 2>/dev/null || true
+	die "the agent service did not start; see the log lines above (journalctl -u nebulactrl-agent)"
+fi
+
+# The enrollment token in $ENV_FILE is single-use and expires after one hour, so
+# it is inert once the agent has enrolled; it is only read while no identity is stored.
+if [ -n "$TOKEN" ]; then
+	say "Agent installed and started. It enrolls on first start; the server shows as online in the UI shortly."
+	say "Follow progress with: journalctl -u nebulactrl-agent -f"
+else
+	say "Agent upgraded and restarted."
+fi

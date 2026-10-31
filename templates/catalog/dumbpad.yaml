@@ -1,0 +1,51 @@
+schema: 1
+id: dumbpad
+revision: 1
+name: DumbPad
+summary: Simple notepad with auto-save, Markdown, multiple notepads and optional PIN protection; stores notes as plain files.
+description: DumbPad is a minimal self-hosted notepad that needs no database. This template runs the app with its notes on a persistent volume and an optional PIN set at install time.
+category: productivity
+tags: [notes, notepad, markdown, self-hosted]
+links:
+  website: https://dumbware.io/DumbPad/
+  docs: https://github.com/DumbWareio/DumbPad#readme
+  source: https://github.com/DumbWareio/DumbPad
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/DumbWareio/DumbPad/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/dumbpad
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: DUMBPAD_PIN, label: "PIN (4-10 digits, leave empty for no protection)", secret: true}
+services:
+  - key: dumbpad
+    name: DumbPad
+    kind: app
+    image: dumbwareio/dumbpad:1.0.5
+    digest: sha256:495a109141c28d990fedb9ed06e2d68db08a898b493479cdb12132d90f99d708
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      DUMBPAD_PIN: ${input:DUMBPAD_PIN}
+    volumes:
+      - name: data
+        path: /app/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: DumbPad
+notes:
+  - "Without a PIN anyone who can open the address can read and edit the notes: set DUMBPAD_PIN on the service (4-10 digits) to protect it."

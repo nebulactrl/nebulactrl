@@ -1,0 +1,105 @@
+schema: 1
+id: automatisch
+revision: 1
+name: Automatisch
+summary: Open-source workflow automation that connects apps and services through visual flows, as an alternative to Zapier.
+description: Automatisch runs trigger-and-action workflows across many services. This template runs the web app and a background worker with a managed Postgres and a managed Redis.
+category: automation
+tags: [automation, workflows, integrations, zapier-alternative]
+links:
+  website: https://automatisch.io
+  docs: https://automatisch.io/docs
+  source: https://github.com/automatisch/automatisch
+upstream:
+  license: AGPL-3.0 (files named .ee. under the Automatisch Enterprise licence)
+  licenseUrl: https://github.com/automatisch/automatisch/blob/main/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/automatisch
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 3
+services:
+  - key: app
+    name: Automatisch
+    kind: app
+    image: automatischio/automatisch:0.15.0
+    digest: sha256:3bace7a12d5fb3f5b1305a6a52232270e0e0abd8465a8b78baacb07f6ea89594
+    port: 3000
+    healthcheck:
+      type: http
+      path: /healthcheck
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db, redis]
+    domains:
+      - generate: true
+    env:
+      APP_ENV: production
+      HOST: ${{NEBULA_PUBLIC_DOMAIN}}
+      PROTOCOL: https
+      API_URL: ${{NEBULA_PUBLIC_URL}}
+      WEB_APP_URL: ${{NEBULA_PUBLIC_URL}}
+      TELEMETRY_ENABLED: "false"
+      POSTGRES_HOST: ${{db.DATABASE_HOST}}
+      POSTGRES_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_DATABASE: ${{db.DATABASE_NAME}}
+      POSTGRES_USERNAME: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      REDIS_HOST: ${{redis.REDIS_HOST}}
+      REDIS_PORT: ${{redis.REDIS_PORT}}
+      REDIS_PASSWORD: ${{redis.REDIS_PASSWORD}}
+      ENCRYPTION_KEY: ${{secret(32)}}
+      WEBHOOK_SECRET_KEY: ${{secret(32)}}
+      APP_SECRET_KEY: ${{secret(32)}}
+    volumes:
+      - {name: storage, path: /automatisch/storage}
+    resources:
+      memoryMb: 768
+  - key: worker
+    name: Automatisch Worker
+    kind: worker
+    image: automatischio/automatisch:0.15.0
+    digest: sha256:3bace7a12d5fb3f5b1305a6a52232270e0e0abd8465a8b78baacb07f6ea89594
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pgrep -f '[s]tart:worker' > /dev/null"]
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [app]
+    env:
+      APP_ENV: production
+      WORKER: "true"
+      POSTGRES_HOST: ${{db.DATABASE_HOST}}
+      POSTGRES_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_DATABASE: ${{db.DATABASE_NAME}}
+      POSTGRES_USERNAME: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      REDIS_HOST: ${{redis.REDIS_HOST}}
+      REDIS_PORT: ${{redis.REDIS_PORT}}
+      REDIS_PASSWORD: ${{redis.REDIS_PASSWORD}}
+      ENCRYPTION_KEY: ${{app.ENCRYPTION_KEY}}
+      WEBHOOK_SECRET_KEY: ${{app.WEBHOOK_SECRET_KEY}}
+      APP_SECRET_KEY: ${{app.APP_SECRET_KEY}}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Automatisch DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: automatisch
+  - key: redis
+    name: Automatisch Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+group: Automatisch
+notes:
+  - "Sign in with user@automatisch.io / sample, then change the email and password on the settings page straight away."
+  - "ENCRYPTION_KEY protects stored app connections: back it up with the database."

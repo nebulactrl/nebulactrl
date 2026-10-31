@@ -1,0 +1,74 @@
+schema: 1
+id: lowcoder
+revision: 1
+name: Lowcoder
+summary: Open-source low-code platform for building internal tools, dashboards and apps, backed by managed MongoDB and Valkey.
+description: Lowcoder is a low-code platform with a drag-and-drop editor, data source connectors and JavaScript hooks for building internal tools and admin panels. This template runs the all-in-one community image against managed MongoDB and Valkey services instead of the databases bundled in the image.
+category: productivity
+tags: [low-code, internal-tools, dashboards, no-code]
+icon: lowcoder
+links:
+  website: https://www.lowcoder.cloud
+  docs: https://docs.lowcoder.cloud
+  source: https://github.com/lowcoder-org/lowcoder
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/lowcoder-org/lowcoder/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/lowcoder.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: EMAIL_SIGNUP_ENABLED, label: Allow email sign-up, default: "true"}
+services:
+  - key: lowcoder
+    name: Lowcoder
+    kind: app
+    image: lowcoderorg/lowcoder-ce:2.7.6
+    digest: sha256:4a8b800a9454108546808cc88ed3305cc2533fb25b89326c26139848254dbd61
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/status/health
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [mongodb, cache]
+    domains:
+      - generate: true
+    env:
+      LOWCODER_PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      LOWCODER_MONGODB_ENABLED: "false"
+      LOWCODER_REDIS_ENABLED: "false"
+      LOWCODER_MONGODB_URL: ${{mongodb.MONGO_URL}}
+      LOWCODER_REDIS_URL: ${{cache.REDIS_URL}}
+      LOWCODER_DB_ENCRYPTION_PASSWORD: ${{secret(32)}}
+      LOWCODER_DB_ENCRYPTION_SALT: ${{secret(32)}}
+      LOWCODER_API_KEY_SECRET: ${{randomBytes(32,"hex")}}
+      LOWCODER_EMAIL_SIGNUP_ENABLED: ${input:EMAIL_SIGNUP_ENABLED}
+    volumes:
+      - name: stacks
+        path: /lowcoder-stacks
+    resources:
+      memoryMb: 2048
+  - key: mongodb
+    name: Lowcoder MongoDB
+    kind: database
+    database:
+      engine: mongodb
+      version: "7.0"
+      databaseName: lowcoder
+  - key: cache
+    name: Lowcoder Valkey
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Lowcoder
+notes:
+  - "Open the domain and sign up: the first account creates the workspace and becomes its administrator. Disable email sign-up afterwards (variable LOWCODER_EMAIL_SIGNUP_ENABLED) if you do not want public registration."
+  - "The data-encryption password and salt are generated once and encrypt data sources stored in MongoDB; keep a backup of them, changing them makes stored credentials unreadable."

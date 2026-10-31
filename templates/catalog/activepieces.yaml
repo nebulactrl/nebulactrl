@@ -1,0 +1,79 @@
+schema: 1
+id: activepieces
+revision: 1
+name: Activepieces
+summary: No-code workflow automation with hundreds of integrations, triggers, webhooks and AI agents.
+description: Activepieces is a self-hosted automation builder in the spirit of Zapier. This template runs the API, web UI and flow worker in one container, backed by a managed Postgres database and a managed Valkey queue.
+category: automation
+tags: [workflow, automation, no-code, integrations]
+icon: activepieces
+links:
+  website: https://www.activepieces.com
+  docs: https://www.activepieces.com/docs/install/options/docker-compose
+  source: https://github.com/activepieces/activepieces
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/activepieces/activepieces/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/activepieces.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+services:
+  - key: app
+    name: Activepieces
+    kind: app
+    image: ghcr.io/activepieces/activepieces:0.92.3-hotfix.1
+    digest: sha256:3e40b318dd2779b580c280b9464c926ca4bd771c9faf02f86e07ab9a79a3a687
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/v1/health
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      AP_FRONTEND_URL: ${{NEBULA_PUBLIC_URL}}
+      AP_ENCRYPTION_KEY: ${{randomBytes(16,"hex")}}
+      AP_JWT_SECRET: ${{randomBytes(32,"hex")}}
+      AP_ENVIRONMENT: prod
+      AP_EXECUTION_MODE: UNSANDBOXED
+      AP_ENGINE_EXECUTABLE_PATH: dist/packages/engine/main.js
+      AP_TELEMETRY_ENABLED: "false"
+      AP_POSTGRES_HOST: ${{db.DATABASE_HOST}}
+      AP_POSTGRES_PORT: ${{db.DATABASE_PORT}}
+      AP_POSTGRES_DATABASE: ${{db.DATABASE_NAME}}
+      AP_POSTGRES_USERNAME: ${{db.DATABASE_USER}}
+      AP_POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      AP_REDIS_HOST: ${{cache.REDIS_HOST}}
+      AP_REDIS_PORT: ${{cache.REDIS_PORT}}
+      AP_REDIS_PASSWORD: ${{cache.REDIS_PASSWORD}}
+    volumes:
+      - name: cache
+        path: /usr/src/app/cache
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: Activepieces DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: activepieces
+  - key: cache
+    name: Activepieces Queue
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Activepieces
+notes:
+  - "There is no default account: open the site and register; the first account becomes the platform administrator."
+  - "Flows run unsandboxed (upstream's default for single-tenant installs). Do not give accounts to people you do not trust."
+  - "The Agent Knowledge Base needs the pgvector extension, which the managed Postgres does not provide; everything else works without it."

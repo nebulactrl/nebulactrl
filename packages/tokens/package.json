@@ -1,0 +1,23 @@
+{
+	"name": "@nebulactrl/tokens",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"version": "0.0.0",
+	"description": "NebulaCtrl's shared design tokens: the motion scale (transitions.dev usage names plus the better-ui exact values), the --dither-* ink, paper and series tokens, and the halftone (the --ambient-* dials, the shared stipple layer and its host classes), consumed as CSS by apps/web and apps/site and as TypeScript by anything that animates in JS.",
+	"exports": {
+		".": "./src/index.ts",
+		"./motion.css": "./src/motion.css",
+		"./dither.css": "./src/dither.css",
+		"./halftone.css": "./src/halftone.css"
+	},
+	"scripts": {
+		"test": "bun test src",
+		"lint": "biome check ."
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.14",
+		"@types/bun": "1.4.2",
+		"typescript": "7.0.2"
+	}
+}

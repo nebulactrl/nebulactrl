@@ -1,0 +1,55 @@
+{
+  "http": {
+    "routers": {
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {}
+  },
+  "tcp": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-tcp": {
+        "entryPoints": [
+          "tcp-5432"
+        ],
+        "rule": "HostSNI(`*`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111-tcp",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-tcp-allow"
+        ]
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111-tcp": {
+        "loadBalancer": {
+          "servers": [
+            {
+              "address": "nc-pg-aaaaaaaa-0:5432"
+            }
+          ],
+          "proxyProtocol": {
+            "version": 2
+          }
+        }
+      }
+    },
+    "middlewares": {
+      "nc-11111111-1111-1111-1111-111111111111-tcp-allow": {
+        "ipAllowList": {
+          "sourceRange": [
+            "203.0.113.0/24",
+            "10.0.0.7"
+          ]
+        }
+      }
+    }
+  }
+}

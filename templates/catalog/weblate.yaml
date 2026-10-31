@@ -1,0 +1,82 @@
+schema: 1
+id: weblate
+revision: 1
+name: Weblate
+summary: Web-based continuous localization platform with translation memory, Git integration and quality checks.
+description: Weblate lets teams translate software and documentation directly from their version control. This template runs the official image with a managed Postgres database and a managed Valkey for the Celery queue and cache, and creates the admin user from the install form.
+category: productivity
+tags: [localization, translation, i18n, git, collaboration]
+links:
+  website: https://weblate.org
+  docs: https://docs.weblate.org/en/latest/admin/install/docker.html
+  source: https://github.com/WeblateOrg/weblate
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://github.com/WeblateOrg/weblate/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/weblate.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 2560
+  diskGb: 10
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_NAME, label: Admin display name, default: Admin}
+  - {key: ADMIN_PASSWORD, label: "Admin password (the login name is admin)", secret: true, default: "${{secret(20)}}"}
+services:
+  - key: weblate
+    name: Weblate
+    kind: app
+    image: weblate/weblate:2026.10.1.4
+    digest: sha256:c74bf3c6f5cb52e4aa141e6f605c0f4fdefdcf1e89d1a9fbd011a79a4a83807d
+    port: 8080
+    healthcheck:
+      type: http
+      path: /healthz/
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      POSTGRES_HOST: ${{db.DATABASE_HOST}}
+      POSTGRES_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_DB: ${{db.DATABASE_NAME}}
+      POSTGRES_USER: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      REDIS_HOST: ${{cache.REDIS_HOST}}
+      REDIS_PORT: ${{cache.REDIS_PORT}}
+      REDIS_PASSWORD: ${{cache.REDIS_PASSWORD}}
+      WEBLATE_SITE_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      WEBLATE_ENABLE_HTTPS: "1"
+      WEBLATE_REGISTRATION_OPEN: "0"
+      WEBLATE_ADMIN_NAME: ${input:ADMIN_NAME}
+      WEBLATE_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      WEBLATE_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - name: data
+        path: /app/data
+      - name: cache
+        path: /app/cache
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: Weblate DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: weblate
+  - key: cache
+    name: Weblate Cache
+    kind: database
+    database:
+      engine: valkey
+      version: "8"
+group: Weblate
+notes:
+  - "Sign in as admin with the password from the install form. The admin user is reset to the form values on every start, so change the password by editing WEBLATE_ADMIN_PASSWORD, not in the UI."
+  - "Public registration is closed (WEBLATE_REGISTRATION_OPEN=0). Outgoing mail is not configured: set WEBLATE_EMAIL_HOST, WEBLATE_EMAIL_HOST_USER and WEBLATE_EMAIL_HOST_PASSWORD on the service to invite users or reset passwords."

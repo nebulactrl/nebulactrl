@@ -1,0 +1,28 @@
+# syntax=docker/dockerfile:1
+#
+# Development image for the NebulaCtrl agent. Build context is the repo root:
+#   docker build -f deploy/agent/Dockerfile.dev .
+# (deploy/dev/docker-compose.yml does this for you.)
+#
+# Production agents are the static binary installed by install-agent.sh under
+# systemd; this image exists only so a dev agent can run next to the control
+# plane without installing anything on the workstation.
+
+FROM golang:1.27 AS build
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
+COPY . .
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags "-s -w" -o /out/nebulactrl-agent ./cmd/agent
+
+# The agent shells out to `docker build` (ADR 0004), so the Docker CLI must be
+# present. Compose stacks run `docker compose` too: the docker:29-cli base ships
+# the compose plugin (>= 2.24 is required, see agentprotocol.CapCompose); keep a
+# base image that does. git is for go-git fallbacks and debugging;
+# ca-certificates for TLS.
+FROM docker:29-cli
+RUN apk add --no-cache git ca-certificates
+COPY --from=build /out/nebulactrl-agent /usr/local/bin/nebulactrl-agent
+ENTRYPOINT ["/usr/local/bin/nebulactrl-agent"]

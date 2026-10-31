@@ -1,0 +1,60 @@
+schema: 1
+id: nodelink
+revision: 1
+name: NodeLink
+summary: Lavalink-compatible audio streaming server written in Node.js for Discord music bots.
+description: NodeLink resolves and streams audio for Discord bots through the Lavalink v4 REST and WebSocket protocol. This template runs the official image with a generated server password; connect your bot to the service's domain over HTTPS/WSS.
+category: media
+tags: [discord, lavalink, music, audio, bots]
+links:
+  website: https://nodelink.js.org
+  docs: https://nodelink.js.org/docs/advanced/docker
+  source: https://github.com/PerformanC/NodeLink
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/PerformanC/NodeLink/blob/dev/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/nodelink
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: SERVER_PASSWORD, label: Server password (sent by clients in the Authorization header), secret: true, default: "${{secret(32)}}"}
+services:
+  - key: nodelink
+    name: NodeLink
+    kind: app
+    image: performanc/nodelink:3.9.0
+    digest: sha256:e15a9ae334f36432ed7f544521644bc99820eaba77ac4e592d939169b7a0bfa8
+    port: 3000
+    healthcheck:
+      type: exec
+      command:
+        - CMD-SHELL
+        - node -e "fetch('http://127.0.0.1:3000/version',{headers:{authorization:process.env.NODELINK_SERVER_PASSWORD||''}}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 40
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      NODELINK_SERVER_HOST: 0.0.0.0
+      NODELINK_SERVER_PORT: "3000"
+      NODELINK_SERVER_PASSWORD: ${input:SERVER_PASSWORD}
+      NODELINK_LOGGING_LEVEL: info
+      NODELINK_LOGGING_FILE_ENABLED: "false"
+      NODELINK_METRICS_ENABLED: "false"
+    volumes:
+      - name: cache
+        path: /app/.cache
+    resources:
+      memoryMb: 512
+group: NodeLink
+notes:
+  - "Point your Lavalink client at the service's domain (port 443, secure) and use the server password from the install form."
+  - "Source credentials (for example NODELINK_SOURCES_SPOTIFY_CLIENTID / CLIENTSECRET) can be added as variables on the service."

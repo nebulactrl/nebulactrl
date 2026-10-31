@@ -1,0 +1,45 @@
+schema: 1
+id: adminer
+revision: 1
+name: Adminer
+summary: Single-file web UI for managing MySQL, MariaDB, PostgreSQL, SQLite, MongoDB and other databases.
+description: Adminer is a lightweight database management tool that works against any reachable database server. This template runs the Docker Official standalone image; sign in with the host and credentials of the database you want to manage.
+category: data
+tags: [database, sql, admin, mysql, postgres]
+icon: adminer
+links:
+  website: https://www.adminer.org
+  docs: https://www.adminer.org/en/
+  source: https://github.com/vrana/adminer
+upstream:
+  license: Apache-2.0 OR GPL-2.0-only
+  licenseUrl: https://github.com/vrana/adminer/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/adminer
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 1
+services:
+  - key: adminer
+    name: Adminer
+    kind: app
+    image: adminer:6.1.2
+    digest: sha256:251295c1cd51d3889f1c42ffa4864b24eeab51f0caf395cfe5bf4726c5ec9a2a
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 128
+group: Adminer
+notes:
+  - "There is no Adminer account: sign in with the host name, user and password of the database server you want to manage (managed databases are reachable by their private host name)."
+  - "Anyone who can open this address can try database logins. Restrict access (for example with an IP allow-list or SSO in front of it) before exposing it on the internet."

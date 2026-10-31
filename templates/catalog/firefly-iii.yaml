@@ -1,0 +1,76 @@
+schema: 1
+id: firefly-iii
+revision: 1
+name: Firefly III
+summary: Personal finance manager for tracking accounts, budgets, bills and expenses with reports and rules.
+description: Firefly III is a self-hosted manager for your personal finances with double-entry bookkeeping, budgets, recurring transactions and an API. This template runs the official image with a managed MariaDB database and a persistent upload volume.
+category: productivity
+tags: [finance, budgeting, accounting, money]
+icon: fireflyiii
+links:
+  website: https://www.firefly-iii.org
+  docs: https://docs.firefly-iii.org
+  source: https://github.com/firefly-iii/firefly-iii
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/firefly-iii/firefly-iii/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/firefly-iii
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 2
+inputs:
+  - {key: SITE_OWNER, format: email, label: Owner email address (shown to users as the site contact), required: true}
+  - {key: TIMEZONE, label: "Timezone (IANA name, for example Europe/Berlin)", default: UTC}
+services:
+  - key: firefly
+    name: Firefly III
+    kind: app
+    image: fireflyiii/core:version-6.7.9
+    digest: sha256:d51ab6a3a7b91a5c892441578e0da7f2935f84f36bd1151fc3833acc6e060871
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn:
+      - db
+    domains:
+      - generate: true
+    env:
+      APP_KEY: ${{secret(32)}}
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      SITE_OWNER: ${input:SITE_OWNER}
+      TZ: ${input:TIMEZONE}
+      DEFAULT_LANGUAGE: en_US
+      DEFAULT_LOCALE: equal
+      TRUSTED_PROXIES: "**"
+      DB_CONNECTION: mysql
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_DATABASE: ${{db.DATABASE_NAME}}
+      DB_USERNAME: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      STATIC_CRON_TOKEN: ${{secret(32)}}
+    volumes:
+      - name: upload
+        path: /var/www/html/storage/upload
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Firefly III DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: firefly
+group: Firefly III
+notes:
+  - "Open the site and register: the first account becomes the owner."
+  - "Recurring transactions and auto-budgets need a daily call to /api/v1/cron/<STATIC_CRON_TOKEN> (the token is the STATIC_CRON_TOKEN variable): schedule it with any external cron or uptime service."
+  - "APP_KEY encrypts data in the database. Back it up; changing it makes stored data unreadable."

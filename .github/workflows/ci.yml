@@ -1,0 +1,172 @@
+# Tier 1 and tier 2 of the test pyramid (tests/README.md). Manual only: run it
+# from Actions -> ci -> Run workflow, and it runs as a gate inside release.yml.
+#
+#   go     go vet + go test ./...              (unit + DB tests, Postgres service),
+#          3 parallel shards of packages; go vet runs in shard 1
+#   web    typecheck, biome, bun test, build
+#   smoke  tests/run.sh smoke                  (~8 Docker scenarios, runner's Docker)
+#
+# Tier 3 (everything, a superset of smoke) is full.yml.
+name: ci
+
+# CI POLICY (scripts/release/check-workflows.sh enforces it).
+#  * Never triggered by a commit, a pull request or a timer. Only
+#    workflow_dispatch (a person clicks Run workflow) and workflow_call
+#    (release.yml).
+#  * Standard GitHub-hosted runners (ubuntu-24.04, and ubuntu-24.04-arm for the
+#    native arm64 image build), which are free for public repositories. No
+#    self-hosted or third-party runners.
+#  * Every action is pinned to a full commit SHA, with its tag as a comment.
+#  * No Docker layer caching and no registry cache options on Docker builds. Only
+#    actions/cache (setup-go and the bun cache below).
+#  * `go test -count=1`: test results are never replayed from a cache.
+#  * A new run of this workflow cancels the superseded one; every job has a
+#    timeout of about 1.5x its expected time, so a hang cannot run for hours.
+#  * The go job is 3 shards on 3 runners (the packages, balanced by
+#    scripts/ci/go-durations.json): the same runner minutes as one long job plus
+#    about 1 minute of setup and compile per extra shard, for a third of the wall time.
+on:
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: "Also run the smoke tier (the full tier contains it)"
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      smoke:
+        description: "Also run the smoke tier (release.yml passes false: the full tier contains it)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# github.workflow is the caller's name when called from release.yml, so a manual
+# run of ci can never cancel the gates of a release.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The Postgres service below. Tests create their own schemas inside it.
+  NEBULACTRL_TEST_DATABASE_URL: postgres://nebulactrl:nebulactrl@localhost:5432/nebulactrl_test?sslmode=disable
+
+jobs:
+  go:
+    name: go (shard ${{ matrix.shard }}/3)
+    # 4 vCPU. A third of the packages per shard (balanced by the package durations
+    # of scripts/ci/go-durations.json, tools/shardtests); go vet runs in shard 1
+    # and counts for 90 s of its share. ~10 min expected per shard since the
+    # uptime, status page and nebulactrl.toml packages (each DB test migrates a fresh
+    # schema), timeout 14; the cap only stops a hang.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      SHARD: ${{ matrix.shard }}/3
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nebulactrl
+          POSTGRES_PASSWORD: nebulactrl
+          POSTGRES_DB: nebulactrl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebulactrl -d nebulactrl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod # caches the module and build caches, keyed on go.sum
+      - name: go vet
+        if: ${{ matrix.shard == 1 }}
+        run: go vet ./...
+      - name: go test (this shard's packages)
+        shell: bash
+        run: |
+          list="$(go list ./... | go run ./tools/shardtests -packages -shard "$SHARD" -preload-first 90 -durations scripts/ci/go-durations.json -summary)"
+          mapfile -t pkgs <<<"$list"
+          echo "shard $SHARD: ${#pkgs[@]} packages"
+          go test -count=1 "${pkgs[@]}"
+
+  web:
+    name: web typecheck, lint, test, build
+    # 4 vCPU, ~3 min expected (bun and vite are mostly single-threaded), timeout 6.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run lint # biome check
+      - run: bun run test
+      - run: bun run build
+
+  smoke:
+    name: smoke (docker scenarios)
+    if: ${{ inputs.smoke }}
+    # 4 vCPU, ~4 min expected (docker scenarios wait on containers; they do not
+    # parallelise onto more cores), timeout 8. Postgres below runs in Docker,
+    # which every GitHub-hosted runner has.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: nebulactrl
+          POSTGRES_PASSWORD: nebulactrl
+          POSTGRES_DB: nebulactrl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebulactrl -d nebulactrl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # The harness agent pulls Traefik and the pages server and the fixtures use
+      # registry:2. They are cached as a tarball keyed on the pinned references
+      # (a changed pin changes the key), so most runs pull nothing from Docker Hub.
+      # This is the free upstream actions/cache, not a Docker layer cache.
+      - name: Restore Docker image cache
+        id: images
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/docker-images.tar
+          key: docker-smoke-${{ hashFiles('internal/agent/proxy/manager.go', 'internal/agent/proxy/manager_pages.go') }}
+      - name: Load cached Docker images
+        if: steps.images.outputs.cache-hit == 'true'
+        run: docker load -i ~/docker-images.tar
+      - name: Smoke tests
+        run: ./tests/run.sh smoke -v # runs go test -count=1
+      - name: Save Docker images for the cache
+        if: success() && steps.images.outputs.cache-hit != 'true'
+        run: |
+          traefik="$(grep -ohE 'traefik:v[0-9.]+@sha256:[0-9a-f]{64}' internal/agent/proxy/manager.go | head -1)"
+          pages="$(grep -ohE 'nginx:[0-9A-Za-z.-]+@sha256:[0-9a-f]{64}' internal/agent/proxy/manager_pages.go | head -1)"
+          docker save -o ~/docker-images.tar registry:2 "$traefik" "$pages"

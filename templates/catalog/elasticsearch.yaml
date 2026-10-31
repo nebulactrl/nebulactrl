@@ -1,0 +1,63 @@
+schema: 1
+id: elasticsearch
+revision: 2
+name: Elasticsearch
+summary: Distributed search and analytics engine with a REST API, running as a single secured node.
+description: Elasticsearch is a distributed, RESTful search and analytics engine for full-text search, logs and vector search. This template runs a single node with password authentication enabled on the built-in elastic user.
+category: data
+tags: [search, full-text, analytics, elastic]
+icon: elasticsearch
+links:
+  website: https://www.elastic.co/elasticsearch
+  docs: https://www.elastic.co/docs/reference/elasticsearch
+  source: https://github.com/elastic/elasticsearch
+upstream:
+  license: AGPL-3.0-only OR SSPL-1.0 OR Elastic-2.0
+  licenseUrl: https://github.com/elastic/elasticsearch/blob/main/LICENSE.txt
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/elasticsearch.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1536
+  diskGb: 10
+inputs:
+  - {key: ELASTIC_PASSWORD, label: Password of the elastic superuser, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: elasticsearch
+    name: Elasticsearch
+    kind: app
+    image: docker.elastic.co/elasticsearch/elasticsearch:9.5.5
+    digest: sha256:13b4a40bb095774f5fda635e45fd5677cc6a26565e42b24997b0c72b88e75984
+    port: 9200
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "curl -fsS -u \"elastic:$ELASTIC_PASSWORD\" 'http://127.0.0.1:9200/_cluster/health?wait_for_status=yellow&timeout=5s' >/dev/null"]
+      intervalSeconds: 10
+      timeoutSeconds: 10
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    domains:
+      - generate: true
+    env:
+      ELASTIC_PASSWORD: ${input:ELASTIC_PASSWORD}
+      ES_SETTING_DISCOVERY_TYPE: single-node
+      ES_SETTING_XPACK_SECURITY_HTTP_SSL_ENABLED: "false"
+      ES_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - name: elasticsearch-data
+        path: /usr/share/elasticsearch/data
+    docker:
+      hostSysctls:
+        vm.max_map_count: 262144
+    resources:
+      memoryMb: 1536
+    stopGraceSeconds: 60
+group: Elasticsearch
+notes:
+  - "Authenticate with the user elastic and the password from the install form, for example curl -u elastic:PASSWORD https://<your-domain>/."
+  - "This is a single node: indices with replicas report yellow health; set number_of_replicas to 0 for a green cluster."
+  - "The HTTP endpoint is served without TLS behind the proxy; transport security stays internal to the node."
+  - "Elasticsearch needs vm.max_map_count of at least 262144 on the host (a container cannot set it). The deploy plan checks the server and shows the command to run: sysctl -w vm.max_map_count=262144 (add it to /etc/sysctl.d to keep it after a reboot)."

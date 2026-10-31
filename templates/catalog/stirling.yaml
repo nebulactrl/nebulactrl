@@ -1,0 +1,55 @@
+schema: 1
+id: stirling
+revision: 1
+name: Stirling PDF
+summary: Self-hosted web toolbox for PDFs to merge, split, convert, compress, OCR, sign and edit documents.
+description: Stirling PDF offers 50+ PDF tools in the browser and processes files on your own server. This template runs the project's standard image with the optional additional (licence-key) features disabled; there is no login, so anyone with the address can use it.
+category: productivity
+tags: [pdf, documents, ocr, converter, tools]
+links:
+  website: https://www.stirlingpdf.com
+  docs: https://docs.stirlingpdf.com
+  source: https://github.com/Stirling-Tools/Stirling-PDF
+upstream:
+  license: MIT with proprietary Stirling PDF User License directories
+  licenseUrl: https://github.com/Stirling-Tools/Stirling-PDF/blob/main/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/stirling
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 3
+services:
+  - key: stirling-pdf
+    name: Stirling PDF
+    kind: app
+    image: stirlingtools/stirling-pdf:3.2.2
+    digest: sha256:c6872dd056b0046a14c5de1e9970283e7f1e1ff685bb08090c6b37a231127d31
+    port: 8080
+    healthcheck:
+      type: http
+      path: /api/v1/info/status
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    env:
+      DISABLE_ADDITIONAL_FEATURES: "true"
+      SECURITY_ENABLELOGIN: "false"
+      SYSTEM_DEFAULTLOCALE: en-US
+    volumes:
+      - name: tessdata
+        path: /usr/share/tessdata
+      - name: configs
+        path: /configs
+      - name: custom-files
+        path: /customFiles
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 2048
+group: Stirling PDF
+notes:
+  - "There is no login: restrict who can reach the site (for example with a proxy access rule) if the address is public."
+  - "The image contains directories under the Stirling PDF User License (enterprise features such as login and SSO); this template turns them off with DISABLE_ADDITIONAL_FEATURES. Using them in production needs a Stirling subscription."

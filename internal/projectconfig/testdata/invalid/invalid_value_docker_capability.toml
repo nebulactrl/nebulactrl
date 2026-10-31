@@ -1,0 +1,11 @@
+# expect: invalid_value
+# SYS_MODULE is not a capability a service may add on any server.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.docker]
+cap_add = ["SYS_MODULE"]

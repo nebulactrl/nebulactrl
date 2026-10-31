@@ -1,0 +1,59 @@
+schema: 1
+id: clickhouse
+revision: 2
+name: ClickHouse
+summary: Column-oriented SQL database server for real-time analytics on large datasets.
+description: Runs the official ClickHouse server with an HTTP interface on the public domain, a password-protected default user and persistent data and log volumes. The native protocol port stays internal.
+category: analytics
+tags: [database, olap, sql, analytics, columnar]
+icon: clickhouse
+links:
+  website: https://clickhouse.com
+  docs: https://clickhouse.com/docs
+  source: https://github.com/ClickHouse/ClickHouse
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/ClickHouse/ClickHouse/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/clickhouse
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 10
+inputs:
+  - {key: CLICKHOUSE_PASSWORD, label: Password of the default user, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: clickhouse
+    name: ClickHouse
+    kind: app
+    image: clickhouse/clickhouse-server:26.10.3.7
+    digest: sha256:739e099abd1157390960a59e4532d21781d8fde57e6e4151cb920ea02c30b1ce
+    port: 8123
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      CLICKHOUSE_USER: default
+      CLICKHOUSE_PASSWORD: ${input:CLICKHOUSE_PASSWORD}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    ports:
+      - {name: native, port: 9000, protocol: tcp}
+    volumes:
+      - {name: data, path: /var/lib/clickhouse}
+      - {name: logs, path: /var/log/clickhouse-server}
+    domains:
+      - generate: true
+    docker:
+      ulimits:
+        - {name: nofile, soft: 262144, hard: 262144}
+    resources:
+      memoryMb: 2048
+group: ClickHouse
+notes:
+  - "Sign in as user default with the password you set (or the generated one shown in the service variables). The HTTP interface answers on the service domain, e.g. /play for the query UI."
+  - "The native protocol (port 9000) is only reachable from other services in the project."

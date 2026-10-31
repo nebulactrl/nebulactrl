@@ -1,0 +1,628 @@
+/*
+ * NebulaCtrl public status page. Restrained neo-skeuomorphism: raised slate
+ * cards lit from above on a plain floor, flat uptime cells, IBM Plex. No
+ * inline styles (the page's CSP allows none); its one script, status.js, adds
+ * the day tooltip of the uptime bars and the soft refresh.
+ *
+ * The light palette is the default; data-theme=dark forces the dark one and
+ * data-theme=auto follows prefers-color-scheme. The dark variables of
+ * dark.css are injected at the two DARK markers below when the sheet is built.
+ */
+:root {
+	color-scheme: light;
+	--bg: #f2f3f7;
+	--surface: #ffffff;
+	--float: #eceef3;
+	--well: #e3e6ed;
+	--ink-1: #14161a;
+	--ink-2: #353a43;
+	--ink-3: #565c67;
+	--line: rgb(10 14 24 / 0.1);
+	--line-strong: rgb(10 14 24 / 0.2);
+	--accent: #4a46d6;
+	--shadow: 20 24 40;
+	--hi: rgb(255 255 255 / 0.9);
+	--pop: #ffffff;
+	--ok: #2db36f;
+	--ok-text: #11743f;
+	--good: #55c58a;
+	--degraded: #d9a000;
+	--degraded-text: #8a5a00;
+	--partial: #e8892c;
+	--partial-text: #a04d00;
+	--bad: #e5484d;
+	--bad-text: #b42318;
+	--info: #2b8fd6;
+	--info-text: #0b5e9e;
+	--mute: #8a919e;
+	--mute-text: #565c67;
+	--font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+	--font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+	:root[data-theme="auto"] {
+		/*DARK-AUTO*/
+	}
+}
+:root[data-theme="dark"] {
+	/*DARK-FORCED*/
+}
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+html {
+	-webkit-text-size-adjust: 100%;
+	text-size-adjust: 100%;
+}
+body {
+	margin: 0;
+	min-height: 100vh;
+	background-color: var(--bg);
+	color: var(--ink-1);
+	font-family: var(--font-sans);
+	font-size: 15px;
+	line-height: 1.5;
+	font-feature-settings: "tnum" 1;
+	-webkit-font-smoothing: antialiased;
+}
+.sprite {
+	position: absolute;
+	width: 0;
+	height: 0;
+	overflow: hidden;
+}
+.wrap {
+	width: 100%;
+	max-width: 760px;
+	margin: 0 auto;
+	padding: 40px 20px 32px;
+}
+
+/* Header and the overall banner. */
+.hero {
+	margin-bottom: 28px;
+}
+h1 {
+	margin: 0 0 6px;
+	font-size: 28px;
+	font-weight: 650;
+	line-height: 1.2;
+	letter-spacing: -0.01em;
+	overflow-wrap: anywhere;
+}
+.desc {
+	margin: 0 0 20px;
+	color: var(--ink-2);
+	max-width: 62ch;
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+.card {
+	position: relative;
+	background: var(--surface);
+	border: 1px solid var(--line);
+	border-radius: 14px;
+	box-shadow:
+		inset 0 1px 0 var(--hi),
+		0 1px 2px rgb(var(--shadow) / 0.18),
+		0 10px 24px -14px rgb(var(--shadow) / 0.35);
+}
+.banner {
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 16px 18px;
+	overflow: hidden;
+	font-size: 18px;
+	font-weight: 600;
+}
+.banner .icon {
+	width: 26px;
+	height: 26px;
+}
+/* Like a callout: the state's wash (below) and its colour at low strength on the edge. */
+.banner.card {
+	border-color: color-mix(in srgb, currentColor 30%, var(--line));
+}
+
+/* State colours: the icon and label take the colour, never the colour alone. */
+.st-operational { color: var(--ok-text); }
+.st-degraded { color: var(--degraded-text); }
+.st-partial_outage { color: var(--partial-text); }
+.st-major_outage { color: var(--bad-text); }
+.st-maintenance { color: var(--info-text); }
+.st-unknown { color: var(--mute-text); }
+.banner.st-operational { background: color-mix(in srgb, var(--ok) 12%, var(--surface)); }
+.banner.st-degraded { background: color-mix(in srgb, var(--degraded) 14%, var(--surface)); }
+.banner.st-partial_outage { background: color-mix(in srgb, var(--partial) 14%, var(--surface)); }
+.banner.st-major_outage { background: color-mix(in srgb, var(--bad) 14%, var(--surface)); }
+.banner.st-maintenance { background: color-mix(in srgb, var(--info) 13%, var(--surface)); }
+.banner.st-unknown { background: color-mix(in srgb, var(--mute) 12%, var(--surface)); }
+.banner > span {
+	color: var(--ink-1);
+}
+
+.icon {
+	width: 16px;
+	height: 16px;
+	fill: none;
+	stroke: currentColor;
+	stroke-width: 1.75;
+	stroke-linecap: round;
+	stroke-linejoin: round;
+	flex: none;
+}
+
+/* Sections. */
+section {
+	margin-top: 32px;
+}
+h2 {
+	margin: 0 0 12px;
+	font-size: 12px;
+	font-weight: 600;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--ink-3);
+}
+h3 {
+	margin: 0;
+	font-size: 15px;
+	font-weight: 600;
+}
+.group {
+	margin-bottom: 16px;
+	overflow: hidden;
+}
+.group > summary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 12px 18px;
+	border-bottom: 1px solid var(--line);
+	background: var(--float);
+	cursor: pointer;
+	list-style: none;
+}
+.group > summary::-webkit-details-marker {
+	display: none;
+}
+.group > summary::before {
+	content: "";
+	width: 6px;
+	height: 6px;
+	flex: none;
+	border-right: 2px solid var(--ink-3);
+	border-bottom: 2px solid var(--ink-3);
+	transform: rotate(45deg) translate(-2px, -2px);
+}
+.group:not([open]) > summary {
+	border-bottom: 0;
+}
+.group:not([open]) > summary::before {
+	transform: rotate(-45deg);
+}
+.group > summary:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
+}
+.group > summary h3 {
+	font-size: 13px;
+	letter-spacing: 0.01em;
+	color: var(--ink-2);
+}
+ul.list {
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+.component {
+	padding: 14px 18px 12px;
+}
+.component + .component {
+	border-top: 1px solid var(--line);
+}
+.row {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	gap: 12px;
+	margin-bottom: 8px;
+}
+.name {
+	font-weight: 600;
+	overflow-wrap: anywhere;
+}
+.name a {
+	color: inherit;
+	text-decoration-color: var(--line-strong);
+}
+.name a:hover {
+	color: var(--accent);
+}
+.meta {
+	display: flex;
+	align-items: center;
+	gap: 14px;
+	flex: none;
+	font-size: 13px;
+}
+.state {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-weight: 550;
+}
+.uptime {
+	display: inline-flex;
+	gap: 10px;
+	font-family: var(--font-mono);
+	font-size: 13px;
+	color: var(--ink-2);
+}
+.uptime small {
+	font-family: var(--font-sans);
+	font-size: 11px;
+	color: var(--ink-3);
+}
+/* Beside the state of a component an active incident names. */
+.incident-tag {
+	color: var(--ink-2);
+	font-size: 12px;
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+
+/* The uptime bar: one flat cell per day. On narrow screens the same SVG is
+   scaled to three times the width and cropped to its last third (30 days). */
+.bar {
+	overflow: hidden;
+	border-radius: 5px;
+	background: var(--well);
+	box-shadow: inset 0 1px 2px rgb(var(--shadow) / 0.25);
+}
+.bar svg {
+	display: block;
+	width: 100%;
+	height: auto;
+	-webkit-tap-highlight-color: transparent;
+}
+/* A click or a tap draws no ring on the bar; the keyboard still does. */
+.bar svg:focus:not(:focus-visible) {
+	outline: none;
+}
+.bar svg:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: -2px;
+}
+/* A healthy day is a quiet tint, so a bad day is the only loud cell. A degraded
+   day is striped and a day without data is a short stub, so colour is never
+   the only difference. The legend and the tooltip swatch use the same classes. */
+.c-up { fill: color-mix(in oklab, var(--ok) 34%, var(--mute)); }
+.c-good { fill: color-mix(in oklab, var(--degraded) 50%, var(--mute)); }
+.c-warn { fill: url(#p-warn); }
+.pw-bg { fill: var(--degraded); }
+.pw-stripe { fill: rgb(var(--shadow) / 0.38); }
+.c-down { fill: var(--bad); }
+.c-maint { fill: var(--info); }
+.c-none { fill: color-mix(in oklab, var(--mute) 55%, transparent); }
+/* The day under the pointer or the keyboard stays; the rest steps back. */
+.bar svg.spot rect:not(.on) {
+	opacity: 0.4;
+}
+/* The day tooltip (status.js): one shared element above the day under the
+   pointer or the keyboard. Positioned by the script; the first show scales in
+   from the day, moving between days is instant. */
+.tip {
+	position: fixed;
+	left: 0;
+	top: 0;
+	z-index: 10;
+	display: none;
+	width: max-content;
+	max-width: min(260px, calc(100vw - 16px));
+	padding: 8px 10px;
+	background: var(--pop);
+	border: 1px solid var(--line-strong);
+	border-radius: 8px;
+	box-shadow:
+		inset 0 1px 0 var(--hi),
+		0 1px 2px rgb(var(--shadow) / 0.18),
+		0 10px 24px -14px rgb(var(--shadow) / 0.45);
+	font-size: 12px;
+	line-height: 1.4;
+	color: var(--ink-2);
+	overflow-wrap: anywhere;
+}
+.tip.open {
+	display: block;
+	animation: tip-in 150ms ease-out;
+}
+@keyframes tip-in {
+	from {
+		opacity: 0;
+		transform: scale(0.97);
+	}
+}
+/* Keeps the tooltip open while the pointer crosses the gap to it. */
+.tip::before {
+	content: "";
+	position: absolute;
+	left: 0;
+	right: 0;
+	bottom: -9px;
+	height: 9px;
+}
+.tip[data-below]::before {
+	top: -9px;
+	bottom: auto;
+}
+.tip-d {
+	font-weight: 600;
+	color: var(--ink-1);
+}
+.tip-s {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+}
+.tip-sw {
+	width: 12px;
+	height: 12px;
+	flex: none;
+	border-radius: 3px;
+	background: var(--well);
+}
+.tip-n {
+	color: var(--ink-3);
+}
+.tip-i {
+	margin: 4px 0 0;
+	padding: 4px 0 0 14px;
+	border-top: 1px solid var(--line);
+}
+.sr {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+.ago {
+	display: flex;
+	justify-content: space-between;
+	margin-top: 4px;
+	font-size: 11px;
+	color: var(--ink-3);
+}
+.ago .narrow { display: none; }
+/* Only where the bar is cropped to 30 days but the figure above it is 90. */
+.ago-note {
+	display: none;
+	margin: 2px 0 0;
+	font-size: 11px;
+	color: var(--ink-3);
+}
+
+.legend {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px 16px;
+	margin: 4px 2px 0;
+	padding: 0;
+	list-style: none;
+	font-size: 12px;
+	color: var(--ink-3);
+}
+.legend li {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+}
+.legend svg {
+	width: 14px;
+	height: 14px;
+	border-radius: 3px;
+	background: var(--well);
+}
+
+/* Incidents and maintenance. */
+.event {
+	padding: 16px 18px;
+	margin-bottom: 12px;
+}
+.event header {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 4px 10px;
+	margin-bottom: 4px;
+}
+.badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 5px;
+	padding: 1px 8px;
+	border: 1px solid currentColor;
+	border-radius: 999px;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 1.6;
+}
+.badge .icon {
+	width: 12px;
+	height: 12px;
+}
+.event .when {
+	margin: 0;
+	font-size: 13px;
+	color: var(--ink-3);
+}
+.event .affects {
+	margin: 6px 0 0;
+	font-size: 13px;
+	color: var(--ink-2);
+}
+.event .text {
+	margin: 8px 0 0;
+	color: var(--ink-2);
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+/* An incident's updates, newest first. Rail and pins share one axis: the
+ * rail is centred in the pin column, the pin on the first line of text. */
+.timeline {
+	--pin: 10px;
+	--rail: 2px;
+	margin: 14px 0 0;
+	padding: 0;
+	list-style: none;
+}
+.timeline li {
+	--tone: var(--mute);
+	--tone-text: var(--ink-1);
+	position: relative;
+	padding: 0 0 14px 24px;
+}
+.timeline li:last-child {
+	padding-bottom: 0;
+}
+.timeline li[data-status="investigating"] { --tone: var(--bad); --tone-text: var(--bad-text); }
+.timeline li[data-status="identified"] { --tone: var(--partial); --tone-text: var(--partial-text); }
+.timeline li[data-status="monitoring"] { --tone: var(--info); --tone-text: var(--info-text); }
+.timeline li[data-status="resolved"] { --tone: var(--ok); --tone-text: var(--ok-text); }
+/* Each item draws the rail beside it; the rail runs from the first pin to the last. */
+.timeline li::before {
+	content: "";
+	position: absolute;
+	left: calc((var(--pin) - var(--rail)) / 2);
+	top: 0;
+	bottom: 0;
+	width: var(--rail);
+	background: var(--line-strong);
+}
+.timeline li:first-child::before {
+	top: calc(1lh / 2);
+}
+.timeline li:last-child::before {
+	bottom: auto;
+	height: calc(1lh / 2);
+}
+.timeline li:only-child::before {
+	display: none;
+}
+/* Earlier updates are rings; the latest, the incident's status now, is filled. */
+.timeline li::after {
+	content: "";
+	position: absolute;
+	left: 0;
+	top: calc((1lh - var(--pin)) / 2);
+	width: var(--pin);
+	height: var(--pin);
+	border: 2px solid var(--tone);
+	border-radius: 50%;
+	background: var(--surface);
+	box-shadow: 0 0 0 3px var(--surface);
+}
+.timeline li:first-child::after {
+	background: var(--tone);
+}
+.timeline strong {
+	font-weight: 600;
+	color: var(--tone-text);
+}
+.timeline time {
+	margin-left: 8px;
+	font-size: 12px;
+	color: var(--ink-3);
+}
+.timeline p {
+	margin: 2px 0 0;
+	color: var(--ink-2);
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+.empty {
+	margin: 0;
+	padding: 16px 18px;
+	color: var(--ink-3);
+}
+
+footer {
+	margin-top: 40px;
+	padding-top: 16px;
+	border-top: 1px solid var(--line);
+	font-size: 13px;
+	color: var(--ink-3);
+}
+.footer-text {
+	margin: 0 0 12px;
+	color: var(--ink-2);
+	white-space: pre-line;
+	overflow-wrap: anywhere;
+}
+.foot {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: space-between;
+	gap: 6px 16px;
+}
+a {
+	color: var(--accent);
+	text-underline-offset: 2px;
+}
+a:focus-visible {
+	outline: 2px solid var(--accent);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
+.notfound {
+	max-width: 420px;
+	margin: 18vh auto 0;
+	padding: 0 20px;
+	text-align: center;
+}
+.notfound h1 {
+	font-size: 22px;
+}
+.notfound p {
+	color: var(--ink-2);
+}
+
+@media (max-width: 640px) {
+	.wrap { padding: 24px 14px 24px; }
+	h1 { font-size: 23px; }
+	.banner { font-size: 16px; padding: 14px 14px 20px; }
+	.component { padding: 12px 14px 10px; }
+	.group > summary { padding: 10px 14px; }
+	.event { padding: 14px; }
+	.row { flex-direction: column; align-items: flex-start; gap: 2px; }
+	.meta { justify-content: space-between; flex-wrap: wrap; gap: 4px 14px; width: 100%; }
+	.bar svg { width: 300%; margin-left: -200%; }
+	.ago .wide { display: none; }
+	.ago .narrow { display: inline; }
+	.ago-note { display: block; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tip.open { animation: none; }
+}
+@media (forced-colors: active) {
+	.tip { border-color: CanvasText; }
+	.c-up, .c-good, .c-warn, .c-down, .c-maint { fill: CanvasText; }
+	.c-none { fill: GrayText; }
+	.bar svg.spot rect:not(.on) { opacity: 1; }
+	.bar { border: 1px solid CanvasText; }
+	.timeline li::before { background: CanvasText; }
+	.timeline li::after { border-color: CanvasText; }
+	.timeline li:first-child::after { background: CanvasText; }
+}
+@media print {
+	body { background: none; }
+	.card { box-shadow: none; }
+}

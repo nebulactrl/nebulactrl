@@ -1,0 +1,57 @@
+schema: 1
+id: quireink
+revision: 1
+name: Quire Ink
+summary: Self-hosted blog engine with a Markdown editor, scheduled posts, newsletters, comments, analytics and importers for WordPress, Ghost and Substack.
+description: Runs the official Quire Ink image as a single container with two SQLite databases and an uploads folder in persistent volumes. No external database is needed. The first account is claimed with a setup code you set at install time.
+category: web
+tags: [blog, cms, markdown, newsletter, sqlite]
+links:
+  website: https://quireink.com
+  docs: https://github.com/joiha-steven/quireink/blob/main/docs/self-host-docker.md
+  source: https://github.com/joiha-steven/quireink
+upstream:
+  license: PolyForm Noncommercial 1.0.0
+  licenseUrl: https://github.com/joiha-steven/quireink/blob/main/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/quireink
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - key: SETUP_CODE
+    label: Setup code
+    description: Twelve or more characters. /setup asks for this code once, to claim the blog and create your account. A random one is generated when left empty.
+    secret: true
+    default: "${{secret(20)}}"
+services:
+  - key: quireink
+    name: Quire Ink
+    kind: app
+    image: quireink/quireink:2.2.20
+    digest: sha256:63081e6484a54b5c3b4cc889b447c1c917e82a4e4b01f8ef0a827ca760920c24
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    env:
+      SITE_URL: ${{NEBULA_PUBLIC_URL}}
+      SETUP_CODE: ${input:SETUP_CODE}
+    volumes:
+      - {name: data, path: /var/lib/quire/data}
+      - {name: uploads, path: /var/lib/quire/uploads}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Quire Ink
+notes:
+  - "Open /setup on the site and enter the setup code (variable SETUP_CODE) to claim the blog and create your account; after that the code is no longer needed."
+  - "Quire Ink is licensed PolyForm Noncommercial 1.0.0: personal and other noncommercial use only."
+  - "The public address comes from SITE_URL. If you attach a custom domain, update that variable and redeploy."

@@ -1,0 +1,28 @@
+{
+  "action": "synchronized",
+  "number": 5,
+  "pull_request": {
+    "id": 11,
+    "number": 5,
+    "url": "https://git.example.com/acme/shop/pulls/5",
+    "html_url": "https://git.example.com/acme/shop/pulls/5",
+    "user": {"id": 2, "login": "grace", "username": "grace"},
+    "title": "Faster checkout",
+    "state": "open",
+    "merged": false,
+    "head": {
+      "label": "faster",
+      "ref": "faster",
+      "sha": "0123456789abcdef0123456789abcdef01234567",
+      "repo": {"full_name": "acme/shop", "clone_url": "https://git.example.com/acme/shop.git", "fork": false}
+    },
+    "base": {
+      "label": "main",
+      "ref": "main",
+      "sha": "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+      "repo": {"full_name": "acme/shop", "clone_url": "https://git.example.com/acme/shop.git", "fork": false}
+    }
+  },
+  "repository": {"full_name": "acme/shop", "clone_url": "https://git.example.com/acme/shop.git"},
+  "sender": {"id": 2, "login": "grace"}
+}

@@ -1,0 +1,48 @@
+schema: 1
+id: owncast
+revision: 1
+name: Owncast
+summary: Self-hosted live video streaming server with built-in chat for use with OBS and other broadcasting software.
+description: Owncast runs your own live stream page with chat, a web admin and RTMP ingest on port 1935. This template runs the official image with one data volume and publishes the RTMP port so your broadcasting software can reach it.
+category: media
+tags: [streaming, live-video, chat, rtmp]
+links:
+  website: https://owncast.online
+  docs: https://owncast.online/docs/
+  source: https://github.com/owncast/owncast
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/owncast/owncast/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/owncast
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 10
+services:
+  - key: owncast
+    name: Owncast
+    kind: app
+    image: owncast/owncast:0.3.0
+    digest: sha256:0f35b568b1098d2badbde2dbf3c73a902009c95eb687c647edea04d6da079a78
+    port: 8080
+    healthcheck:
+      type: http
+      path: /api/status
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    ports:
+      - {name: rtmp, port: 1935, protocol: tcp, publish: true}
+    volumes:
+      - {name: data, path: /app/data}
+    resources:
+      memoryMb: 512
+group: Owncast
+notes:
+  - "Admin is at /admin with username admin and password abc123; the default stream key is also abc123. Change both immediately in the admin."
+  - "Stream from OBS to rtmp://<server address>:1935/live using the stream key."

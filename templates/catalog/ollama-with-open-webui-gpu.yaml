@@ -1,0 +1,84 @@
+schema: 1
+id: ollama-with-open-webui-gpu
+revision: 1
+requiresUnrestricted: true
+name: Ollama with Open WebUI (NVIDIA GPU)
+summary: Ollama on the host's NVIDIA GPUs with the Open WebUI chat interface.
+description: The Ollama with Open WebUI stack with every NVIDIA GPU of the server given to Ollama through the NVIDIA Container Toolkit, so models run on the GPU. Requesting GPUs needs an unrestricted server, and the server needs an NVIDIA driver and the NVIDIA Container Toolkit configured for Docker.
+category: ai
+tags: [ai, llm, ollama, chat, open-webui, gpu, nvidia]
+icon: ollama
+links:
+  website: https://openwebui.com
+  docs: https://docs.ollama.com/docker
+  source: https://github.com/open-webui/open-webui
+upstream:
+  license: Open WebUI License (BSD-3-Clause with branding restriction); Ollama is MIT
+  licenseUrl: https://github.com/open-webui/open-webui/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/ollama-with-open-webui.yaml
+  commit: 1d28642
+  license: Apache-2.0
+heavy: true
+requires:
+  memoryMb: 6144
+  diskGb: 20
+services:
+  - key: open-webui
+    name: Open WebUI
+    kind: app
+    image: ghcr.io/open-webui/open-webui:v0.12.4
+    digest: sha256:a5b9e403d19154796850679c8c5d1295301cee954be8b84ddd62af92426558f7
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn:
+      - ollama
+    domains:
+      - generate: true
+    env:
+      OLLAMA_BASE_URL: http://${{ollama.NEBULA_PRIVATE_HOST}}:11434
+      WEBUI_SECRET_KEY: ${{secret(48)}}
+      WEBUI_URL: ${{NEBULA_PUBLIC_URL}}
+      SCARF_NO_ANALYTICS: "true"
+      DO_NOT_TRACK: "true"
+      ANONYMIZED_TELEMETRY: "false"
+    volumes:
+      - name: data
+        path: /app/backend/data
+    resources:
+      memoryMb: 2048
+  - key: ollama
+    name: Ollama
+    kind: worker
+    image: ollama/ollama:0.40.11
+    digest: sha256:dea72d1e22270fe095b68fdf756d2b489d615643c5a2eaebbc5f569181e322d8
+    healthcheck:
+      type: http
+      path: /
+      port: 11434
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    docker:
+      gpus:
+        count: -1
+        driver: nvidia
+        capabilities: [compute, utility]
+    volumes:
+      - name: models
+        path: /root/.ollama
+    resources:
+      memoryMb: 8192
+group: Ollama with Open WebUI
+notes:
+  - "The server needs an NVIDIA driver and the NVIDIA Container Toolkit configured for Docker (nvidia-ctk runtime configure --runtime=docker, then restart Docker). Without them the Ollama container fails to start."
+  - "The first account registered on the generated domain becomes the Open WebUI administrator: create it right after deploying."
+  - "No models are installed yet: in Open WebUI open Admin Settings > Models and pull one (for example llama3.2:3b). A model must fit in the GPU's memory to run fast; the 8 GB memory limit of the Ollama service is system RAM and can be raised."
+  - "AMD GPUs use the ollama/ollama:rocm image with the /dev/kfd and /dev/dri devices instead of gpus; set that on the Ollama service's Docker options of an unrestricted server."
+  - "Ollama has no authentication and is reachable only on the private network; model files are stored on the models volume."
+  - "Open WebUI's licence is BSD-3-Clause with an added clause that forbids removing or changing the Open WebUI branding for deployments with more than 50 users."

@@ -1,0 +1,5 @@
+NC_HOST=mesh-0a1b2c3d
+NC_PORT=15432
+NC_USER=nebula_r_0a1b2c3d
+NC_SLOT=nc_r_0a1b2c3d
+PGPASSWORD=pw-pw-pw-pw-pw-pw

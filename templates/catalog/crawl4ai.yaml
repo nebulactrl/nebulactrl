@@ -1,0 +1,65 @@
+schema: 1
+id: crawl4ai
+revision: 1
+name: Crawl4AI
+summary: Web crawler and scraper API that turns pages into clean Markdown for LLM pipelines, with a headless browser and optional LLM extraction.
+description: Crawl4AI runs the official image with its HTTP API, playground and MCP endpoints. The API is protected by a generated token; LLM provider keys are optional and only needed for LLM-based extraction.
+category: ai
+tags: [crawler, scraping, ai, llm, api]
+links:
+  website: https://crawl4ai.com
+  docs: https://docs.crawl4ai.com/core/docker-deployment/
+  source: https://github.com/unclecode/crawl4ai
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/unclecode/crawl4ai/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/crawl4ai
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: API_TOKEN, label: API token (sent as a Bearer token or used to request JWTs), secret: true, default: "${{secret(32)}}"}
+  - {key: LLM_PROVIDER, label: "Default LLM provider for extraction (provider/model)", default: "openai/gpt-4o-mini"}
+  - {key: OPENAI_API_KEY, label: OpenAI API key (optional), secret: true}
+  - {key: ANTHROPIC_API_KEY, label: Anthropic API key (optional), secret: true}
+  - {key: GEMINI_API_TOKEN, label: Gemini API key (optional), secret: true}
+  - {key: DEEPSEEK_API_KEY, label: DeepSeek API key (optional), secret: true}
+  - {key: GROQ_API_KEY, label: Groq API key (optional), secret: true}
+  - {key: TOGETHER_API_KEY, label: Together AI API key (optional), secret: true}
+  - {key: MISTRAL_API_KEY, label: Mistral API key (optional), secret: true}
+services:
+  - key: crawl4ai
+    name: Crawl4AI
+    kind: app
+    image: unclecode/crawl4ai:0.9.5
+    digest: sha256:0b05666882bfb67f45d559a5b827839c54127b74aedd723f8ab338a3571b5fc9
+    port: 11235
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 40
+      deadlineSeconds: 300
+    env:
+      CRAWL4AI_API_TOKEN: ${input:API_TOKEN}
+      LLM_PROVIDER: ${input:LLM_PROVIDER}
+      OPENAI_API_KEY: ${input:OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${input:ANTHROPIC_API_KEY}
+      GEMINI_API_TOKEN: ${input:GEMINI_API_TOKEN}
+      DEEPSEEK_API_KEY: ${input:DEEPSEEK_API_KEY}
+      GROQ_API_KEY: ${input:GROQ_API_KEY}
+      TOGETHER_API_KEY: ${input:TOGETHER_API_KEY}
+      MISTRAL_API_KEY: ${input:MISTRAL_API_KEY}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 3072
+group: Crawl4AI
+notes:
+  - "The server refuses to start without an API token. Send it as `Authorization: Bearer <token>` on API calls, or exchange it for a JWT at POST /token."
+  - "The interactive playground is at /playground on the service address."

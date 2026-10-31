@@ -1,0 +1,57 @@
+schema: 1
+id: kaneo
+revision: 1
+name: Kaneo
+summary: Simple open-source project management with boards, tasks, workspaces and a built-in API.
+description: Kaneo is a lightweight project and task tracker. This template runs the official all-in-one image (web app and API) with a managed Postgres database.
+category: productivity
+tags: [project-management, tasks, kanban, issue-tracker]
+links:
+  website: https://kaneo.app
+  docs: https://kaneo.app/docs
+  source: https://github.com/usekaneo/kaneo
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/usekaneo/kaneo/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/kaneo
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 2
+services:
+  - key: kaneo
+    name: Kaneo
+    kind: app
+    image: ghcr.io/usekaneo/kaneo:2.48.0
+    digest: sha256:e52b4d48bb5efd5cd9a113ce47ed49ea1fb9e9c1517fd73ea4dc1c7037666def
+    port: 5173
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [postgres]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{postgres.DATABASE_URL}}
+      AUTH_SECRET: ${{randomBytes(32,"hex")}}
+      KANEO_CLIENT_URL: ${{NEBULA_PUBLIC_URL}}
+    resources:
+      memoryMb: 512
+  - key: postgres
+    name: Kaneo DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: kaneo
+group: Kaneo
+notes:
+  - "Open the site and sign up: the first non-guest account completes the instance setup and becomes the administrator."
+  - "Afterwards set DISABLE_REGISTRATION=true (and DISABLE_GUEST_ACCESS=true) on the service to stop public sign-ups; see the Kaneo environment variable docs."
+  - "Sign-in uses email/password until SMTP is configured; invitations and password resets need the SMTP_* variables."

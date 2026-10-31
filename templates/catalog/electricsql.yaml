@@ -1,0 +1,71 @@
+schema: 1
+id: electricsql
+revision: 1
+name: Electric
+summary: Postgres sync engine that streams shape-based subsets of your data to apps over HTTP.
+description: Electric syncs partial Postgres data into local-first apps. This template runs the Electric sync service with a Postgres 17 database that has logical replication enabled.
+category: data
+tags: [postgres, sync, local-first, realtime, replication]
+links:
+  website: https://electric-sql.com
+  docs: https://electric-sql.com/docs/guides/deployment
+  source: https://github.com/electric-sql/electric
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/electric-sql/electric/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/electricsql.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: electric
+    name: Electric
+    kind: app
+    image: electricsql/electric:1.8.1
+    digest: sha256:efb6fa43859d67cb8c73439e0c8bc0f7a3daa467500fb06f2a924bcb2070c139
+    port: 3000
+    healthcheck:
+      type: http
+      path: /v1/health
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: postgresql://postgres:${{db.POSTGRES_PASSWORD}}@${{db.NEBULA_PRIVATE_HOST}}:5432/electric?sslmode=disable
+      ELECTRIC_SECRET: ${{secret(48)}}
+      ELECTRIC_STORAGE_DIR: /app/persistent
+      ELECTRIC_USAGE_REPORTING: "false"
+    volumes:
+      - {name: data, path: /app/persistent}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Electric DB
+    kind: database
+    image: postgres:17-alpine
+    digest: sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    command: [postgres, -c, wal_level=logical]
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d electric"]
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: electric
+      POSTGRES_PASSWORD: ${{secret(32)}}
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 512
+group: Electric
+notes:
+  - "Shape requests to <domain>/v1/shape need the API secret: read ELECTRIC_SECRET from the Electric service variables and send it as ?secret=... from your backend or proxy."
+  - "Create your tables in the electric database (service Electric DB, user postgres); Electric needs logical replication, which is already enabled."

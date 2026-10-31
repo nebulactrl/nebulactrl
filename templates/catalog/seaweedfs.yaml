@@ -1,0 +1,54 @@
+schema: 1
+id: seaweedfs
+revision: 1
+name: SeaweedFS
+summary: Distributed object and file storage with an S3-compatible API, run here as a single-node server.
+description: SeaweedFS stores blobs, files and S3 objects. This template runs the master, volume server, filer and S3 gateway in one container on a single volume and exposes the S3 API on the generated domain.
+category: storage
+tags: [s3, object-storage, file-storage, distributed, blob]
+links:
+  website: https://seaweedfs.com
+  docs: https://github.com/seaweedfs/seaweedfs/wiki
+  source: https://github.com/seaweedfs/seaweedfs
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/seaweedfs/seaweedfs/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/seaweedfs
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 20
+inputs:
+  - {key: S3_ACCESS_KEY, label: S3 access key ID, default: nebula}
+  - {key: S3_SECRET_KEY, label: S3 secret access key, secret: true, default: "${{secret(40)}}"}
+services:
+  - key: seaweedfs
+    name: SeaweedFS
+    kind: app
+    image: chrislusf/seaweedfs:4.51
+    digest: sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8
+    command: [server, -filer, -s3, -ip.bind=0.0.0.0, -s3.port=8333]
+    port: 8333
+    healthcheck:
+      type: http
+      path: /readyz
+      port: 9333
+      startPeriodSeconds: 20
+      deadlineSeconds: 300
+    domains:
+      - generate: true
+    env:
+      AWS_ACCESS_KEY_ID: ${input:S3_ACCESS_KEY}
+      AWS_SECRET_ACCESS_KEY: ${input:S3_SECRET_KEY}
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 1024
+group: SeaweedFS
+notes:
+  - "Use the generated domain as the S3 endpoint (path-style addressing) with the access key and secret from the install form."
+  - "The master (9333), filer (8888) and volume (8080) ports stay on the private network; use a one-off shell on the container (weed shell) for administration."

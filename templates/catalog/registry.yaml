@@ -1,0 +1,99 @@
+schema: 1
+id: registry
+revision: 1
+name: Docker Registry
+summary: The official Distribution registry for storing and serving your own container images, protected by a generated username and password.
+description: Distribution (the "registry" image) is the reference implementation of the OCI/Docker registry API. This template runs it with htpasswd authentication, so nobody can push or pull without credentials, and stores the images in a volume. The password hash is created at every container start from the service variables, so the credentials live in the variables and never in a file.
+category: devtools
+tags: [registry, docker, oci, containers, self-hosted]
+icon: docker
+links:
+  website: https://distribution.github.io/distribution/
+  docs: https://distribution.github.io/distribution/about/configuration/
+  source: https://github.com/distribution/distribution
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/distribution/distribution/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/registry
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 10
+inputs:
+  - {key: ADMIN_USERNAME, label: Registry username, default: admin}
+services:
+  - key: registry
+    name: Docker Registry
+    kind: app
+    image: registry:3.1.2
+    digest: sha256:d4032d4cc323c1731c707931ecada07a53076eac38e3b61ae57533f170f2c6c3
+    port: 5000
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    env:
+      USERNAME: ${input:ADMIN_USERNAME}
+      PASSWORD: ${{secret(24)}}
+      REGISTRY_HTTP_RELATIVEURLS: "true"
+    volumes:
+      - name: registry-data
+        path: /var/lib/registry
+    files:
+      - path: /usr/local/bin/nebula-registry-entrypoint.sh
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          set -e
+
+          if [ -z "$USERNAME" ] || [ -z "$PASSWORD" ]; then
+            echo "USERNAME and PASSWORD must be set" >&2
+            exit 1
+          fi
+
+          # The registry only accepts bcrypt htpasswd entries and the image ships no
+          # htpasswd tool, so it is installed from the Alpine repositories.
+          command -v htpasswd >/dev/null 2>&1 || apk add --no-cache apache2-utils
+          mkdir -p /auth
+          htpasswd -Bbc /auth/registry.password "$USERNAME" "$PASSWORD"
+          exec registry serve /etc/docker/registry/config.yml
+      - path: /etc/docker/registry/config.yml
+        content: |
+          version: 0.1
+
+          log:
+            fields:
+              service: registry
+          storage:
+            cache:
+              blobdescriptor: inmemory
+            filesystem:
+              rootdirectory: /var/lib/registry
+          http:
+            addr: :5000
+            headers:
+              X-Content-Type-Options: [nosniff]
+          auth:
+            htpasswd:
+              realm: Registry Realm
+              path: /auth/registry.password
+          health:
+            storagedriver:
+              enabled: true
+              interval: 10s
+              threshold: 3
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+    docker:
+      entrypoint: [/usr/local/bin/nebula-registry-entrypoint.sh]
+group: Docker Registry
+notes:
+  - "Log in with the username you chose and the generated PASSWORD from the service variables: docker login <your-domain>."
+  - "Push with docker tag IMAGE <your-domain>/IMAGE and docker push. The domain is served over HTTPS by the proxy; very large layers may need a higher request body limit on the proxy."
+  - "The password hash is rebuilt at every container start (apache2-utils is installed from the Alpine package repositories if it is missing), so the server needs outbound internet on first start. Change the PASSWORD variable and redeploy to rotate the login."

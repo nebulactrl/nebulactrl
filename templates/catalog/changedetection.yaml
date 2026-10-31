@@ -1,0 +1,51 @@
+schema: 1
+id: changedetection
+revision: 1
+name: changedetection.io
+summary: Monitor web pages for changes and get notified, with visual and text diffs, price and restock tracking.
+description: changedetection.io watches web pages on a schedule, shows what changed between checks and sends notifications through many channels. This template runs the app with the built-in plain HTTP fetcher; it has no login until you set a password in Settings.
+category: analytics
+tags: [monitoring, web, alerts, scraping, notifications]
+icon: changedetection
+links:
+  website: https://changedetection.io
+  docs: https://github.com/dgtlmoon/changedetection.io/wiki
+  source: https://github.com/dgtlmoon/changedetection.io
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/dgtlmoon/changedetection.io/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/changedetection
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: changedetection
+    name: changedetection.io
+    kind: app
+    image: ghcr.io/dgtlmoon/changedetection.io:0.60.9
+    digest: sha256:04eaae7915bad711160cb15abe160f6d3fabe98bbbd658509d4b7a654000fb2d
+    port: 5000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      USE_X_SETTINGS: "1"
+    volumes:
+      - name: datastore
+        path: /datastore
+    resources:
+      memoryMb: 256
+group: changedetection.io
+notes:
+  - "The instance is open to anyone with the URL until you set a password under Settings > General."
+  - "Pages that need JavaScript rendering require a separate Chrome (Playwright) container; this template only includes the plain HTTP fetcher."

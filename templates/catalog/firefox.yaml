@@ -1,0 +1,54 @@
+schema: 1
+id: firefox
+revision: 1
+name: Firefox
+summary: Run the Firefox web browser in a container and use it from any browser through a web GUI.
+description: Firefox in a container from the jlesage image, reachable over HTTPS in your browser behind a login page. Profile, bookmarks and downloads are kept in a volume.
+category: productivity
+tags: [browser, firefox, remote-browser, privacy]
+icon: firefox
+links:
+  website: https://github.com/jlesage/docker-firefox
+  docs: https://github.com/jlesage/docker-firefox#readme
+  source: https://github.com/jlesage/docker-firefox
+upstream:
+  license: MPL-2.0
+  licenseUrl: https://www.mozilla.org/en-US/MPL/2.0/
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/firefox.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 2
+inputs:
+  - {key: USERNAME, label: Login username, default: admin}
+  - {key: PASSWORD, label: Login password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: firefox
+    name: Firefox
+    kind: app
+    image: jlesage/firefox:v26.09.1
+    digest: sha256:302aa068dcfa46a2d248771c998f67377383554df8940252caef42b99c13eb65
+    port: 5800
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      WEB_AUTHENTICATION: "1"
+      WEB_AUTHENTICATION_ALLOW_INSECURE: "1"
+      WEB_AUTHENTICATION_USERNAME: ${input:USERNAME}
+      WEB_AUTHENTICATION_PASSWORD: ${input:PASSWORD}
+      KEEP_APP_RUNNING: "1"
+    volumes:
+      - {name: config, path: /config}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: Firefox
+notes:
+  - "Open the domain and sign in with the username and password from the install form. The browser itself runs on the server."

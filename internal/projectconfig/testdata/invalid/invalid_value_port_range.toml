@@ -1,0 +1,9 @@
+# expect: invalid_value
+# schema: reject
+# A TCP port is 0 to 65535.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 70000

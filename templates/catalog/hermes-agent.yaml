@@ -1,0 +1,68 @@
+schema: 1
+id: hermes-agent
+revision: 1
+name: Hermes Agent
+summary: Autonomous AI agent from Nous Research with persistent memory, scheduled tasks, chat-platform gateway and a web dashboard.
+description: Hermes Agent runs the official image in gateway mode with the web dashboard enabled behind a username and password. Model provider keys are optional inputs and can also be added later from the dashboard.
+category: ai
+tags: [ai, agent, llm, assistant, automation]
+icon: hermes
+links:
+  website: https://hermes-agent.nousresearch.com
+  docs: https://hermes-agent.nousresearch.com/docs/
+  source: https://github.com/NousResearch/hermes-agent
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/NousResearch/hermes-agent/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/hermes-agent.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: DASHBOARD_USERNAME, label: Dashboard user name, default: admin}
+  - {key: DASHBOARD_PASSWORD, label: Dashboard password, secret: true, default: "${{secret(24)}}"}
+  - {key: OPENROUTER_API_KEY, label: OpenRouter API key (optional), secret: true}
+  - {key: ANTHROPIC_API_KEY, label: Anthropic API key (optional), secret: true}
+  - {key: OPENAI_API_KEY, label: OpenAI API key (optional), secret: true}
+services:
+  - key: hermes-agent
+    name: Hermes Agent
+    kind: app
+    image: nousresearch/hermes-agent:v0.22.5
+    digest: sha256:9c5561579f3ffdf333401797094ac3a743738d6c25d40f4331c7bf77b694238d
+    port: 9119
+    command: [gateway, run]
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    env:
+      HERMES_HOME: /opt/data
+      HERMES_UID: "1000"
+      HERMES_GID: "1000"
+      HERMES_DASHBOARD: "1"
+      HERMES_DASHBOARD_HOST: 0.0.0.0
+      HERMES_DASHBOARD_PORT: "9119"
+      HERMES_DASHBOARD_BASIC_AUTH_USERNAME: ${input:DASHBOARD_USERNAME}
+      HERMES_DASHBOARD_BASIC_AUTH_PASSWORD: ${input:DASHBOARD_PASSWORD}
+      HERMES_DASHBOARD_BASIC_AUTH_SECRET: ${{secret(64)}}
+      OPENROUTER_API_KEY: ${input:OPENROUTER_API_KEY}
+      ANTHROPIC_API_KEY: ${input:ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${input:OPENAI_API_KEY}
+    volumes:
+      - name: hermes-home
+        path: /opt/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: Hermes Agent
+notes:
+  - "Sign in to the dashboard at the service address with the user name and password from the install form."
+  - "The agent can run tools and commands on its own: keep the dashboard password strong and add chat-platform tokens (Telegram, Discord, ...) only together with an allow-list of users in the dashboard configuration."

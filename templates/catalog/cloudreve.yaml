@@ -1,0 +1,72 @@
+schema: 1
+id: cloudreve
+revision: 1
+name: Cloudreve
+summary: Self-hosted file manager and sharing platform with multi-user support, share links and external storage backends.
+description: Cloudreve is a cloud storage system with a web file manager, share links, WebDAV, previews and optional remote storage such as S3. This template runs the app with a managed PostgreSQL database and a managed Valkey cache.
+category: storage
+tags: [file-sharing, cloud-storage, webdav, files]
+icon: cloudreve
+links:
+  website: https://cloudreve.org
+  docs: https://docs.cloudreve.org
+  source: https://github.com/cloudreve/cloudreve
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/cloudreve/cloudreve/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/cloudreve.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+services:
+  - key: cloudreve
+    name: Cloudreve
+    kind: app
+    image: cloudreve/cloudreve:4.19.1
+    digest: sha256:5c6c5baf7fa5bc6e1bb9a7509c09dde00e80b618d180244eb1d5f7e36b358ea2
+    port: 5212
+    healthcheck:
+      type: http
+      path: /api/v4/site/ping
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    dependsOn: [postgres, redis]
+    domains:
+      - generate: true
+    env:
+      CR_CONF_Database__Type: postgres
+      CR_CONF_Database__Host: ${{postgres.DATABASE_HOST}}
+      CR_CONF_Database__Port: ${{postgres.DATABASE_PORT}}
+      CR_CONF_Database__User: ${{postgres.DATABASE_USER}}
+      CR_CONF_Database__Password: ${{postgres.DATABASE_PASSWORD}}
+      CR_CONF_Database__Name: ${{postgres.DATABASE_NAME}}
+      CR_CONF_Redis__Server: ${{redis.REDIS_HOST}}:${{redis.REDIS_PORT}}
+      CR_CONF_Redis__Password: ${{redis.REDIS_PASSWORD}}
+      CR_CONF_Redis__DB: "0"
+    volumes:
+      - name: data
+        path: /cloudreve/data
+    resources:
+      memoryMb: 512
+  - key: postgres
+    name: Cloudreve DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: cloudreve
+  - key: redis
+    name: Cloudreve cache
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Cloudreve
+notes:
+  - "Open the site and register: the first account becomes the administrator."
+  - "After signing in, set the site URL under Admin > Settings > Site information to the public address of this service."

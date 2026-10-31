@@ -1,0 +1,63 @@
+schema: 1
+id: archivebox
+revision: 1
+name: ArchiveBox
+summary: Self-hosted web archive that saves pages, media and documents from URLs and bookmarks.
+description: ArchiveBox takes URLs, bookmarks and feeds and saves them as HTML, PDF, screenshots and media you control. This template runs the official image with a persistent data volume and a first admin account.
+category: storage
+tags: [archive, bookmarks, web-archive, snapshots]
+links:
+  website: https://archivebox.io
+  docs: https://docs.archivebox.io
+  source: https://github.com/ArchiveBox/ArchiveBox
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/ArchiveBox/ArchiveBox/blob/dev/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/archivebox
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 10
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, default: admin, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+  - key: PUBLIC_INDEX
+    label: Public index
+    description: "True lets anonymous visitors browse the list of archived snapshots; False requires login."
+    default: "False"
+    options: ["True", "False"]
+services:
+  - key: archivebox
+    name: ArchiveBox
+    kind: app
+    image: archivebox/archivebox:0.9.73
+    digest: sha256:d4720d86c0e91577bccaee59fa238d22a9cfc0674aa594c80f739f0738270af9
+    port: 5797
+    healthcheck:
+      type: http
+      path: /health/
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    env:
+      ADMIN_USERNAME: ${input:ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      CSRF_TRUSTED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+      SERVER_SECURITY_MODE: safe-onedomain-nojsreplay
+      PUBLIC_INDEX: ${input:PUBLIC_INDEX}
+      PUBLIC_ADD_VIEW: "False"
+    volumes:
+      - name: data
+        path: /data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 2048
+group: ArchiveBox
+notes:
+  - "Sign in at /admin/ with the admin username and the generated ADMIN_PASSWORD (see the service variables)."
+  - "Archived pages are served on the same domain without JavaScript replay (safe single-domain mode); full replay needs wildcard subdomains."

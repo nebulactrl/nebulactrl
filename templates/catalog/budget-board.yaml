@@ -1,0 +1,81 @@
+schema: 1
+id: budget-board
+revision: 1
+name: Budget Board
+summary: Self-hosted personal budgeting app for tracking accounts, transactions, budgets and financial goals.
+description: Runs the Budget Board web client and API server with a managed Postgres database. The server applies database migrations on start.
+category: productivity
+tags: [budgeting, finance, expenses, personal-finance]
+links:
+  website: https://budgetboard.net
+  docs: https://budgetboard.net
+  source: https://github.com/teelur/budget-board
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/teelur/budget-board/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/budget-board
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 2
+services:
+  - key: client
+    name: Budget Board
+    kind: app
+    image: ghcr.io/teelur/budget-board/client:v3.8.2
+    digest: sha256:257eea6d03bd1b9a5f19c16e7b45a3f5bb16ff29277ffc9c216b2f381ec4d5c5
+    port: 6253
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 10
+      deadlineSeconds: 180
+    dependsOn: [server]
+    domains:
+      - generate: true
+    env:
+      VITE_SERVER_ADDRESS: ${{server.NEBULA_PRIVATE_HOST}}
+      VITE_OIDC_ENABLED: "false"
+      VITE_DISABLE_NEW_USERS: "false"
+      VITE_DISABLE_LOCAL_AUTH: "false"
+    resources:
+      memoryMb: 128
+  - key: server
+    name: Budget Board API
+    kind: worker
+    image: ghcr.io/teelur/budget-board/server:v3.8.2
+    digest: sha256:91e0ae0db2b747a6afbdecdbad2edbac459f474013140cb74b99ed8b00392663
+    healthcheck:
+      type: http
+      path: /health
+      port: 8080
+      startPeriodSeconds: 20
+      deadlineSeconds: 300
+    dependsOn: [db]
+    env:
+      ASPNETCORE_HTTP_PORTS: "8080"
+      CLIENT_ADDRESS: budget-board-client
+      POSTGRES_HOST: ${{db.DATABASE_HOST}}
+      POSTGRES_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_DATABASE: ${{db.DATABASE_NAME}}
+      POSTGRES_USER: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      AUTO_UPDATE_DB: "true"
+      OIDC_ENABLED: "false"
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Budget Board DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: budgetboard
+group: Budget Board
+notes:
+  - "Open the app and register the first user; there is no default login."
+  - "Bank syncing (SimpleFIN, LunchFlow), OIDC and e-mail are optional and configured through variables on the API service, see https://budgetboard.net/deploy/configuration."

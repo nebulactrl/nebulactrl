@@ -1,0 +1,54 @@
+schema: 1
+id: codex-docs
+revision: 1
+name: CodeX Docs
+summary: Documentation and knowledge-base site with a block editor (Editor.js) and nested pages.
+description: CodeX Docs publishes pages written in the Editor.js block editor, protected by an admin password. This template runs the official image with its built-in local database and a volume for uploads.
+category: devtools
+tags: [documentation, docs, wiki, editor, knowledge-base]
+links:
+  website: https://codex.so
+  docs: https://docs.codex.so
+  source: https://github.com/codex-team/codex.docs
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/codex-team/codex.docs/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/codex-docs
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+  arch: [amd64]
+inputs:
+  - {key: AUTH_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: codex
+    name: CodeX Docs
+    kind: app
+    image: ghcr.io/codex-team/codex.docs:v2.2.5
+    digest: sha256:c25f47c7f5af84206cef1fcedb2debcd25ba9ce1d4c6e5a33a0f273faff5a41f
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      APP_CONFIG_auth_password: ${input:AUTH_PASSWORD}
+      APP_CONFIG_auth_secret: ${{secret(32)}}
+    volumes:
+      - name: uploads
+        path: /usr/src/app/uploads
+      - name: db
+        path: /usr/src/app/db
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: CodeX Docs
+notes:
+  - "Open /auth on the site address and sign in with the admin password from the install form to create and edit pages."

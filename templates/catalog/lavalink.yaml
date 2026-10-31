@@ -1,0 +1,55 @@
+schema: 1
+id: lavalink
+revision: 1
+name: Lavalink
+summary: Standalone audio sending node based on Lavaplayer, used by Discord music bots to stream audio.
+description: Lavalink is an open-source audio node for Discord bots. A bot library (Lavalink4NET, Wavelink, Shoukaku, lavalink-client and others) connects to it over REST and WebSocket, authenticates with a password, and Lavalink loads, decodes and sends the audio so the bot itself stays light. This template runs the official image configured entirely through environment variables, with a generated password.
+category: media
+tags: [discord, music, audio, bots, voice]
+icon: lavalink
+links:
+  website: https://lavalink.dev
+  docs: https://lavalink.dev/getting-started/index.html
+  source: https://github.com/lavalink-devs/Lavalink
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/lavalink-devs/Lavalink/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/lavalink
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 1
+services:
+  - key: lavalink
+    name: Lavalink
+    kind: app
+    image: ghcr.io/lavalink-devs/lavalink:4.2.2
+    digest: sha256:87ae53e60dc147c9dddb28e126ce503a26bc8d1477ed8d99543614677882afff
+    port: 2333
+    healthcheck:
+      type: exec
+      command:
+        - CMD-SHELL
+        - 'wget --header="Authorization: $LAVALINK_SERVER_PASSWORD" -qO- http://127.0.0.1:2333/v4/info > /dev/null'
+      intervalSeconds: 30
+      timeoutSeconds: 5
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    env:
+      _JAVA_OPTIONS: -Xmx768m
+      SERVER_PORT: "2333"
+      LAVALINK_SERVER_PASSWORD: ${{secret(32)}}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: Lavalink
+notes:
+  - "Point your bot's Lavalink client at the generated domain (host without scheme, port 443, secure/TLS on) and use the LAVALINK_SERVER_PASSWORD variable of this service as the password. The REST info endpoint is /v4/info with an Authorization header."
+  - "The upstream Dokploy blueprint mounted an application.yml and a plugins directory and ran a permissions job first. This template configures Lavalink with environment variables only (see the environment variables page of the Lavalink docs, for example LAVALINK_SERVER_SOURCES_YOUTUBE=false or LAVALINK_PLUGINS_0_DEPENDENCY for a plugin) and keeps no volume, so downloaded plugins are fetched again after a restart."
+  - "YouTube playback needs the separate youtube-source plugin in current Lavalink releases; add it with the LAVALINK_PLUGINS_0_DEPENDENCY variable as described in its README."
+  - "The JVM heap is capped at 768 MB through _JAVA_OPTIONS; raise it together with the service memory limit for many simultaneous players."

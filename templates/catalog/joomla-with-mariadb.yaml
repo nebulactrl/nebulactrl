@@ -1,0 +1,76 @@
+schema: 1
+id: joomla-with-mariadb
+revision: 1
+name: Joomla
+summary: Open-source content management system for building websites, blogs and web applications.
+description: Runs the official Joomla image against a managed MariaDB database and installs the site automatically on first start with the administrator you choose.
+category: web
+tags: [cms, joomla, website, php, content]
+icon: joomla
+links:
+  website: https://www.joomla.org
+  docs: https://docs.joomla.org
+  source: https://github.com/joomla/joomla-cms
+upstream:
+  license: GPL-2.0-or-later
+  licenseUrl: https://github.com/joomla/joomla-cms/blob/6.2-dev/LICENSE.txt
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/joomla-with-mariadb.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 768
+  diskGb: 5
+inputs:
+  - {key: SITE_NAME, label: Site name, default: My Joomla Site}
+  - {key: ADMIN_NAME, label: Administrator full name, default: Administrator}
+  - {key: ADMIN_USERNAME, label: Administrator username, default: admin}
+  - {key: ADMIN_EMAIL, format: email, label: Administrator e-mail, required: true}
+  - key: ADMIN_PASSWORD
+    label: Administrator password
+    description: At least 12 characters. Generated if left empty.
+    secret: true
+    default: "${{secret(20)}}"
+services:
+  - key: joomla
+    name: Joomla
+    kind: app
+    image: joomla:6.2.0
+    digest: sha256:3ae5573340b69391dd23497dbb650c557aa3a72de71fd8bd47bd0621484d2321
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [mariadb]
+    domains:
+      - generate: true
+    env:
+      JOOMLA_DB_HOST: ${{mariadb.DATABASE_HOST}}:${{mariadb.DATABASE_PORT}}
+      JOOMLA_DB_NAME: ${{mariadb.DATABASE_NAME}}
+      JOOMLA_DB_USER: ${{mariadb.DATABASE_USER}}
+      JOOMLA_DB_PASSWORD: ${{mariadb.DATABASE_PASSWORD}}
+      JOOMLA_SITE_NAME: ${input:SITE_NAME}
+      JOOMLA_ADMIN_USER: ${input:ADMIN_NAME}
+      JOOMLA_ADMIN_USERNAME: ${input:ADMIN_USERNAME}
+      JOOMLA_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      JOOMLA_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - name: data
+        path: /var/www/html
+    resources:
+      memoryMb: 768
+  - key: mariadb
+    name: Joomla DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: joomla
+group: Joomla
+notes:
+  - "The site is installed on the first start, which takes a minute or two. Sign in at /administrator with the administrator username and password from the install form."
+  - "Outgoing e-mail is not configured: set the SMTP host in Joomla's Global Configuration (or the JOOMLA_SMTP_HOST variables)."

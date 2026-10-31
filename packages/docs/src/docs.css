@@ -1,0 +1,506 @@
+
+/*
+ * Prose for /docs. The pages arrive as HTML compiled at build time
+ * (`packages/docs/src/build`); this file is the only place that styles it. It spends
+ * the system's own tokens: ink ramp, the well surface for code, the
+ * tone-callout wash for callouts, IBM Plex throughout. Highlighted code uses
+ * highlight.js class names (no highlighter ships), coloured from the status
+ * tokens so it stays inside the palette.
+ */
+
+/*
+ * The prose fills whatever column the page gives it. Reading text keeps a
+ * 72ch measure (so a wide column never makes a line too long to follow);
+ * tables, code blocks, diagrams, images and callouts that hold them use the
+ * column's full width. Everything stays left aligned.
+ */
+.docs-prose {
+	color: var(--color-ink-2);
+	font-size: 14px;
+	line-height: 1.7;
+	overflow-wrap: anywhere;
+}
+
+.docs-prose
+	> :is(
+		h1,
+		h2,
+		h3,
+		h4,
+		p,
+		ul,
+		ol,
+		dl,
+		hr,
+		blockquote,
+		details,
+		.docs-callout:not(:has(table, pre))
+	):not(:has(> img:only-child)) {
+	max-width: 72ch;
+}
+
+.docs-prose img {
+	max-width: 100%;
+	height: auto;
+}
+
+.docs-prose > :first-child {
+	margin-top: 0;
+}
+
+.docs-prose h1 {
+	margin: 0 0 0.5em;
+	color: var(--color-ink-1);
+	font-family: var(--font-display);
+	font-size: 28px;
+	font-weight: 600;
+	letter-spacing: -0.02em;
+	line-height: 1.15;
+}
+
+.docs-prose h2,
+.docs-prose h3,
+.docs-prose h4 {
+	position: relative;
+	color: var(--color-ink-1);
+	font-weight: 600;
+	scroll-margin-top: 24px;
+}
+
+.docs-prose h2 {
+	margin: 2.4em 0 0.7em;
+	padding-bottom: 0.35em;
+	border-bottom: 1px solid var(--color-line-faint);
+	font-size: 19px;
+	letter-spacing: -0.01em;
+	line-height: 1.3;
+}
+
+.docs-prose h3 {
+	margin: 1.9em 0 0.5em;
+	font-size: 15px;
+	line-height: 1.4;
+}
+
+.docs-prose h4 {
+	margin: 1.5em 0 0.4em;
+	font-size: 14px;
+}
+
+/* The "#" that links to a heading: there for people who point at a section. */
+.docs-anchor {
+	margin-left: 0.5em;
+	color: var(--color-ink-4);
+	font-family: var(--font-mono);
+	font-weight: 400;
+	opacity: 0;
+	text-decoration: none;
+}
+:is(h2, h3, h4):hover > .docs-anchor,
+.docs-anchor:focus-visible {
+	opacity: 1;
+}
+
+.docs-prose p,
+.docs-prose ul,
+.docs-prose ol,
+.docs-prose .docs-code,
+.docs-prose .docs-table-wrap,
+.docs-prose blockquote,
+.docs-prose .docs-callout {
+	margin: 0.9em 0;
+}
+
+.docs-prose ul,
+.docs-prose ol {
+	padding-left: 1.4em;
+}
+.docs-prose ul {
+	list-style: disc;
+}
+.docs-prose ol {
+	list-style: decimal;
+}
+.docs-prose li {
+	margin: 0.3em 0;
+}
+.docs-prose li::marker {
+	color: var(--color-ink-4);
+}
+.docs-prose li > :is(ul, ol) {
+	margin: 0.3em 0;
+}
+
+.docs-prose strong {
+	color: var(--color-ink-1);
+	font-weight: 600;
+}
+
+.docs-prose a {
+	color: var(--color-accent-ink);
+	text-decoration: underline;
+	text-decoration-color: color-mix(in oklab, var(--color-accent-ink) 35%, transparent);
+	text-underline-offset: 3px;
+}
+.docs-prose a:hover {
+	text-decoration-color: currentColor;
+}
+.docs-prose a.docs-external::after {
+	content: "↗";
+	margin-left: 0.15em;
+	font-size: 0.8em;
+	color: var(--color-ink-4);
+}
+
+.docs-prose hr {
+	margin: 2em 0;
+	border: 0;
+	border-top: 1px solid var(--color-line);
+}
+
+.docs-prose blockquote {
+	padding: 0.1em 0 0.1em 1em;
+	border-left: 2px solid var(--color-line-strong);
+	color: var(--color-ink-3);
+}
+
+/* Inline code: a small well, never louder than the text around it. */
+.docs-prose :not(pre) > code {
+	padding: 0.08em 0.3em;
+	border: 1px solid var(--color-line-faint);
+	border-radius: 5px;
+	background: var(--color-surface-well);
+	color: var(--color-ink-1);
+	font-size: 0.86em;
+	overflow-wrap: anywhere;
+}
+
+/* ---- code blocks: the CodeBlock look (well surface, mono 12px), with a copy key ---- */
+
+.docs-code {
+	@apply surface-well;
+	overflow: hidden;
+	border-radius: var(--radius-ctl);
+}
+.docs-code-bar {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	min-height: 32px;
+	padding: 4px 6px 0 14px;
+}
+.docs-code-lang {
+	color: var(--color-ink-4);
+	font-family: var(--font-mono);
+	font-size: 10px;
+	font-weight: 500;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+}
+/* Copy is a key you press, so it is the secondary key with its travel, not a
+   keycap: a keycap names a shortcut. Under a finger it
+   grows to 36px. */
+.docs-code-copy {
+	@apply btn-secondary pressable;
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	height: 26px;
+	margin-bottom: var(--key-travel);
+	padding: 0 9px;
+	border-radius: 6px;
+	color: var(--color-ink-2);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	cursor: pointer;
+	@media (pointer: coarse) {
+		height: 36px;
+		padding: 0 12px;
+		font-size: 12px;
+	}
+}
+.docs-code-copy-icon {
+	display: grid;
+	place-items: center;
+}
+.docs-code-copy-icon > svg {
+	grid-area: 1 / 1;
+	width: 12px;
+	height: 12px;
+}
+.docs-code-copy .docs-icon-done {
+	display: none;
+	color: var(--color-status-live);
+}
+.docs-code-copy[data-copied] .docs-icon-copy {
+	display: none;
+}
+.docs-code-copy[data-copied] .docs-icon-done {
+	display: block;
+}
+.docs-code pre {
+	margin: 0;
+	padding: 4px 16px 14px;
+	overflow-x: auto;
+	color: var(--color-ink-1);
+	font-size: 12px;
+	line-height: 1.7;
+	tab-size: 4;
+}
+.docs-code code {
+	font-family: var(--font-mono);
+	background: none;
+	border: 0;
+	padding: 0;
+	font-size: inherit;
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-meta {
+	color: var(--color-ink-4);
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-doctag,
+.hljs-section,
+.hljs-name,
+.hljs-built_in {
+	color: var(--color-accent-ink);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition {
+	color: var(--color-status-live);
+}
+.hljs-number,
+.hljs-literal,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-params {
+	color: var(--color-status-staged);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-title,
+.hljs-type,
+.hljs-selector-id,
+.hljs-selector-class {
+	color: var(--color-status-building);
+}
+.hljs-deletion {
+	color: var(--color-status-failed);
+}
+.hljs-emphasis {
+	font-style: italic;
+}
+.hljs-strong {
+	font-weight: 600;
+}
+
+/* ---- tables ---- */
+
+/*
+ * A table takes the article's full width and sizes its columns from their
+ * content (the compiler tags them: see describeTable in build/markdown.ts):
+ *   .docs-cell-text  a column with sentences in it; never narrower than 24ch,
+ *                    so it cannot collapse to a word per line.
+ *   .docs-cell-fit   a column of short values; stays on one line.
+ *   (untagged)       long code such as an endpoint; stays on one line where it
+ *                    fits and breaks at the slashes, `?` and `{` where it does not.
+ * Only when the columns cannot all fit does the frame scroll sideways; its
+ * edges fade while there is more to scroll to (scroll-linked, no script) and
+ * it takes focus so the keyboard can scroll it.
+ */
+@property --docs-fade-start {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
+@property --docs-fade-end {
+	syntax: "<length>";
+	inherits: false;
+	initial-value: 0px;
+}
+@keyframes docs-scroll-fade {
+	0% {
+		--docs-fade-start: 0px;
+		--docs-fade-end: 32px;
+	}
+	4% {
+		--docs-fade-start: 32px;
+	}
+	96% {
+		--docs-fade-end: 32px;
+	}
+	100% {
+		--docs-fade-start: 32px;
+		--docs-fade-end: 0px;
+	}
+}
+
+.docs-table-wrap {
+	max-width: 100%;
+	overflow-x: auto;
+	border: 1px solid var(--color-line);
+	border-radius: var(--radius-card);
+}
+.docs-table-wrap:focus-visible {
+	outline: 2px solid var(--color-accent-ink);
+	outline-offset: 2px;
+}
+@supports (animation-timeline: scroll()) {
+	.docs-table-wrap {
+		animation: docs-scroll-fade linear both;
+		animation-timeline: scroll(self inline);
+		-webkit-mask-image: linear-gradient(
+			90deg,
+			transparent,
+			#000 var(--docs-fade-start),
+			#000 calc(100% - var(--docs-fade-end)),
+			transparent
+		);
+		mask-image: linear-gradient(
+			90deg,
+			transparent,
+			#000 var(--docs-fade-start),
+			#000 calc(100% - var(--docs-fade-end)),
+			transparent
+		);
+	}
+}
+.docs-prose table {
+	width: 100%;
+	table-layout: auto;
+	border-collapse: collapse;
+	font-size: 13px;
+	line-height: 1.5;
+}
+.docs-prose th {
+	padding: 8px 12px;
+	background: var(--color-surface-raised);
+	color: var(--color-ink-3);
+	font-size: 12px;
+	font-weight: 500;
+	text-align: left;
+}
+.docs-prose :is(th, td) {
+	/* Words are never broken mid-token: a column that cannot fit scrolls the frame instead. */
+	overflow-wrap: normal;
+}
+.docs-prose td {
+	min-width: 8ch;
+	padding: 8px 12px;
+	border-top: 1px solid var(--color-line-faint);
+	vertical-align: top;
+}
+.docs-prose td.docs-cell-text {
+	min-width: 24ch;
+}
+.docs-prose :is(th, td).docs-cell-fit {
+	white-space: nowrap;
+}
+.docs-prose :is(th, td) code {
+	/* Breaks only where the text allows (after `/`, `?`, `-`, a space; before `{`), never inside a name. */
+	overflow-wrap: normal;
+	box-decoration-break: clone;
+	-webkit-box-decoration-break: clone;
+}
+
+/* ---- callouts: the alert pattern, an icon on a faint tone wash ---- */
+
+.docs-callout {
+	@apply tone-callout;
+	position: relative;
+	display: grid;
+	grid-template-columns: auto 1fr;
+	column-gap: 10px;
+	padding: 10px 14px;
+	border-radius: var(--radius-card);
+	color: var(--color-ink-2);
+	font-size: 13px;
+	line-height: 1.55;
+}
+.docs-callout-icon {
+	flex: none;
+	margin-top: 2px;
+	color: var(--tone);
+}
+.docs-callout-body > :first-child {
+	margin-top: 0;
+}
+.docs-callout-body > :last-child {
+	margin-bottom: 0;
+}
+.docs-callout-body p {
+	margin: 0.5em 0;
+}
+.docs-callout-title {
+	margin: 0 0 0.15em;
+	color: var(--color-ink-1);
+	font-weight: 600;
+}
+
+/* ---- api reference ---- */
+
+.docs-method {
+	display: inline-flex;
+	align-items: center;
+	min-width: 52px;
+	justify-content: center;
+	padding: 1px 7px;
+	border-radius: var(--radius-tip);
+	font-family: var(--font-mono);
+	font-size: 11px;
+	font-weight: 600;
+	letter-spacing: 0.02em;
+}
+.docs-method[data-method="GET"] {
+	background: var(--color-status-building-wash);
+	color: var(--color-status-building-on);
+}
+.docs-method[data-method="POST"] {
+	background: var(--color-status-live-wash);
+	color: var(--color-status-live-on);
+}
+.docs-method[data-method="PUT"],
+.docs-method[data-method="PATCH"] {
+	background: var(--color-status-staged-wash);
+	color: var(--color-status-staged-on);
+}
+.docs-method[data-method="DELETE"] {
+	background: var(--color-status-failed-wash);
+	color: var(--color-status-failed-on);
+}
+
+.docs-details > summary {
+	cursor: pointer;
+	list-style: none;
+	padding-block: 4px;
+	/* A finger needs a 44px row to open it (Apple HIG; WCAG 2.5.8 asks 24px). */
+	@media (pointer: coarse) {
+		display: flex;
+		align-items: center;
+		min-height: 44px;
+		padding-block: 0;
+	}
+}
+.docs-details > summary::-webkit-details-marker {
+	display: none;
+}
+.docs-details > summary::before {
+	content: "";
+	display: inline-block;
+	width: 0;
+	height: 0;
+	margin-right: 8px;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+	border-left: 5px solid var(--color-ink-4);
+	vertical-align: 1px;
+}
+.docs-details[open] > summary::before {
+	transform: rotate(90deg);
+}

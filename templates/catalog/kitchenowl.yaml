@@ -1,0 +1,64 @@
+schema: 1
+id: kitchenowl
+revision: 1
+name: KitchenOwl
+summary: Shared grocery lists, recipes, meal planning and expense tracking for households.
+description: KitchenOwl is a self-hosted grocery list and recipe manager with web and mobile apps. This template runs the official all-in-one image (web app and API) with a managed Postgres database.
+category: homelab
+tags: [grocery, recipes, meal-planning, shopping-list]
+links:
+  website: https://kitchenowl.org
+  docs: https://docs.kitchenowl.org
+  source: https://github.com/TomBursch/kitchenowl
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/TomBursch/kitchenowl/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/kitchenowl
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: web
+    name: KitchenOwl
+    kind: app
+    image: tombursch/kitchenowl:v0.7.10
+    digest: sha256:bd821a41b8cb27fd7fcf429acd1fc67e9f889485a2cd1193d68c2d804a8e1bef
+    port: 8080
+    healthcheck:
+      type: http
+      path: /api/health/8M4F88S8ooi4sMbLBfkkV7ctWwgibW6V
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      JWT_SECRET_KEY: ${{secret(48)}}
+      FRONT_URL: ${{NEBULA_PUBLIC_URL}}
+      DB_DRIVER: postgresql
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 512
+  - key: db
+    name: KitchenOwl DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: kitchenowl
+group: KitchenOwl
+notes:
+  - "Open the site and create the first account in the onboarding screen; it becomes the server admin. New sign-ups stay closed unless you set OPEN_REGISTRATION=true."
+  - "Uploaded recipe images and household files live in the data volume."

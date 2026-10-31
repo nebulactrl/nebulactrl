@@ -1,0 +1,56 @@
+schema: 1
+id: bytebase
+revision: 1
+name: Bytebase
+summary: Database DevSecOps platform for schema change review, SQL editor and access control across many database engines.
+description: Bytebase manages schema migrations and database access for teams. This template runs Bytebase with a managed Postgres database as its metadata store and a volume for its data directory.
+category: data
+tags: [database, schema-migration, sql, devops, review]
+links:
+  website: https://www.bytebase.com
+  docs: https://docs.bytebase.com
+  source: https://github.com/bytebase/bytebase
+upstream:
+  license: MIT (core) with Bytebase Enterprise License for enterprise code
+  licenseUrl: https://github.com/bytebase/bytebase/blob/main/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/bytebase
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: bytebase
+    name: Bytebase
+    kind: app
+    image: bytebase/bytebase:3.24.0
+    digest: sha256:5e14e1a285c0c34b03a1977ca70d135ba019750dc3bb1cb622ced6a793ea0132
+    port: 8080
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [bytebase-db]
+    domains:
+      - generate: true
+    env:
+      PG_URL: ${{bytebase-db.DATABASE_URL}}
+    volumes:
+      - {name: data, path: /var/opt/bytebase}
+    resources:
+      memoryMb: 1024
+  - key: bytebase-db
+    name: Bytebase DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: bytebase
+group: Bytebase
+notes:
+  - "Open the app and create the first account; it becomes the workspace admin. Set the external URL under Settings after sign-in."
+  - "The core is MIT, but features such as SSO, approval flows and audit log need a paid Bytebase plan (enterprise code is under a separate licence)."

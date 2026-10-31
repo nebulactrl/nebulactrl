@@ -1,0 +1,12 @@
+# expect: invalid_value
+# A watch path must not climb out of the repository.
+schema = 1
+server = "fra-1"
+
+[services.web]
+
+[services.web.git]
+connection = "github-acme"
+repo = "acme/shop"
+branch = "main"
+watch_paths = ["apps/web/**", "../outside/**"]

@@ -1,0 +1,79 @@
+schema: 1
+id: nextcloud
+revision: 1
+name: Nextcloud
+summary: Self-hosted file sync, sharing, calendar, contacts and collaboration suite.
+description: Nextcloud is a private cloud for files, calendars, contacts and documents. This template runs the official Apache image with a managed Postgres database and a Valkey cache for file locking and sessions, and installs automatically on first start.
+category: storage
+tags: [files, sync, cloud, collaboration, calendar]
+icon: nextcloud
+links:
+  website: https://nextcloud.com
+  docs: https://docs.nextcloud.com/server/latest/admin_manual/
+  source: https://github.com/nextcloud/server
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/nextcloud/server/blob/master/COPYING
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 20
+inputs:
+  - {key: NEXTCLOUD_ADMIN_USER, label: Admin username, required: true, default: admin}
+  - {key: NEXTCLOUD_ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: app
+    name: Nextcloud
+    kind: app
+    image: nextcloud:35.0.2-apache
+    digest: sha256:89af7ee7a96ff5e9668280566209268ae6b2d02327f6ef6d56f6d68228cf9431
+    port: 80
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "curl -fs http://localhost/status.php | grep -q '\"installed\":true'"]
+      startPeriodSeconds: 120
+      deadlineSeconds: 600
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      NEXTCLOUD_ADMIN_USER: ${input:NEXTCLOUD_ADMIN_USER}
+      NEXTCLOUD_ADMIN_PASSWORD: ${input:NEXTCLOUD_ADMIN_PASSWORD}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${{NEBULA_PUBLIC_DOMAIN}}
+      POSTGRES_HOST: ${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}
+      POSTGRES_DB: ${{db.DATABASE_NAME}}
+      POSTGRES_USER: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      REDIS_HOST: ${{cache.REDIS_HOST}}
+      REDIS_HOST_PORT: ${{cache.REDIS_PORT}}
+      REDIS_HOST_PASSWORD: ${{cache.REDIS_PASSWORD}}
+      OVERWRITEPROTOCOL: https
+      OVERWRITEHOST: ${{NEBULA_PUBLIC_DOMAIN}}
+      OVERWRITECLIURL: ${{NEBULA_PUBLIC_URL}}
+      TRUSTED_PROXIES: 172.16.0.0/12 10.0.0.0/8 192.168.0.0/16
+      APACHE_DISABLE_REWRITE_IP: "1"
+    volumes:
+      - {name: html, path: /var/www/html}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Nextcloud DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: nextcloud
+  - key: cache
+    name: Nextcloud Cache
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Nextcloud
+notes:
+  - "The first start installs Nextcloud (a minute or two); sign in with the admin username and password you chose at install."
+  - "Nextcloud only answers on the configured public domain. If you add another domain later, add it to trusted_domains in /var/www/html/config/config.php (or with occ config:system:set)."
+  - "For background jobs, set Nextcloud to use Cron in Administration settings and schedule `php -f /var/www/html/cron.php` as a Nebula cron job on this service; the default AJAX mode works for light use."
+  - "Application code, config and user files all live on the html volume; back it up together with the database."

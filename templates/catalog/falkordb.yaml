@@ -1,0 +1,63 @@
+schema: 1
+id: falkordb
+revision: 1
+name: FalkorDB
+summary: Low-latency graph database with Cypher queries, for knowledge graphs and GraphRAG, with a built-in browser UI.
+description: FalkorDB is a graph database that runs as a Redis module. This template runs the official all-in-one image (database plus FalkorDB Browser) with a required password and persistent data volumes. The database port stays inside the private network.
+category: ai
+tags: [graph-database, knowledge-graph, graphrag, cypher, redis]
+links:
+  website: https://www.falkordb.com/
+  docs: https://docs.falkordb.com/
+  source: https://github.com/FalkorDB/FalkorDB
+upstream:
+  license: SSPL-1.0
+  licenseUrl: https://github.com/FalkorDB/FalkorDB/blob/master/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/falkordb
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: falkordb
+    name: FalkorDB
+    kind: app
+    image: falkordb/falkordb:6.0.3
+    digest: sha256:0fb85036662ce3d1206530a38fdf7df5a92b1fb31ad23087f8d4e89038ce0812
+    port: 3000
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "REDISCLI_AUTH=$FALKORDB_PASSWORD redis-cli ping | grep PONG"]
+      intervalSeconds: 10
+      timeoutSeconds: 5
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      FALKORDB_PASSWORD: ${{randomBytes(16,"hex")}}
+      REDIS_ARGS: --requirepass ${{FALKORDB_PASSWORD}} --appendonly yes
+      FALKORDB_AUTO_CONNECT: "false"
+      AUTH_URL: ${{NEBULA_PUBLIC_URL}}
+      NEXTAUTH_URL: ${{NEBULA_PUBLIC_URL}}
+      ALLOWED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+      AUTH_SECRET: ${{randomBytes(32,"hex")}}
+      NEXTAUTH_SECRET: ${{AUTH_SECRET}}
+      ENCRYPTION_KEY: ${{randomBytes(16,"hex")}}
+      TRUST_PROXY_HEADERS: "true"
+    volumes:
+      - name: data
+        path: /var/lib/falkordb/data
+      - name: browser-data
+        path: /app/.data
+    resources:
+      memoryMb: 1024
+group: FalkorDB
+notes:
+  - "Open the site and sign in to FalkorDB Browser with host localhost, port 6379, user default and the password from the FALKORDB_PASSWORD variable."
+  - "Port 6379 is only reachable inside the private network; other services on the same server connect with redis://default:<FALKORDB_PASSWORD>@<service private host>:6379."
+  - "FalkorDB is licensed under the Server Side Public License (SSPL); review it before offering FalkorDB as a service."

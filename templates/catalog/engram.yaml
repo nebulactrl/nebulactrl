@@ -1,0 +1,65 @@
+schema: 1
+id: engram
+revision: 1
+name: Engram Cloud
+summary: Sync server and dashboard for Engram, the persistent memory system for AI coding agents (MCP), backed by managed PostgreSQL.
+description: Engram gives AI coding agents a persistent, searchable memory. This template runs the optional Engram Cloud server, which replicates project memories between machines and offers a browser dashboard, in authenticated mode with a managed PostgreSQL database.
+category: ai
+tags: [ai, memory, mcp, agents, developer-tools]
+icon: engram
+links:
+  website: https://engram.gentlemanprogramming.com
+  docs: https://github.com/Gentleman-Programming/engram/blob/main/docs/engram-cloud/README.md
+  source: https://github.com/Gentleman-Programming/engram
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/Gentleman-Programming/engram/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/engram.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: ENGRAM_CLOUD_TOKEN, label: Sync token, description: Bearer token that Engram clients use to sync with this server., secret: true, default: "${{secret(64)}}"}
+  - {key: ENGRAM_CLOUD_ADMIN, label: Dashboard admin token, description: Token used to sign in to the dashboard at /dashboard/login., secret: true, default: "${{secret(64)}}"}
+  - {key: ENGRAM_CLOUD_ALLOWED_PROJECTS, label: Allowed projects, description: Comma-separated allowlist of project names the sync token may access; * allows every project., required: true, default: "*"}
+services:
+  - key: app
+    name: Engram Cloud
+    kind: app
+    image: ghcr.io/gentleman-programming/engram:3.6.0
+    digest: sha256:0df005fd180836c8208c29d4b74f0b7523958e21bf26962b028c264dd7dcde6c
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      ENGRAM_CLOUD_HOST: 0.0.0.0
+      ENGRAM_PORT: "8080"
+      ENGRAM_DATABASE_URL: ${{db.DATABASE_URL}}?sslmode=disable
+      ENGRAM_JWT_SECRET: ${{secret(64)}}
+      ENGRAM_CLOUD_TOKEN: ${input:ENGRAM_CLOUD_TOKEN}
+      ENGRAM_CLOUD_ADMIN: ${input:ENGRAM_CLOUD_ADMIN}
+      ENGRAM_CLOUD_ALLOWED_PROJECTS: ${input:ENGRAM_CLOUD_ALLOWED_PROJECTS}
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Engram DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: engram
+group: Engram Cloud
+notes:
+  - "Point a client at the server with `engram cloud config --server https://<your-domain>` and export ENGRAM_CLOUD_TOKEN with the sync token from the install form, then `engram cloud enroll <project>` and `engram sync --cloud --project <project>`."
+  - "Open /dashboard/login on the domain and sign in with the dashboard admin token."

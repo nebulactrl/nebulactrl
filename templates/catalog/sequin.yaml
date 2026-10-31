@@ -1,0 +1,86 @@
+schema: 1
+id: sequin
+revision: 1
+name: Sequin
+summary: Postgres change data capture that streams row changes to Kafka, SQS, webhooks, NATS and other destinations.
+description: Sequin reads the logical replication stream of your Postgres databases and delivers changes to sinks. This template runs the official image with a managed Postgres for its own state and a managed Valkey, and creates the admin login from the install form; source databases are added in the UI.
+category: data
+tags: [postgres, cdc, replication, streaming, events]
+links:
+  website: https://sequinstream.com
+  docs: https://sequinstream.com/docs
+  source: https://github.com/sequinstream/sequin
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/sequinstream/sequin/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/sequin.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1536
+  diskGb: 5
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: sequin
+    name: Sequin
+    kind: app
+    image: sequin/sequin:v0.14.6
+    digest: sha256:336759c1c632ebdc87939bcea70b26b46df6593e666088e1bf29058209437d3e
+    port: 7376
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      PG_HOSTNAME: ${{db.DATABASE_HOST}}
+      PG_PORT: ${{db.DATABASE_PORT}}
+      PG_DATABASE: ${{db.DATABASE_NAME}}
+      PG_USERNAME: ${{db.DATABASE_USER}}
+      PG_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      PG_POOL_SIZE: "20"
+      REDIS_URL: redis://default:${{cache.REDIS_PASSWORD}}@${{cache.NEBULA_PRIVATE_HOST}}:6379
+      SECRET_KEY_BASE: ${{secret(80)}}
+      VAULT_KEY: ${{randomBytes(32,"base64")}}
+      SERVER_HOST: ${{NEBULA_PUBLIC_DOMAIN}}
+      FEATURE_ACCOUNT_SELF_SIGNUP: "false"
+      FEATURE_PROVISION_DEFAULT_USER: "false"
+      CONFIG_FILE_PATH: /config/sequin.yml
+      SEQUIN_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      SEQUIN_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    files:
+      - path: /config/sequin.yml
+        content: |
+          account:
+            name: "Nebula"
+
+          users:
+            - email: "${SEQUIN_ADMIN_EMAIL}"
+              password: "${SEQUIN_ADMIN_PASSWORD}"
+    resources:
+      memoryMb: 1536
+  - key: db
+    name: Sequin DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: sequin
+  - key: cache
+    name: Sequin Cache
+    kind: database
+    database:
+      engine: valkey
+      version: "8"
+group: Sequin
+notes:
+  - "Sign in with the admin email and password from the install form (self sign-up and the public default user are disabled)."
+  - "This Postgres only holds Sequin's own state. Add the database you want to capture under Databases; it needs wal_level=logical, a replication slot and a publication (see the Sequin docs)."

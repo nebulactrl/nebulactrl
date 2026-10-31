@@ -1,0 +1,109 @@
+{
+  "Name": "nc-meshl-1a1a1a1a",
+  "Image": "tailscale/tailscale:v1.104.2@sha256:b11583ad2e93e4671128538c88cf11f460444a5d7e449311dd1933a400ab849d",
+  "Env": [
+    "TS_USERSPACE=false",
+    "TS_STATE_DIR=/var/lib/tailscale",
+    "TS_AUTH_ONCE=true",
+    "TS_ACCEPT_DNS=false",
+    "TS_HOSTNAME=nc-aaaaaaaa-web-to-db",
+    "TS_ENABLE_HEALTH_CHECK=true",
+    "TS_LOCAL_ADDR_PORT=127.0.0.1:9002",
+    "TS_TAILNET_TARGET_IP=100.64.0.9",
+    "TS_EXTRA_ARGS=--login-server=https://hs.example.com"
+  ],
+  "Cmd": null,
+  "Entrypoint": null,
+  "Labels": {
+    "nebulactrl.environment": "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    "nebulactrl.managed": "true",
+    "nebulactrl.mesh": "1a1a1a1a-1111-2222-3333-444444444444",
+    "nebulactrl.mesh.kind": "link",
+    "nebulactrl.mesh.spec": "834dce8374f3a3e3"
+  },
+  "Networks": [
+    {
+      "Network": "nebulactrl-env-aaaaaaaa",
+      "Aliases": [
+        "api",
+        "postgres"
+      ],
+      "GwPriority": 0
+    },
+    {
+      "Network": "nebulactrl-env-aaaaaaaa-int",
+      "Aliases": [
+        "api",
+        "postgres"
+      ],
+      "GwPriority": 0
+    }
+  ],
+  "Ports": null,
+  "Mounts": [
+    {
+      "Volume": "nc-mesh-1a1a1a1a-state",
+      "HostPath": "",
+      "Target": "/var/lib/tailscale",
+      "ReadOnly": false
+    }
+  ],
+  "RestartPolicy": "unless-stopped",
+  "MemoryBytes": 268435456,
+  "NanoCPUs": 0,
+  "StopTimeout": null,
+  "LogConfig": {
+    "Type": "json-file",
+    "Config": {
+      "max-file": "3",
+      "max-size": "10m"
+    }
+  },
+  "Healthcheck": {
+    "Test": [
+      "CMD",
+      "wget",
+      "-q",
+      "-O",
+      "/dev/null",
+      "http://127.0.0.1:9002/healthz"
+    ],
+    "Interval": 10000000000,
+    "Timeout": 3000000000,
+    "StartPeriod": 30000000000,
+    "Retries": 3
+  },
+  "ExtraHosts": null,
+  "DNS": null,
+  "CapAdd": [
+    "NET_ADMIN",
+    "NET_RAW"
+  ],
+  "CapDrop": null,
+  "Devices": [
+    {
+      "HostPath": "/dev/net/tun",
+      "ContainerPath": "",
+      "Permissions": ""
+    }
+  ],
+  "GPUs": null,
+  "Runtime": "",
+  "Privileged": false,
+  "PidMode": "",
+  "Hostname": "",
+  "User": "",
+  "GroupAdd": null,
+  "Sysctls": {
+    "net.ipv4.ip_forward": "1"
+  },
+  "PidsLimit": 0,
+  "NetworkMode": "",
+  "SecurityOpt": null,
+  "ShmSize": 0,
+  "Ulimits": null,
+  "Init": false,
+  "StopSignal": "",
+  "Tmpfs": null,
+  "ReadonlyRootfs": false
+}

@@ -1,0 +1,6 @@
+set -eu
+umask 077
+[ -e "$PGDATA/standby.signal" ] || { echo "not a replica: no standby.signal in $PGDATA" >&2; exit 5; }
+f="$PGDATA/nebula.replica.conf"
+printf "primary_conninfo = 'host=%s port=%s user=%s application_name=%s'\nprimary_slot_name = '%s'\n" "$NC_HOST" "$NC_PORT" "$NC_USER" "$NC_SLOT" "$NC_SLOT" > "$f.new"
+mv "$f.new" "$f"

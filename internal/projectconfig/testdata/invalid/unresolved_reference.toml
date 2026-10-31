@@ -1,0 +1,14 @@
+# expect: unresolved_reference
+# A reference to a service that is not in this file is only a warning: the
+# service may exist in the project already.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+depends_on = ["ledger"]
+
+[services.web.variables]
+LEDGER_URL = "${{ledger.URL}}"
+APP_TITLE = "${{shared.TITLE}}"

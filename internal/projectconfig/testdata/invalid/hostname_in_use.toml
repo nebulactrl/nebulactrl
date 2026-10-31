@@ -1,0 +1,16 @@
+# expect: hostname_in_use
+# A hostname and path belong to exactly one service.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.domains."shop.acme.com"]
+
+[services.landing]
+image = "nginx:1.27"
+port = 80
+
+[services.landing.domains."shop.acme.com"]

@@ -1,0 +1,128 @@
+schema: 1
+id: honcho
+revision: 1
+name: Honcho
+summary: "Memory and reasoning layer for personalized AI agents: stores conversations, derives facts about each user and answers questions about them."
+description: Honcho is an open-source memory service for AI agents. Applications send messages for a workspace, peer and session; a background deriver extracts and consolidates facts with an LLM, and the API serves context, search and dialectic (natural-language) queries about each peer. This template runs the API (it applies database migrations on every start), the deriver worker, a pgvector Postgres and a managed Redis cache. It needs an OpenAI API key for memory extraction and embeddings.
+category: ai
+tags: [ai, memory, llm, agents, rag, pgvector]
+links:
+  website: https://honcho.dev
+  docs: https://honcho.dev/docs/v3/contributing/self-hosting
+  source: https://github.com/plastic-labs/honcho
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/plastic-labs/honcho/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/honcho.yaml
+  commit: 69bc72a
+  license: Apache-2.0
+requires:
+  memoryMb: 1536
+  diskGb: 5
+inputs:
+  - key: LLM_OPENAI_API_KEY
+    label: OpenAI API key
+    secret: true
+    required: true
+  - key: LOG_LEVEL
+    label: Log level
+    default: INFO
+    options: [DEBUG, INFO, WARNING, ERROR]
+services:
+  - key: api
+    name: Honcho
+    kind: app
+    image: ghcr.io/plastic-labs/honcho:v3.0.12
+    digest: sha256:8ed9a3f50269f7f18c69848f8cc9b6ed54a24fd773fbea905cafae174174fab5
+    port: 8000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    env:
+      AUTH_USE_AUTH: "true"
+      AUTH_JWT_SECRET: ${{secret(64)}}
+      CACHE_ENABLED: "true"
+      CACHE_URL: redis://:${{redis.REDIS_PASSWORD}}@${{redis.REDIS_HOST}}:${{redis.REDIS_PORT}}/0?suppress=true
+      DB_CONNECTION_URI: postgresql+psycopg://postgres:${{database.POSTGRES_PASSWORD}}@${{database.NEBULA_PRIVATE_HOST}}:5432/honcho
+      LLM_OPENAI_API_KEY: ${input:LLM_OPENAI_API_KEY}
+      LOG_LEVEL: ${input:LOG_LEVEL}
+      VECTOR_STORE_TYPE: pgvector
+    domains:
+      - generate: true
+    dependsOn:
+      - database
+      - redis
+    docker:
+      entrypoint: [sh, docker/entrypoint.sh]
+    resources:
+      memoryMb: 1024
+  - key: deriver
+    name: Honcho Deriver
+    kind: worker
+    image: ghcr.io/plastic-labs/honcho:v3.0.12
+    digest: sha256:8ed9a3f50269f7f18c69848f8cc9b6ed54a24fd773fbea905cafae174174fab5
+    healthcheck:
+      type: exec
+      command:
+        - CMD
+        - /app/.venv/bin/python
+        - -c
+        - import sys; sys.exit(0 if b'src.deriver' in open('/proc/1/cmdline', 'rb').read() else 1)
+      intervalSeconds: 15
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      AUTH_USE_AUTH: "true"
+      AUTH_JWT_SECRET: ${{api.AUTH_JWT_SECRET}}
+      CACHE_ENABLED: "true"
+      CACHE_URL: redis://:${{redis.REDIS_PASSWORD}}@${{redis.REDIS_HOST}}:${{redis.REDIS_PORT}}/0?suppress=true
+      DB_CONNECTION_URI: postgresql+psycopg://postgres:${{database.POSTGRES_PASSWORD}}@${{database.NEBULA_PRIVATE_HOST}}:5432/honcho
+      LLM_OPENAI_API_KEY: ${input:LLM_OPENAI_API_KEY}
+      LOG_LEVEL: ${input:LOG_LEVEL}
+      VECTOR_STORE_TYPE: pgvector
+    dependsOn:
+      - api
+      - database
+      - redis
+    docker:
+      entrypoint: [/app/.venv/bin/python, -m, src.deriver]
+    resources:
+      memoryMb: 768
+  - key: database
+    name: Honcho Database
+    kind: database
+    image: pgvector/pgvector:0.8.7-pg15
+    digest: sha256:47af0b65960b14f1c6945aa4ccae37836c632e9a6fe0eea9160936e616e5b2e9
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d honcho"]
+      intervalSeconds: 5
+      timeoutSeconds: 5
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    env:
+      POSTGRES_DB: honcho
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${{secret(32)}}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 512
+  - key: redis
+    name: Honcho Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+group: Honcho
+notes:
+  - "Honcho is an API, not a web app: opening the domain shows the FastAPI service; interactive API docs are at /docs. Clients (the Honcho SDKs or your agents) talk to it with a bearer token."
+  - "Authentication is on. Create the first admin token once the stack is running, from the Honcho service's terminal: `python scripts/generate_jwt.py --admin`. It signs with the generated AUTH_JWT_SECRET variable. Use that token to call POST /v3/keys and mint scoped (workspace, peer or session) keys for your apps."
+  - "The OpenAI key is used for memory extraction (gpt-5.4-mini by default) and embeddings (text-embedding-3-small). Honcho does not start without a provider key. Other providers or OpenAI-compatible endpoints are set with extra variables, see the upstream configuration docs."
+  - "The pgvector image tag pins the stock pgvector build for PostgreSQL 15; database data lives in the `pgdata` volume of Honcho Database."

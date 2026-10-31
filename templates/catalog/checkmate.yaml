@@ -1,0 +1,60 @@
+schema: 1
+id: checkmate
+revision: 1
+name: Checkmate
+summary: Uptime and server monitoring with status pages, incident tracking and notifications.
+description: Checkmate monitors websites, ports, ping, Docker containers and servers, and publishes status pages. This template runs the app with a managed MongoDB database.
+category: analytics
+tags: [monitoring, uptime, status-page, alerts]
+icon: checkmate
+links:
+  website: https://checkmate.so
+  docs: https://docs.checkmate.so
+  source: https://github.com/bluewave-labs/checkmate
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/bluewave-labs/checkmate/blob/develop/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/checkmate.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 768
+  diskGb: 3
+services:
+  - key: checkmate
+    name: Checkmate
+    kind: app
+    image: ghcr.io/bluewave-labs/checkmate:v3.13.1
+    digest: sha256:d15fc042312c7b40177f81645817828add54359131b6b0782a25e4fb854c9634
+    port: 52345
+    healthcheck:
+      type: exec
+      command: [CMD, node, -e, 'require(''http'').get(''http://localhost:52346/livez'',r=>process.exit(r.statusCode===200?0:1)).on(''error'',()=>process.exit(1))']
+      intervalSeconds: 15
+      timeoutSeconds: 5
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    dependsOn: [mongodb]
+    domains:
+      - generate: true
+    env:
+      DB_CONNECTION_STRING: ${{mongodb.MONGO_URL}}
+      CLIENT_HOST: ${{NEBULA_PUBLIC_URL}}
+      JWT_SECRET: ${{secret(64)}}
+      ENCRYPTION_KEY: ${{randomBytes(32,base64)}}
+    stopGraceSeconds: 60
+    resources:
+      memoryMb: 512
+  - key: mongodb
+    name: Checkmate DB
+    kind: database
+    database:
+      engine: mongodb
+      version: "8.0"
+      databaseName: uptime_db
+group: Checkmate
+notes:
+  - "Open the site and register: the first account becomes the administrator."

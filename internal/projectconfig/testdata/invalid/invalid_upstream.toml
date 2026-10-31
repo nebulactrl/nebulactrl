@@ -1,0 +1,14 @@
+# expect: invalid_upstream
+# An upstream is either an address or a managed service with a port.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.edge]
+
+[services.edge.route]
+protocol = "http"
+upstreams = [{ address = "10.0.0.5:80", service = "web", port = 80 }]

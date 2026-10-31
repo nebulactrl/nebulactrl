@@ -1,0 +1,51 @@
+schema: 1
+id: nitropage
+revision: 1
+name: Nitropage
+summary: Visual drag-and-drop website builder with reusable blocks, revisions, image focal-point cropping and self-hosted fonts.
+description: Nitropage is a free, extensible page builder based on SolidStart. This template runs the project's SQLite image with its database and uploads on a persistent volume.
+category: web
+tags: [website-builder, cms, page-builder, wysiwyg]
+links:
+  website: https://nitropage.org
+  docs: https://nitropage.org/docs/getting-started
+  source: https://codeberg.org/nitropage/nitropage
+upstream:
+  license: Unlicense
+  licenseUrl: https://codeberg.org/nitropage/nitropage/src/branch/next/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/nitropage.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: nitropage
+    name: Nitropage
+    kind: app
+    image: nitropage/nitropage:0.70.3-sqlite
+    digest: sha256:7c6d25af39c2c05a74fd095d0cdca060c75103a9c8fca4b71736c8b0ba78cf1c
+    port: 3000
+    healthcheck:
+      type: http
+      path: /admin
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    env:
+      DATABASE_URL: file:../.data/dev.db
+      NP_AUTH_PASSWORD: ${{secret(48)}}
+      NP_AUTH_SALT: ${{secret(24)}}
+    volumes:
+      - name: data
+        path: /app/.data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Nitropage
+notes:
+  - "Open /admin on the site and create the first administration user; the editor lives there."
+  - "NP_AUTH_SALT hashes the admin passwords stored in the database: keep the variable unchanged or existing logins stop working."

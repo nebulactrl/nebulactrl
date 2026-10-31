@@ -1,0 +1,65 @@
+schema: 1
+id: drupal-with-postgresql
+revision: 1
+name: Drupal
+summary: Open-source content management system and framework for building websites and digital experiences.
+description: Drupal is a PHP CMS with a large module and theme ecosystem. This template runs the official Drupal image (Apache) with a managed Postgres database and volumes for sites, modules, profiles and themes.
+category: web
+tags: [cms, drupal, php, website, content]
+icon: drupal
+links:
+  website: https://www.drupal.org
+  docs: https://www.drupal.org/docs
+  source: https://github.com/drupal/drupal
+upstream:
+  license: GPL-2.0-or-later
+  licenseUrl: https://git.drupalcode.org/project/drupal/-/blob/11.x/core/LICENSE.txt
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/drupal-with-postgresql.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 768
+  diskGb: 5
+services:
+  - key: drupal
+    name: Drupal
+    kind: app
+    image: drupal:11.4.11-apache
+    digest: sha256:20b150d4c58412be014ef2b973938efddc43b79fd32e1c83670dc3598d44f101
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [postgres]
+    domains:
+      - generate: true
+    env:
+      DB_HOST: ${{postgres.DATABASE_HOST}}
+      DB_PORT: ${{postgres.DATABASE_PORT}}
+      DB_NAME: ${{postgres.DATABASE_NAME}}
+      DB_USER: ${{postgres.DATABASE_USER}}
+      DB_PASSWORD: ${{postgres.DATABASE_PASSWORD}}
+    secrets: [DB_PASSWORD]
+    volumes:
+      - {name: modules, path: /var/www/html/modules}
+      - {name: profiles, path: /var/www/html/profiles}
+      - {name: themes, path: /var/www/html/themes}
+      - {name: sites, path: /var/www/html/sites}
+    resources:
+      memoryMb: 512
+  - key: postgres
+    name: Drupal DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: drupal
+group: Drupal
+notes:
+  - "Open the site right after the deploy and run the installer: whoever reaches it first creates the admin account."
+  - "In the installer choose PostgreSQL and enter host, port, database, user and password from the DB_* variables of this service (the image does not read them by itself)."

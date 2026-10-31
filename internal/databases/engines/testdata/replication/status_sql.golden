@@ -1,0 +1,22 @@
+SELECT pg_is_in_recovery() AS in_recovery \gset
+\if :in_recovery
+  SELECT json_build_object(
+    'role', 'replica',
+    'inRecovery', true,
+    'receiverStatus', COALESCE((SELECT status FROM pg_stat_wal_receiver LIMIT 1), 'stopped'),
+    'receiveLsn', pg_last_wal_receive_lsn()::text,
+    'replayLsn', pg_last_wal_replay_lsn()::text,
+    'replayLagBytes', COALESCE(pg_wal_lsn_diff(pg_last_wal_receive_lsn(), pg_last_wal_replay_lsn()), 0)::bigint);
+\else
+  SELECT json_build_object(
+    'role', 'primary',
+    'inRecovery', false,
+    'slots', COALESCE((SELECT json_agg(json_build_object(
+        'name', slot_name, 'active', active, 'walStatus', wal_status, 'safeWalSize', safe_wal_size))
+      FROM pg_replication_slots WHERE slot_type = 'physical'), '[]'::json),
+    'standbys', COALESCE((SELECT json_agg(json_build_object(
+        'applicationName', application_name, 'state', state, 'syncState', sync_state,
+        'lagBytes', COALESCE(pg_wal_lsn_diff(pg_current_wal_lsn(), replay_lsn), 0)::bigint,
+        'replayLagMs', (EXTRACT(EPOCH FROM replay_lag) * 1000)::bigint))
+      FROM pg_stat_replication), '[]'::json));
+\endif

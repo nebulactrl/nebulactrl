@@ -1,0 +1,100 @@
+schema: 1
+id: glance
+revision: 1
+name: Glance
+summary: Self-hosted dashboard that puts feeds, releases, weather and other widgets on one fast page.
+description: Glance is a small, fast dashboard configured from a single YAML file. This template starts it with a starter page (calendar, RSS, Hacker News, releases, weather and markets); edit the config file in the service to build your own.
+category: homelab
+tags: [dashboard, rss, widgets, start-page]
+icon: glance
+links:
+  website: https://github.com/glanceapp/glance
+  docs: https://github.com/glanceapp/glance/blob/main/docs/configuration.md
+  source: https://github.com/glanceapp/glance
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/glanceapp/glance/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/glance.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 64
+  diskGb: 1
+services:
+  - key: glance
+    name: Glance
+    kind: app
+    image: glanceapp/glance:v0.8.7
+    digest: sha256:bc5a392672c1ec8823c50b61f3bd4b7e5acc34fcbb8477862577b3af1c633875
+    port: 8080
+    healthcheck:
+      type: http
+      path: /api/healthz
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    domains:
+      - generate: true
+    files:
+      - path: /app/config/glance.yml
+        mode: "0644"
+        content: |
+          server:
+            host: 0.0.0.0
+            port: 8080
+
+          pages:
+            - name: Home
+              columns:
+                - size: small
+                  widgets:
+                    - type: calendar
+                      first-day-of-week: monday
+
+                    - type: weather
+                      location: London, United Kingdom
+                      units: metric
+
+                - size: full
+                  widgets:
+                    - type: hacker-news
+                      limit: 15
+                      collapse-after: 5
+
+                    - type: rss
+                      title: Tech blogs
+                      limit: 10
+                      collapse-after: 4
+                      cache: 3h
+                      feeds:
+                        - url: https://github.blog/feed/
+                          title: GitHub Blog
+                        - url: https://blog.cloudflare.com/rss/
+                          title: Cloudflare Blog
+                        - url: https://lwn.net/headlines/rss
+                          title: LWN.net
+
+                - size: small
+                  widgets:
+                    - type: releases
+                      show-source-icon: true
+                      repositories:
+                        - glanceapp/glance
+                        - go-gitea/gitea
+                        - jellyfin/jellyfin
+                        - immich-app/immich
+
+                    - type: markets
+                      markets:
+                        - symbol: SPY
+                          name: S&P 500
+                        - symbol: BTC-USD
+                          name: Bitcoin
+    resources:
+      memoryMb: 64
+group: Glance
+notes:
+  - "The dashboard has no login. Anyone with the URL sees it, so keep the widgets free of private data or add Glance's auth section to the config."
+  - "Change the starter page by editing the config file of the service (/app/config/glance.yml) and redeploying; widgets, layout and theme are described in the configuration guide."

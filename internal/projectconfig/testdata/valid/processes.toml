@@ -1,0 +1,36 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+server = "fra-1"
+
+[services.web]
+port         = 3000
+command      = ["bin/rails", "server", "-b", "0.0.0.0"]   # the service's own process
+process_name = "web"                                      # optional; "web" when absent
+singleton    = false                                      # optional; applies to the service's own process
+
+[services.web.git]
+url    = "https://github.com/acme/shop.git"
+branch = "main"
+
+[services.web.pre_deploy]                                 # runs once per deployment, not once per process
+command = ["bin/rails", "db:migrate"]
+
+[services.web.domains."shop.acme.com"]                    # routes to the service's own process
+
+[services.web.processes.sidekiq]
+command            = ["bundle", "exec", "sidekiq"]
+stop_grace_seconds = 120
+
+[services.web.processes.sidekiq.scale]                    # immediate, per process
+replicas = 2
+
+[services.web.processes.clock]
+command   = ["bundle", "exec", "clockwork", "clock.rb"]
+singleton = true                                          # one instance; the old one stops before the new one starts
+
+# staging runs one sidekiq and no clock
+[environments.staging.services.web]
+unset = ["processes.clock"]
+
+[environments.staging.services.web.processes.sidekiq.scale]
+replicas = 1

@@ -1,0 +1,68 @@
+schema: 1
+id: martin
+revision: 1
+name: Martin
+summary: Fast vector tile server that publishes PostGIS tables and functions as map tiles for MapLibre and similar clients.
+description: Runs the official Martin tile server against a PostGIS-enabled Postgres 17 database (the postgis/postgis image, amd64 only). Martin auto-discovers geometry tables in the database at start, so create your tables first and restart Martin.
+category: data
+tags: [gis, maps, vector-tiles, postgis, maplibre]
+icon: maplibre
+links:
+  website: https://maplibre.org/martin/
+  docs: https://maplibre.org/martin/introduction.html
+  source: https://github.com/maplibre/martin
+upstream:
+  license: Apache-2.0 OR MIT
+  licenseUrl: https://github.com/maplibre/martin/blob/main/LICENSE-APACHE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/martin.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 768
+  diskGb: 5
+  arch: [amd64]
+services:
+  - key: martin
+    name: Martin
+    kind: app
+    image: ghcr.io/maplibre/martin:1.16.1
+    digest: sha256:59902019bf9038926ff0c71174237d6852e64c457830a6349abe7090be8818ca
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: postgres://postgres:${{db.POSTGRES_PASSWORD}}@${{db.NEBULA_PRIVATE_HOST}}:5432/martin?sslmode=disable
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Martin PostGIS
+    kind: database
+    image: postgis/postgis:17-3.6
+    digest: sha256:1ac10b2551ba84ae05db8e7da477afcd0a3fede99bcb7705da2ee157390cb095
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d martin"]
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: martin
+      POSTGRES_PASSWORD: ${{secret(32)}}
+    volumes:
+      - name: pgdata
+        path: /var/lib/postgresql/data
+    resources:
+      memoryMb: 512
+group: Martin
+notes:
+  - "The database is empty: load geometry tables into the martin database (service Martin PostGIS, user postgres, password in POSTGRES_PASSWORD), then restart Martin so it publishes them. Tiles are at /<table>/{z}/{x}/{y} and the source list at /catalog."
+  - "The database is only reachable from other services in the project (it is not published)."

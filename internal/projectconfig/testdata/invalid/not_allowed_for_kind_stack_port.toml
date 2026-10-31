@@ -1,0 +1,16 @@
+# expect: not_allowed_for_kind
+# schema: reject
+# A stack publishes ports through its compose file and component domains,
+# not through a service port.
+schema = 1
+server = "fra-1"
+
+[services.shop]
+port = 8080
+
+[services.shop.stack]
+compose = '''
+services:
+  web:
+    image: nginx:1.27-alpine
+'''

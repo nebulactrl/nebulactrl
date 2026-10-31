@@ -1,0 +1,60 @@
+schema: 1
+id: casdoor
+revision: 1
+name: Casdoor
+summary: Identity and access management platform with single sign-on over OAuth 2.0, OIDC, SAML, CAS and LDAP.
+description: Casdoor is a UI-first IAM and SSO server with multi-factor authentication and many social login providers. This template runs the official image against a managed Postgres database.
+category: security
+tags: [sso, oidc, oauth2, saml, identity, iam]
+links:
+  website: https://casdoor.org/
+  docs: https://casdoor.org/docs/overview
+  source: https://github.com/casdoor/casdoor
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/casdoor/casdoor/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/casdoor
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 2
+inputs:
+  - {key: ADMIN_PASSWORD, label: Admin password (user built-in/admin), secret: true, default: "${{secret(20)}}"}
+services:
+  - key: casdoor
+    name: Casdoor
+    kind: app
+    image: casbin/casdoor:4.24.0
+    digest: sha256:b7a2005518396a1d800ad77a695a4edb0c73eb1123070c35b5624440d5fdc550
+    port: 8000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      driverName: postgres
+      dataSourceName: user=${{db.DATABASE_USER}} password=${{db.DATABASE_PASSWORD}} host=${{db.DATABASE_HOST}} port=${{db.DATABASE_PORT}} sslmode=disable dbname=${{db.DATABASE_NAME}}
+      dbName: ${{db.DATABASE_NAME}}
+      origin: ${{NEBULA_PUBLIC_URL}}
+      initAdminPassword: ${input:ADMIN_PASSWORD}
+    secrets: [dataSourceName]
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Casdoor DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: casdoor
+group: Casdoor
+notes:
+  - "Sign in at the app address as built-in/admin with the admin password from the install form (the user name is admin, the organization is built-in)."

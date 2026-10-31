@@ -1,0 +1,150 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`app.example.com`) && PathPrefix(`/api`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`app.example.com`) && PathPrefix(`/api`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ipallow",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ratelimit",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-auth",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-redirect1",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-redirect2",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-strip",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-addprefix",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-headers",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-compress"
+        ],
+        "tls": {}
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`app.example.com`) && PathPrefix(`/api`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-strip",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-addprefix"
+        ],
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-app-aaaaaaaa-0:8080"
+            }
+          ]
+        }
+      }
+    },
+    "middlewares": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-addprefix": {
+        "addPrefix": {
+          "prefix": "/v2"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-auth": {
+        "basicAuth": {
+          "users": [
+            "a:$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234"
+          ]
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-compress": {
+        "compress": {
+          "encodings": [
+            "zstd",
+            "br",
+            "gzip"
+          ],
+          "excludedContentTypes": [
+            "text/event-stream"
+          ]
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-headers": {
+        "headers": {
+          "customResponseHeaders": {
+            "X-Robots-Tag": "noindex, nofollow"
+          },
+          "contentTypeNosniff": true,
+          "frameDeny": true,
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "stsSeconds": 31536000,
+          "stsIncludeSubdomains": true
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ipallow": {
+        "ipAllowList": {
+          "sourceRange": [
+            "10.0.0.0/8"
+          ]
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ratelimit": {
+        "rateLimit": {
+          "average": 1,
+          "period": "1s",
+          "burst": 1
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-redirect1": {
+        "redirectRegex": {
+          "regex": "^/a$",
+          "replacement": "/b",
+          "permanent": false
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-redirect2": {
+        "redirectRegex": {
+          "regex": "^/c$",
+          "replacement": "/d",
+          "permanent": false
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-strip": {
+        "stripPrefix": {
+          "prefixes": [
+            "/api"
+          ]
+        }
+      },
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "permanent": true
+        }
+      }
+    }
+  }
+}

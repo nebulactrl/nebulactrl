@@ -1,0 +1,48 @@
+schema: 1
+id: obscura
+revision: 1
+name: Obscura Browser
+summary: Lightweight headless browser for AI agents, exposed as a token-protected remote MCP server.
+description: Obscura is a headless browser engine written in Rust that AI agents drive over the Model Context Protocol. This template runs the official image in MCP HTTP mode, protected by a bearer token, on the generated domain at /mcp.
+category: ai
+tags: [browser, mcp, agents, headless, scraping]
+links:
+  website: https://github.com/h4ckf0r0day/obscura
+  docs: https://github.com/h4ckf0r0day/obscura/blob/main/docs/Use-the-MCP-server.md
+  source: https://github.com/h4ckf0r0day/obscura
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/h4ckf0r0day/obscura/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/obscura
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 1
+inputs:
+  - {key: MCP_TOKEN, label: MCP bearer token (at least 32 characters), secret: true, default: "${{secret(48)}}"}
+services:
+  - key: obscura
+    name: Obscura Browser
+    kind: app
+    image: h4ckf0r0day/obscura:0.2.5
+    digest: sha256:354c3d2a0fa2dd2939debe6903aa26c35d121329245dfa42aa7d1c292a209814
+    port: 3000
+    command: [mcp, --http, --host, 0.0.0.0, --port, "3000", --stealth]
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 5
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    env:
+      OBSCURA_MCP_TOKEN: ${input:MCP_TOKEN}
+    resources:
+      memoryMb: 512
+group: Obscura Browser
+notes:
+  - "Point your MCP client at https://<your domain>/mcp and send the token from the install form as an Authorization: Bearer header."
+  - "Every path except /mcp answers 404, and /mcp answers 401 without the token, so the endpoint cannot be opened in a browser."

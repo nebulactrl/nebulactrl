@@ -1,0 +1,12 @@
+# expect: reference_cycle
+# a waits for b and b waits for a: no deploy order exists.
+schema = 1
+server = "fra-1"
+
+[services.a]
+image = "nginx:1.27"
+depends_on = ["b"]
+
+[services.b]
+image = "nginx:1.27"
+depends_on = ["a"]

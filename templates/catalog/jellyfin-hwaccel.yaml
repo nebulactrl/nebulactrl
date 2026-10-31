@@ -1,0 +1,70 @@
+schema: 1
+id: jellyfin-hwaccel
+revision: 1
+requiresUnrestricted: true
+name: Jellyfin (hardware transcoding)
+summary: Jellyfin with the host's Intel or AMD GPU (VAAPI/QSV) mapped in for hardware transcoding.
+description: The same Jellyfin server as the Jellyfin template, plus the render device /dev/dri/renderD128 and the host's render group, so Jellyfin can transcode on the GPU. Mapping a host device needs an unrestricted server, so this template installs only on a server an instance admin marked unrestricted. NVIDIA GPUs need the NVIDIA Container Toolkit instead; see the notes.
+category: media
+tags: [media, streaming, video, music, gpu, transcoding]
+icon: jellyfin
+links:
+  website: https://jellyfin.org
+  docs: https://jellyfin.org/docs/general/post-install/transcoding/hardware-acceleration/
+  source: https://github.com/jellyfin/jellyfin
+upstream:
+  license: GPL-2.0-only
+  licenseUrl: https://github.com/jellyfin/jellyfin/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - key: RENDER_GID
+    label: Render group ID of the host
+    description: "Numeric ID of the host's render group. Run `getent group render | cut -d: -f3` on the server (often 105, 109 or 122)."
+    required: true
+    format: number
+  - key: TZ
+    label: Time zone
+    description: IANA time zone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: app
+    name: Jellyfin
+    kind: app
+    image: jellyfin/jellyfin:12.3
+    digest: sha256:2038fe038ab3876a80f6e7b7e0aef6607b032c7dc0c9b3ad3296d0b2eba3bbb5
+    port: 8096
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    docker:
+      devices:
+        - hostPath: /dev/dri/renderD128
+      groupAdd: ["${input:RENDER_GID}"]
+    domains:
+      - generate: true
+    env:
+      JELLYFIN_PublishedServerUrl: ${{NEBULA_PUBLIC_URL}}
+      TZ: ${input:TZ}
+    volumes:
+      - name: config
+        path: /config
+      - name: cache
+        path: /cache
+      - name: media
+        path: /media
+    resources:
+      memoryMb: 1024
+group: Jellyfin
+notes:
+  - "Open the domain and finish the setup wizard. Then go to Dashboard, Playback, Transcoding, choose Video Acceleration API (VAAPI) or Intel QuickSync (QSV) and set the device to /dev/dri/renderD128."
+  - "This template maps /dev/dri/renderD128 (the first render node). A host with several GPUs may use another node; change the device on the service's Docker options (it stays unrestricted-only)."
+  - "NVIDIA GPUs: use Jellyfin's NVENC with the NVIDIA Container Toolkit instead. On an unrestricted server set the service's Docker options GPUs to nvidia, all, with the video and compute capabilities, and remove the device."
+  - "Put your media into the `media` volume (mounted at /media) and add /media as a library folder."
+  - "DLNA and automatic discovery on the local network need host networking, which NebulaCtrl does not support. Clients connect through the domain instead."

@@ -1,0 +1,177 @@
+# NebulaCtrl local development stack.
+#
+#   make dev-deps                 -> postgres only (default, no profile)
+#   make dev-agent TOKEN=nct_...  -> + agent1 (profile "agent")
+#   docker compose -f deploy/dev/docker-compose.yml --profile multi up --build
+#                                 -> + host2 (docker-in-docker) and agent2 (profile "multi")
+#
+# The control plane itself (`make dev`) runs on the host, not in this file.
+
+name: nebulactrl-dev
+
+# Shared definition for both dev agents. Agent flags are read from NEBULACTRL_*
+# environment variables; there is no command line here on purpose.
+x-agent: &agent
+  image: nebulactrl-agent-dev:latest
+  build:
+    context: ../..
+    dockerfile: deploy/agent/Dockerfile.dev
+  restart: unless-stopped
+
+services:
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nebulactrl
+      POSTGRES_USER: nebulactrl
+      POSTGRES_PASSWORD: nebulactrl
+    ports:
+      - "${NEBULACTRL_DEV_PG_PORT:-5432}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nebulactrl -d nebulactrl"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # ---------------------------------------------------------------------------
+  # profile "agent": one agent talking to the local Docker daemon.
+  #
+  # The agent mounts the host Docker socket (Docker-is-root; dev only) and
+  # manages its own Traefik container as a sibling on the host daemon. It must be
+  # attached to the external network `nebulactrl-edge` so it can reach Traefik
+  # (admin and probe entrypoints) by name. App containers are NOT on that
+  # network: each environment has its own `nebulactrl-env-<id8>` network. For health
+  # probes the agent detects its own container (HOSTNAME is the container ID; or
+  # set NEBULACTRL_AGENT_CONTAINER) and joins the network of the container it
+  # probes for the duration of the probe. Create the edge network once:
+  #
+  #   docker network create nebulactrl-edge        (`make dev-agent` does this)
+  #
+  # Traefik is published on host ports 8880 (http) / 8443 (https) (override with
+  # NEBULACTRL_DEV_AGENT1_HTTP_PORT / NEBULACTRL_DEV_AGENT1_HTTPS_PORT) so it does not
+  # collide with anything on 80/443 of your workstation, and its admin entrypoint
+  # (basic-auth protected) is NOT published to the host: agent1 reaches it on the
+  # edge network.
+  # ---------------------------------------------------------------------------
+  agent1:
+    <<: *agent
+    profiles: ["agent"]
+    environment:
+      NEBULACTRL_URL: ws://host.docker.internal:${NEBULACTRL_DEV_CP_PORT:-8080}
+      NEBULACTRL_ENROLL_TOKEN: ${NEBULACTRL_ENROLL_TOKEN:-}
+      NEBULACTRL_STATE_DIR: /var/lib/nebulactrl-agent
+      NEBULACTRL_PROXY_ADMIN_URL: http://nebulactrl-traefik:9000
+      NEBULACTRL_PROXY_HTTP_PORT: "${NEBULACTRL_DEV_AGENT1_HTTP_PORT:-8880}"
+      NEBULACTRL_PROXY_HTTPS_PORT: "${NEBULACTRL_DEV_AGENT1_HTTPS_PORT:-8443}"
+      NEBULACTRL_INSECURE_DEV: "true"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - agent1-state:/var/lib/nebulactrl-agent
+    networks:
+      - nebulactrl-edge
+
+  # ---------------------------------------------------------------------------
+  # profile "multi": a second, fully independent Docker host (docker-in-docker)
+  # plus an agent that drives it. Used for multi-server tests.
+  #
+  # host2 is its own daemon with its own networks, containers and Traefik. Ports
+  # below are the ports of host2's *own* namespace: the agent asks host2's
+  # daemon to publish Traefik on 80/443 (inside host2), and host2 itself maps
+  # those to 9880/9443 on your workstation. Use 127.0.0.1:9443 to reach host2's
+  # Traefik from the host.
+  # ---------------------------------------------------------------------------
+  host2:
+    image: docker:29-dind
+    profiles: ["multi"]
+    hostname: host2
+    privileged: true
+    restart: unless-stopped
+    environment:
+      DOCKER_TLS_CERTDIR: ""
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "9880:80"
+      - "9443:443"
+      - "9443:443/udp"
+    volumes:
+      - host2-data:/var/lib/docker
+    healthcheck:
+      test: ["CMD", "docker", "-H", "tcp://127.0.0.1:2375", "info"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # agent2 runs in host2's network namespace (network_mode: service:host2).
+  # That is required, not cosmetic: the deploy health check and the route probe
+  # dial app/Traefik container IPs on host2's `nebulactrl-edge` bridge, which only
+  # exist inside host2's namespace. It also means host2's loopback is agent2's
+  # loopback, so DOCKER_HOST reaches host2 and the proxy admin entrypoint that
+  # host2's daemon publishes on 127.0.0.1:9000 (the default admin URL) is reachable.
+  agent2:
+    <<: *agent
+    profiles: ["multi"]
+    network_mode: "service:host2"
+    depends_on:
+      host2:
+        condition: service_healthy
+    environment:
+      DOCKER_HOST: tcp://host2:2375
+      NEBULACTRL_URL: ws://host.docker.internal:${NEBULACTRL_DEV_CP_PORT:-8080}
+      NEBULACTRL_ENROLL_TOKEN: ${NEBULACTRL_ENROLL_TOKEN_2:-}
+      NEBULACTRL_STATE_DIR: /var/lib/nebulactrl-agent
+      NEBULACTRL_PROXY_HTTP_PORT: "80"
+      NEBULACTRL_PROXY_HTTPS_PORT: "443"
+      NEBULACTRL_INSECURE_DEV: "true"
+      # Link nodes of the mesh need /dev/net/tun of host2's daemon. host2 is
+      # privileged, so it has the device when the Docker VM's kernel does; the
+      # agent runs in its own container and cannot stat host2's /dev, so it is told.
+      NEBULACTRL_TUN_DEVICE: "${NEBULACTRL_DEV_AGENT2_TUN_DEVICE:-1}"
+    volumes:
+      - agent2-state:/var/lib/nebulactrl-agent
+
+  # ---------------------------------------------------------------------------
+  # profile "mesh": the Headscale control server the mesh tests and the manual
+  # mesh walkthrough use (policy.mode: database, Tailscale's public DERP map; see
+  # deploy/dev/headscale/config.yaml). Run it together with the `multi` profile:
+  #
+  #   NEBULACTRL_DEV_HEADSCALE_URL=http://<an IP of this machine every container can reach>:18080 \
+  #     docker compose -f deploy/dev/docker-compose.yml --profile mesh --profile multi up -d headscale
+  #   docker compose -f deploy/dev/docker-compose.yml exec headscale headscale apikeys create
+  #
+  # Then connect it in Team settings → Integrations → Tailscale (Headscale, API key) and
+  # enable the mesh. host.docker.internal does NOT resolve inside host2's
+  # containers, so the URL must carry an IP. tests/integration/meshfixture_test.go
+  # starts its own instance of the same image with the same file.
+  # ---------------------------------------------------------------------------
+  headscale:
+    image: headscale/headscale:v0.29.6@sha256:cabe84f0699913dbca9320f0883dca7565dd08df3c5be29edfabbebeff763966
+    profiles: ["mesh"]
+    restart: unless-stopped
+    command: serve
+    environment:
+      HEADSCALE_SERVER_URL: ${NEBULACTRL_DEV_HEADSCALE_URL:-http://host.docker.internal:18080}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "18080:18080"
+    volumes:
+      - ./headscale/config.yaml:/etc/headscale/config.yaml:ro
+      - headscale-data:/var/lib/headscale
+
+networks:
+  nebulactrl-edge:
+    external: true
+    name: nebulactrl-edge
+
+volumes:
+  postgres-data:
+  agent1-state:
+  agent2-state:
+  host2-data:
+  headscale-data:

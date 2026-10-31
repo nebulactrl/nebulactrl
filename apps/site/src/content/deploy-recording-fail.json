@@ -1,0 +1,151 @@
+{
+	"version": 1,
+	"recordedAt": "2026-10-27T20:44:24Z",
+	"service": "web",
+	"source": "traefik/whoami:latest",
+	"strategy": "rolling",
+	"outcome": "failed",
+	"totalSeconds": 20.852,
+	"events": [
+		{
+			"t": 0.0,
+			"step": "status",
+			"status": "created",
+			"message": ""
+		},
+		{
+			"t": 0.0,
+			"step": "status",
+			"status": "queued",
+			"message": ""
+		},
+		{
+			"t": 0.011,
+			"step": "status",
+			"status": "preparing",
+			"message": ""
+		},
+		{
+			"t": 0.04,
+			"step": "pull",
+			"status": "started",
+			"message": "Pulling traefik/whoami:latest"
+		},
+		{
+			"t": 0.412,
+			"step": "pull",
+			"status": "succeeded",
+			"message": "Image traefik/whoami@sha256:c4717a8d1f0134a7444e24f881160e033991f23027c6c5a9a3f8fd22e70d1d44"
+		},
+		{
+			"t": 0.417,
+			"step": "create",
+			"status": "started",
+			"message": "Creating container nc-web-88959ee9-0"
+		},
+		{
+			"t": 0.417,
+			"step": "status",
+			"status": "releasing",
+			"message": ""
+		},
+		{
+			"t": 0.476,
+			"step": "create",
+			"status": "succeeded",
+			"message": ""
+		},
+		{
+			"t": 0.482,
+			"step": "start",
+			"status": "started",
+			"message": ""
+		},
+		{
+			"t": 0.58,
+			"step": "start",
+			"status": "succeeded",
+			"message": ""
+		},
+		{
+			"t": 0.585,
+			"step": "health",
+			"status": "started",
+			"message": "Checking health (http)"
+		},
+		{
+			"t": 0.585,
+			"step": "status",
+			"status": "verifying",
+			"message": ""
+		},
+		{
+			"t": 20.633,
+			"step": "health",
+			"status": "failed",
+			"message": "Health check failed: health check did not pass within 20s (last failure: Get \"http://<container ip>:8081/\": dial tcp <container ip>:8081: connect: connection refused; Get \"http://nc-web-88959ee9-0:8081/\": dial tcp <container ip>:8081: connect: connection refused)"
+		},
+		{
+			"t": 20.852,
+			"step": "status",
+			"status": "failed",
+			"message": "Health check failed: health check did not pass within 20s (last failure: Get \"http://<container ip>:8081/\": dial tcp <container ip>:8081: connect: connection refused; Get \"http://nc-web-88959ee9-0:8081/\": dial tcp <container ip>:8081: connect: connection refused)\nPrevious release is still serving.\n\nLast 1 container log lines:\n2026/10/27 20:44:25 Starting up on port 80"
+		}
+	],
+	"phases": [
+		{
+			"id": "build",
+			"label": "Build",
+			"startS": 0.0,
+			"endS": 0.417,
+			"skipped": false
+		},
+		{
+			"id": "release",
+			"label": "Release",
+			"startS": 0.417,
+			"endS": 0.585,
+			"skipped": false
+		},
+		{
+			"id": "verify",
+			"label": "Verify",
+			"startS": 0.585,
+			"endS": 20.852,
+			"skipped": false
+		}
+	],
+	"routeSwitchS": null,
+	"canvas": [
+		{
+			"name": "web",
+			"kind": "app",
+			"source": "traefik/whoami:latest",
+			"domain": "shop.localhost",
+			"server": "agent1",
+			"replicas": 1,
+			"port": 80,
+			"strategy": "rolling"
+		},
+		{
+			"name": "api",
+			"kind": "app",
+			"source": "traefik/whoami:latest",
+			"domain": null,
+			"server": "agent1",
+			"replicas": 1,
+			"port": 80,
+			"strategy": "rolling"
+		},
+		{
+			"name": "postgres",
+			"kind": "database",
+			"source": "postgres:18",
+			"domain": null,
+			"server": "agent1",
+			"replicas": 1,
+			"port": 5432,
+			"strategy": "recreate"
+		}
+	]
+}

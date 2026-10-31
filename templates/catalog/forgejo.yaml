@@ -1,0 +1,73 @@
+schema: 1
+id: forgejo
+revision: 1
+name: Forgejo
+summary: Lightweight self-hosted software forge with Git hosting, issues, pull requests, packages and CI.
+description: Forgejo is a community-run, self-hosted Git forge that is easy to install and maintain. This template runs the official image with a managed Postgres database and a persistent /data volume. The installer is skipped (INSTALL_LOCK), so the first account you register becomes the administrator.
+category: devtools
+tags: [git, forge, code-hosting, ci]
+icon: forgejo
+links:
+  website: https://forgejo.org
+  docs: https://forgejo.org/docs/latest/
+  source: https://codeberg.org/forgejo/forgejo
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://codeberg.org/forgejo/forgejo/src/branch/forgejo/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/forgejo.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+services:
+  - key: app
+    name: Forgejo
+    kind: app
+    image: codeberg.org/forgejo/forgejo:17.0.0
+    digest: sha256:06d38310de496a10186d952bdad5ca764c153c8023ede8dfa0944c79a1dc5412
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/healthz
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      FORGEJO__database__DB_TYPE: postgres
+      FORGEJO__database__HOST: ${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}
+      FORGEJO__database__NAME: ${{db.DATABASE_NAME}}
+      FORGEJO__database__USER: ${{db.DATABASE_USER}}
+      FORGEJO__database__PASSWD: ${{db.DATABASE_PASSWORD}}
+      FORGEJO__server__DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      FORGEJO__server__SSH_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      FORGEJO__server__ROOT_URL: ${{NEBULA_PUBLIC_URL}}/
+      FORGEJO__security__INSTALL_LOCK: "true"
+    volumes:
+      - name: data
+        path: /data
+    ports:
+      - name: ssh
+        port: 22
+        protocol: tcp
+        publish: false
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Forgejo DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: forgejo
+group: Forgejo
+notes:
+  - "The web installer is disabled: open the generated domain and register the first account; it becomes the site administrator. Then consider turning off open registration under Site Administration or via FORGEJO__service__DISABLE_REGISTRATION=true."
+  - "Git over HTTPS works out of the box. The SSH server listens on container port 22, which is declared but not published (ports below 1024 cannot be published and the host's own sshd would clash); it is reachable from other services on the private network only."

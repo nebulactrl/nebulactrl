@@ -1,0 +1,12 @@
+# expect: process_command_required
+# schema: reject
+# An extra process runs its own command; it has no default to fall back to.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.processes.worker]
+stop_grace_seconds = 60

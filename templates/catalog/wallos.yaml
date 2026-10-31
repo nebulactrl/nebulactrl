@@ -1,0 +1,52 @@
+schema: 1
+id: wallos
+revision: 1
+name: Wallos
+summary: Self-hosted tracker for recurring subscriptions with spending statistics, renewal reminders and multi-currency support.
+description: Runs the official Wallos image (the bellamy/wallos image named in the project README) with its SQLite database and uploaded logos on persistent volumes.
+category: productivity
+tags: [subscriptions, finance, budgeting, expenses, tracker]
+links:
+  website: https://wallosapp.com
+  docs: https://github.com/ellite/Wallos#getting-started
+  source: https://github.com/ellite/Wallos
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/ellite/Wallos/blob/main/LICENSE.md
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/wallos
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name, used for renewal reminders)", default: UTC}
+services:
+  - key: wallos
+    name: Wallos
+    kind: app
+    image: bellamy/wallos:5.10.2
+    digest: sha256:8873c2328e745c7ca8ff0e0f5508215219ec5c02a3469c0d8049602be2a2bca3
+    port: 80
+    healthcheck:
+      type: http
+      path: /health.php
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      TZ: ${input:TIMEZONE}
+    volumes:
+      - name: db
+        path: /var/www/html/db
+      - name: logos
+        path: /var/www/html/images/uploads/logos
+    resources:
+      memoryMb: 256
+group: Wallos
+notes:
+  - "Open the site and create the first account on the registration page; it becomes the administrator."

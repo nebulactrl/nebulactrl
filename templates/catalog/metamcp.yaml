@@ -1,0 +1,70 @@
+schema: 1
+id: metamcp
+revision: 1
+name: MetaMCP
+summary: MCP gateway that aggregates many MCP servers into namespaces and exposes them as authenticated SSE or HTTP endpoints.
+description: Runs the official MetaMCP image (web UI and backend) with a managed Postgres database. The first admin account is created from the install form and public sign-up is switched off.
+category: ai
+tags: [mcp, ai, gateway, agents, proxy]
+icon: modelcontextprotocol
+links:
+  website: https://metamcp.com
+  docs: https://docs.metamcp.com
+  source: https://github.com/metatool-ai/metamcp
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/metatool-ai/metamcp/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/metamcp.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 3
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: app
+    name: MetaMCP
+    kind: app
+    image: ghcr.io/metatool-ai/metamcp:2.4.22
+    digest: sha256:6d5e0cba4ffc4976069a980723c11042f993a978fe0f3071ba2ec8a91ebc3d41
+    port: 12008
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [postgres]
+    domains:
+      - generate: true
+    env:
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      NEXT_PUBLIC_APP_URL: ${{NEBULA_PUBLIC_URL}}
+      BETTER_AUTH_SECRET: ${{secret(32)}}
+      DATABASE_URL: ${{postgres.DATABASE_URL}}
+      POSTGRES_HOST: ${{postgres.DATABASE_HOST}}
+      POSTGRES_PORT: ${{postgres.DATABASE_PORT}}
+      POSTGRES_USER: ${{postgres.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{postgres.DATABASE_PASSWORD}}
+      POSTGRES_DB: ${{postgres.DATABASE_NAME}}
+      BOOTSTRAP_USER_EMAIL: ${input:ADMIN_EMAIL}
+      BOOTSTRAP_USER_NAME: Admin
+      BOOTSTRAP_USER_PASSWORD: ${input:ADMIN_PASSWORD}
+      BOOTSTRAP_DISABLE_REGISTRATION_UI: "true"
+    resources:
+      memoryMb: 1024
+  - key: postgres
+    name: MetaMCP DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: metamcp
+group: MetaMCP
+notes:
+  - "Sign in with the admin email and password from the install form. Public sign-up is disabled (BOOTSTRAP_DISABLE_REGISTRATION_UI); remove that variable or use Settings to allow it."
+  - "MCP servers added in MetaMCP run inside this container, so only give admin access to people you trust to run commands."

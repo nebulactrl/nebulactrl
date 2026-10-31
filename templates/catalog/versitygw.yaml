@@ -1,0 +1,56 @@
+schema: 1
+id: versitygw
+revision: 1
+name: VersityGW
+summary: S3-compatible gateway that stores buckets and objects as plain files on a POSIX filesystem volume.
+description: Runs the official Versity S3 Gateway with the POSIX backend. Every directory in the data volume is a bucket and every file an object. The S3 API is served on the generated domain and protected by a root access key and secret.
+category: storage
+tags: [s3, object-storage, gateway, posix]
+links:
+  website: https://www.versity.com
+  docs: https://github.com/versity/versitygw/wiki
+  source: https://github.com/versity/versitygw
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/versity/versitygw/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/versitygw
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 20
+inputs:
+  - {key: ROOT_ACCESS_KEY_ID, label: S3 access key, default: "${{secret(20)}}"}
+  - {key: ROOT_SECRET_ACCESS_KEY, label: S3 secret key, secret: true, default: "${{secret(40)}}"}
+services:
+  - key: versitygw
+    name: VersityGW
+    kind: app
+    image: versity/versitygw:v1.10.0
+    digest: sha256:89cad13cc981986ee284cbafea4613f9533ce6fd5f37a2c96c4c4fb8adb3a316
+    port: 7070
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      VGW_BACKEND: posix
+      VGW_BACKEND_ARG: /data
+      VGW_PORT: :7070
+      VGW_HEALTH: /health
+      ROOT_ACCESS_KEY_ID: ${input:ROOT_ACCESS_KEY_ID}
+      ROOT_SECRET_ACCESS_KEY: ${input:ROOT_SECRET_ACCESS_KEY}
+    volumes:
+      - {name: data, path: /data}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: VersityGW
+notes:
+  - "Use the site address as S3 endpoint with path-style addressing and region us-east-1; the access key and secret are in the service variables (ROOT_ACCESS_KEY_ID, ROOT_SECRET_ACCESS_KEY)."
+  - "Buckets are directories in the data volume: files placed there appear as objects. Only the root account is configured; the WebUI and the admin API are not enabled in this template."

@@ -1,0 +1,60 @@
+schema: 1
+id: roundcube
+revision: 1
+name: Roundcube
+summary: Browser-based IMAP webmail client with address book, folders and a responsive interface.
+description: Roundcube is a webmail client that logs in to an existing IMAP and SMTP server. This template runs the official Apache-based image with its SQLite user database on a volume; you provide the mail server hosts.
+category: productivity
+tags: [email, webmail, imap, smtp]
+icon: roundcube
+links:
+  website: https://roundcube.net
+  docs: https://github.com/roundcube/roundcubemail-docker#readme
+  source: https://github.com/roundcube/roundcubemail
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://github.com/roundcube/roundcubemail/blob/master/LICENSE.md
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/roundcube
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: IMAP_HOST, label: "IMAP server (prefix tls:// for STARTTLS or ssl:// for TLS, e.g. ssl://mail.example.com)", required: true}
+  - {key: IMAP_PORT, format: number, label: IMAP port, default: "143"}
+  - {key: SMTP_HOST, label: "SMTP server (prefix tls:// for STARTTLS or ssl:// for TLS, e.g. tls://mail.example.com)", required: true}
+  - {key: SMTP_PORT, format: number, label: SMTP port, default: "587"}
+services:
+  - key: roundcube
+    name: Roundcube
+    kind: app
+    image: roundcube/roundcubemail:1.7.5-apache
+    digest: sha256:9d19d988694b14770aab4899c31c61a2212df947c113a40915e13c026354e88b
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      ROUNDCUBEMAIL_DB_TYPE: sqlite
+      ROUNDCUBEMAIL_SKIN: elastic
+      ROUNDCUBEMAIL_DEFAULT_HOST: ${input:IMAP_HOST}
+      ROUNDCUBEMAIL_DEFAULT_PORT: ${input:IMAP_PORT}
+      ROUNDCUBEMAIL_SMTP_SERVER: ${input:SMTP_HOST}
+      ROUNDCUBEMAIL_SMTP_PORT: ${input:SMTP_PORT}
+    volumes:
+      - name: db
+        path: /var/roundcube/db
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Roundcube
+notes:
+  - "Sign in with the full login of a mailbox on the IMAP server you entered; Roundcube has no accounts of its own."
+  - "Use ssl:// with port 993 for IMAP over TLS, or tls:// with port 143 for STARTTLS (same idea for SMTP with 465 or 587)."

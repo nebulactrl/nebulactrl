@@ -1,0 +1,35 @@
+{
+  "ref": "refs/heads/main",
+  "before": "28e1879d029cb852e4844d9c718537df08844e03",
+  "after": "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+  "compare_url": "https://git.example.com/acme/shop/compare/28e1879d029c...bffeb7422404",
+  "commits": [
+    {
+      "id": "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+      "message": "Add services folder\n",
+      "url": "https://git.example.com/acme/shop/commit/bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+      "author": {"name": "Ada Lovelace", "email": "ada@example.com", "username": "ada"},
+      "committer": {"name": "Ada Lovelace", "email": "ada@example.com", "username": "ada"},
+      "added": ["services/billing/main.go"],
+      "removed": [],
+      "modified": ["go.mod"],
+      "timestamp": "2026-10-21T09:12:00Z"
+    }
+  ],
+  "total_commits": 1,
+  "head_commit": {
+    "id": "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+    "message": "Add services folder\n",
+    "author": {"name": "Ada Lovelace", "email": "ada@example.com", "username": "ada"}
+  },
+  "repository": {
+    "id": 3,
+    "full_name": "acme/shop",
+    "html_url": "https://git.example.com/acme/shop",
+    "clone_url": "https://git.example.com/acme/shop.git",
+    "default_branch": "main",
+    "fork": false
+  },
+  "pusher": {"id": 1, "login": "ada", "username": "ada", "full_name": "Ada Lovelace"},
+  "sender": {"id": 1, "login": "ada", "username": "ada"}
+}

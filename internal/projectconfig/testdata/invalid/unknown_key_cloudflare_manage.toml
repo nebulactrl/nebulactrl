@@ -1,0 +1,15 @@
+# expect: unknown_key
+# schema: reject
+# `manage` was removed: DNS is always managed in a connected Cloudflare zone.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1"
+port = 80
+
+[services.web.domains."shop.acme.com"]
+
+[services.web.domains."shop.acme.com".cloudflare]
+manage = false
+proxied = true

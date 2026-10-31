@@ -1,0 +1,50 @@
+schema: 1
+id: deno-kv
+revision: 1
+name: Deno KV
+summary: Self-hosted Deno KV backend, a SQLite-backed key-value store served over HTTP for Deno clients.
+description: Runs the official denokv server with a SQLite database on a persistent volume. Deno programs connect with a KV URL and the generated access token.
+category: data
+tags: [deno, kv, key-value, sqlite, database]
+icon: deno
+links:
+  website: https://docs.deno.com/deploy/kv/manual/
+  docs: https://github.com/denoland/denokv#readme
+  source: https://github.com/denoland/denokv
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/denoland/denokv/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/deno-kv.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: denokv
+    name: Deno KV
+    kind: app
+    image: ghcr.io/denoland/denokv:0.14.0
+    digest: sha256:27ffd3fd85da69e05cfa653415fbb46cdddc04f452095b3530a8474b7b9221cc
+    port: 4512
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    env:
+      DENO_KV_SQLITE_PATH: /data/denokv.sqlite
+      DENO_KV_ACCESS_TOKEN: ${{secret(32)}}
+    volumes:
+      - name: data
+        path: /data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Deno KV
+notes:
+  - "Connect from Deno with DENO_KV_ACCESS_TOKEN set to the value of the DENO_KV_ACCESS_TOKEN variable of this service, then Deno.openKv(\"https://<your-domain>\")."
+  - "The server has no web page: opening the address in a browser shows an error, which is expected."

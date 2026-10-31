@@ -1,0 +1,67 @@
+schema: 1
+id: wakapi
+revision: 1
+name: Wakapi
+summary: Self-hosted, WakaTime-compatible backend for tracking coding time and statistics.
+description: Wakapi collects heartbeats from WakaTime editor plugins and shows coding statistics, leaderboards and reports. This template runs the official image with a managed Postgres database.
+category: analytics
+tags: [wakatime, coding-stats, time-tracking, developer-tools]
+links:
+  website: https://wakapi.dev
+  docs: https://github.com/muety/wakapi#readme
+  source: https://github.com/muety/wakapi
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/muety/wakapi/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/wakapi.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: wakapi
+    name: Wakapi
+    kind: app
+    image: ghcr.io/muety/wakapi:2.18.2
+    digest: sha256:7a14217db1b6a47816c8d8d0590cc40fa12fd409dfed6c194bbb4cd50f43d913
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      WAKAPI_PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      WAKAPI_INSECURE_COOKIES: "false"
+      WAKAPI_PASSWORD_SALT: ${{secret(64)}}
+      WAKAPI_ALLOW_SIGNUP: "true"
+      WAKAPI_DB_TYPE: postgres
+      WAKAPI_DB_HOST: ${{db.DATABASE_HOST}}
+      WAKAPI_DB_PORT: ${{db.DATABASE_PORT}}
+      WAKAPI_DB_NAME: ${{db.DATABASE_NAME}}
+      WAKAPI_DB_USER: ${{db.DATABASE_USER}}
+      WAKAPI_DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Wakapi DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: wakapi
+group: Wakapi
+notes:
+  - "Open the site and register the first account. Sign-ups stay open: after creating your account set WAKAPI_ALLOW_SIGNUP=false on the service and redeploy to keep the instance private."
+  - "Point your WakaTime plugins at the site: set api_url to <site address>/api in ~/.wakatime.cfg and use the API key from your Wakapi settings."
+  - "WAKAPI_PUBLIC_URL follows the generated domain; change it if you attach a custom domain."

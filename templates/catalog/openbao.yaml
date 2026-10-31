@@ -1,0 +1,72 @@
+schema: 1
+id: openbao
+revision: 1
+name: OpenBao
+summary: Open source secrets manager (a Vault-compatible fork under the Linux Foundation) with a single node and its data on a volume.
+description: OpenBao stores, leases and audits secrets behind a Vault-compatible API. This template runs one node whose data lives on a volume, so you can use it as the Vault / OpenBao integration behind secret manager references. A single node is a starter setup, not a highly available one, and OpenBao starts sealed, so after every restart someone has to unseal it (see the notes).
+category: security
+tags: [secrets, security, vault, openbao, kms]
+links:
+  website: https://openbao.org
+  docs: https://openbao.org/docs/
+  source: https://github.com/openbao/openbao
+upstream:
+  license: MPL-2.0
+  licenseUrl: https://github.com/openbao/openbao/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: app
+    name: OpenBao
+    kind: app
+    image: openbao/openbao:2.7.2
+    digest: sha256:5046911075e137e154ce49ab051502f4ec7cf367d484ae4a4dce665d9b90561f
+    port: 8200
+    command: ["server"]
+    healthcheck:
+      # A sealed or uninitialized OpenBao answers /v1/sys/health with 503 or 501,
+      # so the check is "the listener is up"; unseal state is the operator's job.
+      type: tcp
+      startPeriodSeconds: 5
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      BAO_API_ADDR: ${{NEBULA_PUBLIC_URL}}
+      BAO_CLUSTER_ADDR: http://127.0.0.1:8201
+      # So `bao` in the service's terminal talks to the local listener.
+      BAO_ADDR: http://127.0.0.1:8200
+    volumes:
+      - {name: data, path: /openbao/file}
+    files:
+      - path: /openbao/config/nebulactrl.hcl
+        mode: "0644"
+        content: |
+          # Single node, integrated (Raft) storage on the data volume. TLS ends at
+          # the platform proxy. The unseal keys are never stored by NebulaCtrl.
+          ui            = true
+          disable_mlock = true
+
+          storage "raft" {
+            path    = "/openbao/file"
+            node_id = "nebulactrl-1"
+          }
+
+          listener "tcp" {
+            address         = "0.0.0.0:8200"
+            cluster_address = "0.0.0.0:8201"
+            tls_disable     = true
+          }
+    resources:
+      memoryMb: 512
+    stopGraceSeconds: 30
+group: OpenBao
+notes:
+  - "OpenBao starts sealed and uninitialized. Open the service's terminal and run `bao operator init` once: it prints the unseal keys and the initial root token. Store them somewhere safe and separate: NebulaCtrl never sees them and nobody can recover them. Then `bao operator unseal` with three of the five keys."
+  - "Unsealing is manual after every restart. A redeploy, a server reboot or a crash leaves OpenBao sealed until someone runs `bao operator unseal` again. While it is sealed, a deploy whose variables reference its secrets fails with \"Not delivered\" and nothing changes; running services keep their values."
+  - "This is one node on a volume, the topology OpenBao calls highly discouraged for production: a lost volume or lost unseal keys cannot be recovered. Take snapshots (`bao operator raft snapshot save <file>`) and back the volume up. The file storage backend is development-only and gone in OpenBao 2.7, which is why this template uses integrated Raft storage on a single node."
+  - "To read secrets from NebulaCtrl, create a KV v2 mount, a read-only policy and an AppRole, then add a Vault / OpenBao integration under Team settings, Secret managers. The control plane calls OpenBao itself, so use the service's public https address, not its private one. Limit the integration to the projects that need it. See Secret managers in the docs."

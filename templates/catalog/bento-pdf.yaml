@@ -1,0 +1,44 @@
+schema: 1
+id: bento-pdf
+revision: 1
+name: BentoPDF
+summary: Privacy-first PDF toolkit that merges, splits, converts, compresses and edits PDFs entirely in the browser.
+description: BentoPDF serves a static web app with dozens of PDF tools that run client-side, so documents are never uploaded to the server. This template runs the self-hosted (simple mode) build.
+category: devtools
+tags: [pdf, documents, converter, utility, privacy]
+icon: bentopdf
+links:
+  website: https://bentopdf.com
+  docs: https://github.com/alam00000/bentopdf#readme
+  source: https://github.com/alam00000/bentopdf
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/alam00000/bentopdf/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/bento-pdf.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 64
+  diskGb: 1
+services:
+  - key: bento-pdf
+    name: BentoPDF
+    kind: app
+    image: ghcr.io/alam00000/bentopdf-simple:v2.8.10
+    digest: sha256:b5227a308e796d2bd00d2eb6da9d7296093107a8be7efef38a006d06506dc3c0
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 64
+group: BentoPDF
+notes:
+  - "There is no login and no stored data. Some tools (PyMuPDF, Ghostscript, CoherentPDF) load their WebAssembly modules from a public CDN in the visitor's browser."

@@ -1,0 +1,56 @@
+schema: 1
+id: freellmapi
+revision: 1
+name: FreeLLMAPI
+summary: OpenAI-compatible gateway that routes requests across the free tiers of many LLM providers, with fallback chains and per-key rate tracking.
+description: FreeLLMAPI runs the official image with its dashboard and API on one port. Provider keys are stored encrypted with a generated key, and the first dashboard account is created from the install form so the setup window is never open to the internet.
+category: ai
+tags: [ai, llm, proxy, openai-compatible, gateway]
+links:
+  website: https://freellmapi.co
+  docs: https://github.com/tashfeenahmed/freellmapi/blob/main/docs/en/install/01-install.md
+  source: https://github.com/tashfeenahmed/freellmapi
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/tashfeenahmed/freellmapi/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/freellmapi
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Dashboard admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: "Dashboard admin password (letters and digits only, 8+ characters)", secret: true, default: "${{secret(20)}}"}
+services:
+  - key: freellmapi
+    name: FreeLLMAPI
+    kind: app
+    image: ghcr.io/tashfeenahmed/freellmapi:v0.16.10
+    digest: sha256:3f6ba9bfe956fc9a2a62d1f9b9a168aea893e6171db110bc6dd362809545c7b5
+    port: 3001
+    healthcheck:
+      type: http
+      path: /api/ping
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      NODE_ENV: production
+      ENCRYPTION_KEY: ${{randomBytes(32,"hex")}}
+      FREEAPI_CONFIG_JSON: '{"admin":{"email":"${input:ADMIN_EMAIL}","password":"${input:ADMIN_PASSWORD}"}}'
+    secrets: [FREEAPI_CONFIG_JSON]
+    volumes:
+      - name: data
+        path: /app/server/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: FreeLLMAPI
+notes:
+  - "Sign in to the dashboard with the admin email and password from the install form, add provider keys on the Keys page and copy the unified API key from its header."
+  - "ENCRYPTION_KEY protects every stored provider key. Back it up together with the data volume; changing it makes saved keys unreadable."
+  - "The service is single-user: keep the admin password strong, since the dashboard is reachable on the public URL."

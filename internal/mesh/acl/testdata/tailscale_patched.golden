@@ -1,0 +1,20 @@
+// Our tailnet policy. Do not break it.
+{
+	// who owns which tag
+	"tagOwners": {
+		"tag:prod":        ["autogroup:admin"],
+		"tag:nebula-mesh": ["autogroup:admin"],
+	},
+	"acls": [
+		// everybody reaches the wiki
+		{"action": "accept", "src": ["*"], "dst": ["tag:prod:443"]},
+		// a user rule over literal IPs with a proto: never ours
+		{
+			"action": "accept",
+			"proto":  "tcp",
+			"src":    ["100.64.0.50"],
+			"dst":    ["100.64.0.51:22"],
+		},
+		{"action": "accept", "src": ["100.64.0.10"], "dst": ["100.64.0.2:15000"]},
+	],
+}

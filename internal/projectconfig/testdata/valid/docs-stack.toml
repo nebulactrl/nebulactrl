@@ -1,0 +1,28 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+server = "fra-1"
+
+[services.shop]
+name = "Shop stack"
+
+[services.shop.stack]
+wait_seconds = 300
+compose = '''
+services:
+  web:
+    image: nginx:1.27-alpine
+    environment:
+      GREETING: ${GREETING}
+  cache:
+    image: valkey/valkey:8
+'''
+
+[services.shop.stack.resources.cache]
+memory_mb = 256
+
+[services.shop.variables]
+GREETING = "hello"
+
+[services.shop.domains."shop.acme.com"]
+component   = "web"
+target_port = 80

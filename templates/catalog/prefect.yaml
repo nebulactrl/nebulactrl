@@ -1,0 +1,64 @@
+schema: 1
+id: prefect
+revision: 1
+name: Prefect
+summary: Workflow orchestration server for scheduling, running and monitoring Python data pipelines, with a web UI and API.
+description: Prefect server stores flow runs, deployments and schedules and serves the UI and API. This template runs the single-process server (API, UI and background services) with a managed Postgres, protected by a basic-auth login.
+category: automation
+tags: [orchestration, workflows, data-pipelines, python, etl]
+icon: prefect
+links:
+  website: https://www.prefect.io
+  docs: https://docs.prefect.io/v3/how-to-guides/self-hosted/server-cli
+  source: https://github.com/PrefectHQ/prefect
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/PrefectHQ/prefect/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/prefect
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1536
+  diskGb: 5
+inputs:
+  - {key: ADMIN_USER, label: Login user name, default: admin}
+  - {key: ADMIN_PASSWORD, label: Login password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: server
+    name: Prefect
+    kind: app
+    image: prefecthq/prefect:3.9.0-python3.12
+    digest: sha256:9f4fb20a431f0aba81bbcede83d5c08648aa769faf0ec47e989e9d370270129e
+    command: [prefect, server, start]
+    port: 4200
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      PREFECT_SERVER_API_HOST: 0.0.0.0
+      PREFECT_SERVER_API_PORT: "4200"
+      PREFECT_SERVER_UI_API_URL: ${{NEBULA_PUBLIC_URL}}/api
+      PREFECT_SERVER_API_AUTH_STRING: ${input:ADMIN_USER}:${input:ADMIN_PASSWORD}
+      PREFECT_SERVER_DATABASE_CONNECTION_URL: postgresql+asyncpg://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      PREFECT_SERVER_ANALYTICS_ENABLED: "false"
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Prefect DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: prefect
+group: Prefect
+notes:
+  - "Open the UI and sign in with the user and password from the install form."
+  - "Point workers and the CLI at this server: set PREFECT_API_URL to <domain>/api and PREFECT_API_AUTH_STRING to user:password."

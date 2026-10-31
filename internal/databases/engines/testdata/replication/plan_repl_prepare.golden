@@ -1,0 +1,11 @@
+argv: ["psql" "-X" "-q" "-A" "-t" "-v" "ON_ERROR_STOP=1" "-U" "app" "-d" "postgres"]
+env: ["NEBULA_REPL_ROLE=nebula_r_0a1b2c3d" "NEBULA_DB_NEW_PASSWORD=abcdefghijklmnopqrstuvwxyz012345"]
+user: ""
+stdin:
+\getenv nebula_role NEBULA_REPL_ROLE
+\getenv nebula_pw NEBULA_DB_NEW_PASSWORD
+SELECT CASE WHEN EXISTS (SELECT 1 FROM pg_roles WHERE rolname = :'nebula_role')
+  THEN format('ALTER ROLE %I WITH REPLICATION LOGIN PASSWORD %L', :'nebula_role', :'nebula_pw')
+  ELSE format('CREATE ROLE %I WITH REPLICATION LOGIN PASSWORD %L', :'nebula_role', :'nebula_pw') END \gexec
+ALTER SYSTEM SET max_slot_wal_keep_size = '4096MB';
+SELECT pg_reload_conf();

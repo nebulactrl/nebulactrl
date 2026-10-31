@@ -1,0 +1,74 @@
+schema: 1
+id: snipe-it
+revision: 1
+name: Snipe-IT
+summary: IT asset management for tracking hardware, licences, accessories and consumables with check-in/out and audits.
+description: Snipe-IT is a self-hosted asset and licence management system for IT teams. This template runs the official image with a managed MariaDB database and a persistent storage volume.
+category: productivity
+tags: [assets, inventory, it, licenses, helpdesk]
+links:
+  website: https://snipeitapp.com
+  docs: https://snipe-it.readme.io/docs
+  source: https://github.com/grokability/snipe-it
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/grokability/snipe-it/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/snipe-it.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 768
+  diskGb: 3
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name, for example Europe/Berlin)", default: UTC}
+services:
+  - key: app
+    name: Snipe-IT
+    kind: app
+    image: snipe/snipe-it:v8.8.3
+    digest: sha256:eb6d78c1bdae46d15177b149fcc14d7cd795d9f6c17e53dc4d87e04da9653218
+    port: 80
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn:
+      - db
+    domains:
+      - generate: true
+    env:
+      APP_ENV: production
+      APP_DEBUG: "false"
+      APP_KEY: base64:${{randomBytes(32,"base64")}}
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      APP_TIMEZONE: ${input:TIMEZONE}
+      APP_LOCALE: en-US
+      APP_TRUSTED_PROXIES: "**"
+      APP_TRUSTED_HEADERS: HEADER_X_FORWARDED_FOR,HEADER_X_FORWARDED_HOST,HEADER_X_FORWARDED_PORT,HEADER_X_FORWARDED_PROTO
+      DB_CONNECTION: mariadb
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_DATABASE: ${{db.DATABASE_NAME}}
+      DB_USERNAME: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - name: storage
+        path: /var/lib/snipeit
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Snipe-IT DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: snipeit
+group: Snipe-IT
+notes:
+  - "Open the site: the first visit runs the pre-flight check and the setup wizard where you create the admin account."
+  - "Email (password resets, notifications) is not configured: set the MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD and MAIL_FROM_ADDR variables on the service."
+  - "APP_KEY encrypts sensitive fields in the database: back it up, because losing it makes them unreadable."

@@ -1,0 +1,85 @@
+# Everything that cannot be imported, plus extends, profiles and Traefik labels.
+x-common: &common
+  restart: unless-stopped
+  logging:
+    driver: json-file
+
+services:
+  base:
+    image: nginx:1.27
+    profiles: [never]
+    environment:
+      SHARED: from-base
+    ports:
+      - "8080:80"
+
+  web:
+    extends: base
+    profiles: []
+    environment:
+      EXTRA: "${GREETING:-hello}"
+      LITERAL: "a ${{braces}} b"
+      CACHE_URL: redis://cache:6379/1
+      API_URL: http://api:3000/v1
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.web.rule=Host(`app.example.com`) || Host(`www.example.com`)
+      - traefik.http.services.web.loadbalancer.server.port=80
+    deploy:
+      replicas: 3
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    stop_grace_period: 1m30s
+    depends_on: [api, cache]
+
+  api:
+    <<: *common
+    build:
+      context: ./api
+      dockerfile: Dockerfile.prod
+      args:
+        VERSION: 1
+    entrypoint: ["/app/entry.sh"]
+    command: ["serve", "--port", "3000"]
+    expose: ["3000"]
+    user: "1000:1000"
+    cap_add: [NET_ADMIN]
+    environment:
+      PORT: 3000
+      SESSION_SECRET: abcdef0123456789abcdef0123456789
+      PUBLIC_NAME: shop
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  migrate:
+    image: ghcr.io/example/api:1.0
+    command: node migrate.js
+    restart: "no"
+
+  cache:
+    image: redis:7.2-alpine
+
+  debug:
+    image: busybox
+    profiles: ["debug"]
+    command: sleep infinity
+
+  agent:
+    image: containrrr/watchtower
+    privileged: true
+    network_mode: host
+    pid: host
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./data:/data
+      - ./cfg/app.yml:/etc/app.yml
+      - ./big.bin:/opt/big.bin
+      - cfgvol:/shared
+
+volumes:
+  cfgvol:

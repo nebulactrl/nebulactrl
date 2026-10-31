@@ -1,0 +1,57 @@
+schema: 1
+id: victoriametrics
+revision: 1
+name: VictoriaMetrics
+summary: Fast, resource-efficient time-series database and Prometheus-compatible monitoring backend (single node).
+description: VictoriaMetrics stores metrics ingested through Prometheus remote write, InfluxDB, OpenTelemetry and other protocols and answers PromQL/MetricsQL queries. This template runs the single-node server with persistent storage, a retention period and HTTP basic auth.
+category: analytics
+tags: [metrics, monitoring, time-series, prometheus, database]
+icon: victoriametrics
+links:
+  website: https://victoriametrics.com
+  docs: https://docs.victoriametrics.com
+  source: https://github.com/VictoriaMetrics/VictoriaMetrics
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/VictoriaMetrics/VictoriaMetrics/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/victoriametrics
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 10
+inputs:
+  - {key: USERNAME, label: Basic auth username, required: true, default: admin}
+  - {key: PASSWORD, label: Basic auth password, secret: true, default: "${{secret(24)}}"}
+  - {key: RETENTION, label: "Retention period (a number of months, or a duration such as 90d)", default: 90d}
+services:
+  - key: victoriametrics
+    name: VictoriaMetrics
+    kind: app
+    image: victoriametrics/victoria-metrics:v1.154.1
+    digest: sha256:c7884f32920dd45a9d86542a717227e63af03e060e53bbf8031e6e6fd0e1e05d
+    port: 8428
+    command: [-envflag.enable, -envflag.prefix=VM_, -storageDataPath=/storage, -httpListenAddr=:8428]
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      VM_retentionPeriod: ${input:RETENTION}
+      VM_httpAuth_username: ${input:USERNAME}
+      VM_httpAuth_password: ${input:PASSWORD}
+    volumes:
+      - name: data
+        path: /storage
+    resources:
+      memoryMb: 512
+group: VictoriaMetrics
+notes:
+  - "The HTTP API and the vmui explorer (at /vmui) require the basic auth username and password from the install form. Use the same credentials in Grafana or Prometheus remote_write."
+  - "Prometheus remote write endpoint: https://<domain>/api/v1/write; query endpoint for Grafana's Prometheus data source: https://<domain>."

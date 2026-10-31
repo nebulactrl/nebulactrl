@@ -1,0 +1,65 @@
+schema: 1
+id: chevereto
+revision: 1
+name: Chevereto
+summary: Self-hosted image and video sharing site with albums, user accounts and moderation.
+description: Chevereto is a media-sharing platform you run on your own domain. This template runs the free edition of Chevereto V4 with a managed MySQL database and a volume for uploaded files.
+category: media
+tags: [images, photo-sharing, gallery, uploads, albums]
+links:
+  website: https://chevereto.com
+  docs: https://v4-docs.chevereto.com
+  source: https://github.com/chevereto/chevereto
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/chevereto/chevereto/blob/4.5/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/chevereto
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 10
+services:
+  - key: chevereto
+    name: Chevereto
+    kind: app
+    image: chevereto/chevereto:4.5.7
+    digest: sha256:780d79093df4b71b54dccde5b6809566fa6b36a05d2b70c610c626d001a7b37f
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [mysql]
+    domains:
+      - generate: true
+    env:
+      CHEVERETO_DB_HOST: ${{mysql.DATABASE_HOST}}
+      CHEVERETO_DB_PORT: ${{mysql.DATABASE_PORT}}
+      CHEVERETO_DB_NAME: ${{mysql.DATABASE_NAME}}
+      CHEVERETO_DB_USER: ${{mysql.DATABASE_USER}}
+      CHEVERETO_DB_PASS: ${{mysql.DATABASE_PASSWORD}}
+      CHEVERETO_HOSTNAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      CHEVERETO_HOSTNAME_PATH: /
+      CHEVERETO_HTTPS: "1"
+      CHEVERETO_MAX_POST_SIZE: 2G
+      CHEVERETO_MAX_UPLOAD_SIZE: 2G
+    volumes:
+      - {name: images, path: /var/www/html/images}
+    resources:
+      memoryMb: 512
+  - key: mysql
+    name: Chevereto DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: chevereto
+group: Chevereto
+notes:
+  - "Open the site once after the deploy: the installer asks for the admin account and the site name."
+  - "This is the free edition of Chevereto V4; paid-edition features are not included."

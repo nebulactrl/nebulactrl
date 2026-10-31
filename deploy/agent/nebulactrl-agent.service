@@ -1,0 +1,36 @@
+# Reference systemd unit for the NebulaCtrl agent.
+#
+# The installer (curl -fsSL <control-plane>/install-agent.sh | sudo sh -s -- --url ... --token ...)
+# writes this unit to /etc/systemd/system/nebulactrl-agent.service with the URL substituted.
+# Use this file when you manage the host with your own tooling (Ansible, cloud-init, ...):
+#
+#   1. install the binary:  curl -fsSL https://CONTROL_PLANE/agent/v1/download/amd64 -o /usr/local/bin/nebulactrl-agent
+#                           chmod 0755 /usr/local/bin/nebulactrl-agent       (use arm64 on aarch64 hosts)
+#   2. create the state dir: install -d -m 0700 /var/lib/nebulactrl-agent
+#   3. first start only, enrollment token (single use, 1 h lifetime):
+#                           printf 'NEBULACTRL_ENROLL_TOKEN=nct_enroll_...\n' > /etc/nebulactrl-agent.env
+#                           chmod 0600 /etc/nebulactrl-agent.env
+#   4. replace https://CONTROL_PLANE below, then:  systemctl daemon-reload && systemctl enable --now nebulactrl-agent
+#
+# Every agent flag is also readable as NEBULACTRL_<FLAG> (dashes -> underscores), so extra
+# settings can go into /etc/nebulactrl-agent.env instead of ExecStart.
+
+[Unit]
+Description=NebulaCtrl agent
+Documentation=https://CONTROL_PLANE
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+ExecStart=/usr/local/bin/nebulactrl-agent --url https://CONTROL_PLANE --state-dir /var/lib/nebulactrl-agent
+EnvironmentFile=-/etc/nebulactrl-agent.env
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+LimitNOFILE=65536
+# Docker access is root-equivalent; the agent needs the Docker socket.
+User=root
+
+[Install]
+WantedBy=multi-user.target

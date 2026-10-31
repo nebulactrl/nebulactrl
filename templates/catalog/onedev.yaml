@@ -1,0 +1,73 @@
+schema: 1
+id: onedev
+revision: 1
+name: OneDev
+summary: Self-hosted Git server with pull requests, issue tracking with kanban boards, code search and a built-in CI/CD and package registry.
+description: OneDev hosts Git repositories over HTTP and SSH and adds code review, issues, boards, build pipelines and package registries in one app. This template runs OneDev with a managed Postgres database, an administrator account created at first start and the SSH port published.
+category: devtools
+tags: [git, scm, ci-cd, kanban, code-review, devops]
+icon: onedev
+links:
+  website: https://onedev.io
+  docs: https://docs.onedev.io
+  source: https://github.com/theonedev/onedev
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/theonedev/onedev/blob/main/license.txt
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/onedev.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 10
+inputs:
+  - {key: ADMIN_USER, label: Administrator login name, required: true, default: admin}
+  - {key: ADMIN_EMAIL, format: email, label: Administrator email, required: true}
+  - {key: ADMIN_PASSWORD, label: Administrator password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: onedev
+    name: OneDev
+    kind: app
+    image: 1dev/server:16.9.8
+    digest: sha256:d6f2b5b53d85bb3a6dd9c7ac470dcdb5defa3aeaa4e3b8d4b411a984f5831f10
+    port: 6610
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn: [db]
+    domains:
+      - generate: true
+    ports:
+      - {name: ssh, port: 6611, protocol: tcp, publish: true}
+    env:
+      hibernate_dialect: io.onedev.server.persistence.PostgreSQLDialect
+      hibernate_connection_driver_class: org.postgresql.Driver
+      hibernate_connection_url: jdbc:postgresql://${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      hibernate_connection_username: ${{db.DATABASE_USER}}
+      hibernate_connection_password: ${{db.DATABASE_PASSWORD}}
+      initial_user: ${input:ADMIN_USER}
+      initial_password: ${input:ADMIN_PASSWORD}
+      initial_email: ${input:ADMIN_EMAIL}
+      initial_server_url: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: data
+        path: /opt/onedev
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: OneDev DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: onedev
+group: OneDev
+notes:
+  - "Sign in with the administrator name and password from the install form. The administrator account is only created on the first start; later changes are made inside OneDev."
+  - "Git over SSH uses the published port 6611 (the clone URL in OneDev is derived from the server URL). HTTP clone and push work on the generated domain."
+  - "NebulaCtrl gives containers no access to the Docker socket, so OneDev cannot run Docker-based CI jobs itself. Run builds on a remote agent (Administration > Job Executors > Remote Docker Executor) installed on a machine with Docker."

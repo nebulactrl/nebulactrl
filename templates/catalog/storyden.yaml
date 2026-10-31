@@ -1,0 +1,51 @@
+schema: 1
+id: storyden
+revision: 1
+name: Storyden
+summary: Modern forum and community platform with discussions, a wiki-style library, collections and member roles.
+description: Storyden is a community hub that combines a forum, a knowledge base and curated link collections. This template runs the full-stack image (API and web app) with its SQLite database and uploads on a persistent volume.
+category: web
+tags: [forum, community, discussion, wiki]
+links:
+  website: https://www.storyden.org
+  docs: https://www.storyden.org/docs/introduction
+  source: https://github.com/Southclaws/storyden
+upstream:
+  license: MPL-2.0
+  licenseUrl: https://github.com/Southclaws/storyden/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/storyden
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: storyden
+    name: Storyden
+    kind: app
+    image: ghcr.io/southclaws/storyden:1.26.16
+    digest: sha256:a28477af32cebf7252e14a76f93b1cfd6c48c335031f5a5eeb3301d404330c3d
+    port: 8000
+    healthcheck:
+      type: http
+      path: /api/info
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    env:
+      PUBLIC_WEB_ADDRESS: ${{NEBULA_PUBLIC_URL}}
+      PUBLIC_API_ADDRESS: ${{NEBULA_PUBLIC_URL}}
+      JWT_SECRET: ${{secret(48)}}
+    volumes:
+      - name: data
+        path: /storyden/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Storyden
+notes:
+  - "Register on the generated address right after deploying: the first account registered automatically becomes the administrator, so do not leave a public instance without one."
+  - "Sign-in by password works out of the box; email, OAuth and other options are configured with environment variables, see https://www.storyden.org/docs/operation/configuration."

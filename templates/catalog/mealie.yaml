@@ -1,0 +1,69 @@
+schema: 1
+id: mealie
+revision: 1
+name: Mealie
+summary: Recipe manager and meal planner with a managed PostgreSQL database.
+description: Mealie is a self-hosted recipe manager and meal planner. It imports recipes from web pages, organises them into cookbooks and meal plans, and generates shopping lists. This template runs it with a managed Postgres database.
+category: productivity
+tags: [recipes, meal-planner, cooking, shopping-list, food]
+icon: mealie
+links:
+  website: https://mealie.io
+  docs: https://docs.mealie.io
+  source: https://github.com/mealie-recipes/mealie
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/mealie-recipes/mealie/blob/mealie-next/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/mealie.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: ALLOW_SIGNUP, label: Allow public sign-up, default: "false"}
+  - {key: TZ, label: Time zone, default: UTC}
+services:
+  - key: mealie
+    name: Mealie
+    kind: app
+    image: ghcr.io/mealie-recipes/mealie:v3.29.0
+    digest: sha256:78eb28b8776d0bad40c5e605c72b3f4f5976793e491558c7dcbdfc04c835d4bc
+    port: 9000
+    healthcheck:
+      type: http
+      path: /api/app/about
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      ALLOW_SIGNUP: ${input:ALLOW_SIGNUP}
+      TZ: ${input:TZ}
+      DB_ENGINE: postgres
+      POSTGRES_SERVER: ${{db.DATABASE_HOST}}
+      POSTGRES_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_USER: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      POSTGRES_DB: ${{db.DATABASE_NAME}}
+    volumes:
+      - name: data
+        path: /app/data
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Mealie DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: mealie
+group: Mealie
+notes:
+  - "Sign in with the default account changeme@example.com / MyPassword, then change the email and password under your user profile straight away."
+  - "Sign-up is disabled by default; create further users from Settings > Users, or enable it with the install form."

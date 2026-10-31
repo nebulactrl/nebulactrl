@@ -1,0 +1,11 @@
+# expect: missing_required
+# schema: reject
+# A git source names the branch to build.
+schema = 1
+server = "fra-1"
+
+[services.web]
+
+[services.web.git]
+connection = "github-acme"
+repo = "acme/shop"

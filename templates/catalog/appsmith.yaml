@@ -1,0 +1,56 @@
+schema: 1
+id: appsmith
+revision: 1
+name: Appsmith
+summary: Low-code platform for building internal tools, dashboards and admin panels on top of databases and APIs.
+description: Appsmith lets you assemble internal apps from drag-and-drop widgets connected to SQL, NoSQL and REST data sources, with JavaScript where needed. This template runs the Community Edition as a single container that bundles its own MongoDB, Redis and PostgreSQL.
+category: productivity
+tags: [low-code, internal-tools, dashboards, admin-panel]
+icon: appsmith
+links:
+  website: https://www.appsmith.com
+  docs: https://docs.appsmith.com/getting-started/setup/installation-guides/docker
+  source: https://github.com/appsmithorg/appsmith
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/appsmithorg/appsmith/blob/release/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/appsmith.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+heavy: true
+requires:
+  memoryMb: 4096
+  diskGb: 10
+services:
+  - key: appsmith
+    name: Appsmith
+    kind: app
+    image: appsmith/appsmith-ce:v2.5.1
+    digest: sha256:34c0e17ba97cc4c85e1c54ce1fa02c1031d0e6c4aecbe19f8f6daca5a3df53b2
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/v1/health
+      startPeriodSeconds: 120
+      deadlineSeconds: 600
+    env:
+      APPSMITH_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      APPSMITH_ENCRYPTION_PASSWORD: ${{secret(32)}}
+      APPSMITH_ENCRYPTION_SALT: ${{secret(32)}}
+      APPSMITH_DISABLE_TELEMETRY: "true"
+      APPSMITH_DISABLE_INTERCOM: "true"
+    volumes:
+      - name: stacks
+        path: /appsmith-stacks
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 4096
+    stopGraceSeconds: 60
+group: Appsmith
+notes:
+  - "The first start takes a few minutes while the bundled databases initialise. Open the site and create the first account, which becomes the instance administrator."
+  - "All data (bundled MongoDB, Redis, PostgreSQL, encryption keys) lives in the stacks volume: back it up."

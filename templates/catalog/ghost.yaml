@@ -1,0 +1,62 @@
+schema: 1
+id: ghost
+revision: 1
+name: Ghost
+summary: Publishing platform for blogs, newsletters and paid memberships, with a managed MySQL database.
+description: Ghost is a modern publishing platform with a built-in editor, newsletters, memberships and subscriptions. This template runs the official Debian-based Ghost image against a managed MySQL 8.4 database.
+category: web
+tags: [blog, cms, newsletter, publishing]
+icon: ghost
+links:
+  website: https://ghost.org
+  docs: https://docs.ghost.org
+  source: https://github.com/TryGhost/Ghost
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/TryGhost/Ghost/blob/main/LICENSE
+  class: permissive
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: app
+    name: Ghost
+    kind: app
+    image: ghost:6.72.0-bookworm
+    digest: sha256:c0d83a8d45222b3f37a897572000050ab8e6e507d3eee5a35b3ef8345c7293d6
+    port: 2368
+    healthcheck:
+      type: http
+      path: /ghost/api/admin/site/
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      database__client: mysql
+      database__connection__host: ${{db.DATABASE_HOST}}
+      database__connection__port: ${{db.DATABASE_PORT}}
+      database__connection__user: ${{db.DATABASE_USER}}
+      database__connection__password: ${{db.DATABASE_PASSWORD}}
+      database__connection__database: ${{db.DATABASE_NAME}}
+      url: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: content
+        path: /var/lib/ghost/content
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Ghost DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: ghost
+group: Ghost
+notes:
+  - "Open /ghost on your site's address to create the owner account; the first visit also runs the setup wizard."
+  - "Ghost needs a working mail transport for staff invitations, password resets and newsletters: set the mail__transport and mail__options__* variables on the Ghost service (see https://docs.ghost.org/config#mail)."
+  - "The site URL is taken from the generated domain. If you attach a custom domain, update the url variable to match and redeploy."

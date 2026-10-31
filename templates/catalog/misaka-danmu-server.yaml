@@ -1,0 +1,72 @@
+schema: 1
+id: misaka-danmu-server
+revision: 1
+name: Misaka Danmu Server
+summary: Self-hosted danmaku (bullet-comment) aggregation API with a web UI, compatible with the dandanplay API.
+description: Misaka Danmu Server collects danmaku comments for your media library and serves them to players such as Yamby, Hills or SenPlayer. This template runs the official image with a managed Postgres database.
+category: media
+tags: [danmaku, comments, anime, dandanplay]
+links:
+  website: https://docs.misaka10876.top
+  docs: https://docs.misaka10876.top
+  source: https://github.com/l429609201/misaka_danmu_server
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/l429609201/misaka_danmu_server/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/misaka-danmu-server
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USER, label: Admin username, default: admin, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: app
+    name: Misaka Danmu Server
+    kind: app
+    image: l429609201/misaka_danmu_server:v2.8.9
+    digest: sha256:ea916bd7f403e044ae603d0cea95fde26339e1f8fa5db2ce8e6a0bc319b53b16
+    port: 7768
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      UMASK: "0022"
+      DANMUAPI_SERVER__HOST: 0.0.0.0
+      DANMUAPI_SERVER__PORT: "7768"
+      DANMUAPI_DATABASE__TYPE: postgresql
+      DANMUAPI_DATABASE__HOST: ${{db.DATABASE_HOST}}
+      DANMUAPI_DATABASE__PORT: ${{db.DATABASE_PORT}}
+      DANMUAPI_DATABASE__NAME: ${{db.DATABASE_NAME}}
+      DANMUAPI_DATABASE__USER: ${{db.DATABASE_USER}}
+      DANMUAPI_DATABASE__PASSWORD: ${{db.DATABASE_PASSWORD}}
+      DANMUAPI_JWT__SECRET_KEY: ${{secret(48)}}
+      DANMUAPI_ADMIN__INITIAL_USER: ${input:ADMIN_USER}
+      DANMUAPI_ADMIN__INITIAL_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - {name: config, path: /app/config}
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Misaka DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: danmuapi
+group: Misaka Danmu Server
+notes:
+  - "Sign in with the admin username and password from the install form, then add metadata sources (TMDB, Bangumi...) and API tokens in the web UI."
+  - "The project recommends a mainland-China IP for the danmaku sources; elsewhere configure a proxy in the settings."

@@ -1,0 +1,54 @@
+schema: 1
+id: openlmnp
+revision: 1
+name: OpenLMNP
+summary: Self-hosted accounting for French furnished rentals (LMNP) with depreciation, 2031/2033 tax forms and FEC export.
+description: OpenLMNP is a single-user Laravel app for French LMNP landlords with depreciation schedules, ready-to-file 2031/2033 forms, FEC export and Airbnb CSV import. This template runs the project's Docker Hub image with SQLite on persistent volumes; the interface is in French.
+category: productivity
+tags: [accounting, finance, tax, rental, france]
+links:
+  website: https://openlmnp.fr
+  docs: https://github.com/manganate006/openlmnp/blob/main/docs/INSTALLATION.md
+  source: https://github.com/manganate006/openlmnp
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/manganate006/openlmnp/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/openlmnp
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: openlmnp
+    name: OpenLMNP
+    kind: app
+    image: manganate06/openlmnp:1.6.11
+    digest: sha256:a641661826305ccf6240b91e817951d70e03039aef4b5980a9fbe77451cd9779
+    port: 8000
+    healthcheck:
+      type: http
+      path: /up
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    env:
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      ALLOW_REGISTRATION: auto
+    volumes:
+      - name: database
+        path: /var/www/html/database
+      - name: storage
+        path: /var/www/html/storage
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: OpenLMNP
+notes:
+  - "Register at /register straight after deploying: the first account becomes the administrator and registration then closes by itself."
+  - "Without SMTP no emails are sent; reset a forgotten password with: php artisan openlmnp:reset-password <email> in the service console."
+  - "The app sends a daily anonymous install check-in (random id and version); set TELEMETRY_ENABLED=false on the service to turn it off."
+  - "APP_URL follows the generated domain; update it if you attach a custom domain."

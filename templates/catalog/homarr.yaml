@@ -1,0 +1,51 @@
+schema: 1
+id: homarr
+revision: 1
+name: Homarr
+summary: Customizable dashboard that puts all your self-hosted apps, bookmarks and service integrations on one page.
+description: Homarr is a browser dashboard with drag-and-drop boards, widgets and integrations for the apps you run. Its database and settings are stored in a single data volume.
+category: homelab
+tags: [dashboard, homepage, bookmarks, integrations]
+icon: homarr
+links:
+  website: https://homarr.dev
+  docs: https://homarr.dev/docs/getting-started/installation/docker
+  source: https://github.com/homarr-labs/homarr
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/homarr-labs/homarr/blob/dev/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/homarr
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: homarr
+    name: Homarr
+    kind: app
+    image: ghcr.io/homarr-labs/homarr:v2.9.1
+    digest: sha256:9421086c541f0e83057eaac7b6181c6d3044835227017bea9fc4d0fffee49aa6
+    port: 7575
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      SECRET_ENCRYPTION_KEY: ${{randomBytes(32,"hex")}}
+    volumes:
+      - name: appdata
+        path: /appdata
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Homarr
+notes:
+  - "Open the app and complete the onboarding to create the first admin account."
+  - "Integration URLs must be reachable from the Homarr container; use the private host names of your other services on the canvas."
+  - "SECRET_ENCRYPTION_KEY encrypts integration credentials stored in the database. Keep it unchanged and back it up, or the stored secrets become unreadable."

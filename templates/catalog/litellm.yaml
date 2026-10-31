@@ -1,0 +1,68 @@
+schema: 1
+id: litellm
+revision: 1
+name: LiteLLM
+summary: OpenAI-compatible gateway that routes requests to 100+ LLM providers, with virtual keys, budgets, rate limits and an admin UI.
+description: LiteLLM Proxy exposes one OpenAI-format API in front of OpenAI, Anthropic, Azure, Bedrock, Ollama and many other providers, and tracks spend per key and team. This template runs the proxy with a managed Postgres database; models and provider keys are added in the admin UI.
+category: ai
+tags: [ai, llm, gateway, proxy, openai]
+icon: litellm
+links:
+  website: https://www.litellm.ai
+  docs: https://docs.litellm.ai/docs/simple_proxy
+  source: https://github.com/BerriAI/litellm
+upstream:
+  license: MIT AND LicenseRef-LiteLLM-Enterprise
+  licenseUrl: https://github.com/BerriAI/litellm/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/litellm.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 2
+inputs:
+  - {key: MASTER_KEY, label: Master key (must start with sk-), secret: true, default: "sk-${{secret(32)}}"}
+  - {key: UI_USERNAME, label: Admin UI username, required: true, default: admin}
+  - {key: UI_PASSWORD, label: Admin UI password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: litellm
+    name: LiteLLM
+    kind: app
+    image: ghcr.io/berriai/litellm-database:v1.106.4
+    digest: sha256:db36453d25e76c9eb689d7d51b8e5fa48843243d7a86ed1284cf574ce0107b3f
+    port: 4000
+    healthcheck:
+      type: http
+      path: /health/readiness
+      intervalSeconds: 15
+      timeoutSeconds: 10
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      LITELLM_MASTER_KEY: ${input:MASTER_KEY}
+      LITELLM_SALT_KEY: sk-${{secret(32)}}
+      LITELLM_MODE: PRODUCTION
+      STORE_MODEL_IN_DB: "True"
+      UI_USERNAME: ${input:UI_USERNAME}
+      UI_PASSWORD: ${input:UI_PASSWORD}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: LiteLLM DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: litellm
+group: LiteLLM
+notes:
+  - "Open /ui and sign in with the admin UI username and password from the install form, then add models and provider API keys under Models. API clients authenticate with the master key or with virtual keys you create."
+  - "LITELLM_SALT_KEY encrypts the provider credentials stored in the database. Do not change or delete it after adding models."
+  - "Single sign-on beyond a small user count, audit logs and some other enterprise features need a LiteLLM enterprise licence."

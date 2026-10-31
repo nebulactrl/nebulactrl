@@ -1,0 +1,100 @@
+schema: 1
+id: open-archiver
+revision: 1
+name: Open Archiver
+summary: Self-hosted email archiving that ingests mailboxes and PST/EML/mbox files into searchable, encrypted storage.
+description: Open Archiver archives email from IMAP, Google Workspace, Microsoft 365 and file imports with full-text search. This template runs the app with a managed Postgres and Valkey and a Meilisearch search index, keeping archived mail on a local volume.
+category: productivity
+tags: [email, archiving, compliance, search, imap]
+links:
+  website: https://openarchiver.com
+  docs: https://docs.openarchiver.com
+  source: https://github.com/LogicLabs-OU/OpenArchiver
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/LogicLabs-OU/OpenArchiver/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/open-archiver.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 20
+services:
+  - key: app
+    name: Open Archiver
+    kind: app
+    image: logiclabshq/open-archiver:v0.6.2
+    digest: sha256:ec2e954959f7d0ee0089c4338437720da9b85520a23779cb6d7642943b3ae8e5
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db, cache, meilisearch]
+    domains:
+      - generate: true
+    env:
+      NODE_ENV: production
+      PORT_BACKEND: "4000"
+      PORT_FRONTEND: "3000"
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      ORIGIN: ${{NEBULA_PUBLIC_URL}}
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      MEILI_HOST: http://${{meilisearch.NEBULA_PRIVATE_HOST}}:7700
+      MEILI_MASTER_KEY: ${{meilisearch.MEILI_MASTER_KEY}}
+      REDIS_HOST: ${{cache.REDIS_HOST}}
+      REDIS_PORT: ${{cache.REDIS_PORT}}
+      REDIS_PASSWORD: ${{cache.REDIS_PASSWORD}}
+      REDIS_TLS_ENABLED: "false"
+      STORAGE_TYPE: local
+      STORAGE_LOCAL_ROOT_PATH: /var/data/open-archiver
+      STORAGE_ENCRYPTION_KEY: ${{randomBytes(32,"hex")}}
+      ENCRYPTION_KEY: ${{randomBytes(32,"hex")}}
+      JWT_SECRET: ${{secret(64)}}
+      JWT_EXPIRES_IN: 7d
+      BODY_SIZE_LIMIT: 100M
+      SYNC_FREQUENCY: "* * * * *"
+    volumes:
+      - {name: archive, path: /var/data/open-archiver}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Open Archiver DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: open_archive
+  - key: cache
+    name: Open Archiver Valkey
+    kind: database
+    database:
+      engine: valkey
+      version: "8"
+  - key: meilisearch
+    name: Open Archiver Search
+    kind: worker
+    image: getmeili/meilisearch:v1.38
+    digest: sha256:448a5b1b3e9303fabf39b84a2672f184295f665b1cb8eaffb11c738273430e5e
+    healthcheck:
+      type: http
+      path: /health
+      port: 7700
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      MEILI_MASTER_KEY: ${{randomBytes(24,"hex")}}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - {name: meili-data, path: /meili_data}
+    resources:
+      memoryMb: 512
+group: Open Archiver
+notes:
+  - "Open the app and create the first account on the setup page; that account becomes the administrator."
+  - "ENCRYPTION_KEY and STORAGE_ENCRYPTION_KEY protect ingestion-source credentials and archived files at rest. Keep them unchanged and back them up: archives cannot be read without them."
+  - "Add mailboxes (IMAP, Google Workspace, Microsoft 365) or import PST/EML/mbox files under Ingestion Sources."

@@ -1,0 +1,43 @@
+schema: 1
+id: drawnix
+revision: 1
+name: Drawnix
+summary: Open-source whiteboard for mind maps, flowcharts and freehand drawing, served as a static web app.
+description: Drawnix is a browser-based whiteboard with mind maps, flowcharts and free drawing. This template runs the static web build published by the project; boards are stored in the browser, so there is no server-side data.
+category: productivity
+tags: [whiteboard, diagrams, mind-map, drawing, flowchart]
+links:
+  website: https://drawnix.com
+  docs: https://github.com/plait-board/drawnix/blob/develop/README_en.md
+  source: https://github.com/plait-board/drawnix
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/plait-board/drawnix/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/drawnix
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 64
+  diskGb: 1
+services:
+  - key: drawnix
+    name: Drawnix
+    kind: app
+    image: pubuzhixing/drawnix:v0.4.1
+    digest: sha256:1faa5576e4bb70fc6d78a0f0d9b406dd4db9f966a96c53d62ed05b7b02f31c43
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 64
+group: Drawnix
+notes:
+  - "Boards are saved in your browser's local storage; export drawings you want to keep."

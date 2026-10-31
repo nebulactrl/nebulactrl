@@ -1,0 +1,30 @@
+{
+  "action": "synchronize",
+  "number": 42,
+  "before": "8c2d3b3a2f1b5d7d2f3e4a5b6c7d8e9f00112233",
+  "after": "e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e",
+  "pull_request": {
+    "url": "https://api.github.com/repos/octo-org/monorepo/pulls/42",
+    "id": 1,
+    "number": 42,
+    "state": "open",
+    "title": "Add dark mode",
+    "user": {"login": "hubot", "id": 2},
+    "html_url": "https://github.com/octo-org/monorepo/pull/42",
+    "merged": false,
+    "head": {
+      "label": "contributor:dark-mode",
+      "ref": "dark-mode",
+      "sha": "e5f6a7b8c9d0e1f2a3b4c5d6e7f8091a2b3c4d5e",
+      "repo": {"full_name": "contributor/monorepo", "fork": true, "clone_url": "https://github.com/contributor/monorepo.git"}
+    },
+    "base": {
+      "label": "octo-org:main",
+      "ref": "main",
+      "sha": "6113728f27ae82c7b1a177c8d03f9e96e0adf246",
+      "repo": {"full_name": "octo-org/monorepo", "fork": false, "clone_url": "https://github.com/octo-org/monorepo.git"}
+    }
+  },
+  "repository": {"full_name": "octo-org/monorepo", "clone_url": "https://github.com/octo-org/monorepo.git"},
+  "sender": {"login": "hubot", "id": 2}
+}

@@ -1,0 +1,61 @@
+schema: 1
+id: docuseal
+revision: 1
+name: DocuSeal
+summary: "Open-source document signing platform: build fillable PDF forms and collect legally binding e-signatures."
+description: DocuSeal lets you create document templates with fillable fields, send them for signing by email or link, and store the signed PDFs with an audit trail. This template runs the app with a managed Postgres database.
+category: productivity
+tags: [e-signature, documents, pdf, forms, docusign-alternative]
+icon: docuseal
+links:
+  website: https://www.docuseal.com
+  docs: https://www.docuseal.com/docs
+  source: https://github.com/docusealco/docuseal
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/docusealco/docuseal/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/docuseal.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+services:
+  - key: docuseal
+    name: DocuSeal
+    kind: app
+    image: docuseal/docuseal:3.3.4
+    digest: sha256:2786607f1f6eb54f982a926bd78c81ee23b6545e59d1ff548bd672094760621c
+    port: 3000
+    healthcheck:
+      type: http
+      path: /up
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      SECRET_KEY_BASE: ${{randomBytes(64,"hex")}}
+      FORCE_SSL: "true"
+    volumes:
+      - name: data
+        path: /data/docuseal
+    resources:
+      memoryMb: 512
+  - key: db
+    name: DocuSeal DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: docuseal
+group: DocuSeal
+notes:
+  - "Open the domain and complete the setup form to create the administrator account."
+  - "Uploaded documents and signed PDFs are stored on the data volume; add an S3 storage configuration in the app settings if you prefer object storage."
+  - "Set SMTP details in Settings > Email before sending signature requests by email."

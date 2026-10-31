@@ -1,0 +1,56 @@
+schema: 1
+id: instatic
+revision: 1
+name: Instatic
+summary: "Self-hosted visual CMS with a canvas editor, content engine and static site publisher, an open-source alternative to Webflow and WordPress."
+description: Instatic is a visual CMS that combines a canvas page editor, a content engine with users, roles and plugins, and a publisher that outputs clean semantic HTML without a framework runtime for visitors. This template runs the single Instatic container with SQLite storage and a volume for uploads. The published image is amd64 only.
+category: web
+tags: [cms, website-builder, static-site, visual-editor]
+links:
+  website: https://instatic.com
+  docs: https://github.com/corebunch/instatic/tree/main/docs
+  source: https://github.com/corebunch/instatic
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/CoreBunch/Instatic/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/instatic
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+  arch: [amd64]
+services:
+  - key: instatic
+    name: Instatic
+    kind: app
+    image: ghcr.io/corebunch/instatic:0.0.21
+    digest: sha256:6aa56b7d048f894c7821d1e7debd94a54e09bcc45332ad04d51e30e20545bca0
+    port: 3001
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      DATABASE_URL: sqlite:/app/data/cms.db
+      UPLOADS_DIR: /app/uploads
+      STATIC_DIR: /app/dist
+      INSTATIC_SECRET_KEY: ${{randomBytes(32,"base64")}}
+      PUBLIC_ORIGIN: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - {name: data, path: /app/data}
+      - {name: uploads, path: /app/uploads}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Instatic
+notes:
+  - "Open the domain followed by /admin: the first visit creates the site and the admin account, so do it right after deploying."
+  - "INSTATIC_SECRET_KEY (generated) encrypts AI provider credentials, plugin secret settings and MFA seeds stored in the database. Keep it with your backups: without it those values cannot be decrypted."
+  - "The SQLite database lives in the `data` volume and uploaded media in the `uploads` volume. Back up both. The upstream Compose setup mounts one volume at /app/storage and runs a root chown job first; this template mounts the two directories the image already creates for its non-root user instead, so no init job is needed."
+  - "The upstream image is published for linux/amd64 only."

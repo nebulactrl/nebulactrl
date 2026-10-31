@@ -1,0 +1,49 @@
+schema: 1
+id: heimdall
+revision: 1
+name: Heimdall
+summary: Application dashboard that gathers links to your self-hosted services on one start page.
+description: Runs the LinuxServer.io-maintained Heimdall image (Heimdall is a LinuxServer project) with its SQLite data in a persistent config volume.
+category: homelab
+tags: [dashboard, start-page, bookmarks, apps]
+links:
+  website: https://heimdall.site
+  docs: https://github.com/linuxserver/Heimdall#readme
+  source: https://github.com/linuxserver/Heimdall
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/linuxserver/Heimdall/blob/2.x/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/heimdall.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: heimdall
+    name: Heimdall
+    kind: app
+    image: lscr.io/linuxserver/heimdall:2.8.3
+    digest: sha256:928b80d532929a3ff4f53bd49437c721e76334a6d4c9d3d992e522b9ccdd08c2
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: Etc/UTC
+    volumes:
+      - {name: config, path: /config}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Heimdall
+notes:
+  - "Heimdall has no login by default: anyone who can open the site can edit the dashboard. You can create users under Settings > Users, or restrict access in front of the service."

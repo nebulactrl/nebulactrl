@@ -1,0 +1,59 @@
+schema: 1
+id: rustrak
+revision: 1
+name: Rustrak
+summary: Lightweight Sentry-compatible error tracking server with a built-in dashboard, written in Rust.
+description: Rustrak receives events from Sentry SDKs, groups them into issues and tracks release health. This template runs the official single-container image with SQLite storage on a persistent volume.
+category: devtools
+tags: [error-tracking, sentry, monitoring, observability, rust]
+links:
+  website: https://rustrak.dev
+  docs: https://rustrak.dev/getting-started/installation
+  source: https://github.com/rustrak/rustrak
+upstream:
+  license: GPL-3.0-only
+  licenseUrl: https://github.com/rustrak/rustrak/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/rustrak
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password (no colon), secret: true, default: "${{secret(20)}}"}
+services:
+  - key: rustrak
+    name: Rustrak
+    kind: app
+    image: rustrak/rustrak-server:v0.21.1
+    digest: sha256:b2718240badd77070d0ed30f1dafd2d30adab067743b05e9e824024b9f49ae45
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      HOST: 0.0.0.0
+      RUST_LOG: info
+      SSL_PROXY: "true"
+      PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      SESSION_SECRET_KEY: ${{secret(64)}}
+      CREATE_SUPERUSER: ${input:ADMIN_EMAIL}:${input:ADMIN_PASSWORD}
+      RUSTRAK_TELEMETRY: "off"
+    secrets: [CREATE_SUPERUSER]
+    volumes:
+      - name: rustrak-data
+        path: /data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Rustrak
+notes:
+  - "Sign in with the admin email and password from the install form; the account is created on the first start."
+  - "Create a project in the dashboard and point your Sentry SDK at the DSN it shows (it uses the service's public address)."

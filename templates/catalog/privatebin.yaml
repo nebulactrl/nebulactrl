@@ -1,0 +1,47 @@
+schema: 1
+id: privatebin
+revision: 1
+name: PrivateBin
+summary: Minimalist online pastebin where the server never sees the pasted data, which is encrypted in the browser.
+description: PrivateBin lets people share text, code and files through links with expiry and optional passwords. This template runs the official nginx and PHP-FPM image with pastes stored on a persistent volume.
+category: productivity
+tags: [pastebin, privacy, encryption, sharing, notes]
+links:
+  website: https://privatebin.info
+  docs: https://github.com/PrivateBin/PrivateBin/blob/master/doc/README.md
+  source: https://github.com/PrivateBin/PrivateBin
+upstream:
+  license: Zlib
+  licenseUrl: https://github.com/PrivateBin/PrivateBin/blob/master/LICENSE.md
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/privatebin.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 128
+  diskGb: 1
+services:
+  - key: privatebin
+    name: PrivateBin
+    kind: app
+    image: privatebin/nginx-fpm-alpine:2.1.0
+    digest: sha256:0f80fb240c3c3073c53a82893da7c7d62f03f4e05403855b720e4371541ba412
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    volumes:
+      - name: data
+        path: /srv/data
+    resources:
+      memoryMb: 128
+group: PrivateBin
+notes:
+  - "Open the service's domain and paste; no account is needed. Anyone who can reach the site can create pastes."
+  - "To change settings (expiry, size limits, password protection, discussions), mount a cfg.php as described in the PrivateBin configuration docs."

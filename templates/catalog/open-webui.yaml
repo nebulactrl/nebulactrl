@@ -1,0 +1,70 @@
+schema: 1
+id: open-webui
+revision: 1
+name: Open WebUI
+summary: Self-hosted chat interface for Ollama and OpenAI-compatible APIs with multi-user accounts, document chat (RAG), tools and model management.
+description: Open WebUI is a web front end for local and hosted language models, with chat history, user and group management, retrieval over uploaded documents and a plugin system. This template runs it with a managed Postgres database; connect your Ollama server or API keys after the first login.
+category: ai
+tags: [ai, llm, chat, ollama, openai]
+icon: openwebui
+links:
+  website: https://openwebui.com
+  docs: https://docs.openwebui.com
+  source: https://github.com/open-webui/open-webui
+upstream:
+  license: Open WebUI License (BSD-3-Clause with branding restriction)
+  licenseUrl: https://github.com/open-webui/open-webui/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/open-webui.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 10
+inputs:
+  - {key: OLLAMA_BASE_URL, format: url, label: "Ollama server URL (optional, e.g. http://ollama:11434)"}
+  - {key: OPENAI_API_KEY, label: "OpenAI API key (optional)", secret: true}
+services:
+  - key: app
+    name: Open WebUI
+    kind: app
+    image: ghcr.io/open-webui/open-webui:v0.12.4
+    digest: sha256:a5b9e403d19154796850679c8c5d1295301cee954be8b84ddd62af92426558f7
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      WEBUI_SECRET_KEY: ${{secret(48)}}
+      WEBUI_URL: ${{NEBULA_PUBLIC_URL}}
+      OLLAMA_BASE_URL: ${input:OLLAMA_BASE_URL}
+      OPENAI_API_KEY: ${input:OPENAI_API_KEY}
+      SCARF_NO_ANALYTICS: "true"
+      DO_NOT_TRACK: "true"
+      ANONYMIZED_TELEMETRY: "false"
+    volumes:
+      - name: data
+        path: /app/backend/data
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: Open WebUI DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: openwebui
+group: Open WebUI
+notes:
+  - "The first account registered on the generated domain becomes the administrator: create it right after deploying."
+  - "Add model providers under Admin Settings > Connections (Ollama URL, OpenAI-compatible endpoints). Without a connection there are no models to chat with."
+  - "The first start downloads the embedding model for document search, so it can take a few minutes and needs outbound internet access."
+  - "Open WebUI's licence is BSD-3-Clause with an added clause that forbids removing or changing the Open WebUI branding for deployments with more than 50 users."

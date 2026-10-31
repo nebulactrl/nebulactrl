@@ -1,0 +1,12 @@
+# expect: reserved_variable
+# PORT and NEBULA_* belong to the platform.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.variables]
+PORT = "8080"
+NEBULA_REGION = "eu"

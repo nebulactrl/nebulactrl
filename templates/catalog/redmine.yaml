@@ -1,0 +1,65 @@
+schema: 1
+id: redmine
+revision: 1
+name: Redmine
+summary: Flexible project management web application with issue tracking, wikis, Gantt charts and time tracking.
+description: Redmine is a long-running Ruby on Rails project management tool with multiple projects, issue tracking, wikis, forums and roles. This template runs the official image with a managed Postgres database and persistent volumes for uploaded files and plugins.
+category: productivity
+tags: [project-management, issue-tracker, wiki, gantt, rails]
+icon: redmine
+links:
+  website: https://www.redmine.org
+  docs: https://www.redmine.org/projects/redmine/wiki/Guide
+  source: https://github.com/redmine/redmine
+upstream:
+  license: GPL-2.0-only
+  licenseUrl: https://github.com/redmine/redmine/blob/master/doc/COPYING
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/redmine.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: redmine
+    name: Redmine
+    kind: app
+    image: redmine:7.0.2
+    digest: sha256:308f746a33af326fbbe71d5a2706f09b3403fdc0b55aad3d8b8c0c55b3993626
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [postgresql]
+    env:
+      REDMINE_DB_POSTGRES: ${{postgresql.DATABASE_HOST}}
+      REDMINE_DB_PORT: ${{postgresql.DATABASE_PORT}}
+      REDMINE_DB_DATABASE: ${{postgresql.DATABASE_NAME}}
+      REDMINE_DB_USERNAME: ${{postgresql.DATABASE_USER}}
+      REDMINE_DB_PASSWORD: ${{postgresql.DATABASE_PASSWORD}}
+      SECRET_KEY_BASE: ${{secret(64)}}
+    volumes:
+      - name: files
+        path: /usr/src/redmine/files
+      - name: plugins
+        path: /usr/src/redmine/plugins
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+  - key: postgresql
+    name: Redmine DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: redmine
+group: Redmine
+notes:
+  - "Sign in with the default account admin / admin; Redmine forces a password change at the first login."
+  - "Redmine reads SMTP settings only from config/configuration.yml; without it no email is sent. Add that file in the service's Files settings if you need notifications (files are stored in plain text)."

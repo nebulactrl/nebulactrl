@@ -1,0 +1,73 @@
+schema: 1
+id: nocobase
+revision: 1
+name: NocoBase
+summary: Extensible no-code and low-code platform for building internal tools, CRMs and business apps on your own data model.
+description: NocoBase is a plugin-based no-code platform with a visual data modeller, page builder and workflows. This template runs the official image with a managed Postgres database and creates the root account from the install form.
+category: devtools
+tags: [no-code, low-code, database, internal-tools, workflow]
+links:
+  website: https://www.nocobase.com
+  docs: https://docs.nocobase.com
+  source: https://github.com/nocobase/nocobase
+upstream:
+  license: NocoBase License Agreement (Apache-2.0 with additional terms)
+  licenseUrl: https://github.com/nocobase/nocobase/blob/main/LICENSE.txt
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/nocobase.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: ROOT_EMAIL, format: email, label: Root account email, required: true}
+  - {key: ROOT_PASSWORD, label: Root account password, secret: true, default: "${{secret(20)}}"}
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: app
+    name: NocoBase
+    kind: app
+    image: nocobase/nocobase:2.2.34
+    digest: sha256:b159c288baddc47e2cc10d6524546412164f7facce6e2f9831dc5df822863f12
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/__health_check
+      startPeriodSeconds: 120
+      deadlineSeconds: 600
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      APP_KEY: ${{secret(64)}}
+      DB_DIALECT: postgres
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_DATABASE: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      INIT_APP_LANG: en-US
+      INIT_ROOT_EMAIL: ${input:ROOT_EMAIL}
+      INIT_ROOT_PASSWORD: ${input:ROOT_PASSWORD}
+      INIT_ROOT_NICKNAME: Super Admin
+      TZ: ${input:TIMEZONE}
+    volumes:
+      - name: storage
+        path: /app/nocobase/storage
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: NocoBase DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: nocobase
+group: NocoBase
+notes:
+  - "The first start installs the app and creates the root account from the install form; sign in with that email and password."
+  - "APP_KEY signs user tokens; changing it logs everybody out. Keep it with the storage volume when migrating."
+  - "NocoBase's licence forbids offering it to the public as a no-code/low-code SaaS or PaaS and removing its branding; internal and commercial use of your own apps is allowed."

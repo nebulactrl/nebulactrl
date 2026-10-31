@@ -1,0 +1,69 @@
+schema: 1
+id: tolgee
+revision: 1
+name: Tolgee
+summary: Localization platform where developers and translators manage app translations, with in-context editing.
+description: Tolgee stores translation keys and strings for your projects and offers a translator UI, machine-translation helpers and SDKs for in-app editing. This template runs the official image against a managed Postgres database with a generated administrator account.
+category: devtools
+tags: [i18n, localization, translation, developer-tools]
+links:
+  website: https://tolgee.io
+  docs: https://docs.tolgee.io/platform/self_hosting/configuration
+  source: https://github.com/tolgee/tolgee-platform
+upstream:
+  license: Apache-2.0 (ee/ directory under a proprietary licence)
+  licenseUrl: https://github.com/tolgee/tolgee-platform/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/tolgee.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: tolgee
+    name: Tolgee
+    kind: app
+    image: tolgee/tolgee:v3.240.3
+    digest: sha256:a65164c94226e5d170cab958919b4eed39f66c5152b226a2023c36367fcc16af
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      TOLGEE_POSTGRES_AUTOSTART_ENABLED: "false"
+      SPRING_DATASOURCE_URL: jdbc:postgresql://${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      SPRING_DATASOURCE_USERNAME: ${{db.DATABASE_USER}}
+      SPRING_DATASOURCE_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      TOLGEE_AUTHENTICATION_ENABLED: "true"
+      TOLGEE_AUTHENTICATION_INITIAL_USERNAME: ${input:ADMIN_USERNAME}
+      TOLGEE_AUTHENTICATION_INITIAL_PASSWORD: ${input:ADMIN_PASSWORD}
+      TOLGEE_AUTHENTICATION_JWT_SECRET: ${{secret(48)}}
+      TOLGEE_FRONT_END_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: Tolgee DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: tolgee
+group: Tolgee
+notes:
+  - "Sign in with the admin username and password from the install form. Self-registration is off by default; invite other users from within Tolgee."
+  - "Email (invitations, password reset) needs an SMTP setup: see the tolgee.smtp.* properties in the Tolgee configuration docs and set them as TOLGEE_SMTP_* variables."
+  - "The ee/ directory of Tolgee (paid features) is under a proprietary licence; the rest of the platform is Apache-2.0."

@@ -1,0 +1,59 @@
+schema: 1
+id: geoserver
+revision: 1
+name: GeoServer
+summary: Open-source server for publishing geospatial data as OGC web services (WMS, WFS, WCS) with a web admin UI.
+description: Runs the official GeoServer image (Tomcat, sample data directory on a persistent volume) with a generated admin password. Publish your own data by uploading it in the admin UI or by connecting a PostGIS database.
+category: data
+tags: [gis, geospatial, maps, wms, wfs]
+links:
+  website: https://geoserver.org
+  docs: https://docs.geoserver.org
+  source: https://github.com/geoserver/geoserver
+upstream:
+  license: GPL-2.0-or-later
+  licenseUrl: https://github.com/geoserver/geoserver/blob/main/LICENSE.md
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/geoserver
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1536
+  diskGb: 5
+inputs:
+  - key: ADMIN_PASSWORD
+    label: Admin password
+    description: Password of the admin user for the GeoServer web UI and REST API.
+    secret: true
+    default: "${{secret(20)}}"
+services:
+  - key: geoserver
+    name: GeoServer
+    kind: app
+    image: docker.osgeo.org/geoserver:3.0.2
+    digest: sha256:5a372d4988116e8f62c71ae5ff6eb8d433967697670fb1dec15379bf476721fe
+    port: 8080
+    healthcheck:
+      type: http
+      path: /geoserver/web/
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    domains:
+      - generate: true
+    env:
+      GEOSERVER_ADMIN_USER: admin
+      GEOSERVER_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      ROOT_WEBAPP_REDIRECT: "true"
+      PROXY_BASE_URL: ${{NEBULA_PUBLIC_URL}}/geoserver
+      EXTRA_JAVA_OPTS: -Xms256m -Xmx1g
+    volumes:
+      - name: data
+        path: /opt/geoserver_data
+    resources:
+      memoryMb: 1536
+group: GeoServer
+notes:
+  - "Sign in at /geoserver as admin with the password from the install form (variable GEOSERVER_ADMIN_PASSWORD). The data directory starts with GeoServer's sample data."
+  - "This template does not include a PostGIS database. To publish PostGIS tables, deploy a PostGIS-enabled Postgres in the project and add it as a store in the GeoServer UI."

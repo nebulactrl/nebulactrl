@@ -1,0 +1,32 @@
+// The public site, deployed as Workers static assets by the release workflow
+// (.github/workflows/release.yml, job `site`). There is no Worker script: static
+// asset requests are free and unlimited, and the 404 page and trailing slash
+// handling are built in. Never deploy by hand; the release workflow stamps
+// dist/install.sh with the release version first.
+//
+//   cd apps/site && SITE_URL=https://nebulactrl.com bun run build
+//   npx --yes wrangler@4.154.0 deploy --dry-run        # validates this file and dist/
+//
+// Headers and caching: public/_headers. Account: CLOUDFLARE_ACCOUNT_ID.
+// www.nebulactrl.com is served by the same Worker and redirected to the apex by
+// a Cloudflare redirect rule (a zone setting, see CONTRIBUTING.md, "Release").
+{
+	"name": "nebulactrl-site",
+	"compatibility_date": "2026-10-28",
+	"assets": {
+		"directory": "./dist",
+		"not_found_handling": "404-page",
+		// The build writes pages as <route>/index.html and every canonical URL,
+		// sitemap entry and link has no trailing slash, so serve /privacy (not
+		// /privacy/) and redirect the slash form to it. "auto-trailing-slash"
+		// would redirect every canonical URL to its slash form.
+		"html_handling": "drop-trailing-slash"
+	},
+	"routes": [
+		{ "pattern": "nebulactrl.com", "custom_domain": true },
+		{ "pattern": "www.nebulactrl.com", "custom_domain": true }
+	],
+	// Only the custom domains serve the site.
+	"workers_dev": false,
+	"preview_urls": false
+}

@@ -1,0 +1,59 @@
+schema: 1
+id: jellyfin
+revision: 1
+name: Jellyfin
+summary: Free software media system to stream your movies, shows, music and photos to any device.
+description: Jellyfin is the volunteer-built, no-strings-attached media server. This template runs the official image with persistent config, cache and media volumes.
+category: media
+tags: [media, streaming, video, music]
+icon: jellyfin
+links:
+  website: https://jellyfin.org
+  docs: https://jellyfin.org/docs/
+  source: https://github.com/jellyfin/jellyfin
+upstream:
+  license: GPL-2.0-only
+  licenseUrl: https://github.com/jellyfin/jellyfin/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - key: TZ
+    label: Time zone
+    description: IANA time zone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: app
+    name: Jellyfin
+    kind: app
+    image: jellyfin/jellyfin:12.3
+    digest: sha256:2038fe038ab3876a80f6e7b7e0aef6607b032c7dc0c9b3ad3296d0b2eba3bbb5
+    port: 8096
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      JELLYFIN_PublishedServerUrl: ${{NEBULA_PUBLIC_URL}}
+      TZ: ${input:TZ}
+    volumes:
+      - name: config
+        path: /config
+      - name: cache
+        path: /cache
+      - name: media
+        path: /media
+    resources:
+      memoryMb: 1024
+group: Jellyfin
+notes:
+  - "Open the domain and finish the setup wizard to create the admin account and add libraries."
+  - "Put your media into the `media` volume (mounted at /media) and add /media as a library folder. To use existing files on the host, mount that folder into the service in addition to the volume."
+  - "DLNA and automatic discovery on the local network need host networking, which NebulaCtrl does not support. Clients connect through the domain instead."
+  - "Hardware transcoding is not part of this template: it needs the host's GPU device inside the container, which only unrestricted servers allow. Install the Jellyfin (hardware transcoding) template on such a server instead."

@@ -1,0 +1,95 @@
+{
+  "Name": "nc-mesh-5e5e5e5e",
+  "Image": "tailscale/tailscale:v1.104.2@sha256:b11583ad2e93e4671128538c88cf11f460444a5d7e449311dd1933a400ab849d",
+  "Env": [
+    "TS_USERSPACE=true",
+    "TS_STATE_DIR=/var/lib/tailscale",
+    "TS_AUTH_ONCE=true",
+    "TS_ACCEPT_DNS=false",
+    "TS_HOSTNAME=nc-hetzner",
+    "TS_ENABLE_HEALTH_CHECK=true",
+    "TS_LOCAL_ADDR_PORT=127.0.0.1:9002",
+    "TS_SERVE_CONFIG=/config/serve.json"
+  ],
+  "Cmd": null,
+  "Entrypoint": null,
+  "Labels": {
+    "nebulactrl.managed": "true",
+    "nebulactrl.mesh": "5e5e5e5e-1111-2222-3333-444444444444",
+    "nebulactrl.mesh.kind": "server",
+    "nebulactrl.mesh.spec": "61991ac802218b08"
+  },
+  "Networks": [
+    {
+      "Network": "nebulactrl-mesh",
+      "Aliases": null,
+      "GwPriority": 2147483647
+    }
+  ],
+  "Ports": null,
+  "Mounts": [
+    {
+      "Volume": "nc-mesh-5e5e5e5e-state",
+      "HostPath": "",
+      "Target": "/var/lib/tailscale",
+      "ReadOnly": false
+    },
+    {
+      "Volume": "nc-mesh-5e5e5e5e-config",
+      "HostPath": "",
+      "Target": "/config",
+      "ReadOnly": false
+    }
+  ],
+  "RestartPolicy": "unless-stopped",
+  "MemoryBytes": 268435456,
+  "NanoCPUs": 0,
+  "StopTimeout": null,
+  "LogConfig": {
+    "Type": "json-file",
+    "Config": {
+      "max-file": "3",
+      "max-size": "10m"
+    }
+  },
+  "Healthcheck": {
+    "Test": [
+      "CMD",
+      "wget",
+      "-q",
+      "-O",
+      "/dev/null",
+      "http://127.0.0.1:9002/healthz"
+    ],
+    "Interval": 10000000000,
+    "Timeout": 3000000000,
+    "StartPeriod": 30000000000,
+    "Retries": 3
+  },
+  "ExtraHosts": null,
+  "DNS": null,
+  "CapAdd": null,
+  "CapDrop": [
+    "ALL"
+  ],
+  "Devices": null,
+  "GPUs": null,
+  "Runtime": "",
+  "Privileged": false,
+  "PidMode": "",
+  "Hostname": "",
+  "User": "",
+  "GroupAdd": null,
+  "Sysctls": null,
+  "PidsLimit": 0,
+  "NetworkMode": "",
+  "SecurityOpt": [
+    "no-new-privileges"
+  ],
+  "ShmSize": 0,
+  "Ulimits": null,
+  "Init": false,
+  "StopSignal": "",
+  "Tmpfs": null,
+  "ReadonlyRootfs": false
+}

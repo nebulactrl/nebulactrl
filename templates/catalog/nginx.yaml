@@ -1,0 +1,48 @@
+schema: 1
+id: nginx
+revision: 1
+name: Nginx
+summary: Official Nginx web server for serving static sites, with its configuration and web root kept in volumes.
+description: Runs the official Nginx image with the default welcome page. The configuration directory and the web root are persistent volumes, so you can edit the config and drop in your own static files.
+category: web
+tags: [nginx, web-server, static-site, reverse-proxy, http]
+icon: nginx
+links:
+  website: https://nginx.org
+  docs: https://nginx.org/en/docs/
+  source: https://github.com/nginx/nginx
+upstream:
+  license: BSD-2-Clause
+  licenseUrl: https://github.com/nginx/nginx/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/nginx
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 1
+services:
+  - key: nginx
+    name: Nginx
+    kind: app
+    image: nginx:1.31.8
+    digest: sha256:6e67f8eaac94fc456588d4ff6c470d984841f5b5dc4279863d5cbe6ec5a60def
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    domains:
+      - generate: true
+    volumes:
+      - {name: config, path: /etc/nginx}
+      - {name: html, path: /usr/share/nginx/html}
+    resources:
+      memoryMb: 128
+group: Nginx
+notes:
+  - "The default welcome page is served on the public URL. Put your files in /usr/share/nginx/html and edit /etc/nginx/conf.d/default.conf from the service terminal, then reload with nginx -s reload."
+  - "The health check requests / and expects a 2xx or 3xx answer: keep an index page (or a redirect) at the web root."

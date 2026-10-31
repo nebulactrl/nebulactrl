@@ -1,0 +1,43 @@
+schema: 1
+id: imgcompress
+revision: 1
+name: ImgCompress
+summary: Offline web tool to compress, convert, crop and resize images and remove backgrounds with local AI.
+description: ImgCompress is a self-hosted image toolbox with a web UI and no cloud dependency. This template runs the project's own image; it keeps no persistent data.
+category: media
+tags: [images, compression, conversion, background-removal]
+links:
+  website: https://imgcompress.karimzouine.com
+  docs: https://imgcompress.karimzouine.com/docs
+  source: https://github.com/karimz1/imgcompress
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/karimz1/imgcompress/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/imgcompress.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 2
+services:
+  - key: imgcompress
+    name: ImgCompress
+    kind: app
+    image: karimz1/imgcompress:0.9.0
+    digest: sha256:f261836d42688850d5ccb56b821b1b7aa05c87948c762615837e943493ee03c9
+    port: 5000
+    healthcheck:
+      type: http
+      path: /api/health/backend
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: ImgCompress
+notes:
+  - "There is no login: anyone who can open the address can use the tool. Put it behind an access control if the address is public."

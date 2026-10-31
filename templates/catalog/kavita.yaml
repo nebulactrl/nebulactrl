@@ -1,0 +1,51 @@
+schema: 1
+id: kavita
+revision: 1
+name: Kavita
+summary: Self-hosted reading server for manga, comics and ebooks with a web reader and OPDS feeds.
+description: Runs the official Kavita image with its configuration in one volume and separate volumes for manga, comics and books.
+category: media
+tags: [ebooks, comics, manga, library, reader]
+links:
+  website: https://www.kavitareader.com
+  docs: https://wiki.kavitareader.com
+  source: https://github.com/Kareadita/Kavita
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/Kareadita/Kavita/blob/develop/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/kavita
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: kavita
+    name: Kavita
+    kind: app
+    image: jvmilazz0/kavita:0.9.1
+    digest: sha256:31181a32f0dda73cae68721867028a7253d57881b58bea5754cd9e578e75421a
+    port: 5000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    env:
+      TZ: Etc/UTC
+    volumes:
+      - {name: config, path: /kavita/config}
+      - {name: manga, path: /manga}
+      - {name: comics, path: /comics}
+      - {name: books, path: /books}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: Kavita
+notes:
+  - "Open the site and register: the first account becomes the administrator."
+  - "Add libraries in the admin dashboard and point them at /manga, /comics or /books inside the container, then put your files into those volumes."

@@ -1,0 +1,71 @@
+schema: 1
+id: fider
+revision: 1
+name: Fider
+summary: Open platform to collect, vote on and prioritise customer feedback and feature requests.
+description: Fider is a feedback portal where users submit ideas, vote on them and follow their status. Sign-in links are sent by email, so an SMTP server is required. This template runs the app with a managed PostgreSQL database.
+category: productivity
+tags: [feedback, roadmap, product, voting]
+icon: fider
+links:
+  website: https://fider.io
+  docs: https://docs.fider.io
+  source: https://github.com/getfider/fider
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/getfider/fider/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/fider.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: EMAIL_NOREPLY, format: email, label: Sender address, description: From address of every email Fider sends., required: true, default: noreply@example.com}
+  - {key: EMAIL_SMTP_HOST, format: hostname, label: SMTP host, required: true}
+  - {key: EMAIL_SMTP_PORT, format: number, label: SMTP port, description: Usually 587 (STARTTLS) or 465 (implicit TLS)., required: true, default: "587"}
+  - {key: EMAIL_SMTP_USERNAME, label: SMTP username}
+  - {key: EMAIL_SMTP_PASSWORD, label: SMTP password, secret: true}
+  - {key: EMAIL_SMTP_ENABLE_IMPLICIT_TLS, label: SMTP implicit TLS, description: Set to true when the SMTP port is 465., default: "false", options: ["false", "true"]}
+services:
+  - key: app
+    name: Fider
+    kind: app
+    image: getfider/fider:v0.38.2
+    digest: sha256:25d17db73c3d86292d75b29cda296343bbce8e6d3b313e7661525f30eb6d946c
+    port: 3000
+    healthcheck:
+      type: http
+      path: /_health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      DATABASE_URL: ${{db.DATABASE_URL}}?sslmode=disable
+      JWT_SECRET: ${{secret(64)}}
+      EMAIL_NOREPLY: ${input:EMAIL_NOREPLY}
+      EMAIL_SMTP_HOST: ${input:EMAIL_SMTP_HOST}
+      EMAIL_SMTP_PORT: ${input:EMAIL_SMTP_PORT}
+      EMAIL_SMTP_USERNAME: ${input:EMAIL_SMTP_USERNAME}
+      EMAIL_SMTP_PASSWORD: ${input:EMAIL_SMTP_PASSWORD}
+      EMAIL_SMTP_ENABLE_IMPLICIT_TLS: ${input:EMAIL_SMTP_ENABLE_IMPLICIT_TLS}
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Fider DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: fider
+group: Fider
+notes:
+  - "Fider has no passwords: users sign in with a link sent by email, so the SMTP settings must work. Mailgun and Amazon SES can be used instead by setting the EMAIL_MAILGUN_* or EMAIL_AWSSES_* variables on the service."
+  - "Open the domain and complete the setup wizard with your email address to create the administrator and name the site."
+  - "After setup, set SIGNUP_DISABLED=true on the service to stop anyone creating another site."

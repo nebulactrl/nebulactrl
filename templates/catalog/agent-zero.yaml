@@ -1,0 +1,54 @@
+schema: 1
+id: agent-zero
+revision: 1
+name: Agent Zero
+summary: Open-source autonomous AI agent framework with persistent memory, tool use and a web UI.
+description: Agent Zero runs the official image with its web UI behind a generated domain and password login. Models and API keys are configured in the UI after the first start.
+category: ai
+tags: [ai, agent, automation, llm]
+links:
+  website: https://www.agent-zero.ai
+  docs: https://github.com/agent0ai/agent-zero/blob/main/docs/quickstart.md
+  source: https://github.com/agent0ai/agent-zero
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/agent0ai/agent-zero/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/agent-zero
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 2048
+  diskGb: 10
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: agent-zero
+    name: Agent Zero
+    kind: app
+    image: agent0ai/agent-zero:v2.14
+    digest: sha256:b0c9763df7b8c4c5ddbdac9c101e8f84de8b7cdf9185203e446e2d7d8ebf2f1c
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    env:
+      AUTH_LOGIN: ${input:ADMIN_USERNAME}
+      AUTH_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - name: usr
+        path: /a0/usr
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 2048
+group: Agent Zero
+notes:
+  - "Sign in with the username and password from the install form, then choose your main and utility models in the welcome screen."
+  - "All Agent Zero data (settings, memory, chats, projects) lives in the usr volume. Do not mount over /a0 itself."

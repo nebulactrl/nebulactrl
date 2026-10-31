@@ -1,0 +1,101 @@
+#!/bin/sh
+# NebulaCtrl CLI installer, served by your control plane:
+#
+#   curl -fsSL {{if .URL}}{{.URL}}{{else}}https://<your-control-plane>{{end}}/cli.sh | sh
+#
+# It detects this machine's OS and CPU, downloads the matching `nebulactrl`
+# binary from the control plane that served this script, checks it against the
+# control plane's SHA256SUMS and installs it into /usr/local/bin (root, or a
+# writable /usr/local/bin) or ~/.local/bin. Nothing else is touched.
+#
+# Environment:
+#   NEBULACTRL_URL          control plane to download from (default: the one that served this script)
+#   NEBULACTRL_INSTALL_DIR  install directory (default: /usr/local/bin, or ~/.local/bin without write access)
+set -eu
+
+NC_URL=${NEBULACTRL_URL:-'{{.URL}}'}
+NC_URL=${NC_URL%/}
+
+say() { printf '%s\n' "$*"; }
+die() {
+	printf 'nebulactrl: %s\n' "$*" >&2
+	exit 1
+}
+
+# fetch <url> <output file>
+fetch() {
+	if command -v curl >/dev/null 2>&1; then
+		curl -fsSL --retry 2 -o "$2" "$1" || die "could not download $1"
+	elif command -v wget >/dev/null 2>&1; then
+		wget -q -O "$2" "$1" || die "could not download $1"
+	else
+		die "curl or wget is required"
+	fi
+}
+
+# sha256 <file>: the hex digest.
+sha256() {
+	if command -v sha256sum >/dev/null 2>&1; then
+		sha256sum "$1" | cut -d ' ' -f 1
+	elif command -v shasum >/dev/null 2>&1; then
+		shasum -a 256 "$1" | cut -d ' ' -f 1
+	elif command -v openssl >/dev/null 2>&1; then
+		openssl dgst -sha256 "$1" | sed 's/^.*= *//'
+	else
+		die "sha256sum, shasum or openssl is required to verify the download"
+	fi
+}
+
+main() {
+	[ -n "$NC_URL" ] || die "the control plane URL is unknown; run: NEBULACTRL_URL=https://your-control-plane sh cli.sh"
+
+	case "$(uname -s)" in
+	Linux) os=linux ;;
+	Darwin) os=darwin ;;
+	MINGW* | MSYS* | CYGWIN*) die "this installer does not run on Windows. Download $NC_URL/download/cli/windows/amd64 (or .../arm64) and put it on your PATH as nebulactrl.exe" ;;
+	*) die "unsupported operating system: $(uname -s)" ;;
+	esac
+	case "$(uname -m)" in
+	x86_64 | amd64) arch=amd64 ;;
+	aarch64 | arm64) arch=arm64 ;;
+	*) die "unsupported CPU architecture: $(uname -m)" ;;
+	esac
+
+	if [ -n "${NEBULACTRL_INSTALL_DIR:-}" ]; then
+		dest=$NEBULACTRL_INSTALL_DIR
+	elif [ "$(id -u)" = 0 ] || [ -w /usr/local/bin ]; then
+		dest=/usr/local/bin
+	else
+		[ -n "${HOME:-}" ] || die "HOME is not set; set NEBULACTRL_INSTALL_DIR"
+		dest=$HOME/.local/bin
+	fi
+
+	tmp=$(mktemp -d) || die "could not create a temporary directory"
+	trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+
+	say "Downloading nebulactrl for $os/$arch from $NC_URL ..."
+	fetch "$NC_URL/download/cli/$os/$arch" "$tmp/nebulactrl"
+	fetch "$NC_URL/download/cli/SHA256SUMS" "$tmp/SHA256SUMS"
+
+	want=$(awk -v name="$os-$arch/nebulactrl" '$2 == name || $2 == "*" name { print $1 }' "$tmp/SHA256SUMS")
+	[ -n "$want" ] || die "SHA256SUMS has no entry for $os-$arch"
+	got=$(sha256 "$tmp/nebulactrl")
+	[ "$got" = "$want" ] || die "checksum mismatch for $os/$arch (expected $want, got $got); nothing was installed"
+	say "Checksum verified (sha256 $got)."
+
+	mkdir -p "$dest" || die "could not create $dest"
+	if ! install -m 0755 "$tmp/nebulactrl" "$dest/nebulactrl" 2>/dev/null; then
+		die "could not write $dest/nebulactrl; run with sudo, or set NEBULACTRL_INSTALL_DIR to a directory you own"
+	fi
+	say "Installed $dest/nebulactrl"
+
+	case ":$PATH:" in
+	*":$dest:"*) ;;
+	*) say "Note: $dest is not on your PATH. Add it, for example: export PATH=\"$dest:\$PATH\"" ;;
+	esac
+	say ""
+	say "Next: nebulactrl login --url $NC_URL --token <API token>"
+	say "Create a token under Account settings -> API tokens."
+}
+
+main "$@"

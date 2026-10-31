@@ -1,0 +1,62 @@
+schema: 1
+id: hedgedoc
+revision: 1
+name: HedgeDoc
+summary: Real-time collaborative Markdown editor for notes, documentation and meeting minutes.
+description: HedgeDoc 1.x lets several people edit Markdown notes together and publish them as slides or pages. This template runs the official image with a managed Postgres database and a volume for uploads.
+category: productivity
+tags: [markdown, notes, collaboration, documentation, wiki]
+icon: hedgedoc
+links:
+  website: https://hedgedoc.org
+  docs: https://docs.hedgedoc.org
+  source: https://github.com/hedgedoc/hedgedoc
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/hedgedoc/hedgedoc/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/hedgedoc
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: hedgedoc
+    name: HedgeDoc
+    kind: app
+    image: quay.io/hedgedoc/hedgedoc:1.12.0
+    digest: sha256:202460cadb220ca568328045827f49a6e5575cb33de337b7ee59e6a5f9b79509
+    port: 3000
+    healthcheck:
+      type: http
+      path: /_health
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      CMD_DB_URL: ${{db.DATABASE_URL}}
+      CMD_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      CMD_PROTOCOL_USESSL: "true"
+      CMD_URL_ADDPORT: "false"
+      CMD_SESSION_SECRET: ${{secret(64)}}
+    volumes:
+      - name: uploads
+        path: /hedgedoc/public/uploads
+    resources:
+      memoryMb: 512
+  - key: db
+    name: HedgeDoc DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: hedgedoc
+group: HedgeDoc
+notes:
+  - "Open the site and register the first account with the Sign In button; email registration and anonymous editing are on by default."
+  - "To close registration or anonymous editing set CMD_ALLOW_EMAIL_REGISTER=false or CMD_ALLOW_ANONYMOUS=false on the service (see https://docs.hedgedoc.org/configuration/)."

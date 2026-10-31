@@ -1,0 +1,5 @@
+argv: ["psql" "-X" "-q" "-A" "-t" "-v" "ON_ERROR_STOP=1" "-U" "app" "-d" "postgres"]
+env: []
+user: ""
+stdin:
+SELECT pg_reload_conf();

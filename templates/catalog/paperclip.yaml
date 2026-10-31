@@ -1,0 +1,68 @@
+schema: 1
+id: paperclip
+revision: 1
+name: Paperclip
+summary: Control plane for running teams of AI agents with goals, tickets, budgets and recurring work.
+description: Runs the official Paperclip image in authenticated mode against a managed Postgres database, with uploads, the secrets key and agent workspaces on a persistent volume. Connect model providers or agent CLIs from the web UI.
+category: ai
+tags: [ai, agents, automation, orchestration, llm]
+links:
+  website: https://paperclip.ing
+  docs: https://docs.paperclip.ing
+  source: https://github.com/paperclipai/paperclip
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/paperclipai/paperclip/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/paperclip
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 2048
+  diskGb: 10
+services:
+  - key: paperclip
+    name: Paperclip
+    kind: app
+    image: ghcr.io/paperclipai/paperclip:2026.1023.0
+    digest: sha256:40f46940c4612ead131aebe6079cd4651f8cd1434af49f7c621887f4a452a62e
+    port: 3100
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 420
+    dependsOn: [postgres]
+    domains:
+      - generate: true
+    env:
+      HOST: 0.0.0.0
+      SERVE_UI: "true"
+      DATABASE_URL: ${{postgres.DATABASE_URL}}
+      BETTER_AUTH_SECRET: ${{randomBytes(32,"hex")}}
+      PAPERCLIP_TOOL_ACTION_SIGNING_SECRET: ${{randomBytes(32,"hex")}}
+      PAPERCLIP_HOME: /paperclip
+      PAPERCLIP_INSTANCE_ID: default
+      PAPERCLIP_CONFIG: /paperclip/instances/default/config.json
+      PAPERCLIP_DEPLOYMENT_MODE: authenticated
+      PAPERCLIP_DEPLOYMENT_EXPOSURE: private
+      PAPERCLIP_PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: data
+        path: /paperclip
+    resources:
+      memoryMb: 1536
+  - key: postgres
+    name: Paperclip DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: paperclip
+group: Paperclip
+notes:
+  - "Open the site, create an account and choose \"Claim this instance\" on the setup screen to become the first admin. Do this right after deploying: the first signed-in visitor can claim the instance."
+  - "Connect a Claude or Codex subscription, or enter a provider API key, under Apps > Connections."

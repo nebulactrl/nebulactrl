@@ -1,0 +1,186 @@
+schema: 1
+id: synapse
+revision: 1
+name: Matrix Synapse
+summary: Synapse is the reference homeserver for Matrix, an open standard for secure, decentralised chat, voice and video, with a PostgreSQL database.
+description: Synapse is the reference implementation of a Matrix homeserver. This template runs the official Synapse image behind your domain with a PostgreSQL database created with the C collation Synapse requires, generated signing and registration secrets, federation over port 443 through /.well-known and an administrator account created on first start. Connect any Matrix client (Element, FluffyChat, ...) to the domain.
+category: productivity
+tags: [matrix, chat, messaging, federation, voip]
+icon: matrix
+links:
+  website: https://element-hq.github.io/synapse/latest/
+  docs: https://element-hq.github.io/synapse/latest/welcome_and_overview.html
+  source: https://github.com/element-hq/synapse
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/element-hq/synapse/blob/develop/LICENSE-AGPL-3.0
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/synapse
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: SERVER_NAME, label: "Matrix server name (optional; permanent, becomes the part after the colon in user IDs; defaults to the generated domain)", format: hostname}
+  - {key: ADMIN_USER, label: Administrator username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Administrator password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: synapse
+    name: Matrix Synapse
+    kind: app
+    image: matrixdotorg/synapse:v1.164.0
+    digest: sha256:621463e2263551c3b2f13ebb8cc96c3de968855d5adbf4b0852c42a9bb42deea
+    port: 8008
+    healthcheck:
+      type: http
+      path: /health
+      intervalSeconds: 15
+      timeoutSeconds: 5
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      SYNAPSE_CONFIG_PATH: /data/homeserver.yaml
+      MATRIX_SERVER_NAME: ${input:SERVER_NAME}
+      PUBLIC_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      DB_HOST: ${{db.NEBULA_PRIVATE_HOST}}
+      DB_PASSWORD: ${{db.POSTGRES_PASSWORD}}
+      REGISTRATION_SHARED_SECRET: ${{secret(48)}}
+      MACAROON_SECRET_KEY: ${{secret(48)}}
+      FORM_SECRET: ${{secret(48)}}
+      ADMIN_USER: ${input:ADMIN_USER}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - name: synapse-data
+        path: /data
+    files:
+      - path: /config/start.sh
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          # Writes /data/homeserver.yaml from the environment on every start (secrets
+          # stay in the service variables, never in this file), makes sure the signing
+          # key exists, creates the administrator once Synapse is up, then hands over
+          # to the image's own entrypoint.
+          set -e
+          CONFIG=/data/homeserver.yaml
+          SERVER_NAME="${MATRIX_SERVER_NAME:-$PUBLIC_DOMAIN}"
+
+          umask 077
+          cat > "$CONFIG" <<EOF
+          server_name: "$SERVER_NAME"
+          public_baseurl: "$PUBLIC_URL/"
+          pid_file: /data/homeserver.pid
+          signing_key_path: /data/signing.key
+          log_config: /config/log.config
+          media_store_path: /data/media_store
+          report_stats: false
+
+          # Lets other homeservers federate over 443; port 8448 is not exposed.
+          serve_server_wellknown: true
+
+          listeners:
+            - port: 8008
+              tls: false
+              type: http
+              x_forwarded: true
+              bind_addresses: ['0.0.0.0']
+              resources:
+                - names: [client, federation]
+                  compress: false
+
+          database:
+            name: psycopg2
+            args:
+              user: synapse
+              password: "$DB_PASSWORD"
+              database: synapse
+              host: "$DB_HOST"
+              port: 5432
+              cp_min: 5
+              cp_max: 10
+
+          # Public sign-up is closed; the administrator creates accounts.
+          enable_registration: false
+          registration_shared_secret: "$REGISTRATION_SHARED_SECRET"
+          macaroon_secret_key: "$MACAROON_SECRET_KEY"
+          form_secret: "$FORM_SECRET"
+
+          trusted_key_servers:
+            - server_name: "matrix.org"
+          suppress_key_server_warning: true
+          EOF
+
+          python -m synapse.app.homeserver --config-path "$CONFIG" --keys-directory /data --generate-keys
+          chown -R 991:991 /data
+
+          if [ -n "$ADMIN_USER" ] && [ -n "$ADMIN_PASSWORD" ]; then
+            (
+              until curl -sf http://localhost:8008/health >/dev/null 2>&1; do sleep 2; done
+              register_new_matrix_user -a -u "$ADMIN_USER" -p "$ADMIN_PASSWORD" -c "$CONFIG" http://localhost:8008 >/dev/null 2>&1 || true
+            ) &
+          fi
+
+          exec /start.py
+      - path: /config/log.config
+        mode: "0444"
+        content: |
+          version: 1
+
+          formatters:
+            precise:
+              format: '%(asctime)s - %(name)s - %(lineno)d - %(levelname)s - %(request)s - %(message)s'
+
+          handlers:
+            console:
+              class: logging.StreamHandler
+              formatter: precise
+
+          loggers:
+            synapse.storage.SQL:
+              level: INFO
+
+          root:
+            level: INFO
+            handlers: [console]
+
+          disable_existing_loggers: false
+    docker:
+      entrypoint: [/config/start.sh]
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Synapse DB
+    kind: database
+    image: postgres:16-alpine
+    digest: sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U synapse -d synapse"]
+      intervalSeconds: 10
+      timeoutSeconds: 5
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      POSTGRES_USER: synapse
+      POSTGRES_PASSWORD: ${{secret(32)}}
+      POSTGRES_DB: synapse
+      POSTGRES_INITDB_ARGS: --encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    volumes:
+      - name: pgdata
+        path: /var/lib/postgresql/data
+    resources:
+      memoryMb: 512
+group: Matrix Synapse
+notes:
+  - "The Matrix server name is permanent: it is the part after the colon in every user ID (@alice:server) and cannot be changed after the first start. Leave the field empty to use the generated domain. A server name different from the domain also needs https://<server name>/.well-known/matrix/server and /client delegation, see the Synapse delegation docs."
+  - "Sign in with a Matrix client (for example Element) using the service's domain as the homeserver and the administrator username and password from the install form (the account is @<username>:<server name>). The administrator is created once, on the first start; changing the install values later does not change the account."
+  - "Public registration is disabled. Create more accounts from the service terminal with: register_new_matrix_user -c /data/homeserver.yaml http://localhost:8008"
+  - "homeserver.yaml is regenerated from the service variables on every start, so change settings through variables or the template, not by editing the file. The signing key and media live in the synapse-data volume: back it up together with the database."
+  - "The database is created with the C collation Synapse requires; the template uses a plain PostgreSQL image instead of a managed database for that reason."

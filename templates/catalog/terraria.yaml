@@ -1,0 +1,82 @@
+schema: 1
+id: terraria
+revision: 1
+name: Terraria Server
+summary: Vanilla Terraria dedicated server that creates a world on first start and keeps it in a persistent volume.
+description: Runs the PassiveLemon/terraria-docker image, which downloads the official Terraria dedicated server at build time and generates its configuration from environment variables. If no world with the chosen name exists, one is created automatically. The image project is GPL-3.0; the Terraria server software itself is proprietary to Re-Logic.
+category: games
+tags: [terraria, game-server, sandbox]
+icon: steam
+links:
+  website: https://github.com/PassiveLemon/terraria-docker
+  docs: https://github.com/PassiveLemon/terraria-docker#readme
+  source: https://github.com/PassiveLemon/terraria-docker
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/PassiveLemon/terraria-docker/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 2
+  arch: [amd64]
+inputs:
+  - key: WORLDNAME
+    label: World name
+    description: Name of the world file to load (Worlds/<name>.wld). Created when missing.
+    default: World
+  - key: AUTOCREATE
+    label: New world size
+    description: Size used when the world has to be created (1 small, 2 medium, 3 large). Never set it smaller than an existing world's size.
+    default: "2"
+    options: ["1", "2", "3"]
+  - key: PASSWORD
+    label: Server password
+    description: Password players need to join. A random one is generated when left empty.
+    secret: true
+    default: "${{secret(12)}}"
+  - key: MAXPLAYERS
+    label: Max players
+    default: "8"
+  - key: DIFFICULTY
+    label: New world difficulty
+    description: Used when a world is created (0 normal, 1 expert, 2 master, 3 journey).
+    default: "0"
+    options: ["0", "1", "2", "3"]
+  - key: MOTD
+    label: Message of the day
+    default: Welcome to the Nebula Terraria server
+services:
+  - key: server
+    name: Terraria
+    kind: app
+    image: passivelemon/terraria-docker:terraria-1.4.5.8
+    digest: sha256:682d932507262044519dfc2ed25edc4e3d77a524648613f3fafa0db3dbeb3b35
+    healthcheck:
+      type: tcp
+      port: 7777
+      intervalSeconds: 30
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    env:
+      WORLDNAME: ${input:WORLDNAME}
+      AUTOCREATE: ${input:AUTOCREATE}
+      PASSWORD: ${input:PASSWORD}
+      MAXPLAYERS: ${input:MAXPLAYERS}
+      DIFFICULTY: ${input:DIFFICULTY}
+      MOTD: ${input:MOTD}
+    secrets: [PASSWORD]
+    ports:
+      - {name: game, port: 7777, protocol: tcp, publish: true}
+    volumes:
+      - name: config
+        path: /opt/terraria/config
+    resources:
+      memoryMb: 1536
+    stopGraceSeconds: 60
+group: Terraria
+notes:
+  - "In Terraria choose Multiplayer, Join via IP and enter the server's address with port 7777. The password is the variable PASSWORD."
+  - "Worlds are stored in the volume under Worlds/. To use an existing world, copy <name>.wld into that folder and set World name to <name>."
+  - "World creation can take a minute on the first start; the service reports healthy once the server accepts connections."

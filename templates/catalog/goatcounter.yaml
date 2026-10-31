@@ -1,0 +1,56 @@
+schema: 1
+id: goatcounter
+revision: 1
+name: GoatCounter
+summary: Simple, privacy-friendly web analytics without cookies or personal-data tracking, backed by a managed PostgreSQL database.
+description: GoatCounter is a lightweight, open-source web analytics service that counts page views without tracking visitors. This template runs the official image against a managed PostgreSQL database; the first site is created in the setup form on first visit.
+category: analytics
+tags: [analytics, privacy, statistics]
+icon: goatcounter
+links:
+  website: https://www.goatcounter.com
+  docs: https://www.goatcounter.com/help
+  source: https://github.com/arp242/goatcounter
+upstream:
+  license: EUPL-1.2
+  licenseUrl: https://github.com/arp242/goatcounter/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/goatcounter.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: goatcounter
+    name: GoatCounter
+    kind: app
+    image: arp242/goatcounter:2.7.0
+    digest: sha256:791df3317bf5ce379511181a4802aaf29127a318b372d4fe39ec59e1c5af44be
+    port: 8080
+    healthcheck:
+      type: http
+      path: /status
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      GOATCOUNTER_DB: postgresql+${{db.DATABASE_URL}}?sslmode=disable
+    secrets: [GOATCOUNTER_DB]
+    resources:
+      memoryMb: 256
+  - key: db
+    name: GoatCounter DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: goatcounter
+group: GoatCounter
+notes:
+  - "Open the service URL right after deploying and complete the setup form: enter the exact domain of this service as the site domain, plus your email and a password. Until a site exists, anyone reaching the URL can create it."
+  - "GoatCounter serves the site that matches the request's domain, so add any custom domain you want to track from under Settings > Sites after the first site exists."

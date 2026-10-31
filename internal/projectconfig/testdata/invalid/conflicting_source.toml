@@ -1,0 +1,13 @@
+# expect: conflicting_source
+# schema: reject
+# Two source keys: this service cannot be both an image and a git build.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+
+[services.web.git]
+connection = "github-acme"
+repo = "acme/shop"
+branch = "main"

@@ -1,0 +1,47 @@
+schema: 1
+id: code-server
+revision: 1
+name: code-server
+summary: VS Code in the browser, running on your server with a persistent home directory.
+description: code-server runs Visual Studio Code on a remote machine and serves it over HTTPS so you can code from any device. This template runs the official Coder image with password authentication and a persistent /home/coder volume (workspace, extensions and settings).
+category: devtools
+tags: [ide, vscode, editor, remote-development]
+icon: visualstudiocode
+links:
+  website: https://coder.com/docs/code-server
+  docs: https://coder.com/docs/code-server/guide
+  source: https://github.com/coder/code-server
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/coder/code-server/blob/main/LICENSE
+  class: permissive
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: app
+    name: code-server
+    kind: app
+    image: codercom/code-server:4.143.1
+    digest: sha256:377b66bec5645510ed52549bb00e648c273edc604d230a3f90fd2b2433afcb97
+    port: 8080
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      PASSWORD: ${{secret(24)}}
+    volumes:
+      - name: home
+        path: /home/coder
+    resources:
+      memoryMb: 1024
+group: code-server
+notes:
+  - "Open the generated domain and sign in with the password stored in the PASSWORD variable. Everything under /home/coder (projects, extensions, settings) persists in the volume."
+  - "This is a full shell and editor on your server: keep the password secret and do not remove it."

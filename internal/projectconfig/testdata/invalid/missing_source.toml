@@ -1,0 +1,9 @@
+# expect: missing_source
+# schema: reject
+# A service has exactly one of image, git, database, route or stack.
+schema = 1
+server = "fra-1"
+
+[services.web]
+name = "Web"
+port = 80

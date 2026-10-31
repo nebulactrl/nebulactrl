@@ -1,0 +1,15 @@
+# expect: process_singleton_scale
+# A singleton process never runs two instances at once.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.processes.clock]
+command = ["run", "clock"]
+singleton = true
+
+[services.web.processes.clock.scale]
+replicas = 2

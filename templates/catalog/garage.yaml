@@ -1,0 +1,84 @@
+schema: 1
+id: garage
+revision: 1
+name: Garage
+summary: Lightweight S3-compatible object storage for self-hosting, running as a single node with a ready-made bucket and access key.
+description: Garage is an S3-compatible object store built by Deuxfleurs for small self-hosted setups. This template runs one node without replication, creates an access key and a default bucket at first start, and exposes the S3 API on the service domain.
+category: storage
+tags: [s3, object-storage, storage, self-hosted]
+icon: garage
+links:
+  website: https://garagehq.deuxfleurs.fr
+  docs: https://garagehq.deuxfleurs.fr/documentation/
+  source: https://git.deuxfleurs.fr/Deuxfleurs/garage
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://git.deuxfleurs.fr/Deuxfleurs/garage/src/tag/v2.5.0/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/garage.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 10
+inputs:
+  - {key: ACCESS_KEY_ID, label: S3 access key ID, required: true, default: "GK${{randomBytes(16,\"hex\")}}"}
+  - {key: SECRET_ACCESS_KEY, label: S3 secret access key, secret: true, default: "${{randomBytes(32,\"hex\")}}"}
+  - {key: BUCKET, label: Default bucket name, required: true, default: default}
+services:
+  - key: garage
+    name: Garage
+    kind: app
+    image: dxflrs/garage:v2.5.0
+    digest: sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    port: 3900
+    command: [/garage, server, --single-node, --default-bucket]
+    healthcheck:
+      type: http
+      port: 3903
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      GARAGE_RPC_SECRET: ${{randomBytes(32,"hex")}}
+      GARAGE_ADMIN_TOKEN: ${{secret(32)}}
+      GARAGE_METRICS_TOKEN: ${{secret(32)}}
+      GARAGE_DEFAULT_ACCESS_KEY: ${input:ACCESS_KEY_ID}
+      GARAGE_DEFAULT_SECRET_KEY: ${input:SECRET_ACCESS_KEY}
+      GARAGE_DEFAULT_BUCKET: ${input:BUCKET}
+    volumes:
+      - name: meta
+        path: /var/lib/garage/meta
+      - name: data
+        path: /var/lib/garage/data
+    files:
+      - path: /etc/garage.toml
+        mode: "0644"
+        content: |
+          metadata_dir = "/var/lib/garage/meta"
+          data_dir = "/var/lib/garage/data"
+          db_engine = "lmdb"
+
+          replication_factor = 1
+          consistency_mode = "consistent"
+
+          rpc_bind_addr = "0.0.0.0:3901"
+          rpc_public_addr = "127.0.0.1:3901"
+
+          [s3_api]
+          s3_region = "garage"
+          api_bind_addr = "0.0.0.0:3900"
+
+          [admin]
+          api_bind_addr = "0.0.0.0:3903"
+    resources:
+      memoryMb: 256
+group: Garage
+notes:
+  - "Use the service domain as the S3 endpoint with region garage and path-style addressing. Access key, secret key and bucket are the values from the install form."
+  - "This is a single node without replication: back up the data volume. Further buckets and keys are managed with the garage CLI inside the container (/garage bucket create, /garage key create)."
+  - "The admin API and metrics (port 3903) stay private to the stack; its tokens are in the service variables."

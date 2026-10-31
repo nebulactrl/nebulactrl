@@ -1,0 +1,70 @@
+schema: 1
+id: labelstudio
+revision: 1
+name: Label Studio
+summary: Data labeling and annotation tool for text, images, audio, video and time series with exportable formats.
+description: Label Studio is an open-source annotation platform for preparing machine-learning datasets. This template runs the official image with a managed Postgres database and creates the first user from the install form.
+category: ai
+tags: [labeling, annotation, machine-learning, datasets, nlp]
+links:
+  website: https://labelstud.io
+  docs: https://labelstud.io/guide/
+  source: https://github.com/HumanSignal/label-studio
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/HumanSignal/label-studio/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/labelstudio.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1536
+  diskGb: 5
+inputs:
+  - {key: LABEL_STUDIO_USERNAME, format: email, label: Admin email, required: true, default: admin@example.com}
+  - {key: LABEL_STUDIO_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: labelstudio
+    name: Label Studio
+    kind: app
+    image: heartexlabs/label-studio:1.23.2
+    digest: sha256:afcc516a22775a39d0d66f4c2ddc95d01be3e3d3862b21fcf4f9de34b4ad4e12
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn:
+      - db
+    domains:
+      - generate: true
+    env:
+      LABEL_STUDIO_HOST: ${{NEBULA_PUBLIC_URL}}
+      CSRF_TRUSTED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+      LABEL_STUDIO_USERNAME: ${input:LABEL_STUDIO_USERNAME}
+      LABEL_STUDIO_PASSWORD: ${input:LABEL_STUDIO_PASSWORD}
+      LABEL_STUDIO_DISABLE_SIGNUP_WITHOUT_LINK: "true"
+      DJANGO_DB: default
+      POSTGRE_HOST: ${{db.DATABASE_HOST}}
+      POSTGRE_PORT: ${{db.DATABASE_PORT}}
+      POSTGRE_NAME: ${{db.DATABASE_NAME}}
+      POSTGRE_USER: ${{db.DATABASE_USER}}
+      POSTGRE_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - name: data
+        path: /label-studio/data
+    resources:
+      memoryMb: 1536
+  - key: db
+    name: Label Studio DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: labelstudio
+group: Label Studio
+notes:
+  - "Sign in with the email and password from the install form. Public sign-up is disabled; invite users from Organization > Members."

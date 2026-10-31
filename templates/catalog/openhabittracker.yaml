@@ -1,0 +1,73 @@
+schema: 1
+id: openhabittracker
+revision: 1
+name: OpenHabitTracker
+summary: Single-user notes, tasks and habit tracker with all data on your own server and optional sync to the native apps.
+description: OpenHabitTracker is a Blazor Server app for notes, to-do lists and habits that the desktop and mobile apps can sync with. This template runs the official image with one login account and its data in a persistent volume.
+category: productivity
+tags: [notes, tasks, habits, todo, self-hosted]
+links:
+  website: https://openhabittracker.net
+  docs: https://github.com/Jinjinov/OpenHabitTracker#readme
+  source: https://github.com/Jinjinov/OpenHabitTracker
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/Jinjinov/OpenHabitTracker/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/openhabittracker
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - key: OHT_USERNAME
+    label: Username
+    default: admin
+    required: true
+  - key: OHT_EMAIL
+    format: email
+    label: Email
+    description: Email address of the single account.
+    default: admin@example.com
+    required: true
+  - key: OHT_PASSWORD
+    label: Password
+    description: Password of the single account. Generated when left empty.
+    secret: true
+    default: "${{secret(24)}}"
+  - key: TZ
+    label: Timezone
+    description: IANA timezone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: openhabittracker
+    name: OpenHabitTracker
+    kind: app
+    image: jinjinov/openhabittracker:1.2.5
+    digest: sha256:c040b1b7c961554a6e60c2b84d916298056d9703f5e1da5b1e54b2720f14177b
+    port: 8080
+    healthcheck:
+      type: http
+      path: /login
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      AppSettings__UserName: ${input:OHT_USERNAME}
+      AppSettings__Email: ${input:OHT_EMAIL}
+      AppSettings__Password: ${input:OHT_PASSWORD}
+      AppSettings__JwtSecret: ${{randomBytes(48,"base64")}}
+      TZ: ${input:TZ}
+    volumes:
+      - name: data
+        path: /app/.OpenHabitTracker
+    resources:
+      memoryMb: 512
+group: OpenHabitTracker
+notes:
+  - "Sign in at /login with the username and password you set (the password is stored in the AppSettings__Password variable)."
+  - "To sync the desktop or mobile apps, point them at this site's address and sign in with the same account."

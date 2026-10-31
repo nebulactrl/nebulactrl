@@ -1,0 +1,73 @@
+schema: 1
+id: letterfeed
+revision: 1
+name: LetterFeed
+summary: Turns email newsletters from an IMAP mailbox into RSS feeds you can read in any feed reader.
+description: LetterFeed scans a mailbox over IMAP and publishes the newsletters you choose as RSS feeds. This template runs the official backend and web UI; the mailbox is connected in the web UI after the first sign-in.
+category: productivity
+tags: [email, rss, newsletter, imap]
+links:
+  website: https://github.com/LeonMusCoden/LetterFeed
+  docs: https://github.com/LeonMusCoden/LetterFeed#readme
+  source: https://github.com/LeonMusCoden/LetterFeed
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/LeonMusCoden/LetterFeed/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/letterfeed
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 1
+inputs:
+  - {key: DOMAIN, format: hostname, label: "Public domain for the web UI (DNS must point to this server, e.g. feeds.example.com)", required: true}
+  - {key: AUTH_USERNAME, label: Admin username, required: true, default: admin}
+  - {key: AUTH_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: backend
+    name: LetterFeed API
+    kind: worker
+    image: ghcr.io/leonmuscoden/letterfeed-backend:0.5.3
+    digest: sha256:377ec24cbf726b6a30ff78a2a06a32529d5dff02a3e8df0e262a96f35184f5f1
+    healthcheck:
+      type: http
+      path: /health
+      port: 8000
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      LETTERFEED_APP_BASE_URL: https://${input:DOMAIN}
+      LETTERFEED_DATABASE_URL: sqlite:////data/letterfeed.db
+      LETTERFEED_SECRET_KEY: ${{randomBytes(32,"hex")}}
+      LETTERFEED_AUTH_USERNAME: ${input:AUTH_USERNAME}
+      LETTERFEED_AUTH_PASSWORD: ${input:AUTH_PASSWORD}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 256
+  - key: frontend
+    name: LetterFeed
+    kind: app
+    image: ghcr.io/leonmuscoden/letterfeed-frontend:0.5.3
+    digest: sha256:ddb56026d6fad0b7a93c85a8246d75993a883b8a5e3bdccbe39e48ef12e46e14
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    dependsOn: [backend]
+    domains:
+      - host: ${input:DOMAIN}
+    env:
+      LETTERFEED_BACKEND_URL: http://${{backend.NEBULA_PRIVATE_HOST}}:8000
+    resources:
+      memoryMb: 256
+group: LetterFeed
+notes:
+  - "Sign in with the admin username and password from the install form, then open Settings and enter your IMAP server (IMAP over SSL, port 993), mailbox login and folders."
+  - "Add the newsletter senders you want in the UI; each newsletter is published as its own RSS feed, with an all-newsletters feed as well."

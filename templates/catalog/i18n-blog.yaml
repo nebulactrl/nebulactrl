@@ -1,0 +1,55 @@
+schema: 1
+id: i18n-blog
+revision: 1
+name: Kuno i18n Blog
+summary: Multilingual blog and CMS with a Markdown editor, built with Go and Next.js and stored in SQLite.
+description: Kuno is an i18n-first blogging platform with a Go backend, a Next.js frontend, 70+ interface languages and an admin area. This template runs the project's image from Docker Hub with a persistent volume for the database and uploads.
+category: web
+tags: [blog, cms, i18n, markdown, multilingual]
+links:
+  website: https://qut.edu.kg
+  docs: https://github.com/xuemian168/kuno#readme
+  source: https://github.com/xuemian168/kuno
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/xuemian168/kuno/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/i18n-blog
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+  arch: [amd64]
+services:
+  - key: kuno
+    name: Kuno
+    kind: app
+    image: ictrun/kuno:1.4.5
+    digest: sha256:c66f517347c947aeb18dafba32ed00597f8645d6932962dfc24b39915ea84ec3
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/categories
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      DB_PATH: /app/data/blog.db
+      UPLOAD_DIR: /app/data/uploads
+      GIN_MODE: release
+      NODE_ENV: production
+      JWT_SECRET: ${{secret(48)}}
+      NEXT_PUBLIC_API_URL: ${{NEBULA_PUBLIC_URL}}/api
+    volumes:
+      - name: data
+        path: /app/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Kuno i18n Blog
+notes:
+  - "Sign in at /admin with the project's default account admin / xuemian168 and change the password immediately: the admin page is public as soon as the service is deployed."
+  - "NEXT_PUBLIC_API_URL follows the generated domain. If you attach a custom domain, set it to https://<domain>/api and redeploy."

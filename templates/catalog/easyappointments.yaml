@@ -1,0 +1,62 @@
+schema: 1
+id: easyappointments
+revision: 1
+name: Easy!Appointments
+summary: Self-hosted online appointment scheduler with a booking page for customers, services, providers and email notifications.
+description: Easy!Appointments lets customers book appointments through a web page while you manage services, providers, working plans and booking rules in a backend. This template runs the project's image with a managed MySQL database.
+category: productivity
+tags: [scheduling, appointments, booking, calendar]
+icon: easyappointments
+links:
+  website: https://easyappointments.org
+  docs: https://easyappointments.org/docs.html
+  source: https://github.com/alextselegidis/easyappointments
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/alextselegidis/easyappointments/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/easyappointments.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: app
+    name: Easy!Appointments
+    kind: app
+    image: alextselegidis/easyappointments:1.6.1-php2shell-fix
+    digest: sha256:6d3a927dc16db11827018bcbc708e6ee7d4be7f577e5d0967e90a1b08b71e2e0
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USERNAME: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - name: storage
+        path: /var/www/html/storage
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Easy!Appointments DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: easyappointments
+group: Easy!Appointments
+notes:
+  - "On first visit the app redirects to its installation wizard where you create the administrator account; the backend lives at /index.php/login."
+  - "Outgoing email uses PHP mail() by default. To use SMTP add MAIL_PROTOCOL=smtp and the MAIL_SMTP_* and MAIL_FROM_* variables to the app service (see the project's Docker Hub page)."

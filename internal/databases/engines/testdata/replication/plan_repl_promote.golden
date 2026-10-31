@@ -1,0 +1,26 @@
+argv: ["psql" "-X" "-q" "-A" "-t" "-v" "ON_ERROR_STOP=1" "-U" "app" "-d" "postgres"]
+env: ["NEBULA_REPL_LSN=0/3000060"]
+user: ""
+stdin:
+\getenv nebula_lsn NEBULA_REPL_LSN
+SELECT pg_is_in_recovery() AS in_recovery,
+       (:'nebula_lsn' = '' OR pg_last_wal_replay_lsn() >= NULLIF(:'nebula_lsn', '')::pg_lsn) AS caught_up \gset
+\if :in_recovery
+  \if :caught_up
+    SELECT pg_promote(true, 60) AS promoted \gset
+    \if :promoted
+      ALTER SYSTEM RESET primary_slot_name;
+      ALTER SYSTEM RESET primary_conninfo;
+      SELECT pg_reload_conf();
+      SELECT 'nebula:lsn:' || pg_current_wal_lsn();
+    \else
+      \warn pg_promote did not finish within 60 seconds
+      SELECT 1/0;
+    \endif
+  \else
+    \warn the replica has not replayed up to the requested position
+    SELECT 1/0;
+  \endif
+\else
+  SELECT 'nebula:lsn:' || pg_current_wal_lsn();
+\endif

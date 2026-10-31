@@ -1,0 +1,56 @@
+schema: 1
+id: dexio
+revision: 1
+name: Dexio
+summary: Shared markdown wiki that AI agents read and write over MCP, with a web app showing the link graph and page history.
+description: Dexio gives AI agents a linked markdown wiki reachable from any machine over MCP, while people browse the pages, graph and history in a web app. This template runs the server with SQLite and file storage on a persistent volume.
+category: ai
+tags: [wiki, knowledge-base, markdown, mcp, agents]
+links:
+  website: https://dexio.wiki
+  docs: https://github.com/dexio-wiki/dexio/blob/main/deploy/README.md
+  source: https://github.com/dexio-wiki/dexio
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/dexio-wiki/dexio/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/dexio
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: DEXIO_ADMIN_EMAIL, format: email, label: Admin email, description: Seeds the first (owner) account at first start., required: true}
+  - {key: DEXIO_ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: dexio
+    name: Dexio
+    kind: app
+    image: ghcr.io/dexio-wiki/dexio:1.0.0
+    digest: sha256:8124288b59d08f39debd9f3ea88edb8d93303e609d00aff58c93d25566cca5b3
+    port: 8080
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      DEXIO_DB: /data/dexio.db
+      DEXIO_FILES_DIR: /data/files
+      DEXIO_PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      DEXIO_SECRET_KEY: ${{secret(64)}}
+      DEXIO_ADMIN_EMAIL: ${input:DEXIO_ADMIN_EMAIL}
+      DEXIO_ADMIN_PASSWORD: ${input:DEXIO_ADMIN_PASSWORD}
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 256
+group: Dexio
+notes:
+  - "Sign in with the admin email and password from the install form, then connect an agent from the Connect page; agents reach MCP at <public URL>/mcp."
+  - "Email (sign-in links, invitations) is off, so people sign in with a password; sign-in with Google or GitHub needs their client IDs added as service variables."

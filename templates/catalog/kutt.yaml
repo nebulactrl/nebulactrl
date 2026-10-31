@@ -1,0 +1,60 @@
+schema: 1
+id: kutt
+revision: 1
+name: Kutt
+summary: Modern URL shortener with custom domains, link statistics and an API.
+description: Kutt creates short links, supports custom domains, tracks visits and has an API. This template runs the official image with SQLite on a persistent volume; registration stays closed and the first visit creates the admin account.
+category: web
+tags: [url-shortener, links, analytics, short-links]
+icon: kutt
+links:
+  website: https://kutt.it
+  docs: https://github.com/thedevs-network/kutt#readme
+  source: https://github.com/thedevs-network/kutt
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/thedevs-network/kutt/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/kutt
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: kutt
+    name: Kutt
+    kind: app
+    image: kutt/kutt:v3.2.6
+    digest: sha256:fa3d24a89b04e0feb542ed7d3c77993d58dbcc1406e5291a369595d543886146
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/v2/health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      DB_FILENAME: /var/lib/kutt/data.sqlite
+      JWT_SECRET: ${{secret(48)}}
+      DEFAULT_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      TRUST_PROXY: "true"
+      DISALLOW_REGISTRATION: "true"
+      DISALLOW_ANONYMOUS_LINKS: "true"
+      CUSTOM_DOMAIN_USE_HTTPS: "true"
+      MAIL_ENABLED: "false"
+    volumes:
+      - name: data
+        path: /var/lib/kutt
+      - name: custom
+        path: /kutt/custom
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Kutt
+notes:
+  - "Open the site and create the admin account when prompted on the first visit."
+  - "Sign-up of other users, password reset and email change need working SMTP: set the MAIL_* variables and MAIL_ENABLED=true (and DISALLOW_REGISTRATION=false to allow sign-ups) on the service."
+  - "DEFAULT_DOMAIN follows the generated domain; update it if you attach a custom domain."

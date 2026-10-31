@@ -1,0 +1,51 @@
+# The docs are compiled from docs/** and openapi/openapi.json by the pipeline in
+# packages/docs, twice: into the web app (in-app docs at /docs) and into the
+# public site (apps/site). A broken link or anchor fails either build. This is
+# the docs check: one small job. Manual only: Actions -> docs -> Run workflow, and
+# it runs as a gate inside release.yml.
+name: docs
+
+# CI POLICY: see ci.yml. Manual and workflow_call triggers only; GitHub-hosted
+# runner; superseded runs cancelled; strict timeout.
+on:
+  workflow_dispatch:
+  workflow_call:
+
+permissions:
+  contents: read
+
+# github.workflow is the caller's name when called from release.yml.
+concurrency:
+  group: docs-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docs:
+    name: docs links, search index, web and site builds
+    # 4 vCPU, ~3 min expected, timeout 6.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      # The site serves the installer assembled by Go (go run ./tests/install/assemble).
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - run: bun test packages/docs/src
+      - run: bunx vite build
+        working-directory: apps/web
+      - run: bun test src scripts
+        working-directory: apps/site
+      - run: bun run build
+        working-directory: apps/site
+        env:
+          SITE_URL: https://nebulactrl.example

@@ -1,0 +1,101 @@
+schema: 1
+id: seafile
+revision: 1
+name: Seafile
+summary: File sync and sharing platform with libraries, versioning, client apps and a web interface.
+description: Seafile Community Edition syncs and shares files through desktop, mobile and web clients. This template runs Seafile 13 with its own MariaDB (the setup needs the database root account to create its three databases) and a managed Redis cache.
+category: storage
+tags: [file-sync, file-sharing, cloud-storage, collaboration, dropbox-alternative]
+icon: seafile
+links:
+  website: https://www.seafile.com
+  docs: https://manual.seafile.com/latest/
+  source: https://github.com/haiwen/seafile-server
+upstream:
+  license: AGPL-3.0 (server core), Apache-2.0 (Seahub web UI)
+  licenseUrl: https://github.com/haiwen/seafile-server/blob/master/LICENSE.txt
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/seafile
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 10
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email (also the first login), required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+  - {key: TIME_ZONE, label: Time zone (IANA name), default: Etc/UTC}
+services:
+  - key: seafile
+    name: Seafile
+    kind: app
+    image: seafileltd/seafile-mc:13.0.28
+    digest: sha256:b0c90832126bf432db908449f1bb450211e6bbf75a2193bab3399e2a9636eccf
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 90
+      deadlineSeconds: 600
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      SEAFILE_MYSQL_DB_HOST: ${{db.NEBULA_PRIVATE_HOST}}
+      SEAFILE_MYSQL_DB_PORT: "3306"
+      SEAFILE_MYSQL_DB_USER: seafile
+      SEAFILE_MYSQL_DB_PASSWORD: ${{secret(32)}}
+      INIT_SEAFILE_MYSQL_ROOT_PASSWORD: ${{db.MYSQL_ROOT_PASSWORD}}
+      SEAFILE_MYSQL_DB_CCNET_DB_NAME: ccnet_db
+      SEAFILE_MYSQL_DB_SEAFILE_DB_NAME: seafile_db
+      SEAFILE_MYSQL_DB_SEAHUB_DB_NAME: seahub_db
+      TIME_ZONE: ${input:TIME_ZONE}
+      INIT_SEAFILE_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      INIT_SEAFILE_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      SEAFILE_SERVER_HOSTNAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      SEAFILE_SERVER_PROTOCOL: https
+      SITE_ROOT: /
+      NON_ROOT: "false"
+      JWT_PRIVATE_KEY: ${{secret(40)}}
+      SEAFILE_LOG_TO_STDOUT: "true"
+      ENABLE_GO_FILESERVER: "true"
+      ENABLE_SEADOC: "false"
+      CACHE_PROVIDER: redis
+      REDIS_HOST: ${{cache.REDIS_HOST}}
+      REDIS_PORT: ${{cache.REDIS_PORT}}
+      REDIS_PASSWORD: ${{cache.REDIS_PASSWORD}}
+    volumes:
+      - {name: data, path: /shared}
+    resources:
+      memoryMb: 1536
+  - key: db
+    name: Seafile DB
+    kind: database
+    image: mariadb:10.11
+    digest: sha256:d769e37960821dfdcf096954f6e7ac89f747e116c1bba98e48edd265dfc7deae
+    healthcheck:
+      type: exec
+      command: [CMD, /usr/local/bin/healthcheck.sh, --connect, --innodb_initialized]
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    env:
+      MYSQL_ROOT_PASSWORD: ${{secret(32)}}
+      MYSQL_LOG_CONSOLE: "true"
+      MARIADB_AUTO_UPGRADE: "1"
+    volumes:
+      - {name: dbdata, path: /var/lib/mysql}
+    resources:
+      memoryMb: 512
+  - key: cache
+    name: Seafile Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+group: Seafile
+notes:
+  - "Sign in with the admin email and password from the install form (a generated password is in the INIT_SEAFILE_ADMIN_PASSWORD variable); the first start creates the databases and can take a few minutes."
+  - "SeaDoc (collaborative documents) and the notification server are not part of this template."
+  - "Desktop and mobile clients use the public URL of this service as the server address."

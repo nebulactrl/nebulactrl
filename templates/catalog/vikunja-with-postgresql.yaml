@@ -1,0 +1,64 @@
+schema: 1
+id: vikunja-with-postgresql
+revision: 1
+name: Vikunja (Postgres)
+summary: Self-hosted to-do and project management app with lists, kanban, gantt and table views.
+description: Vikunja organizes tasks in lists and projects with kanban, gantt and calendar views, sharing and CalDAV. This template runs the official image with a managed Postgres database, the setup the project recommends for larger installs.
+category: productivity
+tags: [todo, tasks, kanban, project-management]
+icon: vikunja
+links:
+  website: https://vikunja.io
+  docs: https://vikunja.io/docs/
+  source: https://github.com/go-vikunja/vikunja
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/go-vikunja/vikunja/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/vikunja-with-postgresql.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+services:
+  - key: vikunja
+    name: Vikunja
+    kind: app
+    image: vikunja/vikunja:2.7.1
+    digest: sha256:f7dc8428d10aef17f3075886d3c1c022f566ec456f88985f02c137f4fc534576
+    port: 3456
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      VIKUNJA_DATABASE_TYPE: postgres
+      VIKUNJA_DATABASE_HOST: ${{db.DATABASE_HOST}}
+      VIKUNJA_DATABASE_DATABASE: ${{db.DATABASE_NAME}}
+      VIKUNJA_DATABASE_USER: ${{db.DATABASE_USER}}
+      VIKUNJA_DATABASE_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      VIKUNJA_SERVICE_SECRET: ${{secret(32)}}
+      VIKUNJA_SERVICE_PUBLICURL: ${{NEBULA_PUBLIC_URL}}
+      VIKUNJA_FILES_BASEPATH: /tmp
+    volumes:
+      - {name: files, path: /tmp}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Vikunja DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: vikunja
+group: Vikunja
+notes:
+  - "Open the site and register: there is no default account. Disable open registration afterwards by setting VIKUNJA_SERVICE_ENABLEREGISTRATION to false and redeploying."
+  - "Attachments live on the files volume, mounted at /tmp because the image runs as user 1000 and has no other writable directory."

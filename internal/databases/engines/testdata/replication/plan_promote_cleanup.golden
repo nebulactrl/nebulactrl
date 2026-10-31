@@ -1,0 +1,4 @@
+argv: ["sh" "-c" "set -eu\n: > \"$PGDATA/nebula.replica.conf\"\nrm -f \"$PGDATA/standby.signal\"\n"]
+env: []
+user: "postgres"
+stdin:

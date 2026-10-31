@@ -1,0 +1,75 @@
+schema: 1
+id: dolibarr
+revision: 1
+name: Dolibarr
+summary: "Open-source ERP and CRM for small and medium businesses: contacts, quotes, invoices, orders, stock, agenda and accounting."
+description: Dolibarr is a modular web ERP and CRM where you enable only the features you need, such as invoicing, stock, projects, HR or accounting. This template runs the official image with a managed MariaDB database and installs it automatically on first start.
+category: productivity
+tags: [erp, crm, invoicing, accounting, business]
+icon: dolibarr
+links:
+  website: https://www.dolibarr.org
+  docs: https://wiki.dolibarr.org
+  source: https://github.com/Dolibarr/dolibarr
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://github.com/Dolibarr/dolibarr/blob/develop/COPYING
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/dolibarr.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: ADMIN_LOGIN, label: Admin login, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+  - {key: COMPANY_NAME, label: Company name, default: My Company}
+services:
+  - key: dolibarr
+    name: Dolibarr
+    kind: app
+    image: dolibarr/dolibarr:24.0.1
+    digest: sha256:638727a1a035515b8f1e9c7694ee25315c4b79d618d4f19878efda977b20d49f
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DOLI_DB_HOST: ${{db.DATABASE_HOST}}
+      DOLI_DB_HOST_PORT: ${{db.DATABASE_PORT}}
+      DOLI_DB_NAME: ${{db.DATABASE_NAME}}
+      DOLI_DB_USER: ${{db.DATABASE_USER}}
+      DOLI_DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      DOLI_URL_ROOT: ${{NEBULA_PUBLIC_URL}}
+      DOLI_ADMIN_LOGIN: ${input:ADMIN_LOGIN}
+      DOLI_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      DOLI_COMPANY_NAME: ${input:COMPANY_NAME}
+      DOLI_INSTANCE_UNIQUE_ID: ${{randomBytes(32,"hex")}}
+      DOLI_INIT_DEMO: "0"
+    secrets: [DOLI_INSTANCE_UNIQUE_ID]
+    volumes:
+      - name: documents
+        path: /var/www/documents
+      - name: custom
+        path: /var/www/html/custom
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Dolibarr DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: dolibarr
+group: Dolibarr
+notes:
+  - "The first start installs the database schema and can take a minute or two. Sign in with the admin login and password from the install form."
+  - "Set DOLI_CRON=1 and a DOLI_CRON_KEY variable if you want the built-in cron service for scheduled jobs."

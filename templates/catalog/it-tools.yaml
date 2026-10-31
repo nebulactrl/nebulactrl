@@ -1,0 +1,42 @@
+schema: 1
+id: it-tools
+revision: 1
+name: IT Tools
+summary: A collection of handy online tools for developers and sysadmins, served as a static web app.
+description: IT Tools bundles converters, encoders, generators, hashing, network and text utilities in one browser-based page. It is a static site with no database and no stored state.
+category: devtools
+tags: [developer-tools, utilities, converters, sysadmin]
+icon: ittools
+links:
+  website: https://it-tools.tech
+  docs: https://github.com/CorentinTh/it-tools#readme
+  source: https://github.com/CorentinTh/it-tools
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/CorentinTh/it-tools/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/it-tools.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 64
+  diskGb: 1
+services:
+  - key: it-tools
+    name: IT Tools
+    kind: app
+    image: corentinth/it-tools:2024.10.22-7ca5933
+    digest: sha256:8b8128748339583ca951af03dfe02a9a4d7363f61a216226fc28030731a5a61f
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 64
+group: IT Tools

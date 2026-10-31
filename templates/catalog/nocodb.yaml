@@ -1,0 +1,60 @@
+schema: 1
+id: nocodb
+revision: 1
+name: NocoDB
+summary: Open-source Airtable alternative that turns a database into a collaborative spreadsheet with forms, galleries, kanban boards and a REST API.
+description: NocoDB gives a spreadsheet-style interface, shareable forms and auto-generated APIs on top of its own data or on external SQL databases. This template runs NocoDB with a managed Postgres database for its metadata and data, and a volume for file attachments.
+category: data
+tags: [spreadsheet, airtable, no-code, database, low-code]
+icon: nocodb
+links:
+  website: https://nocodb.com
+  docs: https://nocodb.com/docs
+  source: https://github.com/nocodb/nocodb
+upstream:
+  license: Sustainable Use License
+  licenseUrl: https://github.com/nocodb/nocodb/blob/develop/LICENSE.md
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/nocodb.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: app
+    name: NocoDB
+    kind: app
+    image: nocodb/nocodb:2026.10.0
+    digest: sha256:e8fee91b205b7c51df6e35a9d890d8b68b216e987ed3feb387c5478dff6df951
+    port: 8080
+    healthcheck:
+      type: http
+      path: /api/v1/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      NC_DB: pg://${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}?u=${{db.DATABASE_USER}}&p=${{db.DATABASE_PASSWORD}}&d=${{db.DATABASE_NAME}}
+      NC_AUTH_JWT_SECRET: ${{secret(64)}}
+      NC_SITE_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: data
+        path: /usr/app/data
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: NocoDB DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: nocodb
+group: NocoDB
+notes:
+  - "Open the generated domain and sign up: the first account becomes the super admin. Do this right after deploying, before sharing the URL."
+  - "Uploaded attachments are stored on the data volume (/usr/app/data). Configure SMTP in the NocoDB settings to send invitation emails."

@@ -1,0 +1,65 @@
+schema: 1
+id: cryptgeon
+revision: 1
+name: Cryptgeon
+summary: Self-destructing encrypted notes and files, shared by link, in the spirit of PrivNote.
+description: Cryptgeon encrypts notes and files in the browser and deletes them after a set number of views or minutes. This template runs the official image with a managed Valkey store that keeps the notes.
+category: security
+tags: [secure-notes, encryption, file-sharing, privnote, self-destruct]
+links:
+  website: https://cryptgeon.org
+  docs: https://github.com/cupcakearmy/cryptgeon
+  source: https://github.com/cupcakearmy/cryptgeon
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/cupcakearmy/cryptgeon/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/cryptgeon.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 384
+  diskGb: 1
+inputs:
+  - {key: SIZE_LIMIT, label: Maximum size of one note (for example 4 MiB; 512 MiB is the upper limit), default: 4 MiB}
+  - {key: MAX_VIEWS, label: Maximum number of views a note may allow, default: "100"}
+  - {key: MAX_EXPIRATION, label: Maximum note lifetime in minutes, default: "360"}
+  - {key: ALLOW_ADVANCED, label: Allow custom view and expiry settings (true or false), default: "true"}
+  - {key: ALLOW_FILES, label: Allow file uploads (true or false), default: "true"}
+services:
+  - key: app
+    name: Cryptgeon
+    kind: app
+    image: cupcakearmy/cryptgeon:2.9.3
+    digest: sha256:0344b34ba5375b9cb5bc6740fd35d075d2a581ddb0fcd30e0494c62ba3408e87
+    port: 8000
+    healthcheck:
+      type: http
+      path: /api/live
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [redis]
+    domains:
+      - generate: true
+    env:
+      REDIS: ${{redis.REDIS_URL}}
+      SIZE_LIMIT: ${input:SIZE_LIMIT}
+      MAX_VIEWS: ${input:MAX_VIEWS}
+      MAX_EXPIRATION: ${input:MAX_EXPIRATION}
+      ALLOW_ADVANCED: ${input:ALLOW_ADVANCED}
+      ALLOW_FILES: ${input:ALLOW_FILES}
+    secrets: [REDIS]
+    resources:
+      memoryMb: 256
+  - key: redis
+    name: Cryptgeon Store
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Cryptgeon
+notes:
+  - "There is no login: open the site address (it must be served over HTTPS for the browser crypto to work) and create a note."
+  - "Notes are kept in the Valkey database and are deleted once viewed the allowed number of times or expired."

@@ -1,0 +1,7 @@
+# expect: limit_exceeded
+# Tables nest at most 10 levels deep.
+schema = 1
+server = "fra-1"
+
+[a.b.c.d.e.f.g.h.i.j.k.l]
+x = 1

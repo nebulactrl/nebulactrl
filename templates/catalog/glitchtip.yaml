@@ -1,0 +1,84 @@
+schema: 1
+id: glitchtip
+revision: 1
+name: GlitchTip
+summary: Open-source error tracking, uptime monitoring and log collection compatible with Sentry SDKs.
+description: GlitchTip collects errors, performance data, uptime checks and logs from apps that use Sentry client SDKs. This template runs GlitchTip in all-in-one mode (web and background worker in one service) with its own Postgres and a managed Valkey.
+category: analytics
+tags: [error-tracking, sentry, monitoring, uptime, logs]
+links:
+  website: https://glitchtip.com
+  docs: https://glitchtip.com/documentation
+  source: https://gitlab.com/glitchtip/glitchtip-backend
+upstream:
+  license: MIT
+  licenseUrl: https://gitlab.com/glitchtip/glitchtip-backend/-/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/glitchtip.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1536
+  diskGb: 10
+inputs:
+  - {key: DEFAULT_FROM_EMAIL, label: "Sender address of GlitchTip emails", default: glitchtip@example.com}
+  - {key: EMAIL_URL, label: "Email URL (smtp://user:password@host:587, or consolemail:// to print emails to the log)", default: "consolemail://", secret: true}
+services:
+  - key: web
+    name: GlitchTip
+    kind: app
+    image: glitchtip/glitchtip:6.2.6
+    digest: sha256:a3d8eb1b36c1e1603d55ab32711ea3dd8115874742a781a57391a62a16e0dff6
+    port: 8000
+    healthcheck:
+      type: http
+      path: /_health/
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      SERVER_ROLE: all_in_one
+      DATABASE_URL: postgres://postgres:${{db.POSTGRES_PASSWORD}}@${{db.NEBULA_PRIVATE_HOST}}:5432/glitchtip
+      VALKEY_URL: ${{cache.REDIS_URL}}
+      SECRET_KEY: ${{secret(64)}}
+      GLITCHTIP_DOMAIN: ${{NEBULA_PUBLIC_URL}}
+      EMAIL_URL: ${input:EMAIL_URL}
+      DEFAULT_FROM_EMAIL: ${input:DEFAULT_FROM_EMAIL}
+    volumes:
+      - {name: uploads, path: /code/uploads}
+    resources:
+      memoryMb: 768
+  - key: db
+    name: GlitchTip DB
+    kind: database
+    image: postgres:17-alpine
+    digest: sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    command: [postgres, -c, max_locks_per_transaction=512]
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d glitchtip"]
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: glitchtip
+      POSTGRES_PASSWORD: ${{secret(32)}}
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 512
+  - key: cache
+    name: GlitchTip Valkey
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: GlitchTip
+notes:
+  - "Open the app and register the first account, then create an organization and a project to get the DSN for your Sentry SDK."
+  - "Anyone can register by default. After creating your account set ENABLE_USER_REGISTRATION to False on the GlitchTip service if the instance is public."
+  - "Set a real SMTP URL in EMAIL_URL (the default only prints emails to the service log) for invitations and alerts."

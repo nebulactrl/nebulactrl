@@ -1,0 +1,25 @@
+{
+  "object_kind": "merge_request",
+  "event_type": "merge_request",
+  "user": {"id": 1, "name": "Administrator", "username": "root"},
+  "project": {
+    "id": 1,
+    "name": "Gitlab Test",
+    "path_with_namespace": "gitlab-org/gitlab-test",
+    "git_http_url": "http://example.com/gitlab-org/gitlab-test.git"
+  },
+  "object_attributes": {
+    "id": 99,
+    "iid": 7,
+    "title": "MS-Viewport",
+    "state": "opened",
+    "action": "update",
+    "oldrev": "6bf8d9f3c0a5a5d1a8a3d2c0f7b1f2a1e9d8c7b6",
+    "source_branch": "ms-viewport",
+    "target_branch": "master",
+    "url": "http://example.com/gitlab-org/gitlab-test/-/merge_requests/7",
+    "last_commit": {"id": "da1560886d4f094c3e6c9ef40349f7d38b5d27d7", "message": "fixed readme"},
+    "source": {"path_with_namespace": "contrib/gitlab-test", "git_http_url": "http://example.com/contrib/gitlab-test.git"},
+    "target": {"path_with_namespace": "gitlab-org/gitlab-test", "git_http_url": "http://example.com/gitlab-org/gitlab-test.git"}
+  }
+}

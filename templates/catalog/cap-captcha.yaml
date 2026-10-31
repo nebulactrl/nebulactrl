@@ -1,0 +1,56 @@
+schema: 1
+id: cap-captcha
+revision: 1
+name: Cap
+summary: Self-hosted proof-of-work CAPTCHA server with a dashboard and a reCAPTCHA-compatible verification API.
+description: Cap Standalone issues and verifies proof-of-work challenges for your forms without tracking users. This template runs the official tiago2/cap image with a managed Valkey database.
+category: security
+tags: [captcha, security, privacy, proof-of-work, anti-bot]
+links:
+  website: https://trycap.dev
+  docs: https://trycap.dev/guide/standalone/
+  source: https://github.com/tiagozip/cap
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/tiagozip/cap/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/cap-captcha.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: ADMIN_KEY, label: Dashboard admin key, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: cap
+    name: Cap
+    kind: app
+    image: tiago2/cap:3.1.17
+    digest: sha256:b47424a1b4ab3e6e7205ba1ed35fa25c8817c78bf0a82a0c7dac5d3393167a03
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [valkey]
+    domains:
+      - generate: true
+    env:
+      ADMIN_KEY: ${input:ADMIN_KEY}
+      REDIS_URL: ${{valkey.REDIS_URL}}
+    resources:
+      memoryMb: 256
+  - key: valkey
+    name: Cap Valkey
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Cap
+notes:
+  - "Open the service's domain and sign in to the dashboard with the admin key from the install form (variable ADMIN_KEY), then create a site key."
+  - "Verify tokens server-side with the site's secret key (not the admin key), as described in the Cap standalone guide."

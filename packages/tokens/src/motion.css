@@ -1,0 +1,78 @@
+/*
+ * @nebulactrl/tokens: the motion scale.
+ *
+ * Two sources, one file:
+ *   1. The transitions.dev scale (`--duration-*`, `--ease-*`, `--distance-*`,
+ *      `--scale-*`, `--blur-*`), named by what the motion is for, with the
+ *      values of transitions.dev's `_root.css`. Reference a token by usage,
+ *      not by number: a 300ms modal close is `--duration-quick` (150ms).
+ *   2. The better-ui exact values (`--press-*`, `--enter-*`, `--exit-*`,
+ *      `--icon-swap-*`). They are exact, not ranges: 0.96 is not 0.95.
+ *
+ * Declared in `@theme static` so Tailwind also emits `ease-smooth-out`,
+ * `ease-bounce`, ... utilities and every variable is always present for raw
+ * CSS and `getComputedStyle`. Keep `src/index.ts` in step (index.test.ts
+ * fails when the two drift). Dark-only product, so no theme variants here.
+ */
+@theme static {
+	/* Durations */
+	--duration-stagger: 40ms; /* per-item stagger offset */
+	--duration-micro: 80ms; /* tooltip/path delay, shake segment, large stagger */
+	--duration-quick: 150ms; /* modal/dropdown close, text swap, tooltip appear */
+	--duration-fast: 250ms; /* icon swap, dropdown/modal open, tabs sliding, page slide */
+	--duration-medium: 350ms; /* panel close, toast close */
+	--duration-slow: 400ms; /* panel open, skeleton content reveal, input clear */
+	--duration-very-slow: 500ms; /* emphasis moments, badge appear, text reveal, success check */
+
+	/* Easings */
+	--ease-smooth-out: cubic-bezier(0.22, 1, 0.36, 1); /* modal/dropdown/panel open + close, page slide, resize, position change */
+	--ease-in-out: ease-in-out; /* icon swap, text swap, text reveal, skeleton reveal */
+	--ease-out: ease-out; /* tooltip open / close, press, 150ms colour and opacity changes */
+	--ease-linear: linear; /* shimmer, skeleton pulse, spinner */
+	--ease-bounce: cubic-bezier(0.34, 1.36, 0.64, 1); /* badge pop open */
+	--ease-bounce-strong: cubic-bezier(0.34, 3.85, 0.64, 1); /* bouncy hover-out (avatar return) */
+
+	/* Distances */
+	--distance-micro: 4px; /* text swap */
+	--distance-small: 6px; /* error shake (small segment) */
+	--distance-base: 8px; /* badge diagonal reveal, page slide, error shake (large segment) */
+	--distance-medium: 12px; /* text reveal */
+	--distance-large: 30px; /* check badge appear */
+
+	/* Scales */
+	--scale-large: 0.96; /* modal open / close */
+	--scale-medium: 0.97; /* dropdown open */
+	--scale-small: 0.98; /* tooltip open */
+	--scale-tiny: 0.99; /* dropdown close */
+
+	/* Blur */
+	--blur-small: 2px; /* panel reveal, icon swap, text swap, skeleton reveal, number pop-in */
+	--blur-medium: 3px; /* page slide, text reveal */
+	--blur-large: 8px; /* success check open */
+
+	/*
+	 * better-ui, exact.
+	 * Press: a pressed button scales to 0.96 over 150ms with ease-out; a
+	 * disabled one never scales (select `:not(:disabled)`).
+	 */
+	--press-scale: 0.96;
+	--press-duration: 150ms;
+	/* A raised key stands on a 2px travel edge and sinks onto it when pressed (exact.key). */
+	--key-travel: 2px;
+	--key-press-scale: 0.985;
+
+	/* Staged entrance: opacity, 4px blur and 12px rise over 300ms, chunks 100ms apart. Infrequent moments only. */
+	--enter-duration: 300ms;
+	--enter-rise: 12px;
+	--enter-blur: 4px;
+	--enter-stagger: 100ms;
+
+	/* Exit: shorter and smaller than the enter; a fixed -12px, never the container height. */
+	--exit-duration: 150ms;
+	--exit-rise: -12px;
+
+	/* Contextual icon swap (play/pause, copy/copied): scale 0.25 to 1, opacity and 4px blur. With a spring, use bounce 0. */
+	--icon-swap-duration: 300ms;
+	--icon-swap-ease: cubic-bezier(0.2, 0, 0, 1);
+	--icon-swap-scale-from: 0.25;
+}

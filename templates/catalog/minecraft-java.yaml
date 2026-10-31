@@ -1,0 +1,87 @@
+schema: 1
+id: minecraft-java
+revision: 1
+name: Minecraft Java Server
+summary: Minecraft Java Edition server (Vanilla, Paper, Purpur, Fabric, Forge and more) with persistent world data.
+description: Runs the itzg/minecraft-server image, which downloads the selected server type and Minecraft version at startup and keeps the world in a persistent volume. You must accept the Minecraft EULA (https://aka.ms/MinecraftEULA) to start the server. The image project is Apache-2.0; the Minecraft server software itself is downloaded from Mojang and is covered by the Minecraft EULA.
+category: games
+tags: [minecraft, game-server, java, paper, fabric, forge]
+icon: minecraft
+links:
+  website: https://docker-minecraft-server.readthedocs.io
+  docs: https://docker-minecraft-server.readthedocs.io/en/latest/
+  source: https://github.com/itzg/docker-minecraft-server
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/itzg/docker-minecraft-server/blob/master/LICENSE
+  class: permissive
+origin:
+  type: original
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - key: EULA
+    label: Accept the Minecraft EULA
+    description: Choose TRUE only if you accept the Minecraft End User License Agreement (https://aka.ms/MinecraftEULA). The server does not start with FALSE.
+    required: true
+    options: ["TRUE", "FALSE"]
+  - key: TYPE
+    label: Server type
+    description: Server software to run. Vanilla is Mojang's; Paper/Purpur/Folia are plugin servers; Fabric/Quilt/Forge/NeoForge are mod loaders.
+    default: VANILLA
+    options: [VANILLA, PAPER, PURPUR, FOLIA, SPIGOT, FABRIC, QUILT, FORGE, NEOFORGE]
+  - key: VERSION
+    label: Minecraft version
+    description: LATEST, SNAPSHOT or a specific version such as 1.21.4.
+    default: LATEST
+  - key: MEMORY
+    label: Java heap size
+    description: Heap for the server, for example 2G. Keep it below the service memory limit (2G fits the default 3 GB limit); raise the limit under the service's resources before raising this.
+    default: 2G
+  - key: MOTD
+    label: Message of the day
+    default: A Nebula Minecraft server
+  - key: MAX_PLAYERS
+    label: Max players
+    default: "20"
+services:
+  - key: server
+    name: Minecraft
+    kind: app
+    image: itzg/minecraft-server:2026.10.1
+    digest: sha256:d12aed7e35981dfe259b60fbfee77d23a19b5898a7a31dca298d18b47b7b5776
+    healthcheck:
+      type: exec
+      command: [CMD, mc-health]
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 120
+      deadlineSeconds: 900
+    env:
+      EULA: ${input:EULA}
+      TYPE: ${input:TYPE}
+      VERSION: ${input:VERSION}
+      MEMORY: ${input:MEMORY}
+      MOTD: ${input:MOTD}
+      MAX_PLAYERS: ${input:MAX_PLAYERS}
+      ENABLE_RCON: "true"
+      RCON_PASSWORD: ${{secret(24)}}
+      STOP_DURATION: "90"
+    ports:
+      - name: game
+        port: 25565
+        protocol: tcp
+        publish: true
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 3072
+    stopGraceSeconds: 120
+group: Minecraft Java
+notes:
+  - "Connect with Minecraft Java Edition to the server's address on port 25565. The first start downloads the server and generates the world, which can take a few minutes."
+  - "RCON is enabled with a generated password (variable RCON_PASSWORD) and is only reachable inside the private network; the server console is available in the service logs."
+  - "MEMORY is the Java heap. Leave headroom: the service memory limit is 3 GB, so raise it before setting a heap above 2G."
+  - "The image runs Java 25. Very old Minecraft versions that need an older Java require a different image tag (the itzg javaNN variants)."

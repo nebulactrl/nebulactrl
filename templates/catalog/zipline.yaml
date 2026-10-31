@@ -1,0 +1,62 @@
+schema: 1
+id: zipline
+revision: 1
+name: Zipline
+summary: File, image and text upload server with short URLs, ShareX/Flameshot support, folders and user management.
+description: Zipline stores uploads and serves them through short links, with a web dashboard and an API for screenshot tools. This template runs the official image against a managed Postgres database, keeping uploads on a volume.
+category: storage
+tags: [file-sharing, uploads, sharex, url-shortener, images]
+links:
+  website: https://zipline.diced.sh/
+  docs: https://zipline.diced.sh/docs/
+  source: https://github.com/diced/zipline
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/diced/zipline/blob/trunk/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/zipline.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+services:
+  - key: zipline
+    name: Zipline
+    kind: app
+    image: ghcr.io/diced/zipline:4.8.2
+    digest: sha256:cb3769f50a5887e38d678ab466656bd2a56f3ce96bc8a4d0788cc479d19c05c9
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/healthcheck
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      CORE_SECRET: ${{secret(64)}}
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      CORE_TRUST_PROXY: "true"
+      CORE_RETURN_HTTPS_URLS: "true"
+    secrets: [DATABASE_URL]
+    volumes:
+      - name: zipline-uploads
+        path: /zipline/uploads
+      - name: zipline-public
+        path: /zipline/public
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Zipline DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: zipline
+group: Zipline
+notes:
+  - "Open /auth/setup on the service address to create the first administrator account; do it before sharing the link."

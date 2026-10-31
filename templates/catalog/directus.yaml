@@ -1,0 +1,73 @@
+schema: 1
+id: directus
+revision: 1
+name: Directus
+summary: Open data platform and headless CMS that turns any SQL database into an instant REST and GraphQL API with an admin app.
+description: Directus wraps a SQL database with a real-time API and a no-code admin studio for content, files and users. This template runs the official image with a managed PostgreSQL database and local file uploads. Directus is source-available under the Monospace Sustainable Core License; review it before offering Directus to third parties as a competing service.
+category: web
+tags: [cms, headless, api, database]
+icon: directus
+links:
+  website: https://directus.io
+  docs: https://directus.io/docs
+  source: https://github.com/directus/directus
+upstream:
+  license: MSCL-1.0-GPL
+  licenseUrl: https://github.com/directus/directus/blob/main/license
+  class: source-available
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: app
+    name: Directus
+    kind: app
+    image: directus/directus:12.5.1
+    digest: sha256:ef6fc027605ea659a972356e0c35fd7f88b02118b0b3a322dafbec3cc709fdab
+    port: 8055
+    healthcheck:
+      type: http
+      path: /server/ping
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DB_CLIENT: pg
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_DATABASE: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      KEY: ${{secret(32)}}
+      SECRET: ${{secret(64)}}
+      ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+    secrets: [KEY]
+    volumes:
+      - name: uploads
+        path: /directus/uploads
+      - name: extensions
+        path: /directus/extensions
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Directus DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: directus
+group: Directus
+notes:
+  - "Sign in at the site's address with the admin email and password you entered at install time."
+  - "The initial admin is only created while the database has no users: later changes to ADMIN_EMAIL or ADMIN_PASSWORD do not alter existing accounts."
+  - "Caching and rate limiting use in-memory stores, which is fine for one replica; add a Valkey database and set CACHE_STORE/REDIS if you scale out."
+  - "Directus is source-available (Monospace Sustainable Core License): free to use, but not to offer as a competing hosted product."

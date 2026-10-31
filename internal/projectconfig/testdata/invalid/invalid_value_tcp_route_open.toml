@@ -1,0 +1,11 @@
+# expect: invalid_value
+# A tcp route needs allow_cidrs, or open_to_internet = true to publish it to everyone.
+schema = 1
+server = "fra-1"
+
+[services.game]
+
+[services.game.route]
+protocol = "tcp"
+listen_port = 25565
+upstreams = [{ address = "10.0.0.5:25565" }]

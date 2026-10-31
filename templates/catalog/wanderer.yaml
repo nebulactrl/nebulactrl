@@ -1,0 +1,103 @@
+schema: 1
+id: wanderer
+revision: 1
+name: Wanderer
+summary: Self-hosted trail database for recording, planning and sharing hikes, bike rides and other outdoor routes.
+description: Wanderer stores GPX trails with maps, elevation, lists and sharing, and can federate with other instances. This template runs its three components, the SvelteKit web frontend, the PocketBase backend and a Meilisearch index. You choose the public domain up front because the backend needs to know it.
+category: homelab
+tags: [trails, hiking, gpx, maps, outdoor]
+links:
+  website: https://wanderer.to
+  docs: https://wanderer.to/run/installation/docker
+  source: https://github.com/open-wanderer/wanderer
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/open-wanderer/wanderer/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/wanderer
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1536
+  diskGb: 5
+inputs:
+  - {key: DOMAIN, format: hostname, label: "Public domain for Wanderer (DNS must point to this server, e.g. trails.example.com)", required: true}
+services:
+  - key: search
+    name: Wanderer Search
+    kind: worker
+    image: getmeili/meilisearch:v1.36.0
+    digest: sha256:203a0854738be101bfdada825ac3cbf95e5681bc849757b6bc199e4cfae98faa
+    healthcheck:
+      type: http
+      path: /health
+      port: 7700
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${{secret(32)}}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - name: search-data
+        path: /meili_data
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Wanderer DB
+    kind: worker
+    image: flomp/wanderer-db:v0.21.2
+    digest: sha256:2f8d7f29c2a473dce8e84b1a33ac3a692a21238c39b6757fa0e0162542d85865
+    healthcheck:
+      type: http
+      path: /health
+      port: 8090
+      startPeriodSeconds: 20
+      deadlineSeconds: 300
+    dependsOn: [search]
+    env:
+      MEILI_URL: http://${{search.NEBULA_PRIVATE_HOST}}:7700
+      MEILI_MASTER_KEY: ${{search.MEILI_MASTER_KEY}}
+      POCKETBASE_ENCRYPTION_KEY: ${{secret(32)}}
+      POCKETBASE_PROXY_SECRET: ${{secret(48)}}
+      ORIGIN: https://${input:DOMAIN}
+    volumes:
+      - name: pb-data
+        path: /pb_data
+      - name: plugins
+        path: /data/plugins
+    resources:
+      memoryMb: 512
+  - key: web
+    name: Wanderer
+    kind: app
+    image: flomp/wanderer-web:v0.21.2
+    digest: sha256:849f63732d3e751f077c1567bda77aebc68c8b5691271cb418e10efbcf2f364f
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 300
+    dependsOn: [db, search]
+    env:
+      MEILI_URL: http://${{search.NEBULA_PRIVATE_HOST}}:7700
+      MEILI_MASTER_KEY: ${{search.MEILI_MASTER_KEY}}
+      ORIGIN: https://${input:DOMAIN}
+      PUBLIC_POCKETBASE_URL: http://${{db.NEBULA_PRIVATE_HOST}}:8090
+      POCKETBASE_PROXY_SECRET: ${{db.POCKETBASE_PROXY_SECRET}}
+      PUBLIC_DISABLE_SIGNUP: "false"
+      UPLOAD_FOLDER: /app/uploads
+    volumes:
+      - name: uploads
+        path: /app/uploads
+    domains:
+      - host: ${input:DOMAIN}
+    resources:
+      memoryMb: 512
+group: Wanderer
+notes:
+  - "Create your account with Sign up on the first visit. Set PUBLIC_DISABLE_SIGNUP=true on the web service afterwards if you do not want others to register."
+  - "Geocoding, routing and points of interest use the public OpenStreetMap services (Nominatim, Valhalla, Overpass) unless you set NOMINATIM_URL, VALHALLA_URL and OVERPASS_API_URL on the web service."

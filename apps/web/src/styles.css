@@ -1,0 +1,2100 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/ibm-plex-sans";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+@import "@fontsource/ibm-plex-mono/600.css";
+/* Shared tokens (packages/tokens): the motion scale and the --dither-* colours. */
+@import "@nebulactrl/tokens/motion.css";
+@import "@nebulactrl/tokens/dither.css";
+@import "@nebulactrl/tokens/halftone.css";
+/* transitions.dev installed on our components, on the motion tokens. */
+@import "./transitions.css";
+/* The shared docs package (packages/docs) uses Tailwind classes too. */
+@source "../../../packages/docs/src";
+/* So does the ordered-dither kit (packages/dither). */
+@source "../../../packages/dither/src";
+
+/*
+ * NebulaCtrl design system: restrained neo-skeuomorphism on a neutral dark floor.
+ *
+ * Depth is a material ladder, not a blur: well < base < raised < float < pop
+ * (+ modal). Each step is ~0.04 lighter in OKLCH (hue 262); a 1px lit top
+ * edge, a hairline and a layered shadow say how high it floats. One light,
+ * straight down. No backdrop-filter on the content layer or on floating canvas
+ * chrome (opaque surface-float / surface-pop); only the top bar may blur, and
+ * only over a background at least 92% opaque.
+ *
+ * Contrast rules (WCAG 1.4.11): decorative lines (line-faint/line/line-strong)
+ * are white-alpha and may be faint; anything whose boundary is its only
+ * affordance (inputs, tracks, handles, edges, checkboxes) uses `line-control`
+ * (#7a818d, >= 3:1 on every surface). Status is a text label plus a Lucide
+ * status icon (no dots), never colour alone. Dark only; tokens stay centralised here.
+ */
+
+/* Tokens referenced from raw CSS / JS / var() must always be emitted: `static`. */
+@theme static {
+	/* Surface ladder: slate, hue 262, step ~0.04 L. */
+	--color-surface-well: oklch(0.15 0.006 262); /* #0a0b0e inputs, tracks, pills, pressed */
+	--color-surface-base: oklch(0.19 0.007 262); /* #121417 app + canvas floor */
+	--color-surface-raised: oklch(0.228 0.008 262); /* #1a1d20 cards, nodes */
+	--color-surface-float: oklch(0.268 0.009 262); /* #24262a inspector, toolbars, minimap */
+	--color-surface-pop: oklch(0.308 0.01 262); /* #2d3035 menus, tooltips, toasts, dialogs */
+
+	/* Ink. ink-4 is the floor for text (4.5:1 up to surface-pop). */
+	--color-ink-1: oklch(0.965 0.006 262); /* #f1f3f8 */
+	--color-ink-2: oklch(0.82 0.012 262); /* #c0c4cc */
+	--color-ink-3: oklch(0.73 0.016 262); /* #a2a8b2 */
+	--color-ink-4: oklch(0.69 0.018 262); /* #959ca7 */
+
+	/* Lines: faint/line/strong are decorative; line-control is the 3:1 one. */
+	--color-line-faint: oklch(1 0 0 / 0.05);
+	--color-line: oklch(1 0 0 / 0.08);
+	--color-line-strong: oklch(1 0 0 / 0.14);
+	--color-line-control: oklch(0.6 0.02 262); /* #7a818d */
+
+	/* Accent: blue-violet. brand = #6d6bff (glows, large graphics; white text on it is 4.04:1).
+	   Filled text-bearing controls use accent-fill-* (white on top 4.78:1, bottom 5.98:1). */
+	--color-accent-brand: oklch(0.611 0.214 278.6); /* #6d6bff */
+	--color-accent-fill-top: oklch(0.57 0.205 278); /* #6160ec */
+	--color-accent-fill-bot: oklch(0.52 0.21 278); /* #544edd */
+	--color-accent-fill-edge: oklch(0.42 0.17 278); /* fill border */
+	--color-accent-ink: oklch(0.75 0.14 278); /* #9aa4ff focus, links, selection */
+	--color-accent-wash: oklch(0.75 0.14 278 / 0.14);
+
+	/* Generic semantics. */
+	--color-ok: oklch(0.78 0.17 155); /* #41d686 */
+	--color-warn: oklch(0.78 0.16 85); /* #e6ad00 */
+	--color-bad: oklch(0.74 0.16 22); /* #ff7d7c */
+	--color-info: oklch(0.78 0.15 235); /* #38c5ff */
+
+	/*
+	 * Status icons (`StatusIcon`). `status-X` is the icon colour, `status-X-on` the
+	 * text colour for the label on `status-X-wash` (>= 5.5:1 over raised).
+	 * Always pair the icon with a text label.
+	 */
+	--color-status-live: oklch(0.78 0.17 155);
+	--color-status-live-on: oklch(0.86 0.13 155);
+	--color-status-live-wash: oklch(0.78 0.17 155 / 0.14);
+	--color-status-building: oklch(0.78 0.15 235);
+	--color-status-building-on: oklch(0.86 0.1 235);
+	--color-status-building-wash: oklch(0.78 0.15 235 / 0.14);
+	--color-status-deploying: oklch(0.75 0.14 278);
+	--color-status-deploying-on: oklch(0.85 0.09 278);
+	--color-status-deploying-wash: oklch(0.75 0.14 278 / 0.16);
+	--color-status-failed: oklch(0.74 0.16 22);
+	--color-status-failed-on: oklch(0.84 0.1 22);
+	--color-status-failed-wash: oklch(0.74 0.16 22 / 0.14);
+	--color-status-stopped: oklch(0.62 0.02 262);
+	--color-status-stopped-on: oklch(0.78 0.015 262);
+	--color-status-stopped-wash: oklch(1 0 0 / 0.06);
+	--color-status-staged: oklch(0.78 0.16 85);
+	--color-status-staged-on: oklch(0.86 0.11 85);
+	--color-status-staged-wash: oklch(0.78 0.16 85 / 0.14);
+	--color-status-offline: oklch(0.62 0.02 262);
+	--color-status-offline-on: oklch(0.78 0.015 262);
+	--color-status-offline-wash: oklch(1 0 0 / 0.06);
+	--color-status-degraded: oklch(0.76 0.15 60);
+	--color-status-degraded-on: oklch(0.85 0.1 60);
+	--color-status-degraded-wash: oklch(0.76 0.15 60 / 0.14);
+
+	/*
+	 * Elevation. One light, straight down, colour rgb(2 4 10). Rising: y-offset
+	 * and blur up, alpha down. Insets carry the material. `--elev-*` and
+	 * `--shadow-*` are the same values (shadow-* feeds Tailwind utilities).
+	 */
+	--shadow-well:
+		inset 0 1px 2px 0 rgb(2 4 10 / 0.55), inset 0 0 0 1px rgb(2 4 10 / 0.3),
+		0 1px 0 0 rgb(255 255 255 / 0.05);
+	--shadow-raised:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.07), inset 0 -1px 0 0 rgb(2 4 10 / 0.3),
+		0 1px 1px 0 rgb(2 4 10 / 0.4), 0 3px 8px -2px rgb(2 4 10 / 0.35),
+		0 10px 24px -10px rgb(2 4 10 / 0.35);
+	--shadow-float:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.08), 0 0 0 1px rgb(2 4 10 / 0.45),
+		0 2px 4px 0 rgb(2 4 10 / 0.3), 0 12px 28px -8px rgb(2 4 10 / 0.5),
+		0 24px 56px -16px rgb(2 4 10 / 0.5);
+	--shadow-pop:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.1), 0 0 0 1px rgb(2 4 10 / 0.55),
+		0 4px 8px 0 rgb(2 4 10 / 0.35), 0 16px 36px -6px rgb(2 4 10 / 0.55),
+		0 32px 64px -20px rgb(2 4 10 / 0.5);
+	--shadow-modal:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.1), 0 0 0 1px rgb(2 4 10 / 0.6),
+		0 8px 16px 0 rgb(2 4 10 / 0.35), 0 32px 80px -12px rgb(2 4 10 / 0.65),
+		0 64px 120px -32px rgb(2 4 10 / 0.55);
+	/* Pressed = the raised shadow inverted. */
+	--shadow-pressed:
+		inset 0 2px 3px 0 rgb(2 4 10 / 0.5), inset 0 0 0 1px rgb(2 4 10 / 0.25),
+		0 1px 0 0 rgb(255 255 255 / 0.04);
+	/* A key (secondary button, segmented thumb): lit top edge + contact shadow. */
+	--shadow-key:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.09), inset 0 -1px 0 0 rgb(2 4 10 / 0.3),
+		0 1px 2px 0 rgb(2 4 10 / 0.45);
+	/* Knob of a switch / slider: stands proud of its groove. */
+	--shadow-knob:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.9), 0 1px 2px 0 rgb(2 4 10 / 0.7),
+		0 2px 5px 0 rgb(2 4 10 / 0.4);
+	/* Accent key: top edge, bottom shade, contact. The glow is added by `btn-primary`
+	   from --btn-glow / --glow-a, and only rises while the key is in flight (data-busy). */
+	--shadow-accent-key:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.28), inset 0 -1px 0 0 rgb(20 10 90 / 0.35),
+		0 1px 2px 0 rgb(2 4 10 / 0.5);
+	--shadow-accent-pressed:
+		inset 0 2px 4px 0 rgb(20 10 90 / 0.55), inset 0 0 0 1px rgb(20 10 90 / 0.25),
+		0 1px 0 0 rgb(255 255 255 / 0.05);
+	/* Inner top highlight only (a lit edge on any raised thing). */
+	--shadow-tile: inset 0 1px 0 rgb(255 255 255 / 0.07);
+	/* Accent glows. */
+	--shadow-glow-accent: 0 0 10px 0 oklch(0.75 0.14 278 / 0.7);
+
+	--elev-well: var(--shadow-well);
+	--elev-raised: var(--shadow-raised);
+	--elev-float: var(--shadow-float);
+	--elev-pop: var(--shadow-pop);
+	--elev-modal: var(--shadow-modal);
+	--elev-pressed: var(--shadow-pressed);
+	--elev-key: var(--shadow-key);
+	--elev-knob: var(--shadow-knob);
+	--elev-accent-key: var(--shadow-accent-key);
+
+	/* Shadows referenced by name. */
+	--shadow-progress: 0 0 8px 0 oklch(0.611 0.214 278.6 / 0.5);
+	--shadow-progress-warning: 0 0 8px 0 oklch(0.78 0.16 85 / 0.5);
+	--shadow-toast-drain: 0 0 8px 0 oklch(0.75 0.14 278 / 0.6);
+
+	/* Backgrounds referenced by name. */
+	--background-image-violet-bar: linear-gradient(
+		90deg,
+		var(--color-accent-fill-bot),
+		var(--color-accent-ink)
+	);
+	--background-image-tile-lit: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--color-surface-raised), white 3.5%),
+		var(--color-surface-raised)
+	);
+
+	/* Radii by hierarchy: control 8, card/node 12, panel 16; tooltip 6, menu 10, dialog 14. */
+	--radius-xs: 4px;
+	--radius-sm: 5px;
+	--radius-md: 6px;
+	--radius-lg: 8px;
+	--radius-tile: 8px;
+	--radius-xl: 12px;
+	--radius-2xl: 14px;
+	--radius-3xl: 16px;
+	--radius-4xl: 20px;
+	--radius-5xl: 24px;
+	--radius-full: 999px;
+	--radius-tip: 6px;
+	--radius-ctl: 8px;
+	--radius-menu: 10px;
+	--radius-card: 12px;
+	--radius-dialog: 14px;
+	--radius-panel: 16px;
+
+	/*
+	 * Motion lives in packages/tokens/src/motion.css (`--ease-*`, `--duration-*`,
+	 * `--press-*`, ...), imported above. Ease-in is never used on UI. The one
+	 * curve with no token usage stays here: the phase strip's breathing pulse.
+	 */
+	--ease-pulse: cubic-bezier(0.77, 0, 0.175, 1);
+
+	/* Fonts: IBM Plex Sans (UI + display), IBM Plex Mono (code, ids, numbers in tables). */
+	--font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+	--font-display: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+	--font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+	/* Type scale. Mono sits one step below sans so both share an optical size. */
+	--text-3xs: 10px;
+	--text-3xs--line-height: 1.2;
+	--text-2xs: 11px;
+	--text-2xs--line-height: 1.3;
+	--text-xs: 12px;
+	--text-xs--line-height: 1.5;
+	--text-sm: 13px;
+	--text-sm--line-height: 1.45;
+	--text-base: 15px;
+	--text-base--line-height: 1.35;
+	--text-lg: 18px;
+	--text-lg--line-height: 1.25;
+	--text-xl: 22px;
+	--text-xl--line-height: 1.2;
+	--text-2xl: 28px;
+	--text-2xl--line-height: 1.1;
+}
+
+/* Aliases: raw `var(--x)` plus Tailwind `bg-x` / `text-x` / `border-x`. */
+:root {
+	color-scheme: dark;
+	/* Semantic aliases (shadcn names) onto the neo-skeuo ladder; new code uses
+	   surface-*, ink-*, line-*, accent-*, status-*. */
+	--background: var(--color-surface-base);
+	--foreground: var(--color-ink-1);
+	--foreground-soft: var(--color-ink-2);
+	--muted-foreground: var(--color-ink-3);
+	--subtle: var(--color-ink-4);
+	--faint: var(--color-ink-4);
+	--idle: oklch(0.62 0.02 262);
+	--card: var(--color-surface-raised);
+	--popover: var(--color-surface-pop);
+	--surface-sunken: var(--color-surface-well);
+	--surface-hover: oklch(1 0 0 / 0.06);
+	--muted: oklch(1 0 0 / 0.07);
+	--accent: oklch(1 0 0 / 0.07);
+	--secondary: var(--color-surface-float);
+	--primary: var(--color-accent-ink);
+	--primary-hover: oklch(0.82 0.13 278);
+	--primary-text: var(--color-accent-ink);
+	--primary-hairline: oklch(0.75 0.14 278 / 0.5);
+	--link: var(--color-accent-ink);
+	--inverse: var(--color-ink-1);
+	--inverse-hover: #ffffff;
+	--border: var(--color-line);
+	--border-strong: var(--color-line-strong);
+	--input: var(--color-line-control);
+	--ring: var(--color-accent-ink);
+	--edge: var(--color-line-control);
+	--selection: oklch(0.611 0.214 278.6 / 0.38);
+	--success: var(--color-ok);
+	--success-text: oklch(0.84 0.14 155);
+	--warning: var(--color-warn);
+	--warning-text: oklch(0.86 0.13 85);
+	--warning-ink: oklch(0.86 0.13 85);
+	--warning-border: oklch(0.78 0.16 85 / 0.35);
+	--warning-tint: oklch(0.78 0.16 85 / 0.10);
+	--destructive-text: oklch(0.82 0.12 22);
+	--destructive-border: oklch(0.74 0.16 22 / 0.35);
+	--destructive-hover: oklch(0.74 0.16 22 / 0.12);
+	--destructive-deep: oklch(0.52 0.17 22);
+	--destructive-surface: oklch(0.74 0.16 22 / 0.08);
+	--destructive-ink-soft: oklch(0.84 0.09 22);
+	--destructive-ink-bright: oklch(0.92 0.05 22);
+	--code: var(--color-surface-well);
+	--scrim: rgb(2 4 10 / 0.6);
+	--brand-mark-from: #9a6bff;
+	--brand-mark-mid: #6d6bff;
+	--brand-mark-to: #4fa8ff;
+	--brand-mark-star: #eef0ff;
+	/* The ASCII backdrop (components/common/ascii): the slate ladder's tail, read once at mount. */
+	--ascii-dim: #3a404c;
+	--ascii-ink: #b4bbc8;
+	--brand-wordmark: var(--color-ink-1);
+	--chart-1: var(--color-accent-ink);
+	--chart-2: var(--color-ok);
+	--chart-3: var(--color-warn);
+	--chart-4: var(--color-bad);
+	--chart-5: var(--color-ink-4);
+	--group-frame: oklch(1 0 0 / 0.20);
+	--group-fill: oklch(0.75 0.14 278 / 0.03);
+}
+
+/*
+ * AMBIENT: the halftone (the stipple layer, the `--ambient-*` dials and the hosts `bg-ambient`,
+ * `ht-dawn`, `ht-arc`, `ht-foot` and `ht-sphere`) is shared with the site and lives in
+ * packages/tokens/src/halftone.css, imported at the top. `canvas-floor` below is the app's own
+ * host of the same layer (the layer's selector list names it).
+ */
+:root {
+	--bg-app: var(--color-surface-base);
+	--bg-canvas: var(--color-surface-base);
+	--canvas-dot-color: oklch(1 0 0 / 0.075);
+	--canvas-line-color: oklch(1 0 0 / 0.03);
+	--canvas-vignette-color: rgb(2 4 10 / 0.5);
+	/* World spacing of the canvas lattice; the viewport scales it. */
+	--canvas-lattice: 24px;
+	/* The accent key rests flat; the glow belongs to the in-flight state. */
+	--btn-glow: 6px;
+	--glow-a: 0.28;
+	/* The ambient (halftone) dials, `--ambient-*`, live in packages/tokens/src/halftone.css. */
+}
+
+@theme inline {
+	--color-background: var(--background);
+	--color-foreground: var(--foreground);
+	--color-foreground-soft: var(--foreground-soft);
+	--color-muted-foreground: var(--muted-foreground);
+	--color-subtle: var(--subtle);
+	--color-faint: var(--faint);
+	--color-idle: var(--idle);
+	--color-card: var(--card);
+	--color-popover: var(--popover);
+	--color-surface-sunken: var(--surface-sunken);
+	--color-surface-hover: var(--surface-hover);
+	--color-muted: var(--muted);
+	--color-accent: var(--accent);
+	--color-secondary: var(--secondary);
+	--color-primary: var(--primary);
+	--color-primary-hover: var(--primary-hover);
+	--color-primary-text: var(--primary-text);
+	--color-primary-hairline: var(--primary-hairline);
+	--color-link: var(--link);
+	--color-inverse: var(--inverse);
+	--color-inverse-hover: var(--inverse-hover);
+	--color-border: var(--border);
+	--color-border-strong: var(--border-strong);
+	--color-input: var(--input);
+	--color-ring: var(--ring);
+	--color-edge: var(--edge);
+	--color-selection: var(--selection);
+	--color-success: var(--success);
+	--color-success-text: var(--success-text);
+	--color-warning: var(--warning);
+	--color-warning-text: var(--warning-text);
+	--color-warning-ink: var(--warning-ink);
+	--color-warning-border: var(--warning-border);
+	--color-warning-tint: var(--warning-tint);
+	--color-destructive-text: var(--destructive-text);
+	--color-destructive-border: var(--destructive-border);
+	--color-destructive-hover: var(--destructive-hover);
+	--color-destructive-deep: var(--destructive-deep);
+	--color-destructive-surface: var(--destructive-surface);
+	--color-destructive-ink-soft: var(--destructive-ink-soft);
+	--color-destructive-ink-bright: var(--destructive-ink-bright);
+	--color-code: var(--code);
+	--color-scrim: var(--scrim);
+	--color-brand-mark-from: var(--brand-mark-from);
+	--color-brand-mark-mid: var(--brand-mark-mid);
+	--color-brand-mark-to: var(--brand-mark-to);
+	--color-brand-mark-star: var(--brand-mark-star);
+	--color-brand-wordmark: var(--brand-wordmark);
+	--color-chart-1: var(--chart-1);
+	--color-chart-2: var(--chart-2);
+	--color-chart-3: var(--chart-3);
+	--color-chart-4: var(--chart-4);
+	--color-chart-5: var(--chart-5);
+	--color-group-frame: var(--group-frame);
+	--color-group-fill: var(--group-fill);
+}
+
+@theme {
+	/* Animations; keyframes are emitted only when referenced. */
+	--animate-nc-in: nc-in var(--duration-quick) var(--ease-smooth-out);
+	--animate-nc-fade: nc-fade var(--duration-quick) var(--ease-out);
+	--animate-nc-unfold: nc-unfold var(--dropdown-open-dur) var(--dropdown-ease) both;
+	--animate-nc-spin: nc-spin 0.7s linear infinite;
+	--animate-nc-draw: nc-draw 0.36s 0.1s ease-out both;
+	--animate-dither-sweep: nc-dither-sweep 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+	--animate-dither-cell: nc-dither-cell 1.2s ease-in-out infinite;
+	--animate-nc-sheen: nc-sheen 1.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+	--animate-nc-indeterminate: nc-indeterminate 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+/* Keyframes live at top level so they are always emitted (inline-style and @utility use). */
+@keyframes nc-dither-sweep {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(260%);
+	}
+}
+@keyframes nc-dither-cell {
+	0%,
+	100% {
+		opacity: 0.12;
+	}
+	40% {
+		opacity: 1;
+	}
+}
+@keyframes nc-in {
+	from {
+		opacity: 0;
+		transform: translateY(var(--distance-small)) scale(var(--scale-tiny));
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+@keyframes nc-fade {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+/* Origin-aware: the popup scales from its trigger (`--transform-origin`), on
+   the dropdown clock (the custom right-click menu mounts per open, so it
+   plays this once instead of the Base UI popups' transition). */
+@keyframes nc-unfold {
+	from {
+		opacity: 0;
+		transform: scale(var(--dropdown-pre-scale));
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+@keyframes nc-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+/* The loading placeholder: a flat, faintly lit block that breathes. Opacity
+   only. A light ink mix (not the well colour) so it reads on base, raised and
+   float surfaces alike; no grain or dither, because dither encodes data or
+   identity, never waiting. */
+@keyframes nc-breathe {
+	0%,
+	100% {
+		opacity: 0.6;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+.nc-skeleton {
+	background: color-mix(in oklch, var(--color-ink-1) 7%, transparent);
+	border: 1px solid var(--color-line-faint);
+	animation: nc-breathe 1.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+	.nc-skeleton {
+		animation: none;
+		opacity: 0.7;
+	}
+}
+@keyframes nc-draw {
+	from {
+		stroke-dashoffset: 12;
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+@keyframes nc-sheen {
+	from {
+		background-position-x: -70%;
+	}
+	to {
+		background-position-x: 170%;
+	}
+}
+@keyframes nc-indeterminate {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(300%);
+	}
+}
+/* Opacity only, so it stays off the main thread. */
+@keyframes lamp-pulse {
+	0%,
+	100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.45;
+	}
+}
+/* The front toast's countdown bar; the duration is set per toast inline. */
+@keyframes nc-drain {
+	from {
+		transform: scaleX(1);
+	}
+	to {
+		transform: scaleX(0);
+	}
+}
+@keyframes beam-spin {
+	to {
+		rotate: 360deg;
+	}
+}
+@keyframes cable-bead {
+	from {
+		stroke-dashoffset: 0;
+	}
+	to {
+		stroke-dashoffset: -818;
+	}
+}
+
+
+/*
+ * Base UI marks state with bare data attributes (data-open, data-checked…);
+ * these variants let components in components/ui target them.
+ */
+@custom-variant data-open {
+	&:where([data-state="open"]),
+	&:where([data-open]:not([data-open="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-closed {
+	&:where([data-state="closed"]),
+	&:where([data-closed]:not([data-closed="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-checked {
+	&:where([data-state="checked"]),
+	&:where([data-checked]:not([data-checked="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-unchecked {
+	&:where([data-state="unchecked"]),
+	&:where([data-unchecked]:not([data-unchecked="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-selected {
+	&:where([data-selected="true"]) {
+		@slot;
+	}
+}
+@custom-variant data-disabled {
+	&:where([data-disabled="true"]),
+	&:where([data-disabled]:not([data-disabled="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-active {
+	&:where([data-state="active"]),
+	&:where([data-active]:not([data-active="false"])) {
+		@slot;
+	}
+}
+@custom-variant data-horizontal {
+	&:where([data-orientation="horizontal"]) {
+		@slot;
+	}
+}
+@custom-variant data-vertical {
+	&:where([data-orientation="vertical"]) {
+		@slot;
+	}
+}
+@custom-variant dark (&:is(.dark *));
+
+/* ───────── Surfaces: fill + border + shadow in one class ───────── */
+
+/* Level -1: engraved. Inputs, tracks, pills, code. */
+@utility surface-well {
+	background: var(--color-surface-well);
+	border: 1px solid var(--color-line-faint);
+	box-shadow: var(--shadow-well);
+}
+/* Level 0: the app / canvas floor. Flat, no border. */
+@utility surface-base {
+	background: var(--color-surface-base);
+}
+/* Level 1: cards, nodes. */
+@utility surface-raised {
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--color-surface-raised), white 3.5%),
+		var(--color-surface-raised)
+	);
+	border: 1px solid var(--color-line);
+	box-shadow: var(--shadow-raised);
+}
+/* Level 2: inspector, toolbars, minimap. */
+@utility surface-float {
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--color-surface-float), white 3%),
+		var(--color-surface-float)
+	);
+	border: 1px solid var(--color-line);
+	box-shadow: var(--shadow-float);
+}
+/* Level 3: menus, tooltips, toasts, popovers. */
+@utility surface-pop {
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--color-surface-pop), white 3%),
+		var(--color-surface-pop)
+	);
+	border: 1px solid var(--color-line-strong);
+	box-shadow: var(--shadow-pop);
+}
+/* Level 4: dialogs, the command palette. */
+@utility surface-modal {
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--color-surface-pop), white 3%),
+		var(--color-surface-float)
+	);
+	border: 1px solid var(--color-line-strong);
+	box-shadow: var(--shadow-modal);
+}
+
+/* Fine grain: LARGE static areas only (canvas, sidebar), never controls. */
+@utility grain {
+	position: relative;
+	isolation: isolate;
+	&::after {
+		content: "";
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		pointer-events: none;
+		opacity: 0.045;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+		background-size: 160px 160px;
+	}
+}
+
+/* Canvas floor: dawn halftone (screen-anchored) + vignette, painted once, with the fine dot
+   lattice on its own layer (`canvas-lattice`, a child) above them. The lattice pans by
+   `transform` and zooms by `background-size`, both written straight onto it by
+   `useCanvasFloor`; the host itself never changes, and is never an ancestor of the cards.
+   Needs a positioned host (`absolute`). */
+@utility canvas-floor {
+	--ht-size: 8px;
+	--ht-alpha: var(--ambient-alpha-canvas);
+	--ht-tint: var(--ambient-ink);
+	--ht-field:
+		radial-gradient(120% var(--ambient-reach) at 50% 0, var(--ambient-dawn-peak) 0%, #000 100%),
+		radial-gradient(50% 50% at 100% 112%, var(--ambient-corner-peak) 0%, #000 82%);
+	isolation: isolate;
+	contain: layout paint style;
+	background-color: var(--bg-canvas);
+	background-image: radial-gradient(
+		130% 100% at 50% 45%,
+		transparent 58%,
+		var(--canvas-vignette-color) 100%
+	);
+	background-size: 100% 100%;
+	/* Production: a 1px accent hairline along the top edge. */
+	&[data-env="production"]::after {
+		content: "";
+		position: absolute;
+		z-index: 2;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 1px;
+		pointer-events: none;
+		background: linear-gradient(
+			90deg,
+			transparent,
+			oklch(0.75 0.14 278 / 0.7) 20%,
+			oklch(0.75 0.14 278 / 0.7) 80%,
+			transparent
+		);
+	}
+}
+/* One lattice pitch of bleed on every side (48px = the widest pitch, 24px at 2x zoom), so a
+   shift of less than one pitch never shows an edge. will-change keeps it a compositor layer:
+   a pan repaints nothing. lib/floor.ts owns the maths. */
+@utility canvas-lattice {
+	position: absolute;
+	inset: -48px;
+	pointer-events: none;
+	will-change: transform;
+	background-image: radial-gradient(circle, var(--canvas-dot-color) 1px, transparent 1.25px);
+	background-size: var(--canvas-lattice) var(--canvas-lattice);
+}
+
+/* The ASCII backdrop (components/common/ascii) replaces the auth halftone once its first
+   frame is painted, and fades it out under the canvas fade-in. Without WebGL2 `data-ascii`
+   never turns on, so the halftone stays. Unlayered on purpose: it wins over the layer above. */
+.ht-arc[data-ascii="on"] {
+	background-image: none;
+}
+.ht-arc[data-ascii="on"]::before {
+	opacity: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
+	.ht-arc[data-ascii="on"]::before {
+		transition: opacity 500ms var(--ease-smooth-out);
+	}
+}
+@media (forced-colors: active) {
+	[data-slot="ascii-backdrop"] {
+		display: none;
+	}
+}
+
+/* `truncate` clips to the line box, and IBM Plex's descenders (g, p, y) sit
+   just below a tight line box, so "Settings" lost the tail of its g. Grow the
+   clip box by the descender depth and give the space straight back with a
+   negative margin: no layout change, nothing clipped. */
+@layer utilities {
+	.truncate {
+		padding-block: 0.15em;
+		margin-block: -0.15em;
+	}
+}
+
+/* Press feedback: scale + sink on pointer press; transitions name their properties.
+   A raised key (btn-primary, btn-secondary, btn-danger, btn-danger-solid) sets
+   --press-y to 0 and --press-scale to --key-press-scale: it sinks its whole
+   --key-travel with `translate` instead, so the sink also holds while a popup
+   it opened is open, and composes with motion's whileTap on `transform`. */
+@utility pressable {
+	transition:
+		transform var(--press-duration) var(--ease-out),
+		translate var(--press-duration) var(--ease-out),
+		box-shadow var(--press-duration) var(--ease-out),
+		background-color var(--press-duration) var(--ease-out),
+		border-color var(--press-duration) var(--ease-out),
+		color var(--press-duration) var(--ease-out),
+		filter var(--press-duration) var(--ease-out);
+	&:active:not(:disabled):not([aria-disabled="true"]):not([data-disabled]) {
+		transform: scale(var(--press-scale)) translateY(var(--press-y, 0.5px));
+	}
+}
+
+/* ───────── Controls ───────── */
+/* Raised keys stand on a --key-travel edge (a solid shadow in the key's own
+   underside colour) and sink onto it when pressed: `translate` down by the
+   travel, the edge gone, the pressed inset in its place. */
+
+/* Accent key: the one primary action. */
+@utility btn-primary {
+	color: #fff;
+	background: linear-gradient(180deg, var(--color-accent-fill-top), var(--color-accent-fill-bot));
+	border: 1px solid var(--color-accent-fill-edge);
+	--press-y: 0px;
+	--press-scale: var(--key-press-scale);
+	box-shadow:
+		var(--shadow-accent-key),
+		0 var(--key-travel) 0 0 oklch(0.36 0.15 278),
+		0 calc(var(--key-travel) + 1px) 3px 0 rgb(2 4 10 / 0.5),
+		0 6px var(--btn-glow) -6px oklch(0.611 0.214 278.6 / var(--glow-a));
+	text-shadow: 0 1px 0 rgb(20 10 90 / 0.45);
+	/* In flight: the one state that glows. */
+	&[data-busy] {
+		--btn-glow: 18px;
+		--glow-a: 0.55;
+	}
+	@media (hover: hover) and (pointer: fine) {
+		&:hover:not(:disabled) {
+			filter: brightness(1.08);
+		}
+	}
+	&:active:not(:disabled),
+	&[data-pressed],
+	&[aria-expanded="true"] {
+		filter: brightness(0.96);
+		box-shadow: var(--shadow-accent-pressed);
+		translate: 0 var(--key-travel);
+	}
+}
+/* Secondary key: raised, sinks into a well on press. */
+@utility btn-secondary {
+	color: var(--color-ink-1);
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--color-surface-float), white 5%),
+		var(--color-surface-float)
+	);
+	border: 1px solid var(--color-line-strong);
+	--press-y: 0px;
+	--press-scale: var(--key-press-scale);
+	box-shadow:
+		var(--shadow-key),
+		0 var(--key-travel) 0 0 oklch(0.17 0.006 262),
+		0 calc(var(--key-travel) + 1px) 3px 0 rgb(2 4 10 / 0.5);
+	@media (hover: hover) and (pointer: fine) {
+		&:hover:not(:disabled) {
+			background: linear-gradient(
+				180deg,
+				color-mix(in oklab, var(--color-surface-pop), white 3%),
+				var(--color-surface-pop)
+			);
+		}
+	}
+	&:active:not(:disabled),
+	&[data-pressed],
+	&[aria-expanded="true"],
+	&[data-popup-open] {
+		background: var(--color-surface-well);
+		box-shadow: var(--shadow-pressed);
+		translate: 0 var(--key-travel);
+	}
+}
+/* Ghost: no resting depth; hover is a wash; press is a shallow inset. */
+@utility btn-ghost {
+	color: var(--color-ink-2);
+	background: transparent;
+	border: 1px solid transparent;
+	@media (hover: hover) and (pointer: fine) {
+		&:hover:not(:disabled) {
+			background: oklch(1 0 0 / 0.06);
+			color: var(--color-ink-1);
+		}
+	}
+	&:active:not(:disabled),
+	&[data-pressed],
+	&[aria-expanded="true"],
+	&[data-popup-open] {
+		background: oklch(0 0 0 / 0.25);
+		color: var(--color-ink-1);
+		box-shadow: inset 0 1px 2px rgb(2 4 10 / 0.4);
+	}
+}
+/* Danger: red-tinted key. */
+@utility btn-danger {
+	color: oklch(0.86 0.09 22);
+	background: linear-gradient(180deg, oklch(0.34 0.09 22), oklch(0.29 0.08 22));
+	border: 1px solid oklch(0.45 0.12 22);
+	--press-y: 0px;
+	--press-scale: var(--key-press-scale);
+	box-shadow:
+		inset 0 1px 0 0 rgb(255 160 160 / 0.14),
+		0 var(--key-travel) 0 0 oklch(0.2 0.05 22),
+		0 calc(var(--key-travel) + 1px) 3px 0 rgb(2 4 10 / 0.5);
+	@media (hover: hover) and (pointer: fine) {
+		&:hover:not(:disabled) {
+			filter: brightness(1.12);
+		}
+	}
+	&:active:not(:disabled),
+	&[data-pressed],
+	&[aria-expanded="true"] {
+		filter: brightness(0.94);
+		box-shadow: inset 0 2px 4px rgb(2 4 10 / 0.5);
+		translate: 0 var(--key-travel);
+	}
+}
+/* Danger, confirming: solid red key with white text (>= 4.5:1). */
+@utility btn-danger-solid {
+	color: #fff;
+	background: linear-gradient(180deg, oklch(0.55 0.19 22), oklch(0.48 0.18 22));
+	border: 1px solid oklch(0.4 0.14 22);
+	--press-y: 0px;
+	--press-scale: var(--key-press-scale);
+	box-shadow:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.22),
+		inset 0 -1px 0 0 rgb(60 0 0 / 0.35),
+		0 var(--key-travel) 0 0 oklch(0.34 0.12 22),
+		0 calc(var(--key-travel) + 1px) 3px 0 rgb(2 4 10 / 0.5);
+	text-shadow: 0 1px 0 rgb(60 0 0 / 0.45);
+	@media (hover: hover) and (pointer: fine) {
+		&:hover:not(:disabled) {
+			filter: brightness(1.08);
+		}
+	}
+	&:active:not(:disabled) {
+		filter: brightness(0.94);
+		box-shadow: inset 0 2px 4px rgb(60 0 0 / 0.55);
+		translate: 0 var(--key-travel);
+	}
+}
+
+/* A raised object you can press (a switcher, an option card, the user menu,
+   a connect card) is a key too: it stands on the same
+   --key-travel edge and sinks onto it. Depth means you can press it, so a
+   raised card you cannot press never gets this, and rows, tables and toolbars
+   stay flat. A checked option card latches down. Unlayered,
+   so it wins over both utilities. */
+.surface-raised.pressable {
+	--press-y: 0px;
+	--press-scale: var(--key-press-scale);
+	box-shadow:
+		var(--shadow-raised),
+		0 var(--key-travel) 0 0 oklch(0.17 0.006 262);
+}
+.surface-raised.pressable:is(
+		:active:not(:disabled):not([aria-disabled="true"]):not([data-disabled]),
+		[aria-expanded="true"],
+		[data-popup-open],
+		[data-checked]
+	) {
+	translate: 0 var(--key-travel);
+	box-shadow: var(--shadow-pressed);
+}
+
+/* Input: the engraved well. The border is the 3:1 control line. */
+@utility field {
+	background: var(--color-surface-well);
+	border: 1px solid var(--color-line-control);
+	box-shadow:
+		inset 0 1px 2px 0 rgb(2 4 10 / 0.6),
+		0 1px 0 0 rgb(255 255 255 / 0.04);
+	color: var(--color-ink-1);
+	transition:
+		border-color var(--press-duration) var(--ease-out),
+		box-shadow var(--press-duration) var(--ease-out);
+	&::placeholder {
+		color: var(--color-ink-4);
+	}
+	&:focus-visible,
+	&[data-focused],
+	&:has(:focus-visible) {
+		outline: none;
+		border-color: var(--color-accent-ink);
+		box-shadow:
+			inset 0 1px 2px 0 rgb(2 4 10 / 0.6),
+			0 0 0 2px var(--color-surface-base),
+			0 0 0 4px var(--color-accent-ink);
+	}
+	&[aria-invalid="true"],
+	&[data-invalid] {
+		border-color: var(--color-bad);
+	}
+	&:disabled,
+	&[data-disabled] {
+		opacity: 0.5;
+	}
+}
+
+/* Groove of a switch / slider / progress track / segmented control. */
+@utility track-well {
+	background: var(--color-surface-well);
+	border: 1px solid var(--color-line-control);
+	box-shadow: var(--shadow-well);
+}
+/* Accent fill of a checked track, an active slider range. */
+@utility track-lit {
+	background: linear-gradient(180deg, var(--color-accent-fill-top), var(--color-accent-fill-bot));
+	box-shadow: 0 0 8px 0 oklch(0.611 0.214 278.6 / 0.5);
+}
+/* A round knob that stands proud of its groove. */
+@utility knob {
+	border-radius: 999px;
+	background: radial-gradient(circle at 50% 25%, oklch(0.97 0.004 262), oklch(0.8 0.01 262));
+	box-shadow: var(--shadow-knob);
+}
+/* The raised thumb of a segmented control / pressed tab. */
+@utility thumb-raised {
+	color: var(--color-ink-1);
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--color-surface-pop), white 5%),
+		var(--color-surface-pop)
+	);
+	border: 1px solid var(--color-line-strong);
+	box-shadow:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.1),
+		0 1px 0 0 oklch(0.17 0.006 262),
+		0 1px 2px 0 rgb(2 4 10 / 0.55),
+		0 2px 6px -1px rgb(2 4 10 / 0.35);
+}
+
+/* Keycap: for <kbd> and shortcut hints. */
+@utility keycap {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 22px;
+	height: 22px;
+	padding: 0 6px;
+	margin-bottom: 2px;
+	/* IBM Plex Mono has no ⌘ ⌥ ⇧ ⌃. `--font-mono` ends in ui-monospace and
+	   `monospace`, which carry a tiny ⌘ of their own, so the symbol font must sit
+	   right after Plex Mono and BEFORE any monospace family. Longhands, not the
+	   `font` shorthand, so a `text-*` or `font-*` class on a key changes only its
+	   own property. Modifier glyphs are wrapped in `keycap-mod` (see `Kbd`). */
+	font-family:
+		"IBM Plex Mono", -apple-system, BlinkMacSystemFont, "Segoe UI Symbol",
+		system-ui, sans-serif;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1;
+	letter-spacing: 0.02em;
+	color: var(--color-ink-2);
+	border-radius: 5px;
+	background: linear-gradient(180deg, oklch(0.34 0.02 262), oklch(0.285 0.02 262));
+	box-shadow:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.14),
+		inset 0 -1px 0 0 rgb(2 4 10 / 0.35),
+		0 0 0 1px rgb(2 4 10 / 0.6),
+		0 1.5px 0 1px rgb(2 4 10 / 0.5);
+	&[data-down],
+	&.is-down {
+		transform: translateY(1.5px);
+		box-shadow:
+			inset 0 1px 2px 0 rgb(2 4 10 / 0.5),
+			0 0 0 1px rgb(2 4 10 / 0.6);
+	}
+}
+
+/* A modifier glyph (⌘ ⇧ ⌥ ⌃ ↵ ⌫) inside a keycap: drawn by the system symbol
+   font, a touch larger so it fills the cap beside letters. */
+@utility keycap-mod {
+	font-family:
+		-apple-system, BlinkMacSystemFont, "Segoe UI Symbol", system-ui, sans-serif;
+	font-size: 1.1em;
+	font-weight: 400;
+	line-height: 1;
+}
+
+/* Frame wash behind a status pill / chip: `data-tone` is live|building|deploying|failed|staged|degraded|ok|warn|bad|info. */
+@utility tone-wash {
+	--tone: var(--color-ink-3);
+	--tone-on: var(--color-ink-2);
+	--tone-wash: oklch(1 0 0 / 0.06);
+	color: var(--tone-on);
+	background: var(--tone-wash);
+	&[data-tone="live"],
+	&[data-tone="ok"] {
+		--tone: var(--color-status-live);
+		--tone-on: var(--color-status-live-on);
+		--tone-wash: var(--color-status-live-wash);
+	}
+	&[data-tone="building"],
+	&[data-tone="info"] {
+		--tone: var(--color-status-building);
+		--tone-on: var(--color-status-building-on);
+		--tone-wash: var(--color-status-building-wash);
+	}
+	&[data-tone="deploying"] {
+		--tone: var(--color-status-deploying);
+		--tone-on: var(--color-status-deploying-on);
+		--tone-wash: var(--color-status-deploying-wash);
+	}
+	&[data-tone="failed"],
+	&[data-tone="bad"] {
+		--tone: var(--color-status-failed);
+		--tone-on: var(--color-status-failed-on);
+		--tone-wash: var(--color-status-failed-wash);
+	}
+	&[data-tone="staged"],
+	&[data-tone="warn"] {
+		--tone: var(--color-status-staged);
+		--tone-on: var(--color-status-staged-on);
+		--tone-wash: var(--color-status-staged-wash);
+	}
+	&[data-tone="degraded"] {
+		--tone: var(--color-status-degraded);
+		--tone-on: var(--color-status-degraded-on);
+		--tone-wash: var(--color-status-degraded-wash);
+	}
+}
+
+/*
+ * Alert marker: a very subtle tone wash, a 1px tone border at low strength and
+ * a static dithered tone band in the leading edge, with a `ToneIcon` at the
+ * start of the first line. `data-tone` is danger|warning|info|success. The wash
+ * (`::before`) and the band (`::after`) are overlays, so they sit over any
+ * `surface-*` fill and behind the text; the host must be positioned
+ * (`relative`, `sticky` or `fixed`) and gets its own stacking context. The
+ * band's mask is `--tone-band-mask`, set once on the root by
+ * `installToneBandMask` (called in `main.tsx`). Live resource status is a
+ * `StatusIcon`, not a callout.
+ */
+@utility tone-callout {
+	--tone: var(--color-ink-3);
+	--tone-wash: oklch(1 0 0 / 0.04);
+	isolation: isolate;
+	border-width: 1px;
+	border-style: solid;
+	&[data-tone="danger"] {
+		--tone: var(--color-status-failed);
+		--tone-wash: var(--color-status-failed-wash);
+	}
+	&[data-tone="warning"] {
+		--tone: var(--color-status-staged);
+		--tone-wash: var(--color-status-staged-wash);
+	}
+	&[data-tone="info"] {
+		--tone: var(--color-status-building);
+		--tone-wash: var(--color-status-building-wash);
+	}
+	&[data-tone="success"] {
+		--tone: var(--color-status-live);
+		--tone-wash: var(--color-status-live-wash);
+	}
+	&[data-tone] {
+		border-color: color-mix(in oklab, var(--tone) 30%, transparent);
+	}
+	&::before {
+		content: "";
+		position: absolute;
+		z-index: -1;
+		inset: 0;
+		border-radius: inherit;
+		background: var(--tone-wash);
+		pointer-events: none;
+	}
+	/* The static dither band in the leading edge: dense at the
+	   edge, fading inward over 6px, inside the host's padding (every host pads
+	   at least 8px), so it never meets the icon or the first words. */
+	&[data-tone]::after {
+		content: "";
+		position: absolute;
+		z-index: -1;
+		inset-block: 0;
+		inset-inline-start: 0;
+		width: 6px;
+		border-start-start-radius: inherit;
+		border-end-start-radius: inherit;
+		background: var(--tone);
+		-webkit-mask-image: var(--tone-band-mask, linear-gradient(90deg, #000, transparent));
+		mask-image: var(--tone-band-mask, linear-gradient(90deg, #000, transparent));
+		-webkit-mask-size: 100% 100%;
+		mask-size: 100% 100%;
+		-webkit-mask-repeat: no-repeat;
+		mask-repeat: no-repeat;
+		pointer-events: none;
+	}
+	@media (forced-colors: active) {
+		&::before {
+			display: none;
+		}
+		&[data-tone]::after {
+			forced-color-adjust: none;
+			width: 3px;
+			-webkit-mask-image: none;
+			mask-image: none;
+		}
+	}
+}
+
+/*
+ * The standalone form of the band, for an element that carries no
+ * `tone-callout`: the dither kit's `DitherToneBand` (and `toneBandProps`),
+ * shown in the `/dev/dither` gallery. It paints in `::before`, so it does not
+ * combine with `tone-callout`, which already paints the same band in
+ * `::after`. `data-tone` is danger|warning|info|success. The mask is
+ * `--tone-band-mask`, set on the root by `installToneBandMask`; until it
+ * exists a plain gradient stands in. Under forced colours it is a solid 3px
+ * edge.
+ */
+@utility tone-band {
+	--band: var(--color-ink-3);
+	isolation: isolate;
+	&[data-tone="danger"] {
+		--band: var(--color-status-failed);
+	}
+	&[data-tone="warning"] {
+		--band: var(--color-status-staged);
+	}
+	&[data-tone="info"] {
+		--band: var(--color-status-building);
+	}
+	&[data-tone="success"] {
+		--band: var(--color-status-live);
+	}
+	&::before {
+		content: "";
+		position: absolute;
+		z-index: -1;
+		inset-block: 0;
+		inset-inline-start: 0;
+		width: 6px;
+		border-start-start-radius: inherit;
+		border-end-start-radius: inherit;
+		background: var(--band);
+		-webkit-mask-image: var(--tone-band-mask, linear-gradient(90deg, #000, transparent));
+		mask-image: var(--tone-band-mask, linear-gradient(90deg, #000, transparent));
+		-webkit-mask-size: 100% 100%;
+		mask-size: 100% 100%;
+		-webkit-mask-repeat: no-repeat;
+		mask-repeat: no-repeat;
+		pointer-events: none;
+	}
+	@media (forced-colors: active) {
+		&::before {
+			forced-color-adjust: none;
+			width: 3px;
+			-webkit-mask-image: none;
+			mask-image: none;
+		}
+	}
+}
+
+/*
+ * Glossy icon tile: a vertical gradient of `--t` with a lit top edge,
+ * bottom shade, contact ring and drop. Set `--t` (tile colour) and `color` (glyph).
+ */
+@utility service-tile {
+	--t: var(--color-accent-fill-top);
+	display: grid;
+	flex: none;
+	place-items: center;
+	background: linear-gradient(
+		180deg,
+		color-mix(in oklab, var(--t), white 18%),
+		var(--t) 60%,
+		color-mix(in oklab, var(--t), black 22%)
+	);
+	box-shadow:
+		inset 0 1px 0 0 rgb(255 255 255 / 0.38),
+		inset 0 -1px 0 0 rgb(2 4 10 / 0.3),
+		0 0 0 1px rgb(2 4 10 / 0.6),
+		0 2px 6px -1px rgb(2 4 10 / 0.6);
+}
+
+/* Signature canvas pieces (plain CSS, no library). */
+@utility jack {
+	position: absolute;
+	width: 10px;
+	height: 10px;
+	border-radius: 50%;
+	background: var(--color-surface-well);
+	border: 1px solid var(--color-line-control);
+	box-shadow:
+		inset 0 1px 2px rgb(2 4 10 / 0.7),
+		0 0 0 3px var(--color-surface-base);
+}
+/* LED phase strip: three bars (build, release, verify). State via data-s on <i>. */
+@utility phase-strip {
+	display: inline-flex;
+	gap: 3px;
+	& > i {
+		width: 16px;
+		height: 5px;
+		border-radius: 2px;
+		background: var(--color-surface-well);
+		box-shadow:
+			inset 0 1px 1px rgb(2 4 10 / 0.7),
+			0 1px 0 rgb(255 255 255 / 0.05);
+	}
+	& > i[data-s="done"] {
+		background: var(--color-ok);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.45),
+			0 0 6px 0 color-mix(in oklab, var(--color-ok) 55%, transparent);
+	}
+	& > i[data-s="live"] {
+		background: var(--color-accent-ink);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.45),
+			0 0 8px 0 oklch(0.75 0.14 278 / 0.7);
+		animation: lamp-pulse 1.1s var(--ease-pulse) infinite;
+	}
+	& > i[data-s="fail"] {
+		background: var(--color-bad);
+		box-shadow:
+			inset 0 1px 0 rgb(255 255 255 / 0.4),
+			0 0 6px 0 color-mix(in oklab, var(--color-bad) 55%, transparent);
+	}
+}
+/* Patch-cable strokes (SVG paths): shadow under, body, highlight over. */
+@utility cable-shadow {
+	stroke: rgb(2 4 10 / 0.55);
+	stroke-width: 5;
+	fill: none;
+	stroke-linecap: round;
+}
+@utility cable-body {
+	stroke: var(--color-line-control);
+	stroke-width: 2.5;
+	fill: none;
+	stroke-linecap: round;
+}
+@utility cable-hi {
+	stroke: oklch(1 0 0 / 0.32);
+	stroke-width: 0.8;
+	fill: none;
+	stroke-linecap: round;
+	transform: translate(0, -0.9px);
+}
+/* The bead that runs along an in-flight cable: a short lit dash (the long gap keeps one on the
+   cable) and a wide faint twin as its glow. Plain stroke-dashoffset, so a canvas in motion can
+   pause it (see `data-moving` below); SMIL could not be paused and a filter repainted a blurred
+   region of the cable every frame. */
+@utility cable-bead {
+	fill: none;
+	stroke: var(--color-accent-ink);
+	stroke-width: 3;
+	stroke-linecap: round;
+	stroke-dasharray: 18 800;
+	animation: cable-bead 2.4s linear infinite;
+}
+@utility cable-bead-glow {
+	fill: none;
+	stroke: var(--color-accent-ink);
+	stroke-width: 9;
+	stroke-linecap: round;
+	stroke-dasharray: 18 800;
+	opacity: 0.22;
+	animation: cable-bead 2.4s linear infinite;
+}
+/* In-flight frame: a conic light orbiting a 1px frame (transform-only). */
+@utility beam {
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+	padding: 1px;
+	border-radius: var(--radius-card);
+	&::before {
+		content: "";
+		position: absolute;
+		left: 50%;
+		top: 50%;
+		width: 220%;
+		aspect-ratio: 1;
+		translate: -50% -50%;
+		z-index: -2;
+		background: conic-gradient(
+			from 0deg,
+			transparent 0 62%,
+			oklch(0.75 0.14 278 / 0.15) 72%,
+			oklch(0.8 0.14 278) 86%,
+			transparent 92% 100%
+		);
+		animation: beam-spin 2.6s linear infinite;
+	}
+}
+
+/* Production on a panel or sheet header: a 1px accent hairline along its top edge.
+   Host must be positioned. Pair with `env-caption`. */
+@utility env-rule {
+	&::before {
+		content: "";
+		position: absolute;
+		top: 0;
+		left: 0;
+		right: 0;
+		height: 1px;
+		pointer-events: none;
+		background: linear-gradient(
+			90deg,
+			transparent,
+			oklch(0.75 0.14 278 / 0.7) 18%,
+			oklch(0.75 0.14 278 / 0.7) 82%,
+			transparent
+		);
+	}
+}
+/* Mono caption: "■ PRODUCTION". */
+@utility env-caption {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-family: var(--font-mono);
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--color-accent-ink);
+	&::before {
+		content: "";
+		width: 5px;
+		height: 5px;
+		flex: none;
+		background: currentColor;
+	}
+}
+
+@utility w-floating-panel {
+	width: max(min(1040px, calc(100% - 20px)), min(62%, calc(100% - 20px)));
+}
+
+@utility no-scrollbar {
+	-ms-overflow-style: none;
+	scrollbar-width: none;
+	&::-webkit-scrollbar {
+		display: none;
+	}
+}
+
+/* One ring per focusable thing: a 2px outline offset 2px. */
+@utility focus-ring {
+	outline: 2px solid var(--color-accent-ink);
+	outline-offset: 2px;
+}
+
+/* ───────── Type roles: one role, used the same way on every route ───────── */
+@utility type-page-title {
+	font-family: var(--font-display);
+	font-size: 20px;
+	font-weight: 600;
+	line-height: 1.2;
+	letter-spacing: -0.02em;
+}
+@utility type-section-title {
+	font-size: 15px;
+	font-weight: 600;
+	line-height: 1.3;
+	letter-spacing: -0.006em;
+}
+@utility type-panel-title {
+	font-size: 13px;
+	font-weight: 600;
+	line-height: 1.4;
+}
+@utility type-body {
+	font-size: 13px;
+	font-weight: 400;
+	line-height: 1.55;
+}
+@utility type-secondary {
+	font-size: 12px;
+	font-weight: 400;
+	line-height: 1.5;
+	color: var(--color-ink-3);
+}
+/* Sentence case, medium weight, muted: field labels, table headers, eyebrows. */
+@utility type-label {
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1;
+	color: var(--color-ink-3);
+}
+@utility type-stat {
+	font-size: 28px;
+	font-weight: 500;
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+}
+@utility type-mono {
+	font-family: var(--font-mono);
+	font-size: 12px;
+	letter-spacing: -0.01em;
+}
+@utility type-eyebrow {
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 1;
+	letter-spacing: 0.08em;
+	text-transform: uppercase;
+	color: var(--color-ink-3);
+}
+/* Big numeral (24-28px, tabular) with a `type-micro` label above it. */
+@utility type-metric {
+	font-size: 26px;
+	font-weight: 600;
+	line-height: 1;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+	color: var(--color-ink-1);
+}
+/* 10px mono caps label: metadata over a metric, captions, chips. ink-4 is >= 4.78:1 up to pop. */
+@utility type-micro {
+	font-family: var(--font-mono);
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1;
+	letter-spacing: 0.12em;
+	text-transform: uppercase;
+	color: var(--color-ink-4);
+}
+/* Section header "■ TITLE ········ action": square bullet and dotted leader in CSS only.
+   The first child (or text) is the title; any later child sits after the leader. */
+@utility section-head {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-family: var(--font-mono);
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1;
+	letter-spacing: 0.14em;
+	text-transform: uppercase;
+	color: var(--color-ink-4);
+	&::before {
+		content: "";
+		order: -1;
+		width: 5px;
+		height: 5px;
+		flex: none;
+		background: var(--color-accent-ink);
+	}
+	&::after {
+		content: "";
+		order: 1;
+		flex: 1;
+		min-width: 12px;
+		align-self: center;
+		border-top: 1px dotted oklch(1 0 0 / 0.2);
+	}
+	& > :nth-child(n + 2) {
+		order: 2;
+	}
+}
+/* Ruled list: direct children are rows separated by 1px hairlines, no card chrome. */
+@utility rule-rows {
+	& > * {
+		padding-block: 8px;
+	}
+	& > * + * {
+		border-top: 1px solid var(--color-line-faint);
+	}
+}
+
+/* ───────── Base ───────── */
+@layer base {
+	* {
+		border-color: var(--color-line);
+	}
+
+	/* Scrolling inside a floating surface never chains to the page behind it. */
+	[data-slot="dialog-content"],
+	[data-slot="alert-dialog-content"],
+	[data-slot="sheet-content"],
+	[data-slot="dialog-body"],
+	[data-slot="sheet-body"],
+	[role="dialog"],
+	[role="listbox"],
+	[role="menu"] {
+		overscroll-behavior: contain;
+	}
+
+	html,
+	body,
+	#root {
+		height: 100%;
+	}
+
+	body {
+		background: var(--bg-app);
+		color: var(--color-ink-1);
+		font-family: var(--font-sans);
+		font-size: 13px;
+		line-height: 1.45;
+		-webkit-font-smoothing: antialiased;
+	}
+
+	*:focus {
+		outline: none;
+	}
+
+	/*
+	 * Keyboard focus: a real 2px outline (survives forced colours, coexists with
+	 * depth). Inputs draw their own two-ring variant; a control inside a bordered
+	 * wrapper leaves the ring to the wrapper.
+	 */
+	*:focus-visible:not([data-slot="input-group-control"]) {
+		outline: 2px solid var(--color-accent-ink);
+		outline-offset: 2px;
+	}
+
+	/* Rows of a menu or list show only their highlight. */
+	[role^="menuitem"]:focus-visible,
+	[role="option"]:focus-visible {
+		outline: none;
+	}
+
+	a {
+		color: var(--color-accent-ink);
+		text-decoration: none;
+	}
+
+	code,
+	kbd,
+	samp,
+	pre {
+		font-family: var(--font-mono);
+	}
+
+	::selection {
+		background: var(--selection);
+		color: var(--color-ink-1);
+	}
+
+	* {
+		scrollbar-color: oklch(1 0 0 / 0.16) transparent;
+	}
+	::-webkit-scrollbar {
+		width: 10px;
+		height: 10px;
+	}
+	::-webkit-scrollbar-thumb {
+		background: oklch(1 0 0 / 0.16);
+		border-radius: 10px;
+		border: 2px solid transparent;
+		background-clip: padding-box;
+	}
+	::-webkit-scrollbar-corner {
+		background: transparent;
+	}
+}
+
+/*
+ * React Flow: map its documented variables onto the ladder. Unlayered, and set on
+ * the non-`-default` names, so this wins over the library's own sheet regardless
+ * of import order. Edges/handles use line-control (3:1); the dot grid is drawn by
+ * <Background> (`--xy-background-pattern-dots-color`) or `canvas-floor`.
+ */
+.react-flow {
+	--xy-background-color: transparent;
+	--xy-node-background-color: transparent;
+	--xy-node-border: none;
+	--xy-node-color: var(--color-ink-1);
+	--xy-node-boxshadow-hover: none;
+	--xy-node-boxshadow-selected: none;
+	--xy-edge-stroke: var(--color-line-control);
+	--xy-edge-stroke-width: 1.25;
+	--xy-edge-stroke-selected: var(--color-accent-ink);
+	--xy-edge-label-color: var(--color-ink-2);
+	--xy-edge-label-background-color: var(--color-surface-float);
+	--xy-connectionline-stroke: var(--color-accent-ink);
+	--xy-connectionline-stroke-width: 1.5;
+	--xy-background-pattern-color: oklch(1 0 0 / 0.13);
+	--xy-handle-background-color: var(--color-surface-well);
+	--xy-handle-border-color: var(--color-line-control);
+	--xy-minimap-background-color: var(--color-surface-float);
+	--xy-minimap-mask-background-color: rgb(2 4 10 / 0.55);
+	--xy-minimap-mask-stroke-color: var(--color-accent-ink);
+	--xy-minimap-node-background-color: var(--color-line-control);
+	--xy-controls-button-background-color: var(--color-surface-float);
+	--xy-controls-button-background-color-hover: var(--color-surface-pop);
+	--xy-controls-button-color: var(--color-ink-2);
+	--xy-controls-button-color-hover: var(--color-ink-1);
+	--xy-controls-button-border-color: var(--color-line);
+	--xy-controls-box-shadow: var(--shadow-float);
+	--xy-selection-background-color: oklch(0.75 0.14 278 / 0.08);
+	--xy-selection-border: 1px dashed oklch(0.75 0.14 278 / 0.8);
+	--xy-resize-background-color: var(--color-accent-ink);
+}
+
+/* Cards are clicked far more often than dragged: a pointer, not a grab hand.
+   The grabbing hand appears only once a drag has actually started. (Two
+   classes to beat xyflow's `.react-flow__node.selectable { cursor: grab }`.) */
+.react-flow__node.react-flow__node-service {
+	cursor: pointer;
+}
+.react-flow__node.react-flow__node-service.dragging {
+	cursor: grabbing;
+}
+
+/* A canvas in motion (a pan, a zoom, a card or marquee drag) drops the animations inside it:
+   the in-flight beams, cable beads, spinners and lamps each repaint or re-layerize every frame,
+   and 15 of them cost a throttled pan most of its frames. They start again when the motion ends.
+   `data-moving` is set on the canvas root by project-canvas.tsx, outside React. The list names
+   what animates (a universal selector would restyle every element of the canvas each time the
+   attribute flips). */
+[data-canvas-root][data-moving] .beam::before,
+[data-canvas-root][data-moving] .animate-nc-spin,
+[data-canvas-root][data-moving] [data-pulse],
+[data-canvas-root][data-moving] .phase-strip > i,
+[data-canvas-root][data-moving] .cable-bead,
+[data-canvas-root][data-moving] .cable-bead-glow {
+	animation: none !important;
+}
+/* A pan or zoom (`data-moving="view"`) promotes every card to its own compositor layer for the
+   length of the motion, so the canvas moves layers instead of re-rasterising every card each
+   frame (45 cards, unthrottled pan: 71 -> 119 fps, GPU raster 1.4 s -> 0.1 s per 3 s). A card
+   being dragged is the one card promoted: moving it repaints nothing else. Both are off at
+   rest on purpose: a promoted layer keeps the scale it was rasterised at, so text would stay
+   blurry after a zoom; when the motion ends the cards re-raster crisp. */
+[data-canvas-root][data-moving="view"] .react-flow__node,
+[data-canvas-root] .react-flow__node.dragging {
+	will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0s !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0s !important;
+	}
+}
+
+/* High-contrast users lose box-shadow: keep a real border as the boundary. */
+@media (forced-colors: active) {
+	.surface-well,
+	.surface-raised,
+	.surface-float,
+	.surface-pop,
+	.surface-modal {
+		border: 1px solid CanvasText;
+	}
+}
+
+/*
+ * The replica strip (features/scaling/replica-strip.tsx):
+ * one 10px key per replica. Ready and failed are solid keys with a lit top
+ * edge; starting and not running are inset wells, starting with a static
+ * dither texture (a state, not a loader). Every state keeps two inset
+ * shadows so a state change crossfades instead of snapping. A pip added
+ * later enters on cubic-bezier(0.23, 1, 0.32, 1), 30ms apart (`--pip-i`).
+ */
+.replica-pip {
+	--pip-fill: var(--color-surface-well);
+	--pip-edge: var(--color-line-control);
+	--pip-top: rgb(2 4 10 / 0.5);
+	--pip-bottom: rgb(255 255 255 / 0.04);
+	position: relative;
+	display: block;
+	flex: none;
+	box-sizing: border-box;
+	width: 10px;
+	height: 10px;
+	overflow: hidden;
+	border: 1px solid var(--pip-edge);
+	border-radius: 3px;
+	background-color: var(--pip-fill);
+	box-shadow:
+		inset 0 1px 1px 0 var(--pip-top),
+		inset 0 -1px 0 0 var(--pip-bottom);
+	transition:
+		background-color 200ms ease,
+		border-color 200ms ease,
+		box-shadow 200ms ease;
+}
+/* The legend's swatch: smaller and round, so it never reads as one more replica. */
+.replica-pip[data-size="swatch"] {
+	width: 7px;
+	height: 7px;
+	border-radius: 999px;
+}
+.replica-pip[data-state="ready"] {
+	--pip-fill: var(--color-status-live);
+	--pip-edge: color-mix(in oklab, var(--color-status-live) 72%, var(--color-surface-well));
+	--pip-top: rgb(255 255 255 / 0.42);
+	--pip-bottom: rgb(2 4 10 / 0.22);
+}
+.replica-pip[data-state="failed"] {
+	--pip-fill: var(--color-bad);
+	--pip-edge: color-mix(in oklab, var(--color-bad) 72%, var(--color-surface-well));
+	--pip-top: rgb(255 255 255 / 0.32);
+	--pip-bottom: rgb(2 4 10 / 0.22);
+}
+.replica-pip > i {
+	position: absolute;
+	inset: 0;
+	background-color: var(--color-status-building);
+	opacity: 0;
+	transition: opacity 200ms ease;
+}
+.replica-pip[data-state="starting"] > i {
+	opacity: 1;
+}
+.replica-pip[data-enter] {
+	animation: nc-pip-in 200ms cubic-bezier(0.23, 1, 0.32, 1) both;
+	animation-delay: calc(var(--pip-i, 0) * 30ms);
+}
+@keyframes nc-pip-in {
+	from {
+		opacity: 0;
+		transform: scale(0.9);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.replica-pip,
+	.replica-pip > i {
+		transition: none;
+	}
+	.replica-pip[data-enter] {
+		animation: none;
+	}
+}
+@media (forced-colors: active) {
+	.replica-pip {
+		border-color: CanvasText;
+		forced-color-adjust: none;
+		--pip-fill: Canvas;
+		--pip-top: transparent;
+		--pip-bottom: transparent;
+	}
+	.replica-pip[data-state="ready"] {
+		--pip-fill: Highlight;
+	}
+	.replica-pip[data-state="failed"] {
+		--pip-fill: CanvasText;
+	}
+	.replica-pip > i {
+		background-color: Highlight;
+	}
+}
+
+/*
+ * `<Table stack>`'s card layout below `md` — see the doc comment on
+ * `Table` in components/ui/table.tsx for the full API. Unlayered (not
+ * `@layer components`) so it wins over the `h-10`/`px-4`/`py-2` utility
+ * classes `TableCell` already carries, matching the reduced-motion block
+ * above.
+ */
+@media (width < 48rem) {
+	/*
+	 * A desktop table often carries `min-w-[…px]` so its columns don't
+	 * crush; stacked, that width would push every value off-screen to the
+	 * right of its label, so the card mode drops it along with the grid.
+	 */
+	[data-slot="table"][data-stack="true"] {
+		display: block;
+		width: 100%;
+		min-width: 0;
+	}
+
+	[data-slot="table"][data-stack="true"] [data-slot="table-header"] {
+		display: none;
+	}
+
+	[data-slot="table"][data-stack="true"] [data-slot="table-body"] {
+		display: block;
+	}
+
+	[data-slot="table"][data-stack="true"] [data-slot="table-row"] {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: baseline;
+		row-gap: 4px;
+		column-gap: 12px;
+		padding: 12px 4px;
+	}
+
+	/* Unpinned: its own full-width "label: value" line. */
+	[data-slot="table"][data-stack="true"] [data-slot="table-cell"] {
+		display: flex;
+		flex: 1 1 100%;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 12px;
+		height: auto;
+		padding: 1px 0;
+		min-width: 0;
+	}
+
+	[data-slot="table"][data-stack="true"] [data-slot="table-cell"][data-label]::before {
+		content: attr(data-label);
+		flex-shrink: 0;
+		color: var(--muted-foreground);
+		font-weight: 500;
+	}
+
+	/* Pinned: no label prefix, shares the card's top line instead of its own row. */
+	[data-slot="table"][data-stack="true"] [data-slot="table-cell"][data-pin] {
+		flex: 0 1 auto;
+		order: -1;
+		padding: 0;
+	}
+
+	[data-slot="table"][data-stack="true"] [data-slot="table-cell"][data-pin="start"] {
+		order: -2;
+		font-weight: 600;
+	}
+
+	[data-slot="table"][data-stack="true"] [data-slot="table-cell"][data-pin="end"] {
+		margin-left: auto;
+	}
+
+	[data-slot="table"][data-stack="true"] [data-slot="table-actions-cell"] {
+		flex: 0 0 auto;
+		order: 999;
+		width: auto;
+		margin-left: auto;
+		padding: 0;
+	}
+}
+
+/*
+ * Sheet: the floating panel's slide-in/out. A single Tailwind
+ * `duration-*` utility can't give `transform`, `opacity` and `filter`
+ * different durations and easings each way (a long settle in, a
+ * snap-cubic out), so this is the same "unlayered, wins over the
+ * utilities the element already carries" trick as the table-stack block
+ * above. `SheetContent` puts it on the service panel (`motion="spring"`);
+ * the floating base class carries no motion of its own. `scale` and
+ * `filter` are the receding step when the deployment card stacks over the
+ * panel, so closing the card glides the panel back instead of snapping it.
+ */
+.panel-shell {
+	transition:
+		transform var(--duration-slow) var(--ease-smooth-out),
+		opacity var(--duration-quick) var(--ease-out),
+		filter var(--duration-fast) var(--ease-in-out),
+		translate var(--duration-slow) var(--ease-smooth-out),
+		scale var(--duration-slow) var(--ease-smooth-out);
+}
+
+.panel-shell[data-starting-style] {
+	transform: translateX(calc(100% + 24px));
+	opacity: 0;
+}
+
+/* Leaves faster than it arrives (panel open 400ms, here 250ms) and, like
+   every exit, on the smooth-out curve: never an ease-in. */
+.panel-shell[data-ending-style] {
+	transition:
+		transform var(--duration-fast) var(--ease-smooth-out),
+		opacity var(--duration-quick) var(--ease-out) var(--duration-micro),
+		filter var(--duration-fast) var(--ease-in-out),
+		translate var(--duration-slow) var(--ease-smooth-out),
+		scale var(--duration-slow) var(--ease-smooth-out);
+	transform: translateX(calc(100% + 24px));
+	opacity: 0;
+}
+
+/* Narrow: the panel becomes a full-screen sheet that slides up from the
+   bottom instead of in from the right — no scale or blur, one easing
+   both ways (viewport < 760px). */
+@media (width < 760px) {
+	.panel-shell {
+		inset: 0;
+		width: auto;
+		border-radius: 0;
+		transition:
+			transform var(--duration-fast) var(--ease-smooth-out),
+			opacity var(--duration-quick) var(--ease-out);
+	}
+
+	.panel-shell[data-starting-style],
+	.panel-shell[data-ending-style] {
+		transform: translateY(100%);
+		filter: none;
+		opacity: 0;
+		transition:
+			transform var(--duration-fast) var(--ease-smooth-out),
+			opacity var(--duration-quick) var(--ease-out);
+	}
+}
+
+/*
+ * Sheet: the Project variables panel's shell —
+ * simpler than `.panel-shell` above (no scale, no blur, one easing both
+ * ways): it slides beside the service panel rather than replacing it.
+ */
+.panel-shell-simple {
+	transition:
+		transform var(--duration-fast) var(--ease-smooth-out),
+		opacity var(--duration-quick) var(--ease-out);
+}
+
+.panel-shell-simple[data-starting-style],
+.panel-shell-simple[data-ending-style] {
+	transform: translateX(calc(100% + 24px));
+	opacity: 0;
+}
+
+/*
+ * The service inspector has no CSS motion: `usePanelSlide`
+ * (features/canvas/inspector/panel-motion.ts) slides it with the Web
+ * Animations API on `transform` and `opacity`, and Base UI waits for that
+ * animation before it unmounts the panel.
+ */
+
+/* The rule at the top of this file zeroes every transition under reduced
+   motion; the panels opt back in for a plain opacity fade, which is the
+   only motion left and carries no travel (better-ui: cross-fade, never an
+   instant pop). */
+@media (prefers-reduced-motion: reduce) {
+	.panel-shell[data-starting-style],
+	.panel-shell[data-ending-style],
+	.panel-shell-simple[data-starting-style],
+	.panel-shell-simple[data-ending-style] {
+		transform: none;
+	}
+
+	.panel-shell,
+	.panel-shell-simple {
+		transition: opacity var(--duration-quick) var(--ease-out);
+		transition-duration: var(--duration-quick) !important;
+	}
+
+	.panel-shell[data-ending-style],
+	.panel-shell-simple[data-ending-style] {
+		transition: opacity var(--duration-quick) var(--ease-out);
+		transition-duration: var(--duration-quick) !important;
+	}
+}
+
+/* DITHER tokens, comet keyframes and forced-colour rules: packages/tokens/src/dither.css (imported at the top). */
+
+/*
+ * View transitions (src/lib/transitions/route-transitions.ts). The script
+ * names `#main-content` (`vt-page`) and, per navigation, the card, row,
+ * label or tab that morphs (`vt-<kind>-<id>`); it sets `data-vt-variant` and
+ * `data-vt-scope` on <html> while a transition runs and removes them after.
+ *   page     180 ms cross-fade + 8px lift; shared elements 260 ms
+ *   fast     150 ms throughout (sidebar, ⌘K, keyboard)
+ *   reduced  120 ms plain cross-fade, no lift, nothing morphs
+ * Scopes: `page` keeps the sidebar and top bar still and animates only the
+ * content area, `local` is an in-page tab switch, `root` (no shell on one
+ * side, e.g. login) cross-fades the whole document.
+ */
+:root {
+	--vt-page-ms: 180ms;
+	--vt-fast-ms: 150ms;
+	--vt-reduced-ms: 120ms;
+	--vt-morph-ms: 260ms;
+	--vt-lift: 8px;
+	--vt-ms: var(--vt-page-ms);
+	--vt-shared-ms: var(--vt-morph-ms);
+}
+
+html[data-vt-variant="fast"] {
+	--vt-ms: var(--vt-fast-ms);
+	--vt-shared-ms: var(--vt-fast-ms);
+}
+
+html[data-vt-variant="reduced"] {
+	--vt-ms: var(--vt-reduced-ms);
+	--vt-shared-ms: var(--vt-reduced-ms);
+	--vt-lift: 0px;
+}
+
+html[data-vt-scope="local"] {
+	--vt-lift: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	:root,
+	html[data-vt-variant] {
+		--vt-ms: var(--vt-reduced-ms);
+		--vt-shared-ms: var(--vt-reduced-ms);
+		--vt-lift: 0px;
+	}
+}
+
+@keyframes vt-fade-out {
+	from {
+		opacity: 1;
+	}
+	to {
+		opacity: 0;
+	}
+}
+
+@keyframes vt-lift-in {
+	from {
+		opacity: 0;
+		transform: translateY(var(--vt-lift));
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+/* Every group (a shared element's move and resize) runs on one clock. */
+html[data-vt-variant]::view-transition-group(*) {
+	animation-duration: var(--vt-shared-ms);
+	animation-timing-function: var(--ease-smooth-out);
+}
+
+/* The chrome around the page does not change: show the new frame at once. */
+html[data-vt-scope="page"]::view-transition-old(root),
+html[data-vt-scope="local"]::view-transition-old(root) {
+	display: none;
+}
+html[data-vt-scope="page"]::view-transition-new(root),
+html[data-vt-scope="local"]::view-transition-new(root) {
+	animation: none;
+	mix-blend-mode: normal;
+}
+
+/* No shell on one side: the whole document cross-fades and lifts. */
+html[data-vt-scope="root"]::view-transition-old(root) {
+	animation: vt-fade-out var(--vt-ms) var(--ease-smooth-out) both;
+}
+html[data-vt-scope="root"]::view-transition-new(root) {
+	animation: vt-lift-in var(--vt-ms) var(--ease-smooth-out) both;
+}
+
+/* The content area and an in-page tab body: cross-fade, new one lifts in. */
+html[data-vt-variant]::view-transition-old(vt-page),
+html[data-vt-variant]::view-transition-old(vt-tab-body) {
+	animation: vt-fade-out var(--vt-ms) var(--ease-smooth-out) both;
+}
+html[data-vt-variant]::view-transition-new(vt-page),
+html[data-vt-variant]::view-transition-new(vt-tab-body) {
+	animation: vt-lift-in var(--vt-ms) var(--ease-smooth-out) both;
+}
+
+/*
+ * A card, row or header grows into its destination: both snapshots fill the
+ * moving group (cropped from the top-left, never squashed) and cross-fade.
+ * Titles and tabs keep the browser's aspect-preserving default.
+ */
+html[data-vt-variant]::view-transition-old(*.vt-card),
+html[data-vt-variant]::view-transition-new(*.vt-card),
+html[data-vt-variant]::view-transition-old(*.vt-row),
+html[data-vt-variant]::view-transition-new(*.vt-row) {
+	height: 100%;
+	object-fit: cover;
+	object-position: top left;
+}

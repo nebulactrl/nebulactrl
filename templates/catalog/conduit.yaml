@@ -1,0 +1,66 @@
+schema: 1
+id: conduit
+revision: 1
+name: Conduit
+summary: Lightweight Matrix homeserver written in Rust, using an embedded RocksDB database.
+description: Runs the official Conduit homeserver image with federation enabled and a persistent database volume. The Matrix server name is the generated domain of the service. Registration is protected by a token.
+category: productivity
+tags: [matrix, chat, homeserver, federation, messaging]
+links:
+  website: https://conduit.rs
+  docs: https://docs.conduit.rs
+  source: https://gitlab.com/famedly/conduit
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://gitlab.com/famedly/conduit/-/blob/next/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/conduit
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - key: REGISTRATION_TOKEN
+    label: Registration token
+    description: New users must enter this token when they create an account from a Matrix client.
+    secret: true
+    default: "${{secret(20)}}"
+services:
+  - key: homeserver
+    name: Conduit
+    kind: app
+    image: registry.gitlab.com/famedly/conduit/matrix-conduit:v0.10.15
+    digest: sha256:cb4deab33ea1a6da919a0ea99e76be75d6af5936623fd9dde442a17e2d0b320f
+    port: 6167
+    healthcheck:
+      type: http
+      path: /_matrix/client/versions
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      CONDUIT_CONFIG: ""
+      CONDUIT_SERVER_NAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      CONDUIT_ADDRESS: 0.0.0.0
+      CONDUIT_PORT: "6167"
+      CONDUIT_DATABASE_BACKEND: rocksdb
+      CONDUIT_DATABASE_PATH: /var/lib/matrix-conduit/
+      CONDUIT_MAX_REQUEST_SIZE: "20000000"
+      CONDUIT_ALLOW_REGISTRATION: "true"
+      CONDUIT_REGISTRATION_TOKEN: ${input:REGISTRATION_TOKEN}
+      CONDUIT_ALLOW_FEDERATION: "true"
+      CONDUIT_ALLOW_CHECK_FOR_UPDATES: "true"
+      CONDUIT_TRUSTED_SERVERS: '["matrix.org"]'
+    volumes:
+      - name: db
+        path: /var/lib/matrix-conduit
+    resources:
+      memoryMb: 512
+group: Conduit
+notes:
+  - "Connect a Matrix client such as Element to the service's address as the homeserver and register with the registration token from the install form (variable CONDUIT_REGISTRATION_TOKEN). The first account to register becomes the server admin."
+  - "The Matrix server name is fixed to the domain at first start: changing the domain later breaks existing accounts and rooms. Attach a custom domain before the first deploy and set CONDUIT_SERVER_NAME to it."

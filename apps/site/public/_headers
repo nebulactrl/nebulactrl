@@ -1,0 +1,56 @@
+# Headers for the Workers static assets deployment (wrangler.jsonc). Read by
+# Cloudflare, not served. Rules that match one URL are merged; a header set twice
+# is joined with a comma, so each header below is set by exactly one rule.
+# Limits: 100 rules, 2000 characters per line.
+
+# Every response. The page loads nothing from another origin: scripts, styles,
+# fonts, images and the docs search index (/search.json) are all same origin.
+# The one inline script (the no-js to js class swap in src/components/chrome.tsx)
+# is allowed by hash; src/headers.test.ts fails when the two drift apart. Inline
+# styles stay allowed: the landing page inlines its stylesheet and a few
+# elements carry style attributes. JSON-LD blocks are data, not script.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-IGaFX+b5V7IqJhmXdrl4T+JbOgpi4PePGSAasrGBdpc='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+  Strict-Transport-Security: max-age=31536000
+  X-Content-Type-Options: nosniff
+  X-Frame-Options: DENY
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=(), usb=()
+  Cross-Origin-Opener-Policy: same-origin
+
+# Built bundles, fonts and stylesheets carry a content hash in their file name
+# (Vite writes them to /assets): cache forever.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# The brand files are not fingerprinted: a day.
+/og.png
+  Cache-Control: public, max-age=86400
+/favicon.svg
+  Cache-Control: public, max-age=86400
+/favicon.ico
+  Cache-Control: public, max-age=86400
+
+# The installer is a script people pipe into a shell: show it as text in a
+# browser (never download or render it), and keep the cache short so a new
+# release reaches `curl | sh` within minutes. It is stamped to the release
+# version by the release workflow.
+/install.sh
+  Content-Type: text/plain; charset=utf-8
+  Cache-Control: public, max-age=300
+
+# The release feed (/releases/latest.json and /releases/<version>.json), read by
+# every control plane once a day to show the update notice. The release workflow
+# writes it after the build; a normal build has no /releases folder. Five minutes,
+# like install.sh, so a new release reaches control planes the same day.
+/releases/*
+  Content-Type: application/json; charset=utf-8
+  Cache-Control: public, max-age=300
+
+# llms.txt and llms-full.txt, for agents.
+/llms*.txt
+  Content-Type: text/plain; charset=utf-8
+
+# Every docs page also exists as Markdown (/docs/<page>.md).
+/*.md
+  Content-Type: text/markdown; charset=utf-8

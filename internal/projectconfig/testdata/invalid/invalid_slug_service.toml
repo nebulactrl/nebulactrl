@@ -1,0 +1,10 @@
+# expect: invalid_slug
+# schema: reject
+# Service keys are slugs: lower-case letters, digits and hyphens. The display
+# name goes in `name`.
+schema = 1
+server = "fra-1"
+
+[services.Web_Frontend]
+name = "Web frontend"
+image = "nginx:1.27"

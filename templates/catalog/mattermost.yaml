@@ -1,0 +1,72 @@
+schema: 1
+id: mattermost
+revision: 1
+name: Mattermost
+summary: Self-hosted team chat and collaboration platform (Team Edition) with channels, threads, file sharing and integrations.
+description: Mattermost is an open-source messaging platform for teams, with channels, direct messages, threads, file sharing, webhooks, bots and plugins. This template runs the Team Edition server with a managed Postgres database and persistent config, file and plugin volumes.
+category: productivity
+tags: [chat, messaging, collaboration, team, slack-alternative]
+icon: mattermost
+links:
+  website: https://mattermost.com
+  docs: https://docs.mattermost.com
+  source: https://github.com/mattermost/mattermost
+upstream:
+  license: MIT (compiled releases), AGPL-3.0 (source)
+  licenseUrl: https://github.com/mattermost/mattermost/blob/master/LICENSE.txt
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/mattermost.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 10
+  arch: [amd64]
+inputs:
+  - {key: TZ, label: Time zone, default: UTC}
+services:
+  - key: mattermost
+    name: Mattermost
+    kind: app
+    image: mattermost/mattermost-team-edition:12.0.1
+    digest: sha256:8ca1050cb8a2ec1ec0be5aff90ee40aa03e134f48443f7526b7b2b18872cf31b
+    port: 8065
+    healthcheck:
+      type: http
+      path: /api/v4/system/ping
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      MM_SERVICESETTINGS_SITEURL: ${{NEBULA_PUBLIC_URL}}
+      MM_SQLSETTINGS_DRIVERNAME: postgres
+      MM_SQLSETTINGS_DATASOURCE: ${{db.DATABASE_URL}}?sslmode=disable&connect_timeout=10
+      TZ: ${input:TZ}
+    volumes:
+      - name: config
+        path: /mattermost/config
+      - name: data
+        path: /mattermost/data
+      - name: logs
+        path: /mattermost/logs
+      - name: plugins
+        path: /mattermost/plugins
+      - name: client-plugins
+        path: /mattermost/client/plugins
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Mattermost DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: mattermost
+group: Mattermost
+notes:
+  - "Open the domain and create the first account: it becomes the system administrator, so do this before sharing the URL."
+  - "Configure outgoing email under System Console > Environment > SMTP so that invitations and notifications can be sent."

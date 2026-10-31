@@ -1,0 +1,54 @@
+schema: 1
+id: couchdb
+revision: 1
+name: CouchDB
+summary: Document-oriented NoSQL database with an HTTP/JSON API and multi-master replication.
+description: Apache CouchDB single node from the official Docker image, with an admin account and a persistent data volume. Fauxton, the web admin UI, is served at /_utils.
+category: data
+tags: [database, nosql, documents, replication, sync]
+icon: apachecouchdb
+links:
+  website: https://couchdb.apache.org
+  docs: https://docs.couchdb.org/en/stable/
+  source: https://github.com/apache/couchdb
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/apache/couchdb/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/couchdb
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: couchdb
+    name: CouchDB
+    kind: app
+    image: couchdb:3.5.3
+    digest: sha256:4e8e0a366208a87d5059b0f4fcbefff13c32401a655d4629c19be6288ea77675
+    port: 5984
+    healthcheck:
+      type: http
+      path: /_up
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      COUCHDB_USER: ${input:ADMIN_USERNAME}
+      COUCHDB_PASSWORD: ${input:ADMIN_PASSWORD}
+      COUCHDB_SECRET: ${{secret(32)}}
+    volumes:
+      - {name: data, path: /opt/couchdb/data}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: CouchDB
+notes:
+  - "Open <domain>/_utils (Fauxton) and sign in with the admin account from the install form."
+  - "A fresh single node has no system databases yet: in Fauxton use Setup > Configure a single node, or create _users and _replicator by hand."

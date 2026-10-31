@@ -1,0 +1,285 @@
+# NebulaCtrl control plane as the installer runs it (/opt/nebulactrl/docker-compose.yml).
+#
+#   cd /opt/nebulactrl && docker compose --env-file .env up -d
+#
+# Written by install.sh from deploy/install/docker-compose.yml; every value
+# comes from /opt/nebulactrl/.env (generated; mode 0600). Edit the file in the
+# repository, not the installed copy: a re-run of the installer overwrites it.
+#
+# There is deliberately NO reverse proxy in this file. The control-plane host
+# always runs an agent, and that agent's Traefik (ports 80/443, Let's Encrypt)
+# serves the dashboard through a system route to the `nebulactrl` container on
+# the edge network. Nothing else on this host needs ports 80 and 443.
+#
+# NEBULACTRL_SECRET_KEY encrypts every variable, git token and registry
+# credential in the database and exists nowhere else. Back it up apart from the
+# database backups; a restored database without it cannot be read.
+#
+# The instance services (seaweedfs, registry, loki) are the built-in S3,
+# image registry and log store every team gets a slice of. They run here, each on its own
+# internal network shared only with the control plane (svc-s3, svc-registry, svc-loki), with
+# no published port and no route to the outside: servers reach them only through the agent's
+# outbound link, and the control plane's forwarder decides the team of every request. The
+# services cannot see each other, so a compromised registry or Loki container has no path to
+# SeaweedFS (whose master, volume and filer APIs are unauthenticated on its network). Their
+# data lives in named volumes, or in the host directories the installer's --instance-dir
+# sets (NEBULACTRL_*_DATA).
+
+name: nebulactrl
+
+services:
+  postgres:
+    image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nebulactrl
+      POSTGRES_USER: nebulactrl
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      # Only used when the data directory is first created.
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256 --auth-local=scram-sha-256 --data-checksums
+    # Tuned to the host's RAM by the installer (PG_* in .env).
+    command:
+      - postgres
+      - -c
+      - password_encryption=scram-sha-256
+      - -c
+      - shared_buffers=${PG_SHARED_BUFFERS:-128MB}
+      - -c
+      - effective_cache_size=${PG_EFFECTIVE_CACHE_SIZE:-512MB}
+      - -c
+      - work_mem=${PG_WORK_MEM:-4MB}
+      - -c
+      - maintenance_work_mem=${PG_MAINTENANCE_WORK_MEM:-64MB}
+      - -c
+      - max_connections=${PG_MAX_CONNECTIONS:-100}
+      - -c
+      - random_page_cost=${PG_RANDOM_PAGE_COST:-1.1}
+      - -c
+      - wal_compression=on
+      - -c
+      - checkpoint_completion_target=0.9
+      - -c
+      - idle_in_transaction_session_timeout=10min
+      - -c
+      - log_min_duration_statement=2000
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks: [backend]
+    # Reachable only by the control plane, on an internal network: no published
+    # port, no route to the outside. Use `docker compose exec postgres psql ...`.
+    shm_size: 256mb
+    stop_grace_period: 60s
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETGID, SETUID]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nebulactrl -d nebulactrl"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  # ---- instance services ---------------------------------------------------------------
+  # Built-in S3 (SeaweedFS): one bucket and one bucket-scoped key per team, created by the
+  # control plane through the IAM API as the nebula-admin identity this container creates at
+  # start (so the S3 port never answers anonymously for long, and a re-run is a no-op).
+  # -s3.iam.readOnly=false lets that IAM API write; -s3.allowDeleteBucketNotEmpty lets the control
+  # plane drop a purged team's bucket at once. Healthy = listening and the admin identity exists.
+  # Its master (9333), volume (8080) and filer (8888) servers share the container with the S3
+  # gateway (8333): only the control plane shares the svc-s3 network, and every start writes a
+  # fresh random security.toml, so the volume servers accept writes only with a token the master
+  # signed (a client that can reach port 8080 cannot store or overwrite data directly).
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.51@sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8
+    restart: unless-stopped
+    environment:
+      NEBULACTRL_S3_ADMIN_KEY: ${NEBULACTRL_S3_ADMIN_KEY:?set NEBULACTRL_S3_ADMIN_KEY in .env}
+      NEBULACTRL_S3_ADMIN_SECRET: ${NEBULACTRL_S3_ADMIN_SECRET:?set NEBULACTRL_S3_ADMIN_SECRET in .env}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        rm -f /tmp/s3-ready
+        key=$$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n')
+        printf '[jwt.signing]\nkey = "%s"\nexpires_after_seconds = 60\n' "$$key" > /etc/seaweedfs/security.toml
+        chmod 0644 /etc/seaweedfs/security.toml
+        /entrypoint.sh server -s3 -s3.port=8333 -s3.iam.readOnly=false -s3.allowDeleteBucketNotEmpty -dir=/data -master.volumeSizeLimitMB=1024 -volume.max=0 &
+        pid=$$!
+        trap 'kill -TERM $$pid' TERM INT
+        (
+          i=0
+          while [ "$$i" -lt 60 ]; do
+            if nc -z 127.0.0.1 8333; then
+              out=$$(printf 's3.configure -access_key %s -secret_key %s -user nebula-admin -actions Admin -apply\nfs.configure -locationPrefix=/buckets/ -volumeGrowthCount=1 -apply\nexit\n' "$$NEBULACTRL_S3_ADMIN_KEY" "$$NEBULACTRL_S3_ADMIN_SECRET" | weed shell -master=127.0.0.1:9333 2>&1) && echo "$$out" | grep -q '"nebula-admin"' && touch /tmp/s3-ready && exit 0
+            fi
+            i=$$((i + 1)); sleep 3
+          done
+          echo "could not create the nebula-admin identity" >&2
+        ) &
+        wait $$pid
+        wait $$pid
+    volumes:
+      - ${NEBULACTRL_S3_DATA:-s3-data}:/data
+      - ./instance/master.toml:/etc/seaweedfs/master.toml:ro
+    networks: [svc-s3]
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/s3-ready && nc -z 127.0.0.1 8333"]
+      interval: 5s
+      timeout: 3s
+      retries: 40
+      start_period: 15s
+    stop_grace_period: 30s
+    # The image's entrypoint fixes /data's ownership and drops to its seaweed user; KILL lets the wrapper forward a stop to it.
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, KILL, SETGID, SETUID]
+    security_opt:
+      - no-new-privileges:true
+
+  # Built-in image registry (CNCF Distribution): one repository prefix per team. It waits
+  # for the control plane to publish the public half of its token-signing key.
+  registry:
+    image: registry:3.1.2@sha256:d4032d4cc323c1731c707931ecada07a53076eac38e3b61ae57533f170f2c6c3
+    # The registry's own name is part of the contract with the agent: pkg/agentprotocol RegistryContainerName
+    # (the garbage collector runs in this container; deploy/install/embed_test.go asserts it).
+    container_name: nebulactrl-registry-1
+    restart: unless-stopped
+    environment:
+      REGISTRY_HTTP_SECRET: ${NEBULACTRL_REGISTRY_HTTP_SECRET:?set NEBULACTRL_REGISTRY_HTTP_SECRET in .env}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while [ ! -s /etc/distribution/auth/jwks.json ]; do sleep 1; done
+        exec registry serve /etc/distribution/config.yml
+    volumes:
+      - ${NEBULACTRL_REGISTRY_DATA:-registry-data}:/var/lib/registry
+      - ./instance/registry.yaml:/etc/distribution/config.yml:ro
+      - ${NEBULACTRL_REGISTRY_AUTH_DIR:?set NEBULACTRL_REGISTRY_AUTH_DIR in .env}:/etc/distribution/auth:ro
+    networks: [svc-registry]
+    healthcheck:
+      # 401 without a token is a healthy token-auth registry; wget exits non-zero on it, so read the status line.
+      test: ["CMD-SHELL", "wget -S -q -O /dev/null http://127.0.0.1:5000/v2/ 2>&1 | grep -q 'HTTP/1.1 401'"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  # Built-in log store (Loki): one tenant per team, 7 days of retention. Its image has no shell, so no
+  # healthcheck here: the control plane checks /ready every minute (Admin -> Built-in services).
+  loki:
+    image: grafana/loki:3.7.9@sha256:0db216b630ae1f348a1584c67f3cead8b4c1fc839169a39501db664744158e28
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/config.yaml"]
+    volumes:
+      - ${NEBULACTRL_LOKI_DATA:-loki-data}:/loki
+      - ./instance/loki.yaml:/etc/loki/config.yaml:ro
+    networks: [svc-loki]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  nebulactrl:
+    image: ${NEBULACTRL_IMAGE:?set NEBULACTRL_IMAGE in .env}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NEBULACTRL_DATABASE_URL: postgres://nebulactrl:${POSTGRES_PASSWORD}@postgres:5432/nebulactrl?sslmode=disable
+      NEBULACTRL_SECRET_KEY: ${NEBULACTRL_SECRET_KEY:?set NEBULACTRL_SECRET_KEY in .env}
+      NEBULACTRL_PUBLIC_URL: ${NEBULACTRL_PUBLIC_URL:?set NEBULACTRL_PUBLIC_URL in .env}
+      NEBULACTRL_LISTEN: ":8080"
+      # The status listener: renders published status pages by Host and nothing else. It is reached
+      # only by the host's proxy over the edge network (nebulactrl:8081); it has no `ports` entry on
+      # purpose and must never be published on the host.
+      NEBULACTRL_STATUS_LISTEN: ":8081"
+      NEBULACTRL_STATUS_UPSTREAM: ${NEBULACTRL_STATUS_UPSTREAM:-nebulactrl:8081}
+      NEBULACTRL_MCP_ENABLED: ${NEBULACTRL_MCP_ENABLED:-}
+      NEBULACTRL_LOG_LEVEL: ${NEBULACTRL_LOG_LEVEL:-info}
+      # The check for a newer release (Admin -> Updates). false: no request to the feed.
+      NEBULACTRL_UPDATE_CHECK: ${NEBULACTRL_UPDATE_CHECK:-true}
+      NEBULACTRL_UPDATE_FEED_URL: ${NEBULACTRL_UPDATE_FEED_URL:-}
+      # Private-network git hosts the control plane may reach (comma separated host names, IPs or CIDRs); empty: none.
+      NEBULACTRL_GIT_ALLOW_PRIVATE: ${NEBULACTRL_GIT_ALLOW_PRIVATE:-}
+      NEBULACTRL_AGENT_BINARIES_DIR: /usr/share/nebulactrl/agent
+      NEBULACTRL_BACKUP_DIR: /var/lib/nebulactrl/backups
+      # The instance services, each on its own internal network (never published). The admin key pair
+      # is the nebula-admin identity of the built-in S3; the JWKS file is the registry's public token key.
+      NEBULACTRL_INSTANCE_S3_URL: http://seaweedfs:8333
+      NEBULACTRL_INSTANCE_REGISTRY_URL: http://registry:5000
+      NEBULACTRL_INSTANCE_LOKI_URL: http://loki:3100
+      NEBULACTRL_S3_ADMIN_KEY: ${NEBULACTRL_S3_ADMIN_KEY:?set NEBULACTRL_S3_ADMIN_KEY in .env}
+      NEBULACTRL_S3_ADMIN_SECRET: ${NEBULACTRL_S3_ADMIN_SECRET:?set NEBULACTRL_S3_ADMIN_SECRET in .env}
+      NEBULACTRL_REGISTRY_JWKS_PATH: /var/lib/nebulactrl/registry-auth/jwks.json
+      # First-run settings (installer): empty values leave each feature off.
+      NEBULACTRL_SETUP_TOKEN: ${NEBULACTRL_SETUP_TOKEN:-}
+      NEBULACTRL_DASHBOARD_UPSTREAM: ${NEBULACTRL_DASHBOARD_UPSTREAM:-}
+      NEBULACTRL_LOCAL_ENROLL_TOKEN: ${NEBULACTRL_LOCAL_ENROLL_TOKEN:-}
+      NEBULACTRL_LOCAL_SERVER_NAME: ${NEBULACTRL_LOCAL_SERVER_NAME:-}
+      NEBULACTRL_LOCAL_SERVER_IP: ${NEBULACTRL_LOCAL_SERVER_IP:-}
+      NEBULACTRL_ACME_EMAIL: ${NEBULACTRL_ACME_EMAIL:-}
+      # Dashboard access (installer: --dashboard-allow, --dashboard-dns01 and --dns-token-file). They only
+      # seed the settings once; Admin -> Dashboard access edits them afterwards.
+      NEBULACTRL_DASHBOARD_ALLOW_CIDRS: ${NEBULACTRL_DASHBOARD_ALLOW_CIDRS:-}
+      NEBULACTRL_DASHBOARD_DNS_RESOLVER: ${NEBULACTRL_DASHBOARD_DNS_RESOLVER:-}
+      NEBULACTRL_DASHBOARD_DNS_TOKEN: ${NEBULACTRL_DASHBOARD_DNS_TOKEN:-}
+    ports:
+      # Domain mode: 127.0.0.1:8080 (the installer's --port), for the host's own agent (the
+      # dashboard is served by that agent's Traefik). IP mode: 0.0.0.0:8000, plain HTTP, or the
+      # --bind address (then docker-compose.loopback.yml adds 127.0.0.1 for the agent).
+      - "${NEBULACTRL_BIND:-127.0.0.1}:${NEBULACTRL_PORT:-8080}:8080"
+    volumes:
+      # Local control-plane backups (Admin -> Control-plane backup): a host directory, not off-site.
+      - ${NEBULACTRL_BACKUP_HOST_DIR:-/var/backups/nebulactrl}:/var/lib/nebulactrl/backups
+      # Where the control plane publishes the registry's public token key (the registry mounts it read-only).
+      - ${NEBULACTRL_REGISTRY_AUTH_DIR:?set NEBULACTRL_REGISTRY_AUTH_DIR in .env}:/var/lib/nebulactrl/registry-auth
+    networks:
+      backend: {}
+      svc-s3: {}
+      svc-registry: {}
+      svc-loki: {}
+      edge:
+        # The agent's Traefik reaches the dashboard at nebulactrl:8080 on this network.
+        aliases: [nebulactrl]
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/nebulactrl-server", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # No writable filesystem besides the backup directory, no capabilities, no Docker socket.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 35s
+
+networks:
+  # Database network: internal, so Postgres has no route out.
+  backend:
+    internal: true
+  # The instance services and the control plane, one internal network per service (no route out, no
+  # published port, no route between the services): only the control plane is on all of them.
+  svc-s3:
+    internal: true
+  svc-registry:
+    internal: true
+  svc-loki:
+    internal: true
+  # The host's edge network, created by the installer (and by the agent when it
+  # is missing). Traefik, the agent's proxy, lives here.
+  edge:
+    external: true
+    name: nebulactrl-edge
+
+volumes:
+  postgres-data:
+  # Defaults of NEBULACTRL_S3_DATA, NEBULACTRL_REGISTRY_DATA and NEBULACTRL_LOKI_DATA; the installer's
+  # --instance-dir points those at host directories instead, and these stay unused.
+  s3-data:
+  registry-data:
+  loki-data:

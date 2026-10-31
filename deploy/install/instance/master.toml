@@ -1,0 +1,18 @@
+# SeaweedFS master settings of the built-in S3 (mounted at /etc/seaweedfs/master.toml).
+# Written by install.sh; a re-run of the installer overwrites it.
+#
+# The scripts below run on the master every sleep_minutes, as if typed into `weed shell`.
+# s3.bucket.quota.enforce is the second fence of the per-team quota: it makes a bucket
+# that is over its quota read-only. The control plane's own gate refuses the upload
+# first (that gate is authoritative); this only catches what slipped past it.
+
+[master.maintenance]
+scripts = """
+  lock
+  s3.bucket.quota.enforce -apply
+  s3.clean.uploads -timeAgo=24h
+  volume.deleteEmpty -quietFor=24h -apply
+  fs.log.purge -daysAgo=7
+  unlock
+"""
+sleep_minutes = 10

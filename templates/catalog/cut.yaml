@@ -1,0 +1,55 @@
+schema: 1
+id: cut
+revision: 1
+name: Cut
+summary: Tiny self-hosted URL shortener with per-link passwords, expiry dates and click limits.
+description: Cut is a single-owner link shortener with a password-protected admin page. This template runs the official image with a managed Valkey database as its datastore.
+category: web
+tags: [url-shortener, links, redirect]
+links:
+  website: https://github.com/MendyLanda/cut
+  docs: https://github.com/MendyLanda/cut#readme
+  source: https://github.com/MendyLanda/cut
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/MendyLanda/cut/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/cut
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 384
+  diskGb: 1
+inputs:
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: cut
+    name: Cut
+    kind: app
+    image: ghcr.io/mendylanda/cut:0.1.0
+    digest: sha256:1c1a55388dae38876466d69b00019d0b91ccf5ec193e053fbb15802df7a7807b
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      REDIS_URL: ${{db.REDIS_URL}}
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Cut DB
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Cut
+notes:
+  - "Open /admin on your site's address and sign in with the admin password from the install form (shown in the service variables)."

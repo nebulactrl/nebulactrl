@@ -1,0 +1,83 @@
+schema: 1
+id: peertube
+revision: 1
+name: PeerTube
+summary: Self-hosted, federated video platform with ActivityPub, live streaming and optional peer-to-peer delivery.
+description: PeerTube hosts and streams videos and federates with other instances. This template runs the PeerTube server with a managed Postgres and Redis; transcoding runs inside the app container.
+category: media
+tags: [video, streaming, fediverse, activitypub, youtube-alternative]
+icon: peertube
+links:
+  website: https://joinpeertube.org
+  docs: https://docs.joinpeertube.org/install/docker
+  source: https://github.com/Chocobozzz/PeerTube
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/Chocobozzz/PeerTube/blob/develop/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/peertube.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 2560
+  diskGb: 20
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Administrator email (root account), required: true}
+  - {key: ROOT_PASSWORD, label: Initial password of the root account, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: peertube
+    name: PeerTube
+    kind: app
+    image: chocobozzz/peertube:v8.3.2
+    digest: sha256:89bc70f68cd6055c7c966b8974d214b1811796f3059bc15a835cb502b757462c
+    port: 9000
+    healthcheck:
+      type: http
+      path: /api/v1/ping
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db, redis]
+    domains:
+      - generate: true
+    env:
+      PEERTUBE_WEBSERVER_HOSTNAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      PEERTUBE_WEBSERVER_PORT: "443"
+      PEERTUBE_WEBSERVER_HTTPS: "true"
+      PEERTUBE_TRUST_PROXY: '["127.0.0.1", "loopback", "172.16.0.0/12", "10.0.0.0/8", "192.168.0.0/16"]'
+      PEERTUBE_SECRET: ${{randomBytes(32,"hex")}}
+      PEERTUBE_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      PT_INITIAL_ROOT_PASSWORD: ${input:ROOT_PASSWORD}
+      PEERTUBE_DB_HOSTNAME: ${{db.DATABASE_HOST}}
+      PEERTUBE_DB_PORT: ${{db.DATABASE_PORT}}
+      PEERTUBE_DB_NAME: ${{db.DATABASE_NAME}}
+      PEERTUBE_DB_USERNAME: ${{db.DATABASE_USER}}
+      PEERTUBE_DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      PEERTUBE_DB_SSL: "false"
+      PEERTUBE_REDIS_HOSTNAME: ${{redis.REDIS_HOST}}
+      PEERTUBE_REDIS_PORT: ${{redis.REDIS_PORT}}
+      PEERTUBE_REDIS_AUTH: ${{redis.REDIS_PASSWORD}}
+    volumes:
+      - {name: data, path: /data}
+      - {name: config, path: /config}
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: PeerTube DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: peertube
+  - key: redis
+    name: PeerTube Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+group: PeerTube
+notes:
+  - "Sign in as root with the initial password from the install form (the email is the one you entered), then change it in the account settings."
+  - "Email (signup confirmations, notifications) is not configured: set the PEERTUBE_SMTP_* variables on the PeerTube service to enable it."
+  - "Upstream also ships an Nginx container for static files and TLS; this template serves everything from the app container behind the platform proxy."

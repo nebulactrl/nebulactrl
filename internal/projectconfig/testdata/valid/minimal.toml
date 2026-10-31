@@ -1,0 +1,5 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+
+[services.hello]
+image = "traefik/whoami:v1.10"
