@@ -92,7 +92,10 @@ IMG=(--image "$IMAGE" --image-archive "$ARCHIVE" --public-ip "$IP")
 # ---- the host: Docker, and another proxy on 80/443 ------------------------------------
 say "Docker and the stand-in for Coolify's proxy"
 rx bash -c 'command -v curl >/dev/null || (apt-get update -qq && apt-get install -y -qq curl ca-certificates)' >>"$LOG" 2>&1
-rx bash -c 'curl -fsSL https://get.docker.com | sh' >>"$LOG" 2>&1
+# get.docker.com is this script with the commit stamped in; pin the commit and check the bytes.
+DOCKER_INSTALL_COMMIT=ada7a567e59b3935bd601bb21e422da50e80e376
+DOCKER_INSTALL_SHA256=2b102d809152ea157a59f171319f489d971273b2d26dd7e9a6d1d737ce89289d
+rx bash -c "curl -fsSL -o /tmp/install-docker.sh https://raw.githubusercontent.com/docker/docker-install/$DOCKER_INSTALL_COMMIT/install.sh && echo '$DOCKER_INSTALL_SHA256  /tmp/install-docker.sh' | sha256sum -c - && sh /tmp/install-docker.sh" >>"$LOG" 2>&1
 rx docker version -f '{{.Server.Version}}' | tee -a "$LOG"
 rx bash -c 'docker run -d --name coolify-proxy-fake --restart unless-stopped -p 80:80 -p 443:443 -p 8000:8000 busybox sh -c "mkdir -p /www && echo coolify-proxy > /www/index.html && httpd -p 80 -h /www && httpd -p 8000 -h /www && exec httpd -f -p 443 -h /www"' >>"$LOG" 2>&1
 rx bash -c "umask 077; printf '%s' '$CANARY' > /root/cf-token"
