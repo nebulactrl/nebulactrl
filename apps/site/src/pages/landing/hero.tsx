@@ -13,10 +13,10 @@ function order(i: number): CSSProperties {
 /**
  * The hero: the headline in two tones, one subline, the install command with a
  * line on what it does, and two links. Behind it is the page's one scene, the
- * Eclipse, over a static halftone floor that is the whole
- * picture without script or WebGL2. The copy column is the scene's panel and its
- * quiet region: the orb takes the free side of the window and the field stays
- * dark behind the text (under 8% contrast).
+ * Eclipse (a pixel-dithered ringed planet), over a static halftone floor that
+ * is the whole picture without script or WebGL2. The copy column is the
+ * scene's panel and its quiet region: the planet takes the free side of the
+ * window and the field is cleared behind the text (under 8% contrast).
  *
  * With a script and no reduced motion the parts arrive once in a row (`.hl` in
  * `site.css`); the server markup is the final state.
@@ -40,7 +40,10 @@ export function Hero({ ctx }: { ctx: RenderContext }) {
 			>
 				<HeroEclipse />
 			</Island>
-			<div className={`${container} relative pt-36 pb-32 md:pt-48 md:pb-44`}>
+			{/* On a phone the copy fills the width: the bottom padding is the stage the planet rises on. */}
+			<div
+				className={`${container} relative pt-36 pb-[max(8rem,70vw)] md:pt-48 md:pb-44`}
+			>
 				<div className="w-fit max-w-[40rem]" data-ascii-panel data-ascii-quiet>
 					<h1 className="hl display-1 m-0" style={order(0)}>
 						<span className="block text-ink-1">Deploy to servers you own.</span>{" "}

@@ -3,13 +3,15 @@ import { cn } from "cn";
 import { type RefObject, useEffect, useRef } from "react";
 
 /**
- * The animated ASCII "Eclipse" behind the auth card. Decorative: `aria-hidden`,
- * no pointer events, fixed behind everything. Mounts the framework-free engine
- * in an effect, so nothing re-renders per frame.
+ * The pixel-dithered "Eclipse" (a ringed planet) behind the auth card.
+ * Decorative: `aria-hidden`, no pointer events, fixed behind everything.
+ * Mounts the framework-free engine in an effect, so nothing re-renders per
+ * frame.
  *
  * - `cardRef` is the panel: the field is dimmed and feathered around it and
- *   the orb takes the free side of the screen.
- * - `quietRef` is text drawn straight over the field (the wordmark): kept dark.
+ *   the planet takes the free side of the screen.
+ * - `quietRef` is text drawn straight over the field (the wordmark): cleared
+ *   to the page background.
  * - Without WebGL2 (or after an unrecoverable context loss) `active` stays
  *   false, the host stays transparent and the parent keeps its halftone floor.
  */

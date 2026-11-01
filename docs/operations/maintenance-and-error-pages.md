@@ -7,7 +7,7 @@ order: 140
 
 # Maintenance mode and error pages
 
-Two things share one design: a **maintenance mode** you switch on per service, and **automatic error pages** the proxy shows when there is nothing healthy to forward to. Both are served by the agent's own tiny static server, look like the login screen (the animated ASCII "Eclipse" backdrop over a centred card), and are single self-contained HTML files: no external request, no web font, no tracking.
+Two things share one design: a **maintenance mode** you switch on per service, and **automatic error pages** the proxy shows when there is nothing healthy to forward to. Both are served by the agent's own tiny static server, look like the login screen (the animated "Eclipse" backdrop, a pixel-dithered ringed planet whose light follows the cursor, behind a centred card), and are single self-contained HTML files: no external request, no web font, no tracking.
 
 | Situation | Status | Page |
 |---|---|---|

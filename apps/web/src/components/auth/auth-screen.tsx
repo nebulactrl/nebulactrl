@@ -13,9 +13,9 @@ export function AuthLogo() {
 const VERSION = import.meta.env.VITE_APP_VERSION;
 
 /**
- * A full-screen page: setup and sign-in. The animated ASCII Eclipse sits behind
- * `cardRef`'s panel; the halftone floor is what shows until it paints, and
- * stays when WebGL2 is unavailable.
+ * A full-screen page: setup and sign-in. The pixel-dithered Eclipse (a ringed
+ * planet) sits behind `cardRef`'s panel; the halftone floor is what shows
+ * until it paints, and stays when WebGL2 is unavailable.
  */
 export function AuthScreen({
 	children,

@@ -27,8 +27,8 @@ import {
 /**
  * What the console shows instead of itself, if anything: the control-plane
  * update's restart, or the deletion of the team the console acts in. Each is
- * the ASCII Eclipse over the halftone floor, the way the sign-in page is, and
- * the progress is told in words only; the field never reacts to it.
+ * the pixel-dithered Eclipse over the halftone floor, the way the sign-in page
+ * is, and the progress is told in words only; the field never reacts to it.
  *
  * The app stays mounted underneath but inert, so its state survives a view
  * that ends in a failure; a finished update reloads the page into the new
