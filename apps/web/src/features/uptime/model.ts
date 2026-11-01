@@ -604,6 +604,52 @@ export function rowNote(
 	return item.state === "up" ? { kind: "hint", text: "Failing" } : null;
 }
 
+/** Rows the environment list shows folded. */
+export const FOLDED_ROWS = 5;
+
+/** Down, degraded, gone quiet or failing right now: a row the fold never hides. */
+function needsEyes(item: EnvServiceLike & { lastError: string }): boolean {
+	return (
+		item.monitored &&
+		(stateSeverity(item.state) <= SEVERITY.unknown || item.lastError !== "")
+	);
+}
+
+/**
+ * The rows of a sorted list that stay in view folded, and the ones behind
+ * "Show more". The first `limit` rows stay, plus any later row that needs
+ * eyes, in their sorted order. One hidden row is not worth the button that
+ * would take its place, so the list then does not fold at all.
+ */
+export function foldServices<T extends EnvServiceLike & { lastError: string }>(
+	sorted: readonly T[],
+	limit: number = FOLDED_ROWS,
+): { shown: T[]; hidden: T[] } {
+	const shown: T[] = [];
+	const hidden: T[] = [];
+	sorted.forEach((item, index) => {
+		(index < limit || needsEyes(item) ? shown : hidden).push(item);
+	});
+	return hidden.length < 2
+		? { shown: [...sorted], hidden: [] }
+		: { shown, hidden };
+}
+
+/** "Show 4 more, all up", "Show 4 more: 3 up, 1 paused": what the fold hides. */
+export function foldedLabel(
+	hidden: readonly Pick<EnvServiceLike, "state" | "monitored">[],
+): string {
+	const counts = new Map<string, number>();
+	for (const item of hidden) {
+		const label = serviceStateView(item).label.toLowerCase();
+		counts.set(label, (counts.get(label) ?? 0) + 1);
+	}
+	const head = `Show ${hidden.length} more`;
+	if (counts.size === 1) return `${head}, all ${[...counts.keys()][0]}`;
+	const parts = [...counts].map(([label, n]) => `${n} ${label}`);
+	return `${head}: ${parts.join(", ")}`;
+}
+
 // --- monitor settings ------------------------------------------------------
 
 /** What `PUT /services/{id}/uptime-monitor` takes and returns. */

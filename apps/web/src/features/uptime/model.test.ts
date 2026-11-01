@@ -12,6 +12,8 @@ import {
 	emptyRunTime,
 	emptyRunWords,
 	failingHint,
+	foldedLabel,
+	foldServices,
 	formatAvailability,
 	formatSpan,
 	formatUtcStamp,
@@ -444,6 +446,68 @@ describe("the environment overview", () => {
 		expect(note("maintenance", "HTTP 503")).toBeNull();
 		expect(note("paused", "HTTP 503")).toBeNull();
 		expect(note("down", "HTTP 503", false)).toBeNull();
+	});
+
+	describe("folding the list", () => {
+		const row = (
+			name: string,
+			state: string,
+			lastError = "",
+			monitored = true,
+		) => ({
+			...item(name, state, monitored),
+			lastError,
+		});
+		const names = (rows: readonly { name: string }[]) =>
+			rows.map((r) => r.name);
+
+		test("keeps the first rows and hides the healthy rest", () => {
+			const rows = ["a", "b", "c", "d"].map((n) => row(n, "up"));
+			const { shown, hidden } = foldServices(rows, 2);
+			expect(names(shown)).toEqual(["a", "b"]);
+			expect(names(hidden)).toEqual(["c", "d"]);
+		});
+
+		test("never hides a row that needs eyes, and keeps the sorted order", () => {
+			const rows = [
+				row("a", "down"),
+				row("b", "degraded"),
+				row("c", "unknown"),
+				row("d", "up"),
+				row("e", "up", "HTTP 503"),
+				row("f", "up"),
+				row("g", "paused"),
+			];
+			const { shown, hidden } = foldServices(rows, 2);
+			expect(names(shown)).toEqual(["a", "b", "c", "e"]);
+			expect(names(hidden)).toEqual(["d", "f", "g"]);
+		});
+
+		test("a failing service with monitoring off is not pinned", () => {
+			const rows = ["a", "b", "c"].map((n) => row(n, "up"));
+			rows.push(row("d", "down", "HTTP 503", false));
+			expect(names(foldServices(rows, 1).hidden)).toEqual(["b", "c", "d"]);
+		});
+
+		test("does not fold for a single hidden row", () => {
+			const rows = ["a", "b", "c"].map((n) => row(n, "up"));
+			expect(foldServices(rows, 2)).toEqual({ shown: rows, hidden: [] });
+			expect(foldServices(rows, 3).hidden).toEqual([]);
+		});
+
+		test("says how many are hidden and in which state", () => {
+			expect(foldedLabel([row("a", "up"), row("b", "up")])).toBe(
+				"Show 2 more, all up",
+			);
+			expect(
+				foldedLabel([
+					row("a", "up"),
+					row("b", "up"),
+					row("c", "paused"),
+					row("d", "up", "", false),
+				]),
+			).toBe("Show 4 more: 2 up, 1 paused, 1 monitoring off");
+		});
 	});
 });
 

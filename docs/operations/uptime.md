@@ -122,7 +122,7 @@ Outages are kept until the service is deleted.
 
 - **Service Overview, Uptime card.** The state with its icon and since when; "Failing 2/3" in amber while failed checks are counting towards an outage and the state is still `up` (the dashboard shows it, alerts and status pages never do); the last error; availability for 24 hours, 7, 30 and 90 days (a dash when there is nothing to judge, never 0%); one strip of checks with a **1h / 24h / 7d / 90d** toggle (a cell per minute, hour or UTC day; hover or use the arrow keys for its time, checks, latency and error); average and slowest latency of the strip's range; and the last five outages with their duration. A service without a check yet says so. A Compose stack shows the card once it has checks.
 - **Service Settings → Operations → Uptime monitoring.** Monitoring on or off, alerts, failed checks before an outage and passing checks to recover (1 to 20 each), and the reminder interval (off, 15, 30, 60, 120 minutes or your own). Apply takes effect at once; no deploy runs.
-- **Environment Observability → Uptime.** One row per service: state, 30-day availability, a compact 30-day bar and the last check, down and degraded services first. A row opens the service's Overview.
+- **Environment Observability → Uptime.** One row per service: state, 30-day availability, a compact 30-day bar and the last check, down and degraded services first. A row opens the service's Overview. A long list shows its first five rows plus every service that is down, degraded, without data or failing; *Show more* reveals the rest and says how many there are and in which state.
 
 All three refresh by themselves when a service changes state, and every 30 seconds otherwise.
 
