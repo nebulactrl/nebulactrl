@@ -1,6 +1,7 @@
 import type { Point, Service, ServiceLink } from "#/api/models";
 import { canCombine } from "#/features/combine/model";
 import { type MenuEntryId, ROOT_ENTRIES } from "#/features/create/lib";
+import { serviceCanScale } from "#/features/scaling/model";
 import type { ServiceActionId } from "../use-service-actions";
 import { groupIdOfNode } from "./flow";
 import { INTERNET_ID } from "./internet";
@@ -124,7 +125,7 @@ function nonEmpty(sections: readonly MenuSection[]): MenuSection[] {
 // --- a card -------------------------------------------------------------------
 
 export interface ServiceMenuInput {
-	service: Pick<Service, "id" | "name" | "scaling">;
+	service: Pick<Service, "id" | "name" | "scaling" | "processes">;
 	/** The rows `useServiceActions` offers, in order. */
 	actions: ReadonlyArray<{
 		id: ServiceActionId;
@@ -152,7 +153,7 @@ export function serviceMenu({
 	busy,
 	links = [],
 }: ServiceMenuInput): MenuModel {
-	const eligible = service.scaling.eligible;
+	const eligible = serviceCanScale(service);
 	const rows = actions.filter((action) => action.id !== "redeploy");
 	const deployLabel =
 		actions.find((action) => action.id === "redeploy")?.label ?? "Deploy";

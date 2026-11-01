@@ -1,14 +1,15 @@
 /**
- * ASCII scene engine. Framework-free: React wraps it in `ascii-backdrop.tsx`;
- * the maintenance pages bundle it with `standalone.ts`.
+ * Glyph scene engine. Framework-free: React wraps it in `ascii-backdrop.tsx`;
+ * the maintenance pages bundle the Eclipse with `standalone.ts`.
  *
  * Two WebGL2 passes (see shader.ts), no dependency, one scene per canvas
- * (`opts.scene`: eclipse, dial-out, lost-signal, dome, band; default
- * eclipse). The glyph atlas is baked once per size on a 2D canvas. Per frame
- * the main thread does a handful of GL calls and nothing else: no allocation,
- * no readback.
+ * (`opts.scene`: dial-out, lost-signal, dome, band). The Eclipse, the default
+ * scene, is not a glyph scene: `planet.ts` draws it (a dithered planet) and
+ * `engine.ts` routes to it. The glyph atlas is baked once per size on a 2D
+ * canvas. Per frame the main thread does a handful of GL calls and nothing
+ * else: no allocation, no readback.
  *
- * Budgets, shared by every scene: <= 7.5k cells, DPR capped at 2, rAF
+ * Budgets, shared by every glyph scene: <= 7.5k cells, DPR capped at 2, rAF
  * time-gated to the scene's rate (never above 24 fps; 20 at 60 Hz), paused
  * while the tab is hidden or the canvas is off-screen, one static frame under
  * prefers-reduced-motion.
@@ -44,31 +45,33 @@ export type { RGB } from "./layout";
 export type { FocusPoint, SceneName } from "./scenes";
 
 export interface AsciiPalette {
-	/** Dimmest glyph of the slate hue. */
+	/** Glyph scenes: dimmest glyph of the slate hue. */
 	dim: RGB;
-	/** Brightest glyph of the slate hue. */
+	/** Glyph scenes: brightest glyph of the slate hue. */
 	ink: RGB;
-	/** Accent (indigo): mixed into the lit limb and the ring's inner lip. */
+	/** Accent (indigo). The Eclipse's tone 1 is this mixed 55% toward black. */
 	accent: RGB;
+	/** The Eclipse's tone 2: the lit planet, the ring and the stars. */
 	accentInk: RGB;
-	/** Star white: the four orbiting sparks. */
+	/** Glyph scenes: star white (the dome's sparks). */
 	star: RGB;
 }
 
 export interface AsciiOptions {
-	/** The scene to draw. Default "eclipse". */
+	/** The scene to draw. Default "eclipse" (the dithered planet; its own renderer, 30 fps). */
 	scene?: SceneName;
 	/** Dial-out only: where the signals converge, as fractions of the canvas. Default: the free side of `maskRect`. */
 	focus?: FocusPoint;
 	palette: AsciiPalette;
-	/** Frame cap. The effective rate is a divisor of the display refresh (24 -> 20 at 60 Hz). Default: the scene's own rate; never above 24. */
+	/** Frame cap. The effective rate is a divisor of the display refresh (24 -> 20 at 60 Hz). Default: the scene's own rate; never above 24 (the Eclipse: 30). */
 	fps?: number;
 	/** Highest device-pixel ratio used. Default 2. */
 	dprCap?: number;
 	/**
-	 * Upper bound for cols x rows, or a function of the canvas size (CSS px)
-	 * re-evaluated on every rebuild, so a small framed canvas gets a small
-	 * budget. Default 7500.
+	 * Glyph scenes: upper bound for cols x rows, or a function of the canvas
+	 * size (CSS px) re-evaluated on every rebuild, so a small framed canvas
+	 * gets a small budget. Default 7500. The Eclipse's cells are fixed at 2 CSS
+	 * px and ignore it.
 	 */
 	maxCells?: number | ((cssW: number, cssH: number) => number);
 	/**
@@ -78,11 +81,11 @@ export interface AsciiOptions {
 	narrowBelow?: number;
 	/** The panel over the field: a soft dim around it. Re-read on every resize. */
 	maskRect?: () => RectLike | null;
-	/** Text drawn straight over the field (the wordmark): dimmed hard. Re-read on every resize. */
+	/** Text drawn straight over the field (the wordmark): glyph scenes dim it hard, the Eclipse clears its cells to the page's own background. Re-read on every resize. */
 	quietRects?: () => readonly RectLike[];
 	/** Fixed value, or omit to follow `prefers-reduced-motion` live. */
 	reducedMotion?: boolean;
-	/** Monospace stack for the glyphs. Default IBM Plex Mono with system fallbacks. */
+	/** Glyph scenes: monospace stack for the glyphs. Default IBM Plex Mono with system fallbacks. The Eclipse draws none and ignores it. */
 	fontFamily?: string;
 	/** Shader time (s) painted for reduced motion. Default: the scene's own still (`SceneSpec.staticTime`). */
 	staticTime?: number;
@@ -166,7 +169,7 @@ function compile(
 	return shader;
 }
 
-function link(
+export function link(
 	gl: WebGL2RenderingContext,
 	vert: string,
 	frag: string,
@@ -227,10 +230,10 @@ export type SceneFields = Readonly<Partial<Record<SceneName, string>>>;
 
 /**
  * Creates the backdrop on `canvas` for `opts.scene`, using the field bodies
- * `fields` ships; `engine.ts` ships every scene, the maintenance pages'
- * bundle only the Eclipse. Returns `null` when WebGL2 is unavailable, the
- * scene is not in `fields` or the shaders fail, so the caller keeps its
- * non-GL floor.
+ * `fields` ships (glyph scenes only: the Eclipse is `planet.ts`'s);
+ * `engine.ts` ships every glyph scene, the pages bundle none. Returns `null`
+ * when WebGL2 is unavailable, the scene is not in `fields` or the shaders
+ * fail, so the caller keeps its non-GL floor.
  */
 export function createSceneEngine(
 	canvas: HTMLCanvasElement,

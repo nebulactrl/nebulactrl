@@ -1,8 +1,9 @@
 /**
- * The full engine: every scene (eclipse, dial-out, lost-signal,
- * dome, band). `createAscii(canvas, { scene })` draws one on a canvas; see
- * core.ts for the loop and budgets, shader.ts for the field contract and
- * scenes.ts for the specs.
+ * The full engine: every scene (eclipse, dial-out, lost-signal, dome, band).
+ * `createAscii(canvas, { scene })` draws one on a canvas. The Eclipse, the
+ * default, is the dithered planet (planet.ts); the others are glyph scenes
+ * (core.ts for the loop and budgets, shader.ts for the field contract,
+ * scenes.ts for the specs).
  */
 import { BAND } from "./band.glsl";
 import {
@@ -13,8 +14,9 @@ import {
 } from "./core";
 import { DIAL_OUT } from "./dial-out.glsl";
 import { DOME } from "./dome.glsl";
-import { ECLIPSE } from "./eclipse.glsl";
 import { LOST_SIGNAL } from "./lost-signal.glsl";
+import { createPlanet } from "./planet";
+import { resolveScene } from "./scenes";
 
 export type {
 	AsciiEngine,
@@ -28,7 +30,6 @@ export type {
 export { DEFAULT_FONT_FAMILY } from "./core";
 
 const FIELDS: SceneFields = {
-	eclipse: ECLIPSE,
 	"dial-out": DIAL_OUT,
 	"lost-signal": LOST_SIGNAL,
 	dome: DOME,
@@ -43,5 +44,7 @@ export function createAscii(
 	canvas: HTMLCanvasElement,
 	opts: AsciiOptions,
 ): AsciiEngine | null {
-	return createSceneEngine(canvas, opts, FIELDS);
+	return resolveScene(opts.scene).name === "eclipse"
+		? createPlanet(canvas, opts)
+		: createSceneEngine(canvas, opts, FIELDS);
 }

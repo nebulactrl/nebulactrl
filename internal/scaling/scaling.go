@@ -120,7 +120,7 @@ func (s *Service) Set(ctx context.Context, id uuid.UUID, in SetInput) (services.
 	if err != nil {
 		return services.ServiceView{}, fmt.Errorf("count volumes: %w", err)
 	}
-	eligible, _ := services.Eligibility(sc.Service.Kind, sc.Config(), int(vols))
+	eligible, why := services.Eligibility(sc.Service.Kind, sc.Config(), int(vols))
 
 	curAS := services.DecodeAutoscaling(sc.Service.Autoscaling)
 	newAS := in.Autoscaling.apply(curAS)
@@ -133,7 +133,7 @@ func (s *Service) Set(ctx context.Context, id uuid.UUID, in SetInput) (services.
 		return services.ServiceView{}, invalid(fmt.Sprintf("replicas must be between %d and %d", services.MinReplicas, services.MaxReplicas))
 	}
 	if !eligible && ((in.Replicas != nil && *in.Replicas != services.MinReplicas) || (in.Autoscaling != nil && newAS.Enabled)) {
-		return services.ServiceView{}, apierr.Unprocessable("replicas_require_stateless", services.ReplicasRequireStateless)
+		return services.ServiceView{}, apierr.Unprocessable("replicas_require_stateless", why)
 	}
 	if in.Replicas != nil && newAS.Enabled {
 		return services.ServiceView{}, apierr.Conflict("autoscaling_enabled", "autoscaling is enabled: turn it off to set the replica count manually")
@@ -153,6 +153,19 @@ func (s *Service) Set(ctx context.Context, id uuid.UUID, in SetInput) (services.
 	if to != from {
 		if err := s.requireScalable(ctx, sc); err != nil {
 			return services.ServiceView{}, err
+		}
+		// The scale command acts on the running release, whose configuration may
+		// differ from the staged one the check above used.
+		if to != services.MinReplicas && sc.Service.CurrentDeploymentID != nil {
+			rel, has, err := services.AppliedRelease(ctx, s.q, sc.Service)
+			if err != nil {
+				return services.ServiceView{}, err
+			}
+			if has {
+				if ok, why := services.Eligibility(sc.Service.Kind, services.DecodeSnapshot(rel.Config).Config, int(vols)); !ok {
+					return services.ServiceView{}, apierr.Unprocessable("replicas_require_stateless", why)
+				}
+			}
 		}
 	}
 	if to == from && !asChanged {

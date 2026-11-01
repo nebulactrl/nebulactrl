@@ -85,9 +85,15 @@ export function ScaleDialog({
 										</SelectTrigger>
 										<SelectContent alignItemWithTrigger={false}>
 											{rows.map((row) => (
-												<SelectItem key={row.name} value={row.name}>
+												<SelectItem
+													key={row.name}
+													value={row.name}
+													disabled={!row.eligible}
+												>
 													<span className="font-mono">{row.name}</span>
-													<span className="ml-2 text-ink-3">{row.text}</span>
+													<span className="ml-2 text-ink-3">
+														{row.reason ?? row.text}
+													</span>
 												</SelectItem>
 											))}
 										</SelectContent>

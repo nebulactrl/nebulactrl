@@ -197,7 +197,7 @@ func BuildViews(ctx context.Context, q *db.Queries, box *secretbox.Box, rows []d
 	if err := decorateViews(ctx, q, box, rows, out); err != nil {
 		return nil, err
 	}
-	if err := decorateScaling(ctx, q, rows, out); err != nil {
+	if err := decorateScaling(ctx, q, rows, out, releaseRowByDep); err != nil {
 		return nil, err
 	}
 	if err := decorateProcesses(ctx, q, rows, out, releaseRowByDep); err != nil {
@@ -212,15 +212,31 @@ func BuildViews(ctx context.Context, q *db.Queries, box *secretbox.Box, rows []d
 	return out, nil
 }
 
+// releaseConfig is the config of the service's current release, or nil when it
+// has none. releases are the current releases keyed by deployment id.
+func releaseConfig(r db.Service, releases map[uuid.UUID]db.Release) *Config {
+	if r.CurrentDeploymentID == nil {
+		return nil
+	}
+	rel, ok := releases[*r.CurrentDeploymentID]
+	if !ok {
+		return nil
+	}
+	cfg := DecodeSnapshot(rel.Config).Config
+	return &cfg
+}
+
 // decorateProcesses fills ServiceView.Processes (out is parallel to rows). Only
-// services whose staged config has processes read scale rows and their
-// release's config; the others get an empty list. releases are the current
-// releases keyed by deployment id.
+// services whose staged config or running release has processes read scale rows;
+// the others get an empty list. releases are the current releases keyed by
+// deployment id.
 func decorateProcesses(ctx context.Context, q *db.Queries, rows []db.Service, out []ServiceView, releases map[uuid.UUID]db.Release) error {
+	applied := make([]*Config, len(rows))
 	var ids []uuid.UUID
 	for i, r := range rows {
 		out[i].Processes = []ProcessView{}
-		if out[i].Config.HasProcesses() {
+		applied[i] = releaseConfig(r, releases)
+		if out[i].Config.HasProcesses() || (applied[i] != nil && applied[i].HasProcesses()) {
 			ids = append(ids, r.ID)
 		}
 	}
@@ -240,17 +256,10 @@ func decorateProcesses(ctx context.Context, q *db.Queries, rows []db.Service, ou
 		return err
 	}
 	for i, r := range rows {
-		if !out[i].Config.HasProcesses() {
+		if !out[i].Config.HasProcesses() && (applied[i] == nil || !applied[i].HasProcesses()) {
 			continue
 		}
-		var applied *Config
-		if r.CurrentDeploymentID != nil {
-			if rel, ok := releases[*r.CurrentDeploymentID]; ok {
-				cfg := DecodeSnapshot(rel.Config).Config
-				applied = &cfg
-			}
-		}
-		out[i].Processes = BuildProcessViews(r, out[i].Config, applied, scaleBySvc[r.ID], vols[r.ID], out[i].Observed)
+		out[i].Processes = BuildProcessViews(r, out[i].Config, applied[i], scaleBySvc[r.ID], vols[r.ID], out[i].Observed)
 	}
 	return nil
 }

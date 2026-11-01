@@ -32,7 +32,11 @@ export interface ProcessLike {
 	port: number;
 	command: readonly string[];
 	singleton: boolean;
-	scaling: { replicas: number; ready: number };
+	scaling: {
+		replicas: number;
+		ready: number;
+		autoscaling?: { enabled: boolean } | undefined;
+	};
 	observed: ObservedProcessLike | null;
 	/** In the staged config, not in the running release. */
 	pending: boolean;
@@ -130,12 +134,39 @@ export function commandSummary(argv: readonly string[]): string {
 	return `${text.slice(0, COMMAND_SUMMARY_LIMIT - 1).trimEnd()}…`;
 }
 
-/** "2/2", or "1 · singleton" for a process that never runs two instances. */
+/**
+ * Ready over desired: "2/2", "0/1 · singleton" for a process that never runs
+ * two instances, "2/3 · auto" while autoscaling picks the count.
+ */
 export function replicasText(process: ProcessLike): string {
-	if (process.singleton) return "1 · singleton";
 	const ready = process.observed?.replicasReady ?? process.scaling.ready;
 	const desired = process.observed?.replicasDesired ?? process.scaling.replicas;
-	return `${ready}/${desired}`;
+	let text = `${ready}/${desired}`;
+	if (process.singleton) text += " · singleton";
+	if (process.scaling.autoscaling?.enabled) text += " · auto";
+	return text;
+}
+
+/**
+ * The replicas that belong to one row. A replica without a process label
+ * belongs to the default process, and so does one whose label names no row:
+ * the agent still labels it with the default process' name from before a
+ * staged rename.
+ */
+export function replicasOfProcess<T extends { process: string }>(
+	rows: readonly Pick<ProcessRow, "name" | "isDefault">[],
+	replicas: readonly T[],
+	name: string,
+): T[] {
+	const isDefault = rows.find((row) => row.name === name)?.isDefault ?? false;
+	return replicas.filter((replica) => {
+		if (replica.process === name) return true;
+		if (!isDefault) return false;
+		return (
+			replica.process === "" ||
+			!rows.some((row) => row.name === replica.process)
+		);
+	});
 }
 
 export interface ProcessRow {
@@ -147,6 +178,8 @@ export interface ProcessRow {
 	/** 0 when the process serves no HTTP. */
 	port: number;
 	replicasText: string;
+	/** True while autoscaling picks the replica count. */
+	autoscaling: boolean;
 	kind: StatusKind;
 	stateLabel: string;
 	/** The word beside a process the running release does not match; null otherwise. */
@@ -174,6 +207,7 @@ export function processRow(process: ProcessLike): ProcessRow {
 		commandSummary: commandSummary(process.command),
 		port: process.port,
 		replicasText: replicasText(process),
+		autoscaling: process.scaling.autoscaling?.enabled === true,
 		kind,
 		stateLabel,
 		badge,
@@ -259,7 +293,11 @@ export interface ProcessOption {
 	isDefault: boolean;
 }
 
-/** The processes a log or metrics view can be narrowed to: the ones that exist now, default first. */
+/**
+ * The processes a log or metrics view can be narrowed to: the ones that exist
+ * now, default first. A staged or removed process has no logs of its own to
+ * pick (a removed one keeps its past lines under "All processes").
+ */
 export function processFilterOptions(
 	service: Partial<ProcessSource>,
 ): ProcessOption[] {

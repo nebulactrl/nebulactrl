@@ -196,6 +196,11 @@ func (s *Service) ServiceHistory(ctx context.Context, serviceID uuid.UUID, p His
 	if err := services.CheckLogFilter(sc, p.Component, p.Process); err != nil {
 		return LogHistoryPage{}, err
 	}
+	// The line prefix is the release's process name, which a staged rename or
+	// a just-staged process leaves different from the requested one.
+	if p.Process, _, _, err = services.ResolveServiceProcessFilter(ctx, s.q, sc.Service, p.Process); err != nil {
+		return LogHistoryPage{}, err
+	}
 	res, un, err := s.queryOne(ctx, sc.Service, p, p.Cursor)
 	if err != nil {
 		return LogHistoryPage{}, err

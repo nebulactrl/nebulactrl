@@ -1,6 +1,7 @@
 package services
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -151,8 +152,11 @@ func EffectiveReplicas(kind string, cfg Config, volumes, replicas int) int {
 }
 
 // BuildScalingView renders the scaling state of a service row. volumes is the
-// number of volumes attached to the service.
-func BuildScalingView(r db.Service, volumes int, obs *ObservedView) ScalingView {
+// number of volumes attached to the service; applied is the config of the
+// running release (nil until the first deployment). For a release with
+// processes Ready is the default process' own ready count, not the sum the
+// agent reports over every process.
+func BuildScalingView(r db.Service, volumes int, obs *ObservedView, applied *Config) ScalingView {
 	ok, why := Eligibility(r.Kind, DecodeConfig(r.Config), volumes)
 	v := ScalingView{
 		Replicas: int(r.Replicas), Autoscaling: DecodeAutoscaling(r.Autoscaling),
@@ -161,11 +165,24 @@ func BuildScalingView(r db.Service, volumes int, obs *ObservedView) ScalingView 
 	if !ok {
 		v.IneligibleReason = &why
 	}
-	if obs != nil {
-		v.Ready = obs.ReplicasReady
-		if len(obs.Replicas) == 0 && obs.State == "running" && obs.Health == "healthy" {
-			v.Ready = 1
+	if obs == nil {
+		return v
+	}
+	if applied != nil && applied.HasProcesses() && len(obs.Processes) > 0 {
+		// The default process may have been renamed since the release: its observed state carries the old name.
+		for _, name := range []string{applied.DefaultProcessName(), DecodeConfig(r.Config).DefaultProcessName()} {
+			for _, o := range obs.Processes {
+				if o.Name == name {
+					v.Ready = o.ReplicasReady
+					return v
+				}
+			}
 		}
+		return v
+	}
+	v.Ready = obs.ReplicasReady
+	if len(obs.Replicas) == 0 && obs.State == "running" && obs.Health == "healthy" {
+		v.Ready = 1
 	}
 	return v
 }
@@ -183,8 +200,9 @@ func ServiceVolumeCounts(ctx context.Context, q *db.Queries, ids []uuid.UUID) (m
 	return out, nil
 }
 
-// decorateScaling fills ServiceView.Scaling for every row (out is parallel to rows).
-func decorateScaling(ctx context.Context, q *db.Queries, rows []db.Service, out []ServiceView) error {
+// decorateScaling fills ServiceView.Scaling for every row (out is parallel to
+// rows). releases are the current releases keyed by deployment id.
+func decorateScaling(ctx context.Context, q *db.Queries, rows []db.Service, out []ServiceView, releases map[uuid.UUID]db.Release) error {
 	ids := make([]uuid.UUID, len(rows))
 	for i, r := range rows {
 		ids[i] = r.ID
@@ -194,7 +212,7 @@ func decorateScaling(ctx context.Context, q *db.Queries, rows []db.Service, out 
 		return err
 	}
 	for i, r := range rows {
-		out[i].Scaling = BuildScalingView(r, vols[r.ID], out[i].Observed)
+		out[i].Scaling = BuildScalingView(r, vols[r.ID], out[i].Observed, releaseConfig(r, releases))
 	}
 	return nil
 }
@@ -277,12 +295,13 @@ func defaultProcessScaling(r db.Service) ProcessScaling {
 // BuildProcessViews renders the processes of a service with several processes:
 // the default process first, then the named ones by name, then the processes of
 // the running release (applied, nil until the first deployment) that the staged
-// config dropped (Removed). It is empty for a service whose config has no
-// processes. rows are the service's service_process_scale rows, obs its observed
-// state.
+// config dropped (Removed). It is empty for a service whose staged config and
+// running release have no processes. rows are the service's
+// service_process_scale rows, obs its observed state.
 func BuildProcessViews(r db.Service, cfg Config, applied *Config, rows []db.ServiceProcessScale, volumes int, obs *ObservedView) []ProcessView {
 	out := []ProcessView{}
-	if !cfg.HasProcesses() {
+	releaseHasProcesses := applied != nil && applied.HasProcesses()
+	if !cfg.HasProcesses() && !releaseHasProcesses {
 		return out
 	}
 	var releaseNames []string
@@ -303,6 +322,17 @@ func BuildProcessViews(r db.Service, cfg Config, applied *Config, rows []db.Serv
 			}
 		}
 		return nil
+	}
+	// A release without processes reports no per-process state: the default
+	// process is the whole service, so it takes the service-level observation.
+	serviceObserved := func(name string) *ObservedProcessView {
+		if obs == nil || releaseHasProcesses {
+			return nil
+		}
+		return &ObservedProcessView{
+			Name: name, State: obs.State, Health: obs.Health,
+			ReplicasReady: obs.ReplicasReady, ReplicasDesired: obs.ReplicasDesired,
+		}
 	}
 	view := func(p EffectiveProcess, sc ProcessScaling, ok bool, why string, o *ObservedProcessView) ProcessView {
 		sv := ScalingView{
@@ -326,9 +356,17 @@ func BuildProcessViews(r db.Service, cfg Config, applied *Config, rows []db.Serv
 		var pv ProcessView
 		if p.Default {
 			// The default process may have been renamed since the release: its observed state carries the old name.
-			pv = view(p, defaultProcessScaling(r), ok, why, observed(p.Name, releaseDefault))
+			o := observed(p.Name, releaseDefault)
+			if o == nil {
+				o = serviceObserved(cmp.Or(releaseDefault, p.Name))
+			}
+			sc := defaultProcessScaling(r)
+			sc.Replicas = EffectiveProcessReplicas(r.Kind, cfg, volumes, p, sc.Replicas)
+			pv = view(p, sc, ok, why, o)
 		} else {
-			pv = view(p, ProcessScalingOf(rows, p.Name), ok, why, observed(p.Name))
+			sc := ProcessScalingOf(rows, p.Name)
+			sc.Replicas = EffectiveProcessReplicas(r.Kind, cfg, volumes, p, sc.Replicas)
+			pv = view(p, sc, ok, why, observed(p.Name))
 			pv.Pending = applied != nil && !slices.Contains(releaseNames, p.Name)
 		}
 		out = append(out, pv)
@@ -339,7 +377,9 @@ func BuildProcessViews(r db.Service, cfg Config, applied *Config, rows []db.Serv
 				continue // the default process is never removed, only renamed
 			}
 			p, _ := applied.Process(name)
-			pv := view(p, ProcessScalingOf(rows, name), false, "The process is removed from the staged configuration.", observed(name))
+			sc := ProcessScalingOf(rows, name)
+			sc.Replicas = EffectiveProcessReplicas(r.Kind, *applied, volumes, p, sc.Replicas)
+			pv := view(p, sc, false, "The process is removed from the staged configuration.", observed(name))
 			pv.Removed = true
 			out = append(out, pv)
 		}

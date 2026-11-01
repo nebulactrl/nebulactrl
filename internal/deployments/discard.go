@@ -173,9 +173,27 @@ func (s *Service) discardConfig(ctx context.Context, q *db.Queries, svc db.Servi
 		}
 	}
 	if newCfg.HasProcesses() || oldCfg.HasProcesses() {
-		// A process that domains still route to must stay, with its port.
+		// A staged rename the restored config no longer has goes with it.
+		if err := services.SyncProcessRenames(ctx, q, svc.ID, newCfg); err != nil {
+			return err
+		}
+		// A process that domains still route to must stay, with a port; its domains follow the port.
 		if err := services.CheckProcessesInUse(ctx, q, svc.ID, newCfg); err != nil {
 			return err
+		}
+		if err := services.FollowProcessPorts(ctx, q, svc.ID, newCfg); err != nil {
+			return err
+		}
+		// The scale rows of processes that neither the restored config nor the running release has
+		// (the copies a staged rename made, the settings of a staged addition) are not needed.
+		keep := []string{}
+		for _, c := range []services.Config{newCfg, snap.Config} {
+			for _, p := range c.Processes {
+				keep = append(keep, p.Name)
+			}
+		}
+		if err := q.PruneProcessScales(ctx, db.PruneProcessScalesParams{ServiceID: svc.ID, Keep: keep}); err != nil {
+			return fmt.Errorf("prune process scales: %w", err)
 		}
 	}
 	if newCfg.Port != oldCfg.Port {

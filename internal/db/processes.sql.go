@@ -55,6 +55,26 @@ func (q *Queries) ApplyProcessScale(ctx context.Context, arg ApplyProcessScalePa
 	return i, err
 }
 
+const copyProcessScale = `-- name: CopyProcessScale :exec
+INSERT INTO service_process_scale (service_id, process, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason)
+SELECT s.service_id, $1::text, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason
+FROM service_process_scale s
+WHERE s.service_id = $2 AND s.process = $3
+`
+
+type CopyProcessScaleParams struct {
+	ToProcess   string    `json:"toProcess"`
+	ServiceID   uuid.UUID `json:"serviceId"`
+	FromProcess string    `json:"fromProcess"`
+}
+
+// Gives to_process a copy of the settings of from_process (nothing when it has no row). The target
+// must have no row: delete it first (a leftover of a removed process would hit the primary key).
+func (q *Queries) CopyProcessScale(ctx context.Context, arg CopyProcessScaleParams) error {
+	_, err := q.db.Exec(ctx, copyProcessScale, arg.ToProcess, arg.ServiceID, arg.FromProcess)
+	return err
+}
+
 const countActiveCombinesForService = `-- name: CountActiveCombinesForService :one
 SELECT count(*)::int FROM service_combines
 WHERE state IN ('staged', 'deploying', 'cutover')
@@ -67,6 +87,54 @@ func (q *Queries) CountActiveCombinesForService(ctx context.Context, serviceID u
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const deleteProcessRename = `-- name: DeleteProcessRename :exec
+DELETE FROM service_process_rename
+WHERE service_id = $1 AND to_process = $2
+`
+
+type DeleteProcessRenameParams struct {
+	ServiceID uuid.UUID `json:"serviceId"`
+	ToProcess string    `json:"toProcess"`
+}
+
+func (q *Queries) DeleteProcessRename(ctx context.Context, arg DeleteProcessRenameParams) error {
+	_, err := q.db.Exec(ctx, deleteProcessRename, arg.ServiceID, arg.ToProcess)
+	return err
+}
+
+const deleteProcessScale = `-- name: DeleteProcessScale :exec
+DELETE FROM service_process_scale
+WHERE service_id = $1 AND process = $2
+`
+
+type DeleteProcessScaleParams struct {
+	ServiceID uuid.UUID `json:"serviceId"`
+	Process   string    `json:"process"`
+}
+
+func (q *Queries) DeleteProcessScale(ctx context.Context, arg DeleteProcessScaleParams) error {
+	_, err := q.db.Exec(ctx, deleteProcessScale, arg.ServiceID, arg.Process)
+	return err
+}
+
+const deleteStaleProcessRenames = `-- name: DeleteStaleProcessRenames :exec
+DELETE FROM service_process_rename
+WHERE service_id = $1
+  AND (NOT (to_process = ANY($2::text[])) OR from_process = ANY($2::text[]))
+`
+
+type DeleteStaleProcessRenamesParams struct {
+	ServiceID uuid.UUID `json:"serviceId"`
+	Keep      []string  `json:"keep"`
+}
+
+// Drops the renames the staged config no longer carries: the new name is gone from `keep` (the named
+// processes of the config) or the old name is back in it.
+func (q *Queries) DeleteStaleProcessRenames(ctx context.Context, arg DeleteStaleProcessRenamesParams) error {
+	_, err := q.db.Exec(ctx, deleteStaleProcessRenames, arg.ServiceID, arg.Keep)
+	return err
 }
 
 const ensureProcessScale = `-- name: EnsureProcessScale :one
@@ -179,6 +247,33 @@ func (q *Queries) ListAutoscalingProcesses(ctx context.Context) ([]ListAutoscali
 	return items, nil
 }
 
+const listProcessRenames = `-- name: ListProcessRenames :many
+SELECT service_id, from_process, to_process FROM service_process_rename
+WHERE service_id = $1
+ORDER BY to_process
+`
+
+// Staged renames of named processes: the running release still has from_process, the staged config to_process.
+func (q *Queries) ListProcessRenames(ctx context.Context, serviceID uuid.UUID) ([]ServiceProcessRename, error) {
+	rows, err := q.db.Query(ctx, listProcessRenames, serviceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ServiceProcessRename{}
+	for rows.Next() {
+		var i ServiceProcessRename
+		if err := rows.Scan(&i.ServiceID, &i.FromProcess, &i.ToProcess); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listProcessScales = `-- name: ListProcessScales :many
 
 SELECT service_id, process, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, updated_at FROM service_process_scale
@@ -269,23 +364,6 @@ func (q *Queries) PruneProcessScales(ctx context.Context, arg PruneProcessScales
 	return err
 }
 
-const renameProcessScale = `-- name: RenameProcessScale :exec
-UPDATE service_process_scale
-SET process = $1, updated_at = now()
-WHERE service_id = $2 AND process = $3
-`
-
-type RenameProcessScaleParams struct {
-	ToProcess   string    `json:"toProcess"`
-	ServiceID   uuid.UUID `json:"serviceId"`
-	FromProcess string    `json:"fromProcess"`
-}
-
-func (q *Queries) RenameProcessScale(ctx context.Context, arg RenameProcessScaleParams) error {
-	_, err := q.db.Exec(ctx, renameProcessScale, arg.ToProcess, arg.ServiceID, arg.FromProcess)
-	return err
-}
-
 const setProcessAutoscaling = `-- name: SetProcessAutoscaling :one
 INSERT INTO service_process_scale (service_id, process, autoscaling)
 VALUES ($1, $2, $3)
@@ -317,6 +395,24 @@ func (q *Queries) SetProcessAutoscaling(ctx context.Context, arg SetProcessAutos
 	return i, err
 }
 
+const setProcessDomainsPort = `-- name: SetProcessDomainsPort :exec
+UPDATE domains
+SET target_port = $1
+WHERE service_id = $2 AND component = $3 AND target_port <> $1
+`
+
+type SetProcessDomainsPortParams struct {
+	TargetPort int32     `json:"targetPort"`
+	ServiceID  uuid.UUID `json:"serviceId"`
+	Component  string    `json:"component"`
+}
+
+// Follows a change of the port of a named process: the domains that route to it (component = its name).
+func (q *Queries) SetProcessDomainsPort(ctx context.Context, arg SetProcessDomainsPortParams) error {
+	_, err := q.db.Exec(ctx, setProcessDomainsPort, arg.TargetPort, arg.ServiceID, arg.Component)
+	return err
+}
+
 const setProcessScaleBlocked = `-- name: SetProcessScaleBlocked :one
 UPDATE service_process_scale
 SET scale_blocked_reason = $1::text
@@ -346,4 +442,21 @@ func (q *Queries) SetProcessScaleBlocked(ctx context.Context, arg SetProcessScal
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const upsertProcessRename = `-- name: UpsertProcessRename :exec
+INSERT INTO service_process_rename (service_id, from_process, to_process)
+VALUES ($1, $2, $3)
+ON CONFLICT (service_id, to_process) DO UPDATE SET from_process = EXCLUDED.from_process
+`
+
+type UpsertProcessRenameParams struct {
+	ServiceID   uuid.UUID `json:"serviceId"`
+	FromProcess string    `json:"fromProcess"`
+	ToProcess   string    `json:"toProcess"`
+}
+
+func (q *Queries) UpsertProcessRename(ctx context.Context, arg UpsertProcessRenameParams) error {
+	_, err := q.db.Exec(ctx, upsertProcessRename, arg.ServiceID, arg.FromProcess, arg.ToProcess)
+	return err
 }

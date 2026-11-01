@@ -1513,6 +1513,12 @@ type ServiceNetwork struct {
 	CreatedAt time.Time `json:"createdAt"`
 }
 
+type ServiceProcessRename struct {
+	ServiceID   uuid.UUID `json:"serviceId"`
+	FromProcess string    `json:"fromProcess"`
+	ToProcess   string    `json:"toProcess"`
+}
+
 type ServiceProcessScale struct {
 	ServiceID          uuid.UUID       `json:"serviceId"`
 	Process            string          `json:"process"`

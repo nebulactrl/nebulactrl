@@ -339,6 +339,44 @@ func TestCentralLogsQueryTenantMergeRedactAndLimit(t *testing.T) {
 	require.NotContains(t, err.Error(), "internals")
 }
 
+func TestCentralLogsProcessFollowsTheRunningRelease(t *testing.T) {
+	f := newFixture(t)
+	d := f.builtinDrain()
+	on := true
+	_, err := f.svc.UpdateDrain(f.ctx, d.ID, DrainPatch{Enabled: &on})
+	require.NoError(t, err)
+	t0 := time.Date(2026, 3, 10, 11, 50, 0, 0, time.UTC)
+	fc := &fakeCentral{streams: []CentralStream{{Labels: map[string]string{"server": "edge-1", "stream": "stdout"}, Entries: []CentralEntry{
+		{Time: t0.Add(2 * time.Second), Line: "worker | job"},
+		{Time: t0.Add(1 * time.Second), Line: "web | GET /"},
+	}}}}
+	f.svc.SetCentralLogs(fc)
+	id := f.web.ID.String()
+	stage := func(cfg string) {
+		_, err := f.pool.Exec(context.Background(), "UPDATE services SET config = $2 WHERE id = $1", f.web.ID, cfg)
+		require.NoError(t, err)
+	}
+
+	// A worker staged on a single-process release: its lines carry no prefix,
+	// so the default process is every line.
+	stage(`{"image":"nginx","processes":[{"name":"worker","startCommand":["bin/work"]}]}`)
+	f.run(f.web.ID, `{"config":{"image":"nginx"}}`)
+	page, err := f.svc.ServiceCentralLogs(f.ctx, f.web.ID, CentralParams{Process: "web"})
+	require.NoError(t, err)
+	require.Equal(t, `{service_id="`+id+`"}`, fc.logql)
+	require.Len(t, page.Lines, 2)
+
+	// The default process renamed in the staged config: the lines carry the
+	// running name.
+	stage(`{"image":"nginx","processName":"http","processes":[{"name":"worker","startCommand":["bin/work"]}]}`)
+	f.run(f.web.ID, `{"config":{"image":"nginx","processes":[{"name":"worker","startCommand":["bin/work"]}]}}`)
+	page, err = f.svc.ServiceCentralLogs(f.ctx, f.web.ID, CentralParams{Process: "http"})
+	require.NoError(t, err)
+	require.Equal(t, `{service_id="`+id+`"} |= "web | "`, fc.logql)
+	require.Len(t, page.Lines, 1)
+	require.Equal(t, "web | GET /", page.Lines[0].Line)
+}
+
 func TestCentralLogsAuthorization(t *testing.T) {
 	f := newFixture(t)
 	d := f.builtinDrain()

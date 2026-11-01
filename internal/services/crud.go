@@ -410,6 +410,9 @@ func (s *Service) UpdateTx(ctx context.Context, tx pgx.Tx, sc Scope, expected in
 		if err := CheckProcessesInUse(ctx, q, id, newCfg); err != nil {
 			return db.Service{}, noop, err
 		}
+		if err := FollowProcessPorts(ctx, q, id, newCfg); err != nil {
+			return db.Service{}, noop, err
+		}
 	}
 	if newCfg.Port != oldCfg.Port {
 		// Only the default process' domains (empty component) follow the service port;
@@ -735,48 +738,89 @@ func checkProcessKind(kind string, cfg Config) error {
 	return nil
 }
 
-// renameProcesses carries what belongs to a process over to its new name inside
-// the config write: the replicas setting and the domains that route to it. A
-// pair counts only when the new name is a named process of cfg and the old one
-// is none (so no name is taken from a live process). Renaming the default
-// process moves nothing: its settings live on the service and its domains have
-// no process name.
+// renameProcesses stages the renames of a config write: the new name gets a copy
+// of the scale row of the old one and the pair is stored (see
+// FinalizeProcessRenames). The old name keeps its scale row and its domains until
+// a deploy ships the rename, so the running release is unaffected. A pair counts
+// only when the new name is a named process of cfg and the old one is none (so no
+// name is taken from a live process); a pair whose old name is itself a staged
+// new name continues that rename from the release's own name. Renaming the
+// default process stages nothing: its settings live on the service and its
+// domains have no process name. Renames the config no longer carries are dropped.
+// A rename onto a name another process is renamed away from (in the same map or
+// by a staged rename of the running release) is refused: swaps and cycles would
+// overwrite scale rows the running release still reads.
 func renameProcesses(ctx context.Context, q *db.Queries, serviceID uuid.UUID, cfg Config, renames map[string]string) error {
-	if len(renames) == 0 {
-		return nil
+	if len(renames) > 0 {
+		pending, err := PendingProcessRenames(ctx, q, serviceID)
+		if err != nil {
+			return err
+		}
+		if err := checkRenameConflicts(renames, pending); err != nil {
+			return err
+		}
+		origin := map[string]string{} // staged new name -> name in the running release
+		for from, to := range pending {
+			origin[to] = from
+		}
+		for _, from := range slices.Sorted(maps.Keys(renames)) {
+			to := renames[from]
+			if from == to || from == "" || to == cfg.DefaultProcessName() {
+				continue
+			}
+			if _, ok := cfg.Process(to); !ok {
+				continue
+			}
+			if _, ok := cfg.Process(from); ok {
+				continue
+			}
+			if err := q.DeleteProcessScale(ctx, db.DeleteProcessScaleParams{ServiceID: serviceID, Process: to}); err != nil {
+				return fmt.Errorf("clear process scale: %w", err)
+			}
+			if err := q.CopyProcessScale(ctx, db.CopyProcessScaleParams{ServiceID: serviceID, FromProcess: from, ToProcess: to}); err != nil {
+				return fmt.Errorf("copy process scale: %w", err)
+			}
+			released, chained := origin[from]
+			if !chained {
+				released = from
+			} else {
+				// The intermediate name never ran: nothing keeps it.
+				if err := q.DeleteProcessRename(ctx, db.DeleteProcessRenameParams{ServiceID: serviceID, ToProcess: from}); err != nil {
+					return fmt.Errorf("delete process rename: %w", err)
+				}
+				if err := q.DeleteProcessScale(ctx, db.DeleteProcessScaleParams{ServiceID: serviceID, Process: from}); err != nil {
+					return fmt.Errorf("clear process scale: %w", err)
+				}
+				delete(origin, from)
+			}
+			if err := q.UpsertProcessRename(ctx, db.UpsertProcessRenameParams{ServiceID: serviceID, FromProcess: released, ToProcess: to}); err != nil {
+				return fmt.Errorf("stage process rename: %w", err)
+			}
+			origin[to] = released
+		}
 	}
-	var doms []db.Domain
+	return SyncProcessRenames(ctx, q, serviceID, cfg)
+}
+
+// checkRenameConflicts refuses a rename whose target is a name another process is
+// renamed away from: a source of the same map, or the old name of a staged
+// rename (undoing that very rename is fine).
+func checkRenameConflicts(renames, pending map[string]string) error {
 	for _, from := range slices.Sorted(maps.Keys(renames)) {
 		to := renames[from]
-		if from == to || from == "" || to == cfg.DefaultProcessName() {
+		if from == to {
 			continue
 		}
-		if _, ok := cfg.Process(to); !ok {
-			continue
+		if next, ok := renames[to]; ok && next != to {
+			return errRenameConflict()
 		}
-		if _, ok := cfg.Process(from); ok {
-			continue
-		}
-		if err := q.RenameProcessScale(ctx, db.RenameProcessScaleParams{ServiceID: serviceID, FromProcess: from, ToProcess: to}); err != nil {
-			return fmt.Errorf("rename process scale: %w", err)
-		}
-		if doms == nil {
-			var err error
-			if doms, err = q.ListServiceDomains(ctx, serviceID); err != nil {
-				return fmt.Errorf("list domains: %w", err)
-			}
-		}
-		var ids []uuid.UUID
-		for _, d := range doms {
-			if d.Component == from {
-				ids = append(ids, d.ID)
-			}
-		}
-		if len(ids) > 0 {
-			if _, err := q.MoveDomainsToService(ctx, db.MoveDomainsToServiceParams{ServiceID: serviceID, Component: to, DomainIds: ids}); err != nil {
-				return fmt.Errorf("rename process domains: %w", err)
-			}
+		if released, ok := pending[to]; ok && released != from {
+			return errRenameConflict()
 		}
 	}
 	return nil
+}
+
+func errRenameConflict() error {
+	return apierr.Unprocessable("rename_conflict", "A process cannot be renamed to a name another process is renamed away from in the same change; rename in two steps.")
 }

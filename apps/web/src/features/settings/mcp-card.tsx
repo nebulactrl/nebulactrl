@@ -65,7 +65,7 @@ export function McpClientsCard({
 				const url = system.data.mcpUrl || `${window.location.origin}/mcp`;
 				const config = mcpClientConfig(url);
 				return (
-					<>
+					<div className="flex min-w-0 flex-col gap-5">
 						<SettingsPlate
 							id="mcp-endpoint"
 							title="Endpoint"
@@ -104,7 +104,7 @@ export function McpClientsCard({
 								<pre className="whitespace-pre-wrap">{config}</pre>
 							</CodeBlock>
 						</SettingsPlate>
-					</>
+					</div>
 				);
 			}}
 		</SkeletonReveal>

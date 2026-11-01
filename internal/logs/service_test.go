@@ -635,3 +635,57 @@ func TestProcessHistoryFiltersByProcessPrefix(t *testing.T) {
 	require.Equal(t, http.StatusUnprocessableEntity, ae.Status)
 	require.Equal(t, "validation_failed", ae.Code)
 }
+
+// run makes snapshot the release the service runs now.
+func (f *fixture) run(serviceID uuid.UUID, snapshot string) {
+	f.t.Helper()
+	ctx := context.Background()
+	var relID, depID uuid.UUID
+	require.NoError(f.t, f.pool.QueryRow(ctx, `INSERT INTO releases (service_id, source, config, env_enc, image_ref) VALUES ($1, '{"type":"image"}', $2, ''::bytea, '') RETURNING id`, serviceID, snapshot).Scan(&relID))
+	require.NoError(f.t, f.pool.QueryRow(ctx, `INSERT INTO deployments (service_id, release_id, trigger, actor_type, status) VALUES ($1, $2, 'manual', 'user', 'succeeded') RETURNING id`, serviceID, relID).Scan(&depID))
+	_, err := f.pool.Exec(ctx, "UPDATE services SET current_deployment_id = $2 WHERE id = $1", serviceID, depID)
+	require.NoError(f.t, err)
+}
+
+func TestProcessHistoryFollowsTheRunningRelease(t *testing.T) {
+	f := newFixture(t)
+	t0 := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	f.agents.online[f.srv1.ID] = true
+	var queries []string
+	f.agents.handlers[f.srv1.ID] = func(_ string, payload json.RawMessage, _ map[string]string) agentprotocol.ResultFrame {
+		var q agentprotocol.LogsQuery
+		require.NoError(t, json.Unmarshal(payload, &q))
+		queries = append(queries, q.Query)
+		return queryResult(
+			line(3, t0.Add(3*time.Second), "worker | job done"),
+			line(2, t0.Add(2*time.Second), "web | GET / 200"),
+			line(1, t0.Add(1*time.Second), "web | started"),
+		)
+	}
+	stage := func(cfg string) {
+		_, err := f.pool.Exec(context.Background(), "UPDATE services SET config = $2 WHERE id = $1", f.web.ID, cfg)
+		require.NoError(t, err)
+	}
+
+	// A worker was just staged on a single-process release: its lines carry
+	// no process prefix, so the default process the dashboard offers is the
+	// whole log.
+	stage(`{"image":"nginx","processes":[{"name":"worker","startCommand":["bin/work"]}]}`)
+	f.run(f.web.ID, `{"config":{"image":"nginx"}}`)
+	page, err := f.svc.ServiceHistory(f.ctx, f.web.ID, HistoryParams{Process: "web"})
+	require.NoError(t, err)
+	require.Len(t, page.Items, 3)
+	require.Equal(t, []string{""}, queries, "no prefix phrase narrows the agent's query")
+
+	// The default process was renamed in the staged config: its lines still
+	// carry the running name until the next deploy.
+	queries = nil
+	stage(`{"image":"nginx","processName":"http","processes":[{"name":"worker","startCommand":["bin/work"]}]}`)
+	f.run(f.web.ID, `{"config":{"image":"nginx","processes":[{"name":"worker","startCommand":["bin/work"]}]}}`)
+	page, err = f.svc.ServiceHistory(f.ctx, f.web.ID, HistoryParams{Process: "http"})
+	require.NoError(t, err)
+	require.Equal(t, []string{`"web | "`}, queries)
+	require.Len(t, page.Items, 2)
+	require.Equal(t, "web | GET / 200", page.Items[0].Line)
+	require.Equal(t, "web | started", page.Items[1].Line)
+}

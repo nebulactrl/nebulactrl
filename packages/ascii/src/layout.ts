@@ -1,6 +1,6 @@
 /**
- * Pure helpers for the ASCII backdrop engine: grid sizing, the UI-avoidance
- * mask, orb placement, ramp selection and the frame gate. No DOM, no GL, so
+ * Pure helpers for the scene engines: glyph grid sizing, the UI-avoidance
+ * mask, the narrow-layout decision, ramp selection and the frame gate. No DOM, no GL, so
  * they run under `bun test` and bundle into the standalone pages build.
  */
 
@@ -123,7 +123,7 @@ export interface RectLike {
 
 /**
  * Feather and pad shrink on small viewports, where the 70+30 px
- * around the wordmark would blank the free band the orb has to live in.
+ * around the wordmark would blank the free band the planet has to live in.
  * 1 at 1100 css px and wider.
  */
 export function maskScale(widthCss: number): number {
@@ -169,7 +169,7 @@ export function maskAt(
 
 /**
  * Fills `out` (cols*rows bytes, row-major, row 0 at the top) with the per-cell
- * mask, scaled by `base` (the orb placement's `dim`).
+ * mask, scaled by `base`.
  */
 export function buildMask(
 	grid: Pick<GridSpec, "cols" | "rows" | "cw" | "ch">,
@@ -200,19 +200,18 @@ export interface OrbPlacement {
 	dim: number;
 }
 
-/** Viewports narrower than this (CSS px) have no free side for the orb. */
+/** Viewports narrower than this (CSS px) have no free side for the planet. */
 export const NARROW_BELOW_CSS_PX = 720;
 
-/** The field's strength when the orb sits behind the card on a narrow screen. */
+/** The narrow layout's nominal field strength. */
 export const NARROW_DIM = 0.45;
 
 /**
- * Where the Eclipse sits. Wide screens: right of centre, so the card covers at
- * most its left third. Portrait and phone widths have no free side, and a
- * cropped fragment above or below the card reads as noise, so the whole orb
- * is centred behind the card at a lower strength: the card is opaque, the
- * glyphs show as a halo around it. With no card it falls back to the wide
- * placement.
+ * The Eclipse's layout: wide, or narrow. Wide screens: right of centre.
+ * Portrait and phone widths have no free side, so the planet sits under the
+ * panel. With no card it falls back to the wide placement. The renderer
+ * (`planet.ts`, `planetOrb`) reads only which layout applies (`dim < 1` is
+ * narrow) and sizes and places the pixel-dithered planet itself.
  *
  * All inputs are device px. `card` is the panel rect. `narrowBelow` is the
  * CSS width under which the narrow placement applies (default 720); a canvas

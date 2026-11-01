@@ -30,6 +30,12 @@ export interface ProcessHealthDraft {
 	startPeriodSeconds: string;
 	deadlineSeconds: string;
 	successThreshold: string;
+	/**
+	 * The reader set the health check themselves. While false, the check is
+	 * left to the control plane's default for the process (HTTP on its port,
+	 * none without one) and the fields below only show that default.
+	 */
+	custom: boolean;
 }
 
 export interface ProcessDraft {
@@ -66,19 +72,64 @@ export type ProcessErrors = Partial<Record<ProcessField, string>>;
 const text = (value: number | undefined): string =>
 	value === undefined || value === 0 ? "" : String(value);
 
+/** The health timings the control plane fills in when they are left out. */
+const DEFAULT_TIMINGS = {
+	intervalSeconds: "2",
+	timeoutSeconds: "3",
+	startPeriodSeconds: "0",
+	deadlineSeconds: "120",
+	successThreshold: "2",
+};
+
+/** The check the control plane picks for a process that sets none: HTTP on its port, none without one. */
+const defaultHealthType = (port: string): HealthcheckType =>
+	port.trim() === "" ? "none" : "http";
+
 function toHealthDraft(
 	config: ProcessConfig["healthcheck"],
+	processPort: number | undefined,
 ): ProcessHealthDraft {
-	return {
+	// The stored port is always filled in; one equal to the process port keeps
+	// following it, so it is shown blank.
+	const followsPort = config.port === undefined || config.port === processPort;
+	const draft = {
 		type: config.type,
 		command: (config.command ?? []).map(quoteArg).join(" "),
 		path: config.path ?? "",
-		port: text(config.port),
+		port: followsPort ? "" : text(config.port),
 		intervalSeconds: String(config.intervalSeconds),
 		timeoutSeconds: String(config.timeoutSeconds),
 		startPeriodSeconds: String(config.startPeriodSeconds),
 		deadlineSeconds: String(config.deadlineSeconds),
 		successThreshold: String(config.successThreshold),
+	};
+	const isDefault =
+		config.type === defaultHealthType(text(processPort)) &&
+		draft.port === "" &&
+		draft.command === "" &&
+		draft.path === (config.type === "http" ? "/" : "") &&
+		draft.intervalSeconds === DEFAULT_TIMINGS.intervalSeconds &&
+		draft.timeoutSeconds === DEFAULT_TIMINGS.timeoutSeconds &&
+		draft.startPeriodSeconds === DEFAULT_TIMINGS.startPeriodSeconds &&
+		draft.deadlineSeconds === DEFAULT_TIMINGS.deadlineSeconds &&
+		draft.successThreshold === DEFAULT_TIMINGS.successThreshold;
+	return { ...draft, custom: !isDefault };
+}
+
+/**
+ * The health check the form shows and validates: the stored fields, except
+ * that a check nobody customized shows the default for the process as it is
+ * now, so adding or clearing its port moves the check with it.
+ */
+export function effectiveHealth(draft: ProcessDraft): ProcessHealthDraft {
+	if (draft.health.custom) return draft.health;
+	return {
+		...draft.health,
+		type: defaultHealthType(draft.port),
+		command: "",
+		path: "",
+		port: "",
+		...DEFAULT_TIMINGS,
 	};
 }
 
@@ -93,7 +144,7 @@ export function toProcessDraft(process: ProcessConfig): ProcessDraft {
 		singleton: process.singleton === true,
 		memoryMb: text(process.memoryMb),
 		cpus: text(process.cpus),
-		health: toHealthDraft(process.healthcheck),
+		health: toHealthDraft(process.healthcheck, process.port),
 	};
 }
 
@@ -105,7 +156,7 @@ export function toProcessDrafts(
 
 let added = 0;
 
-/** A blank process row: no port (so no HTTP health check) and the control plane's health timings. */
+/** A blank process row: no port yet, so no health check; one is defaulted to the port once it has one. */
 export function newProcessDraft(name: string): ProcessDraft {
 	added += 1;
 	return {
@@ -123,11 +174,8 @@ export function newProcessDraft(name: string): ProcessDraft {
 			command: "",
 			path: "",
 			port: "",
-			intervalSeconds: "2",
-			timeoutSeconds: "3",
-			startPeriodSeconds: "0",
-			deadlineSeconds: "120",
-			successThreshold: "2",
+			...DEFAULT_TIMINGS,
+			custom: false,
 		},
 	};
 }
@@ -182,10 +230,12 @@ export interface ProcessContext {
 	defaultName: string;
 	/** The default process' port as typed. */
 	defaultPort: string;
+	/** The service's domains: a saved process one routes to cannot lose its port. */
+	domains?: readonly { hostname: string; process: string }[];
 }
 
 function validateHealth(draft: ProcessDraft): string | undefined {
-	const health = draft.health;
+	const health = effectiveHealth(draft);
 	const checks = [
 		integerIn(health.port, 1, 65535, "Health check port", true),
 		integerIn(health.intervalSeconds, 1, 3600, "Interval", false),
@@ -290,6 +340,18 @@ export function processErrors(
 					`Port ${process.port.trim()} is also used by ${other}. Give each process its own port.`,
 				);
 			}
+		} else if (process.originalName !== null) {
+			const routed = (context.domains ?? [])
+				.filter((domain) => domain.process === process.originalName)
+				.map((domain) => domain.hostname);
+			if (routed.length > 0) {
+				const many = routed.length > 1;
+				fail(
+					key,
+					"port",
+					`${routed.join(", ")} ${many ? "route" : "routes"} to this process; remove the ${many ? "domains" : "domain"} first.`,
+				);
+			}
 		}
 		const grace = integerIn(
 			process.stopGraceSeconds,
@@ -344,25 +406,31 @@ export function processBlocker(
 
 const int = (value: string): number => Number.parseInt(value, 10);
 
+/**
+ * The request shape of one process. A health check the reader never set is
+ * left out, so the control plane defaults it to the process: HTTP on its
+ * port, none without one.
+ */
 export function buildProcessInput(draft: ProcessDraft): ProcessInputWire {
-	const health: NonNullable<ProcessInputWire["healthcheck"]> = {
-		type: draft.health.type,
-		intervalSeconds: int(draft.health.intervalSeconds),
-		timeoutSeconds: int(draft.health.timeoutSeconds),
-		startPeriodSeconds: int(draft.health.startPeriodSeconds),
-		deadlineSeconds: int(draft.health.deadlineSeconds),
-		successThreshold: int(draft.health.successThreshold),
-	};
-	if (draft.health.path.trim() !== "") health.path = draft.health.path.trim();
-	if (draft.health.port.trim() !== "") health.port = int(draft.health.port);
-	if (draft.health.type === "exec") {
-		health.command = splitCommand(draft.health.command);
-	}
 	const input: ProcessInputWire = {
 		name: draft.name,
 		startCommand: splitCommand(draft.command),
-		healthcheck: health,
 	};
+	if (draft.health.custom) {
+		const { health: source } = draft;
+		const health: NonNullable<ProcessInputWire["healthcheck"]> = {
+			type: source.type,
+			intervalSeconds: int(source.intervalSeconds),
+			timeoutSeconds: int(source.timeoutSeconds),
+			startPeriodSeconds: int(source.startPeriodSeconds),
+			deadlineSeconds: int(source.deadlineSeconds),
+			successThreshold: int(source.successThreshold),
+		};
+		if (source.path.trim() !== "") health.path = source.path.trim();
+		if (source.port.trim() !== "") health.port = int(source.port);
+		if (source.type === "exec") health.command = splitCommand(source.command);
+		input.healthcheck = health;
+	}
 	if (draft.port.trim() !== "") input.port = int(draft.port);
 	if (draft.stopGraceSeconds.trim() !== "")
 		input.stopGraceSeconds = int(draft.stopGraceSeconds);

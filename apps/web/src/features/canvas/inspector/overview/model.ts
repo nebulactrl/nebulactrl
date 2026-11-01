@@ -2,6 +2,8 @@ import type { ServiceMetricPoint } from "#/api/gen/types.gen";
 import type { Service } from "#/api/models";
 import type { StatusKind } from "#/components/ui/status-icon";
 import { isInFlight } from "#/features/deployments/labels";
+import { processResources } from "#/features/metrics/model";
+import { serviceProcesses } from "#/features/processes/model";
 
 export interface HealthVerdict {
 	kind: StatusKind;
@@ -27,7 +29,11 @@ export function probeDescription(service: Service): string {
 	}
 }
 
-/** Replicas up and wanted, from what the agent observed (else the setting). */
+/**
+ * Replicas up and wanted, from what the agent observed. Before the first
+ * report: the setting, which for a service with processes is the sum over its
+ * running (not pending) processes.
+ */
 export function replicaCounts(service: Service): {
 	ready: number;
 	desired: number;
@@ -36,7 +42,31 @@ export function replicaCounts(service: Service): {
 	if (observed && observed.replicasDesired > 0) {
 		return { ready: observed.replicasReady, desired: observed.replicasDesired };
 	}
+	const processes = serviceProcesses(service);
+	if (processes.length > 0) {
+		const running = processes.filter((process) => !process.pending);
+		return {
+			ready: running.reduce((sum, process) => sum + process.scaling.ready, 0),
+			desired: running.reduce(
+				(sum, process) => sum + process.scaling.replicas,
+				0,
+			),
+		};
+	}
 	return { ready: service.scaling.ready, desired: service.scaling.replicas };
+}
+
+/**
+ * The configured limits behind the Resources figures. The total of several
+ * processes has no single limit (they may differ), so none is assumed.
+ */
+export function configuredLimits(service: Service): {
+	memoryMb: number | undefined;
+	cpus: number | undefined;
+} {
+	return serviceProcesses(service).length > 0
+		? processResources(service.config, undefined)
+		: { memoryMb: service.config.memoryMb, cpus: service.config.cpus };
 }
 
 /** Container restarts since the replicas started, summed over replicas. */
@@ -162,7 +192,8 @@ function trim(value: number, digits = 2): string {
 
 /**
  * CPU as the service uses it now. The API reports percent of one core summed
- * over replicas; the limit is `cpus` per replica when set.
+ * over replicas; the limit is `cpus` per replica when set (never for the
+ * total of several processes).
  */
 export function cpuFigure(
 	service: Service,
@@ -171,7 +202,8 @@ export function cpuFigure(
 	if (!point) return { percent: null, headline: "—", detail: "No samples yet" };
 	const cores = point.cpuPercent / 100;
 	const replicas = Math.max(1, point.replicaCount);
-	const limit = service.config.cpus ? service.config.cpus * replicas : 0;
+	const { cpus } = configuredLimits(service);
+	const limit = cpus ? cpus * replicas : 0;
 	if (limit > 0) {
 		const percent = Math.min(100, (cores / limit) * 100);
 		return {
@@ -200,7 +232,7 @@ export function memoryFigure(
 	const limit =
 		point.memLimitBytes > 0
 			? point.memLimitBytes
-			: (service.config.memoryMb ?? 0) * 1024 * 1024 * replicas;
+			: (configuredLimits(service).memoryMb ?? 0) * 1024 * 1024 * replicas;
 	if (limit > 0) {
 		const percent = Math.min(100, (point.memBytes / limit) * 100);
 		return {

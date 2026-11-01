@@ -25,11 +25,17 @@ func NewScaleEvent(from, to int, reason, actor string) json.RawMessage {
 // ClampReplicas runs after a successful deployment of release config cfg with
 // volumes volumes. A service that is no longer stateless (a volume was added,
 // the HTTP port removed) was deployed with one replica, so its replica count
-// is reset to 1 and autoscaling is switched off. It returns whether anything
+// is reset to 1 and autoscaling is switched off. Only a service that is
+// ineligible in the staged configuration too is clamped: a recovery redeploy or
+// a rollback runs an older release, and the staged configuration, which a later
+// deploy ships, decides what the setting means. It returns whether anything
 // changed.
 func ClampReplicas(ctx context.Context, tx pgx.Tx, sc Scope, cfg Config, volumes int) (bool, error) {
 	ok, why := Eligibility(sc.Service.Kind, cfg, volumes)
 	if ok {
+		return false, nil
+	}
+	if staged, _ := Eligibility(sc.Service.Kind, sc.Config(), volumes); staged {
 		return false, nil
 	}
 	q := db.New(tx)
@@ -66,9 +72,13 @@ func ClampReplicas(ctx context.Context, tx pgx.Tx, sc Scope, cfg Config, volumes
 // next to ClampReplicas (which handles the default process). A named process that
 // is no longer eligible (a volume was added, it became a singleton) was deployed
 // with one replica, so its replica count is reset to 1 and its autoscaling is
-// switched off. The scale rows of processes the config no longer has are deleted.
+// switched off, unless the staged configuration makes it eligible again (a
+// rollback ran an older release). The scale rows of processes that neither cfg
+// nor the staged configuration has are deleted: a rollback must not forget the
+// scale of a process the release lacks but the service still has.
 func ClampProcessReplicas(ctx context.Context, tx pgx.Tx, sc Scope, cfg Config, volumes int) error {
 	q := db.New(tx)
+	staged := sc.Config()
 	rows, err := q.ListProcessScales(ctx, sc.Service.ID)
 	if err != nil {
 		return fmt.Errorf("list process scales: %w", err)
@@ -80,6 +90,11 @@ func ClampProcessReplicas(ctx context.Context, tx pgx.Tx, sc Scope, cfg Config, 
 		ok, why := ProcessEligibility(sc.Service.Kind, cfg, volumes, p)
 		if ok {
 			continue
+		}
+		if sp, found := staged.Process(p.Name); found {
+			if ok, _ := ProcessEligibility(sc.Service.Kind, staged, volumes, sp); ok {
+				continue
+			}
 		}
 		for _, row := range rows {
 			if row.Process != p.Name {
@@ -111,8 +126,10 @@ func ClampProcessReplicas(ctx context.Context, tx pgx.Tx, sc Scope, cfg Config, 
 		}
 	}
 	keep := []string{}
-	for _, p := range cfg.Processes {
-		keep = append(keep, p.Name)
+	for _, c := range []Config{cfg, staged} {
+		for _, p := range c.Processes {
+			keep = append(keep, p.Name)
+		}
 	}
 	if err := q.PruneProcessScales(ctx, db.PruneProcessScalesParams{ServiceID: sc.Service.ID, Keep: keep}); err != nil {
 		return fmt.Errorf("prune process scales: %w", err)

@@ -641,6 +641,13 @@ html {
 	-webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 160px), transparent 100%);
 	mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 160px), transparent 100%);
 }
+/* On a phone the planet rises from the bottom of the hero: a short feather keeps it in view. */
+@media (max-width: 767px) {
+	.hero-eclipse {
+		-webkit-mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 56px), transparent 100%);
+		mask-image: linear-gradient(to bottom, #000 0, #000 calc(100% - 56px), transparent 100%);
+	}
+}
 
 /* ---- classes the dither components borrow from the app's stylesheet ---- */
 

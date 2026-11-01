@@ -119,6 +119,23 @@ describe("replicas, restarts, uptime", () => {
 			desired: 2,
 		});
 	});
+	test("a service with processes falls back to the running processes' sums", () => {
+		const process = (
+			name: string,
+			replicas: number,
+			ready: number,
+			pending = false,
+		) => ({ name, pending, scaling: { replicas, ready } });
+		const s = service({
+			observed: null,
+			processes: [
+				process("web", 1, 1),
+				process("worker", 2, 1),
+				process("cron", 1, 0, true),
+			],
+		} as unknown as Partial<Service>);
+		expect(replicaCounts(s)).toEqual({ ready: 2, desired: 3 });
+	});
 	test("uptime reads from startedAt only while running", () => {
 		const now = Date.parse("2026-10-26T10:05:00Z");
 		expect(uptimeMs(service(), now)).toBe(300_000);
@@ -152,6 +169,28 @@ describe("resource figures", () => {
 		const figure = cpuFigure(service(), { cpuPercent: 42, replicaCount: 1 });
 		expect(figure.percent).toBeNull();
 		expect(figure.headline).toBe("0.42 vCPU");
+	});
+	test("cpu of several processes assumes no limit from the config", () => {
+		const base = service();
+		const s = service({
+			processes: [{ name: "web" }, { name: "worker" }],
+			config: {
+				...base.config,
+				cpus: 1,
+				memoryMb: 256,
+				processes: [{ name: "worker", cpus: 2 }],
+			},
+		} as unknown as Partial<Service>);
+		const cpu = cpuFigure(s, { cpuPercent: 84, replicaCount: 2 });
+		expect(cpu.percent).toBeNull();
+		expect(cpu.headline).toBe("0.84 vCPU");
+		const memory = memoryFigure(
+			s,
+			{ memBytes: 128 * 1048576, memLimitBytes: 0, replicaCount: 2 },
+			(n) => `${Math.round(n / 1048576)} MB`,
+		);
+		expect(memory.percent).toBeNull();
+		expect(memory.detail).toBe("No memory limit set");
 	});
 	test("memory prefers the reported limit, else the configured one", () => {
 		const mb = (n: number) => `${Math.round(n / 1048576)} MB`;

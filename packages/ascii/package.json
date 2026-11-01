@@ -4,7 +4,7 @@
 	"license": "AGPL-3.0-only",
 	"type": "module",
 	"version": "0.0.0",
-	"description": "NebulaCtrl's ASCII scenes: the framework-free WebGL2 glyph engine (Eclipse, Dial-out, Lost signal, Dome, Band) behind the sign-in backdrop, the maintenance and error pages and the marketing site's maintenance replica.",
+	"description": "NebulaCtrl's scene engine: the pixel-dithered ringed planet (the Eclipse) and the framework-free WebGL2 glyph scenes (Dial-out, Lost signal, Dome, Band) behind the sign-in backdrop, the maintenance and error pages and the marketing site's maintenance replica.",
 	"exports": {
 		".": "./src/index.ts",
 		"./engine": "./src/engine.ts",

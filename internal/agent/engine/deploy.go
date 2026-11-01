@@ -596,10 +596,28 @@ func (d *deploy) buildImage(ctx context.Context) error {
 
 // ---- containers ----
 
+// ownGrace is the stop grace a container was started with (its spec label);
+// a container without one gets the fallback, in seconds.
+func ownGrace(c docker.ContainerInfo, fallback int) time.Duration {
+	var sl specLabel
+	if err := json.Unmarshal([]byte(c.Labels[agentprotocol.LabelSpec]), &sl); err == nil && sl.StopGraceSeconds > 0 {
+		return graceOf(sl.StopGraceSeconds)
+	}
+	return graceOf(fallback)
+}
+
 func (d *deploy) stopOld(ctx context.Context, st *deployState) {
-	grace := graceOf(d.p.StopGraceSeconds)
 	d.ctl.setStep(stepStop)
-	for _, c := range st.serving {
+	grace := graceOf(d.p.StopGraceSeconds)
+	st.toRestart = append(st.toRestart, d.stopContainers(ctx, st.serving, func(docker.ContainerInfo) time.Duration { return grace })...)
+}
+
+// stopContainers stops the containers one after the other, each with its own
+// grace, and returns them all: whatever the outcome of a stop, a failed deploy
+// starts them again.
+func (d *deploy) stopContainers(ctx context.Context, cs []docker.ContainerInfo, graceFor func(docker.ContainerInfo) time.Duration) []docker.ContainerInfo {
+	for _, c := range cs {
+		grace := graceFor(c)
 		d.logf("Stopping previous container %s (grace %s)", c.Name, grace)
 		// A stop is not interrupted by a cancel: half a stop leaves the old
 		// release in a state that cannot be undone reliably. The cancel is
@@ -612,8 +630,8 @@ func (d *deploy) stopOld(ctx context.Context, st *deployState) {
 		if err != nil && !errors.Is(err, docker.ErrNotFound) {
 			d.logf("Warning: stop %s: %v", c.Name, err)
 		}
-		st.toRestart = append(st.toRestart, c)
 	}
+	return cs
 }
 
 // plan is the network membership of the deploy's containers.
@@ -1256,7 +1274,12 @@ func (d *deploy) retire(ctx context.Context, st *deployState) {
 	}
 	e := d.e
 	d.event(agentprotocol.StepRetire, agentprotocol.StepStarted, "Retiring previous release")
-	grace := graceOf(d.p.StopGraceSeconds)
+	longest := time.Duration(0)
+	graces := make([]time.Duration, len(st.prev))
+	for i, c := range st.prev {
+		graces[i] = ownGrace(c, d.p.StopGraceSeconds)
+		longest = max(longest, graces[i])
+	}
 	if !st.recreate && len(st.serving) > 0 {
 		select { // drain in-flight requests that were routed to the old containers
 		case <-time.After(e.cfg.DrainDelay):
@@ -1264,10 +1287,10 @@ func (d *deploy) retire(ctx context.Context, st *deployState) {
 		}
 		d.debugf("retire: waited up to %s for in-flight requests to drain", e.cfg.DrainDelay)
 	}
-	cctx, cancel := detached(ctx, grace+2*time.Minute)
+	cctx, cancel := detached(ctx, longest+2*time.Minute)
 	defer cancel()
 	parallel(len(st.prev), func(i int) {
-		c := st.prev[i]
+		c, grace := st.prev[i], graces[i]
 		if c.Running || c.Restarting {
 			began := time.Now()
 			err := e.cfg.Docker.ContainerStop(cctx, c.ID, &grace)

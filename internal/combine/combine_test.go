@@ -397,6 +397,34 @@ func TestPlanDefaultTargetHasTheMostDomains(t *testing.T) {
 	require.Equal(t, f.api.ID, p.TargetServiceID)
 }
 
+func TestPlanListsALimitASourceLacksAndTheTargetHas(t *testing.T) {
+	f := newFixture(t)
+	setLimits := func(id uuid.UUID, memoryMB int, cpus float64) {
+		_, err := f.pool.Exec(context.Background(), `UPDATE services SET config = config || jsonb_build_object('memoryMb', $2::int, 'cpus', $3::float8) WHERE id = $1`, id, memoryMB, cpus)
+		require.NoError(t, err)
+	}
+	setLimits(f.shop.ID, 512, 1)
+	setLimits(f.api.ID, 256, 0)
+
+	p := f.plan()
+	require.Empty(t, p.Blocking, "%v", p.Blocking)
+	require.Equal(t, f.shop.ID, p.TargetServiceID)
+	got := map[uuid.UUID][]string{}
+	for _, s := range p.SettingsIgnored {
+		got[s.ServiceID] = append(got[s.ServiceID], s.Field)
+	}
+	require.Equal(t, []string{"config.memoryMb", "config.cpus"}, got[f.worker.ID], "no limit at all: both come from the target")
+	require.Equal(t, []string{"config.cpus"}, got[f.api.ID], "its own memory limit stays; only the missing CPU limit is the target's")
+	require.Len(t, got, 2)
+	require.Contains(t, strings.Join(p.Warnings, "\n"), "shop-worker ran without a memory limit; its process runs with the target's 512 MB")
+	require.Contains(t, strings.Join(p.Warnings, "\n"), "shop-api ran without a CPU limit; its process runs with the target's 1 CPUs")
+
+	// A target without limits inherits nothing, whatever the source runs with.
+	setLimits(f.shop.ID, 0, 0)
+	p = f.plan()
+	require.Empty(t, p.SettingsIgnored)
+}
+
 func TestPlanBlockers(t *testing.T) {
 	cases := []struct {
 		name   string

@@ -37,7 +37,9 @@ A domain routes to the **default process** when it has a port, and otherwise to 
 - in `nebula.toml`: `process = "<name>"` on the domain;
 - in the API and CLI: the `process` field of the domain, `domains add --process`.
 
-A domain keeps its process for its lifetime; to move it, remove it and add it again. A process that a domain still routes to cannot be removed or lose its port (`process_in_use`). A generated hostname for a named process is `<service>-<process>` on the server's base domain.
+A domain keeps its process for its lifetime; to move it, remove it and add it again. A process that a domain still routes to cannot be removed or lose its port, and its name cannot become the default process' name (`process_in_use`). When a process changes to another port, its domains follow, as the default process' domains follow the service's port. A generated hostname for a named process is `<service>-<process>` on the server's base domain.
+
+Renaming a process is a staged change like any other edit of the processes: the running release keeps the old name, with its replica count and its domains, until the next deploy. The new name starts with a copy of the replica settings, and the deploy moves the domains over to it. Discarding the change restores the old name.
 
 ## Singleton processes
 
@@ -74,7 +76,7 @@ See [deployments](deployments.md) for the general flow.
 
 ## Logs, metrics and terminal
 
-Logs show every process, each line prefixed `<process> | `, or one process with the process filter (`--process` in the CLI, the process selector in the dashboard, `process=` in the API). Metrics are the service total, or one process with `process=`; samples recorded before the service had processes appear only in the total. The terminal opens a shell in a replica of the chosen process: pick the process, then the replica. See [logs](logs.md) and [terminal](terminal.md).
+Logs show every process, each line prefixed `<process> | `, or one process with the process filter (`--process` in the CLI, the process selector in the dashboard, `process=` in the API). Metrics are the service total, or one process with `process=`; samples recorded before the service had processes appear only in the total. The filter follows the running release: until the next deploy, the default process keeps its old name after a staged rename, and a release that runs one process shows the whole service for the default process. The terminal opens a shell in a replica of the chosen process: pick the process, then the replica. See [logs](logs.md) and [terminal](terminal.md).
 
 ## Names and variables
 
@@ -225,7 +227,7 @@ replicas = 3
 
 If a project already runs the web server and the worker as separate services built from one repository, **Combine into one service** merges them: select two or more services of the canvas, choose the target and a process name for each of the others. The same flow is in the API (`planCombineServices`, `combineServices`).
 
-The services must be git services of one environment, with the same repository, branch and build settings, on one server with an up-to-date agent, and the other services must have no volumes and no processes of their own. The plan lists what changes, which variables conflict (you choose one value per key) and what is ignored in favour of the target's settings.
+The services must be git services of one environment, with the same repository, branch and build settings, on one server with an up-to-date agent. None of them may have processes of its own, the target included, and the other services must have no volumes. The plan lists what changes, which variables conflict (you choose one value per key) and what is ignored in favour of the target's settings. A source that ran without a memory or CPU limit while the target has one is listed too: its process runs with the target's limit.
 
 The combine runs in order, and the other services keep serving until the last step:
 

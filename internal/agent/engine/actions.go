@@ -316,7 +316,7 @@ func (e *Engine) handleLogsSubscribe(ctx context.Context, cmd agentprotocol.Comm
 			}
 			src.Prefix = comp + stackLogSep
 		case p.Process != "": // one process: its lines need no process prefix
-			if proc != p.Process {
+			if name, isDefault := processOf(c); (p.Default && !isDefault) || (!p.Default && name != p.Process) {
 				continue
 			}
 			if perProcess[proc] > 1 {

@@ -9,7 +9,11 @@ import {
 	HealthFields,
 	type HealthValue,
 } from "#/features/service-settings/health-deploy-sections";
-import type { ProcessDraft, ProcessErrors } from "./draft";
+import {
+	effectiveHealth,
+	type ProcessDraft,
+	type ProcessErrors,
+} from "./draft";
 import { ScaleLine } from "./scale-rows";
 
 /** What a blank limit inherits: the service's own values, shown as placeholders. */
@@ -49,10 +53,12 @@ export function ProcessEditor({
 	const limitsInvalid = Boolean(
 		errors.stopGraceSeconds || errors.memoryMb || errors.cpus,
 	);
+	const health = effectiveHealth(process);
+	// Editing any field takes the check over from the default.
 	const setHealth = <K extends keyof HealthValue>(
 		key: K,
 		next: HealthValue[K],
-	) => onChange({ health: { ...process.health, [key]: next } });
+	) => onChange({ health: { ...health, [key]: next, custom: true } });
 	return (
 		<li
 			aria-label={`Process ${label}`}
@@ -165,7 +171,7 @@ export function ProcessEditor({
 				</MoreOptions>
 				<MoreOptions label="Health check" invalid={Boolean(errors.health)}>
 					<HealthFields
-						value={process.health}
+						value={health}
 						errors={{}}
 						error={errors.health}
 						idPrefix={`${base}-health`}

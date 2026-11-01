@@ -59,19 +59,94 @@ describe("toProcessDraft", () => {
 				"config/my sidekiq.yml",
 			],
 			stopGraceSeconds: 120,
-			healthcheck: {
-				type: "none",
-				intervalSeconds: 2,
-				timeoutSeconds: 3,
-				startPeriodSeconds: 0,
-				deadlineSeconds: 120,
-				successThreshold: 2,
-			},
 		});
 	});
 
 	test("no processes send nothing", () => {
 		expect(buildProcessesInput([])).toBeUndefined();
+	});
+});
+
+const SSR: ProcessConfig = {
+	...WORKER,
+	name: "ssr",
+	port: 13714,
+	healthcheck: {
+		type: "http",
+		path: "/",
+		port: 13714,
+		intervalSeconds: 2,
+		timeoutSeconds: 3,
+		startPeriodSeconds: 0,
+		deadlineSeconds: 120,
+		successThreshold: 2,
+	},
+};
+
+describe("process health check defaults", () => {
+	test("a new process with a port leaves the health check to the control plane", () => {
+		const row = { ...newProcessDraft("api"), command: "bin/api", port: "9000" };
+		const input = buildProcessInput(row);
+		expect(input.port).toBe(9000);
+		expect(input).not.toHaveProperty("healthcheck");
+		expect(processErrors([row], CONTEXT)).toEqual({});
+	});
+
+	test("a loaded default check shows a blank port and sends no stale port", () => {
+		const row = toProcessDraft(SSR);
+		expect(row.health.custom).toBe(false);
+		expect(row.health.port).toBe("");
+		expect(buildProcessInput(row)).not.toHaveProperty("healthcheck");
+		// The check follows the port: nothing about the old one is sent.
+		const moved = buildProcessInput({ ...row, port: "13715" });
+		expect(moved.port).toBe(13715);
+		expect(moved).not.toHaveProperty("healthcheck");
+	});
+
+	test("clearing the port of a process with a default check drops the check", () => {
+		const row = { ...toProcessDraft(SSR), port: "" };
+		expect(buildProcessInput(row)).not.toHaveProperty("healthcheck");
+		expect(processErrors([row], CONTEXT)).toEqual({});
+	});
+
+	test("a customized check is sent as is", () => {
+		const elsewhere = toProcessDraft({
+			...SSR,
+			healthcheck: { ...SSR.healthcheck, port: 9000, path: "/up" },
+		});
+		expect(elsewhere.health.custom).toBe(true);
+		expect(elsewhere.health.port).toBe("9000");
+		expect(buildProcessInput(elsewhere).healthcheck).toEqual({
+			type: "http",
+			path: "/up",
+			port: 9000,
+			intervalSeconds: 2,
+			timeoutSeconds: 3,
+			startPeriodSeconds: 0,
+			deadlineSeconds: 120,
+			successThreshold: 2,
+		});
+		const onPort = toProcessDraft({
+			...SSR,
+			healthcheck: { ...SSR.healthcheck, type: "tcp", deadlineSeconds: 30 },
+		});
+		expect(onPort.health.custom).toBe(true);
+		expect(buildProcessInput(onPort).healthcheck).toEqual({
+			type: "tcp",
+			path: "/",
+			intervalSeconds: 2,
+			timeoutSeconds: 3,
+			startPeriodSeconds: 0,
+			deadlineSeconds: 30,
+			successThreshold: 2,
+		});
+		const { path: _path, ...withoutPath } = SSR.healthcheck;
+		const none = toProcessDraft({
+			...SSR,
+			healthcheck: { ...withoutPath, type: "none" },
+		});
+		expect(none.health.custom).toBe(true);
+		expect(buildProcessInput(none).healthcheck?.type).toBe("none");
 	});
 });
 
@@ -84,7 +159,13 @@ describe("buildProcessInput", () => {
 				memoryMb: "256",
 				cpus: "0.5",
 				stopGraceSeconds: "",
-				health: { ...draft().health, type: "http", path: " /up ", port: "" },
+				health: {
+					...draft().health,
+					custom: true,
+					type: "http",
+					path: " /up ",
+					port: "",
+				},
 			}),
 		);
 		expect(input.port).toBe(9000);
@@ -101,6 +182,7 @@ describe("buildProcessInput", () => {
 			draft({
 				health: {
 					...draft().health,
+					custom: true,
 					type: "exec",
 					command: 'CMD-SHELL "pg_isready -U app"',
 				},
@@ -222,14 +304,41 @@ describe("processErrors", () => {
 		).toEqual({});
 	});
 
+	test("clearing the port of a process a domain routes to is refused", () => {
+		const row = toProcessDraft(SSR);
+		const domains = [
+			{ hostname: "app.example.com", process: "ssr" },
+			{ hostname: "www.example.com", process: "web" },
+		];
+		const context = { ...CONTEXT, domains };
+		expect(processErrors([{ ...row, port: "" }], context).ssr?.port).toBe(
+			"app.example.com routes to this process; remove the domain first.",
+		);
+		// Moving to another port is fine: the domain follows.
+		expect(processErrors([{ ...row, port: "13715" }], context)).toEqual({});
+		// A process no domain routes to may lose its port.
+		const other = {
+			...row,
+			key: "other",
+			name: "other",
+			originalName: "other",
+		};
+		expect(processErrors([{ ...other, port: "" }], context)).toEqual({});
+	});
+
 	test("an HTTP or TCP health check needs a port", () => {
 		const http = draft({
-			health: { ...draft().health, type: "http" },
+			health: { ...draft().health, custom: true, type: "http" },
 		});
 		expect(processErrors([http], CONTEXT).worker?.health).toContain("port");
 		expect(processErrors([{ ...http, port: "9000" }], CONTEXT)).toEqual({});
 		const exec = draft({
-			health: { ...draft().health, type: "exec", command: "pg_isready" },
+			health: {
+				...draft().health,
+				custom: true,
+				type: "exec",
+				command: "pg_isready",
+			},
 		});
 		expect(processErrors([exec], CONTEXT).worker?.health).toContain("CMD");
 	});

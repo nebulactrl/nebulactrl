@@ -21,6 +21,7 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "#/components/ui/tooltip";
+import { serviceCanScale } from "#/features/scaling/model";
 import { deployLabel } from "./lib/deploy-label";
 import { dockPosition, type Rect } from "./lib/dock";
 import { NODE_HEIGHT, NODE_WIDTH } from "./lib/layout";
@@ -139,7 +140,7 @@ export const SelectionDock = memo(function SelectionDock({
 	// Icon keys grow to 36px under a finger.
 	const keyClass = compact ? "pointer-coarse:size-9" : undefined;
 
-	const eligible = service.scaling.eligible;
+	const eligible = serviceCanScale(service);
 	const scaleButton = (
 		<Button
 			size={size}

@@ -1,11 +1,11 @@
 /**
- * Shared GLSL ES 3.00 for every scene. Two passes, one full-screen triangle each:
+ * Shared GLSL ES 3.00 for the glyph scenes (the Eclipse's own two passes are in planet.glsl.ts). Two passes, one full-screen triangle each:
  *
  *   FIELD  cols x rows RGBA8 target. A scene's `field()` runs once per CELL;
  *          the pass writes
  *            R  luminance (x the mask in "level" scenes)
  *            G  hue row / 255 (0 slate, 1 accent, 2 star white)
- *            B  opacity (x the mask in "alpha" scenes; 1 in the Eclipse)
+ *            B  opacity (x the mask in "alpha" scenes)
  *            A  glyph select / 255: 0..V-1 picks a variant of the tone's glyph,
  *               128 + k picks the scene's k-th fixed-tone extra symbol
  *   BLIT   full canvas. Each pixel finds its cell, Bayer-dithers the luminance
@@ -15,7 +15,7 @@
  * (luminance 0..1, hue row, glyph select, opacity 0..1) for the cell whose
  * centre is `px` (device px, y down). Uniforms every scene may read:
  *   uRes device px, uGrid cols/rows, uCell cell size in device px,
- *   uOrb the Eclipse's orb, uFocus the scene's anchor (see `scenePlacement`).
+ *   uOrb unused by the glyph scenes (zero), uFocus the scene's anchor (see `scenePlacement`).
  */
 export const VERT = `#version 300 es
 void main(){ vec2 p = vec2(float((gl_VertexID<<1)&2), float(gl_VertexID&2)); gl_Position = vec4(p*2.0-1.0, 0.0, 1.0); }`;
@@ -26,7 +26,7 @@ uniform float uT;
 uniform vec2 uRes;
 uniform vec2 uGrid;
 uniform vec2 uCell;
-/* Orb centre (xy) and radius (z), device px. */
+/* Unused by the glyph scenes (the Eclipse's orb lives in planet.glsl.ts). */
 uniform vec3 uOrb;
 /* The scene's anchor, device px. */
 uniform vec4 uFocus;

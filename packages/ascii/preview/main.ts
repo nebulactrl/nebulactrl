@@ -1,5 +1,5 @@
 /**
- * Dev gallery for the ASCII scenes (`bun run preview`, then http://localhost:4180).
+ * Dev gallery for the scenes: the Eclipse (a pixel-dithered ringed planet) and the glyph scenes (`bun run preview`, then http://localhost:4180).
  *
  *   ?scene=eclipse|dial-out|lost-signal|dome|band   (default dome)
  *   &frames=header,mobile        which frames (default both)
