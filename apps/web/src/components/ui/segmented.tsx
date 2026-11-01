@@ -3,7 +3,7 @@ import { type ReactNode, useLayoutEffect, useRef } from "react";
 import { ToggleGroup, ToggleGroupItem } from "#/components/ui/toggle-group";
 import { fadeMask, scrollTarget, useEdgeFade } from "#/lib/hooks/use-edge-fade";
 
-export interface SegmentedOption<T extends string> {
+interface SegmentedOption<T extends string> {
 	value: T;
 	label: ReactNode;
 	disabled?: boolean;

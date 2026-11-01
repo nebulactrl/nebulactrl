@@ -60,10 +60,10 @@ func (f *fakeCF) client() *Client {
 	return New(Config{BaseURL: f.srv.URL + "/client/v4", Token: f.token, HTTPClient: f.srv.Client()})
 }
 
-func (f *fakeCF) addZone(id, name, accountID string) {
+func (f *fakeCF) addZone(id, name string) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	f.zones = append(f.zones, Zone{ID: id, Name: name, Status: "active", AccountID: accountID, AccountName: "Account " + accountID})
+	f.zones = append(f.zones, Zone{ID: id, Name: name, Status: "active", AccountID: "acc1", AccountName: "Account acc1"})
 	if _, ok := f.recs[id]; !ok {
 		f.recs[id] = nil
 	}
@@ -82,7 +82,7 @@ func (f *fakeCF) removeZone(id string) {
 }
 
 // put adds a record directly (a record somebody else created).
-func (f *fakeCF) put(zone string, r Record) *Record {
+func (f *fakeCF) put(r Record) *Record {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.nextID++
@@ -91,16 +91,16 @@ func (f *fakeCF) put(zone string, r Record) *Record {
 		r.TTL = 1
 	}
 	cp := r
-	f.recs[zone] = append(f.recs[zone], &cp)
+	f.recs["z1"] = append(f.recs["z1"], &cp)
 	return &cp
 }
 
 // records returns a copy of the records of one name (all types).
-func (f *fakeCF) records(zone, name string) []Record {
+func (f *fakeCF) records(name string) []Record {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var out []Record
-	for _, r := range f.recs[zone] {
+	for _, r := range f.recs["z1"] {
 		if strings.EqualFold(r.Name, name) {
 			out = append(out, *r)
 		}
@@ -130,13 +130,13 @@ func (f *fakeCF) setComment(zone, id, comment string) {
 	}
 }
 
-func (f *fakeCF) reply(w http.ResponseWriter, status int, result any, info *ResultInfo) {
-	body := map[string]any{"success": status/100 == 2, "errors": []any{}, "messages": []any{}, "result": result}
+func (f *fakeCF) reply(w http.ResponseWriter, result any, info *ResultInfo) {
+	body := map[string]any{"success": true, "errors": []any{}, "messages": []any{}, "result": result}
 	if info != nil {
 		body["result_info"] = info
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
+	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(body)
 }
 
@@ -166,9 +166,9 @@ func (f *fakeCF) handle(w http.ResponseWriter, r *http.Request) {
 			f.fail(w, http.StatusForbidden, 1000, "Invalid API Token")
 			return
 		}
-		f.reply(w, http.StatusOK, map[string]any{"id": "tok1", "status": f.verifyStatus, "expires_on": "2031-01-02T03:04:05Z"}, nil)
+		f.reply(w, map[string]any{"id": "tok1", "status": f.verifyStatus, "expires_on": "2031-01-02T03:04:05Z"}, nil)
 	case len(parts) == 4 && parts[0] == "accounts" && parts[2] == "tokens" && parts[3] == "verify":
-		f.reply(w, http.StatusOK, map[string]any{"id": "tok1", "status": f.verifyStatus}, nil)
+		f.reply(w, map[string]any{"id": "tok1", "status": f.verifyStatus}, nil)
 	case path == "/zones":
 		f.listZones(w, r)
 	case len(parts) == 4 && parts[0] == "zones" && parts[2] == "settings" && parts[3] == "ssl":
@@ -180,7 +180,7 @@ func (f *fakeCF) handle(w http.ResponseWriter, r *http.Request) {
 		if mode == "" {
 			mode = "full"
 		}
-		f.reply(w, http.StatusOK, map[string]any{"id": "ssl", "value": mode}, nil)
+		f.reply(w, map[string]any{"id": "ssl", "value": mode}, nil)
 	case len(parts) == 4 && parts[0] == "zones" && parts[2] == "settings" && parts[3] == "tls_client_auth":
 		f.tlsClientAuth(w, r, parts[1])
 	case len(parts) >= 3 && parts[0] == "zones" && parts[2] == "dns_records":
@@ -215,7 +215,7 @@ func (f *fakeCF) listZones(w http.ResponseWriter, r *http.Request) {
 			"account": map[string]any{"id": z.AccountID, "name": z.AccountName},
 		})
 	}
-	f.reply(w, http.StatusOK, out, &ResultInfo{Page: page, PerPage: per, Count: len(out), TotalCount: total, TotalPages: pages})
+	f.reply(w, out, &ResultInfo{Page: page, PerPage: per, Count: len(out), TotalCount: total, TotalPages: pages})
 }
 
 // tlsClientAuth serves the zone setting of global Authenticated Origin Pulls:
@@ -235,7 +235,7 @@ func (f *fakeCF) tlsClientAuth(w http.ResponseWriter, r *http.Request, zone stri
 	}
 	switch r.Method {
 	case http.MethodGet:
-		f.reply(w, http.StatusOK, map[string]any{"id": "tls_client_auth", "value": mode, "editable": true}, nil)
+		f.reply(w, map[string]any{"id": "tls_client_auth", "value": mode, "editable": true}, nil)
 	case http.MethodPatch:
 		var body struct {
 			Value string `json:"value"`
@@ -246,7 +246,7 @@ func (f *fakeCF) tlsClientAuth(w http.ResponseWriter, r *http.Request, zone stri
 		}
 		f.writes = append(f.writes, "PATCH /zones/"+zone+"/settings/tls_client_auth "+body.Value)
 		f.aop[zone] = body.Value
-		f.reply(w, http.StatusOK, map[string]any{"id": "tls_client_auth", "value": body.Value, "editable": true}, nil)
+		f.reply(w, map[string]any{"id": "tls_client_auth", "value": body.Value, "editable": true}, nil)
 	default:
 		f.fail(w, http.StatusMethodNotAllowed, 1005, "Method not allowed")
 	}
@@ -284,7 +284,7 @@ func (f *fakeCF) dnsRecords(w http.ResponseWriter, r *http.Request, parts []stri
 					out = append(out, rec)
 				}
 			}
-			f.reply(w, http.StatusOK, out, &ResultInfo{Page: 1, PerPage: 100, Count: len(out), TotalCount: len(out), TotalPages: 1})
+			f.reply(w, out, &ResultInfo{Page: 1, PerPage: 100, Count: len(out), TotalCount: len(out), TotalPages: 1})
 		case http.MethodPost:
 			var in RecordInput
 			if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -304,7 +304,7 @@ func (f *fakeCF) dnsRecords(w http.ResponseWriter, r *http.Request, parts []stri
 			f.nextID++
 			rec := &Record{ID: "rec" + strconv.Itoa(f.nextID), Type: in.Type, Name: in.Name, Content: in.Content, Proxied: in.Proxied, TTL: in.TTL, Comment: in.Comment, Tags: in.Tags}
 			f.recs[zone] = append(f.recs[zone], rec)
-			f.reply(w, http.StatusOK, rec, nil)
+			f.reply(w, rec, nil)
 		default:
 			f.fail(w, http.StatusMethodNotAllowed, 7001, "method not allowed")
 		}
@@ -324,7 +324,7 @@ func (f *fakeCF) dnsRecords(w http.ResponseWriter, r *http.Request, parts []stri
 	}
 	switch r.Method {
 	case http.MethodGet:
-		f.reply(w, http.StatusOK, found, nil)
+		f.reply(w, found, nil)
 	case http.MethodPatch:
 		var in RecordInput
 		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
@@ -348,10 +348,10 @@ func (f *fakeCF) dnsRecords(w http.ResponseWriter, r *http.Request, parts []stri
 		if len(in.Tags) > 0 {
 			found.Tags = in.Tags
 		}
-		f.reply(w, http.StatusOK, found, nil)
+		f.reply(w, found, nil)
 	case http.MethodDelete:
 		f.recs[zone] = append(f.recs[zone][:idx], f.recs[zone][idx+1:]...)
-		f.reply(w, http.StatusOK, map[string]any{"id": id}, nil)
+		f.reply(w, map[string]any{"id": id}, nil)
 	default:
 		f.fail(w, http.StatusMethodNotAllowed, 7001, fmt.Sprintf("method %s not allowed", r.Method))
 	}

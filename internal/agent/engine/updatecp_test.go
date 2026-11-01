@@ -16,6 +16,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/agent/hardening"
 	"github.com/nebulactrl/nebulactrl/internal/agent/netpool"
 	"github.com/nebulactrl/nebulactrl/internal/releasesign"
+	"github.com/nebulactrl/nebulactrl/internal/releasesign/releasesigntest"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
@@ -135,7 +136,7 @@ func TestUpdateControlPlaneRefusesAnInstallerWithoutAValidSignature(t *testing.T
 }
 
 func TestUpdateControlPlaneVerifiesTheInstallerWithTheSignedFile(t *testing.T) {
-	signer, pub := releasesign.NewSigner()
+	signer, pub := releasesigntest.NewSigner()
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/install.sh":

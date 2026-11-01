@@ -98,7 +98,7 @@ func (f *fixtureState) buildApp() error {
 	if err := os.Chmod(filepath.Join(f.appDir, "app"), 0o755); err != nil {
 		return err
 	}
-	df, err := os.ReadFile(filepath.Join(root, "tests/fixtures/app/Dockerfile"))
+	df, err := os.ReadFile(filepath.Join(root, "tests", "fixtures", "app", "Dockerfile"))
 	if err != nil {
 		return err
 	}
@@ -222,7 +222,7 @@ func buildGit(app *fixtureState) (gitFixture, error) {
 	if _, err := run(filepath.Join(ctxDir, "app.git"), "update-server-info"); err != nil {
 		return gitFixture{}, err
 	}
-	df, err := os.ReadFile(filepath.Join(app.rootDir, "tests/fixtures/git-server/Dockerfile"))
+	df, err := os.ReadFile(filepath.Join(app.rootDir, "tests", "fixtures", "git-server", "Dockerfile"))
 	if err != nil {
 		return gitFixture{}, err
 	}

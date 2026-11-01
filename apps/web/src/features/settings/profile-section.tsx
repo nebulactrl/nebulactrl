@@ -30,12 +30,9 @@ import { KeptTokens } from "./security/kept-tokens";
 type KeptTokenList = ComponentProps<typeof KeptTokens>["tokens"];
 
 /** The server's rule (internal/auth MinPasswordLength). */
-export const MIN_PASSWORD_LENGTH = 10;
+const MIN_PASSWORD_LENGTH = 10;
 
-export function passwordProblem(
-	next: string,
-	confirm: string,
-): string | undefined {
+function passwordProblem(next: string, confirm: string): string | undefined {
 	if (next.length < MIN_PASSWORD_LENGTH) {
 		return `Use at least ${MIN_PASSWORD_LENGTH} characters.`;
 	}

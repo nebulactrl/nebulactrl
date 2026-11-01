@@ -104,13 +104,10 @@ func (s *Stack) auditActions(prefix string) []J {
 	return out
 }
 
-func (s *Stack) raw(method, path string, body io.Reader, headers ...string) (int, []byte) {
+func (s *Stack) raw(method, path string, body io.Reader) (int, []byte) {
 	s.t.Helper()
 	req, err := http.NewRequest(method, s.Srv.URL+"/api/v1"+path, body)
 	require.NoError(s.t, err)
-	for i := 0; i+1 < len(headers); i += 2 {
-		req.Header.Set(headers[i], headers[i+1])
-	}
 	res, err := s.client.Do(req)
 	require.NoError(s.t, err)
 	defer res.Body.Close()

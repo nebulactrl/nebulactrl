@@ -24,7 +24,7 @@ import type {
 	UpdateRegistryBody,
 } from "./model";
 
-export function toCheck(wire: WireCheck): RegistryCheck {
+function toCheck(wire: WireCheck): RegistryCheck {
 	return {
 		ok: wire.ok,
 		push: wire.push,
@@ -34,7 +34,7 @@ export function toCheck(wire: WireCheck): RegistryCheck {
 	};
 }
 
-export function toRegistry(wire: RegistryView): Registry {
+function toRegistry(wire: RegistryView): Registry {
 	return {
 		id: wire.id,
 		name: wire.name,
@@ -67,7 +67,7 @@ export function toRegistry(wire: RegistryView): Registry {
 	};
 }
 
-export function toImage(wire: RegistryImageView): RegistryImage {
+function toImage(wire: RegistryImageView): RegistryImage {
 	return {
 		id: wire.id,
 		repository: wire.repository,

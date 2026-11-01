@@ -138,7 +138,7 @@ func TestDeployPayloadCarriesNetworkFields(t *testing.T) {
 	require.NoError(t, err)
 	var rb uuid.UUID
 	require.NoError(t, f.pool.QueryRow(context.Background(), `SELECT id FROM deployments WHERE service_id = $1 AND trigger = 'rollback'`, api.ID).Scan(&rb))
-	require.NoError(t, f.deps.runDeploy(context.Background(), rb, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), rb))
 	var rp agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &rp))
 	require.Empty(t, rp.SharedNetworks)

@@ -350,10 +350,10 @@ func (f *fixture) lastRun() db.ServerCleanupRun {
 	return runs[0]
 }
 
-func (f *fixture) finish(run db.ServerCleanupRun, res agentprotocol.CleanupResult, outcome string) {
+func (f *fixture) finish(run db.ServerCleanupRun, res agentprotocol.CleanupResult) {
 	f.t.Helper()
 	raw, _ := json.Marshal(res)
-	require.NoError(f.t, f.svc.HandleResult(bg, f.server.ID, *run.CommandID, agentprotocol.ResultFrame{CommandID: run.CommandID.String(), Outcome: outcome, Data: raw}))
+	require.NoError(f.t, f.svc.HandleResult(bg, f.server.ID, *run.CommandID, agentprotocol.ResultFrame{CommandID: run.CommandID.String(), Outcome: agentprotocol.OutcomeSucceeded, Data: raw}))
 }
 
 func TestSweepStartsOneScheduledRunPerDayWithTheProtectedSet(t *testing.T) {
@@ -384,7 +384,7 @@ func TestSweepStartsOneScheduledRunPerDayWithTheProtectedSet(t *testing.T) {
 	require.Equal(t, 1, f.disp.count())
 
 	// Once it is done, nothing is due until the next slot.
-	f.finish(run, agentprotocol.CleanupResult{RunID: run.ID.String(), Steps: []agentprotocol.CleanupStep{{Name: agentprotocol.CleanupStepDangling}}}, agentprotocol.OutcomeSucceeded)
+	f.finish(run, agentprotocol.CleanupResult{RunID: run.ID.String(), Steps: []agentprotocol.CleanupStep{{Name: agentprotocol.CleanupStepDangling}}})
 	require.NoError(t, f.svc.Sweep(bg))
 	require.Equal(t, 1, f.disp.count())
 }
@@ -430,7 +430,7 @@ func TestDiskThresholdTriggersAnEmergencyRunOnceUntilTheCooldownPasses(t *testin
 	f := newFixture(t)
 	// Today's scheduled run is done.
 	require.NoError(t, f.svc.Sweep(bg))
-	f.finish(f.lastRun(), agentprotocol.CleanupResult{}, agentprotocol.OutcomeSucceeded)
+	f.finish(f.lastRun(), agentprotocol.CleanupResult{})
 	require.Equal(t, 1, f.disp.count())
 	require.NoError(t, f.svc.Sweep(bg))
 	require.Equal(t, 1, f.disp.count(), "no alert, nothing to do")
@@ -455,7 +455,7 @@ func TestDiskThresholdTriggersAnEmergencyRunOnceUntilTheCooldownPasses(t *testin
 	require.Equal(t, "emergency", f.lastRun().Trigger)
 
 	// And it does not loop.
-	f.finish(f.lastRun(), agentprotocol.CleanupResult{}, agentprotocol.OutcomeSucceeded)
+	f.finish(f.lastRun(), agentprotocol.CleanupResult{})
 	require.NoError(t, f.svc.Sweep(bg))
 	require.Equal(t, 2, f.disp.count())
 }
@@ -487,7 +487,7 @@ func TestRunNowAndVolumeActionGuards(t *testing.T) {
 	require.Equal(t, "cleanup_running", apiCode(t, err))
 
 	// Finish it, then the volume action: the name must be typed.
-	f.finish(f.lastRun(), agentprotocol.CleanupResult{}, agentprotocol.OutcomeSucceeded)
+	f.finish(f.lastRun(), agentprotocol.CleanupResult{})
 	_, err = f.svc.PruneVolumes(f.admin, f.server.ID, "wrong")
 	require.Equal(t, "confirmation_mismatch", apiCode(t, err))
 	count := f.disp.count()
@@ -498,7 +498,7 @@ func TestRunNowAndVolumeActionGuards(t *testing.T) {
 	vp := f.disp.last(t)
 	require.Equal(t, agentprotocol.CleanupModeVolumes, vp.Mode)
 	require.False(t, vp.RemoveStoppedUnmanaged, "the volume action does nothing else")
-	f.finish(f.lastRun(), agentprotocol.CleanupResult{}, agentprotocol.OutcomeSucceeded)
+	f.finish(f.lastRun(), agentprotocol.CleanupResult{})
 
 	// A volume run never counts as the day's cleanup, and the schedule never sends one.
 	// (Saving the settings above started the schedule from "now": move that back.)
@@ -568,9 +568,9 @@ func TestResultRecordsReportAuditsAndNotifies(t *testing.T) {
 			{Name: agentprotocol.CleanupStepUnusedImages, Items: 1, ReclaimedBytes: 2 << 30, Protected: 6, Removed: []string{"old:1"}},
 		},
 	}
-	f.finish(run, rep, agentprotocol.OutcomeSucceeded)
+	f.finish(run, rep)
 	// A duplicate result changes nothing and does not notify again.
-	f.finish(run, agentprotocol.CleanupResult{ReclaimedBytes: 1}, agentprotocol.OutcomeSucceeded)
+	f.finish(run, agentprotocol.CleanupResult{ReclaimedBytes: 1})
 
 	got := f.lastRun()
 	require.Equal(t, "succeeded", got.Status)
@@ -605,7 +605,7 @@ func TestSmallSuccessIsQuietAndFailuresNotify(t *testing.T) {
 
 	// 300 MB reclaimed: no notification.
 	require.NoError(t, f.svc.Sweep(bg))
-	f.finish(f.lastRun(), agentprotocol.CleanupResult{ReclaimedBytes: 300 << 20, Items: 2}, agentprotocol.OutcomeSucceeded)
+	f.finish(f.lastRun(), agentprotocol.CleanupResult{ReclaimedBytes: 300 << 20, Items: 2})
 	require.Empty(t, f.rec.all())
 
 	// A failed run reports and notifies, keeping what was reclaimed.
@@ -710,7 +710,7 @@ func TestSweepFollowsTheCustomScheduleAndDiskTrigger(t *testing.T) {
 	require.NoError(t, f.svc.Sweep(bg))
 	require.Equal(t, 1, f.disp.count())
 	require.Equal(t, agentprotocol.CleanupTriggerScheduled, f.disp.last(t).Trigger)
-	f.finish(f.lastRun(), agentprotocol.CleanupResult{}, agentprotocol.OutcomeSucceeded)
+	f.finish(f.lastRun(), agentprotocol.CleanupResult{})
 
 	// Just ran: nothing is due and the disk is cold.
 	require.NoError(t, f.svc.Sweep(bg))
@@ -724,7 +724,7 @@ func TestSweepFollowsTheCustomScheduleAndDiskTrigger(t *testing.T) {
 	require.True(t, next.Before(time.Now()), "a six-hourly slot passed within seven hours")
 	require.NoError(t, f.svc.Sweep(bg))
 	require.Equal(t, 2, f.disp.count(), "the schedule fires again")
-	f.finish(f.lastRun(), agentprotocol.CleanupResult{}, agentprotocol.OutcomeSucceeded)
+	f.finish(f.lastRun(), agentprotocol.CleanupResult{})
 
 	// A custom trigger of 60% ignores the alert flag: 59% is cold, 61% is hot.
 	sample := func(used int64) {

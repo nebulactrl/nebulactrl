@@ -116,10 +116,10 @@ export function processState(
 // --- rows -------------------------------------------------------------------
 
 /** The longest command summary a row shows. */
-export const COMMAND_SUMMARY_LIMIT = 40;
+const COMMAND_SUMMARY_LIMIT = 40;
 
 /** What a process with no start command runs: the image's own. */
-export const IMAGE_COMMAND = "image command";
+const IMAGE_COMMAND = "image command";
 
 /**
  * The start command on one line: the first three arguments, quoted like the

@@ -110,10 +110,10 @@ func zoneOf(id, name string) cfzone.Zone {
 	return cfzone.Zone{ID: id, Name: name, Status: "active", AccountID: "acc"}
 }
 
-// synced marks a domain as a DNS sync left it: its record written in zone.
-func (c *autoCF) synced(zone, status, syncError string) func(id uuid.UUID) {
+// synced marks a domain as a DNS sync left it: its record written in zone z1.
+func (c *autoCF) synced(status, syncError string) func(id uuid.UUID) {
 	return func(id uuid.UUID) {
-		c.exec(`UPDATE domains SET cf_zone_id = $2, cf_status = $3, cf_error = $4 WHERE id = $1`, id, zone, status, syncError)
+		c.exec(`UPDATE domains SET cf_zone_id = $2, cf_status = $3, cf_error = $4 WHERE id = $1`, id, "z1", status, syncError)
 	}
 }
 
@@ -123,27 +123,27 @@ func (c *autoCF) synced(zone, status, syncError string) func(id uuid.UUID) {
 func TestServerRoutesNameTheAutomaticCloudflareResolver(t *testing.T) {
 	c := newAutoCF(t)
 	c.domain("dnsonly.example.com", func(id uuid.UUID) {
-		c.synced("z1", "managed", "")(id)
+		c.synced("managed", "")(id)
 		c.exec(`UPDATE domains SET cf_proxied = false WHERE id = $1`, id)
 	})
 	c.domain("proxied.example.com", func(id uuid.UUID) {
-		c.synced("z1", "managed", "")(id)
+		c.synced("managed", "")(id)
 		c.exec(`UPDATE domains SET cf_proxied = true WHERE id = $1`, id)
 	})
-	c.domain("*.preview.example.com", c.synced("z1", "managed", ""))
+	c.domain("*.preview.example.com", c.synced("managed", ""))
 	c.domain("elsewhere.other.org", nil)
 	c.domain("plain.example.com", func(id uuid.UUID) {
-		c.synced("z1", "managed", "")(id)
+		c.synced("managed", "")(id)
 		c.exec(`UPDATE domains SET tls_mode = 'none' WHERE id = $1`, id)
 	})
 	c.domain("custom.example.com", func(id uuid.UUID) {
-		c.synced("z1", "managed", "")(id)
+		c.synced("managed", "")(id)
 		c.exec(`UPDATE domains SET tls_mode = 'custom' WHERE id = $1`, id)
 	})
-	c.domain("new.example.com", nil)                                 // not synced yet
-	c.domain("foreign.example.com", c.synced("z1", "present", ""))   // a record somebody else made
-	c.domain("conflict.example.com", c.synced("z1", "conflict", "")) //
-	c.domain("refused.example.com", c.synced("z1", "managed", "cloudflare API answered 403 (code 9109): no"))
+	c.domain("new.example.com", nil)                           // not synced yet
+	c.domain("foreign.example.com", c.synced("present", ""))   // a record somebody else made
+	c.domain("conflict.example.com", c.synced("conflict", "")) //
+	c.domain("refused.example.com", c.synced("managed", "cloudflare API answered 403 (code 9109): no"))
 	c.domain("manual.other.org", func(id uuid.UUID) { c.exec(`UPDATE domains SET dns_resolver = 'route53' WHERE id = $1`, id) })
 
 	c.connect(zoneOf("z1", "example.com"))
@@ -182,7 +182,7 @@ func TestServerRoutesNameTheAutomaticCloudflareResolver(t *testing.T) {
 // the agent only in the secrets of the command.
 func TestAppliedProxyConfigGetsTheResolverOnlyWithDeploy(t *testing.T) {
 	c := newAutoCF(t)
-	d := c.domain("app.example.com", c.synced("z1", "managed", ""))
+	d := c.domain("app.example.com", c.synced("managed", ""))
 	c.connect(zoneOf("z1", "example.com"))
 	ctx := context.Background()
 

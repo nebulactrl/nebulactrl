@@ -56,7 +56,7 @@ func (s *Service) RebuildReplica(ctx context.Context, serviceID uuid.UUID, in Re
 	if err != nil {
 		return RebuildResult{}, err
 	}
-	_, fenced := s.fence(ctx, s.q, serviceID)
+	fenced := s.hasFence(ctx, s.q, serviceID)
 	var follow services.Scope
 	switch {
 	case isReplica:
@@ -92,7 +92,7 @@ func (s *Service) RebuildReplica(ctx context.Context, serviceID uuid.UUID, in Re
 	if pspec.Replica != nil {
 		return RebuildResult{}, apierr.Conflict(CodeReplicaNotPrimary, follow.Service.Slug+" is itself a replica")
 	}
-	if _, isFenced := s.fence(ctx, s.q, follow.Service.ID); isFenced {
+	if s.hasFence(ctx, s.q, follow.Service.ID) {
 		return RebuildResult{}, apierr.Conflict(CodeDatabaseFenced, follow.Service.Slug+" is a fenced old primary")
 	}
 	if busy, err := s.promotionRunningIn(ctx, s.q, follow.Service.ID); err != nil {
@@ -141,7 +141,7 @@ func (s *Service) RebuildReplica(ctx context.Context, serviceID uuid.UUID, in Re
 		cycle = c + 1
 	}
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		return s.rebuildTx(ctx, tx, sc, *pspec, eng, follow, psrv, r, isReplica, cycle)
+		return s.rebuildTx(ctx, tx, sc, *pspec, eng, follow, psrv, isReplica, cycle)
 	})
 	if err != nil {
 		if _, ok := apierr.As(err); ok {
@@ -154,15 +154,15 @@ func (s *Service) RebuildReplica(ctx context.Context, serviceID uuid.UUID, in Re
 	return RebuildResult{ServiceID: serviceID, Status: ReplicaPending}, nil
 }
 
-// fence returns the fence of a service.
-func (s *Service) fence(ctx context.Context, q *db.Queries, id uuid.UUID) (db.DatabaseFence, bool) {
-	f, err := q.GetDatabaseFence(ctx, id)
-	return f, err == nil
+// hasFence reports whether a service is a fenced old primary.
+func (s *Service) hasFence(ctx context.Context, q *db.Queries, id uuid.UUID) bool {
+	_, err := q.GetDatabaseFence(ctx, id)
+	return err == nil
 }
 
 // rebuildTx prepares the rebuild: a new empty data volume, the replica config
 // and credentials, the mesh route, the lifecycle row, and the saga job.
-func (s *Service) rebuildTx(ctx context.Context, tx pgx.Tx, sc services.Scope, pspec engines.Spec, eng *engines.Engine, follow services.Scope, psrv uuid.UUID, r db.DatabaseReplica, isReplica bool, cycle int) error {
+func (s *Service) rebuildTx(ctx context.Context, tx pgx.Tx, sc services.Scope, pspec engines.Spec, eng *engines.Engine, follow services.Scope, psrv uuid.UUID, isReplica bool, cycle int) error {
 	q := db.New(tx)
 	if _, err := tx.Exec(ctx, "SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", "replicas:"+follow.Service.ID.String()); err != nil {
 		return err
@@ -214,7 +214,7 @@ func (s *Service) rebuildTx(ctx context.Context, tx pgx.Tx, sc services.Scope, p
 	// Credentials follow the new primary by reference (a fenced old primary had
 	// literal copies); the replication password is generated once.
 	ref := func(key string) string { return "${{" + follow.Service.Slug + "." + key + "}}" }
-	if err := s.writeReplicaVars(ctx, q, sc, eng, spec, ref, false); err != nil {
+	if err := s.writeReplicaVars(ctx, q, sc, eng, ref); err != nil {
 		return err
 	}
 	if _, err := q.GetServiceVariable(ctx, db.GetServiceVariableParams{ServiceID: sc.Service.ID, Key: engines.ReplicationPasswordKey}); isNoRows(err) {

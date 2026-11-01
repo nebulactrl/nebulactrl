@@ -448,12 +448,18 @@ func (c *Controller) Watch(ctx context.Context, connected func() bool) error {
 			upSince = time.Time{}
 		}
 		if time.Since(started) >= deadline {
-			c.mu.Lock()
-			defer c.mu.Unlock()
-			st, _ := c.load()
-			return c.rollbackLocked(st, fmt.Sprintf("%s did not connect to the control plane within %s", st.To, deadline.Round(time.Second)))
+			return c.rollbackOnDeadline(deadline)
 		}
 	}
+}
+
+// rollbackOnDeadline rolls back an upgrade whose new binary did not connect to
+// the control plane within deadline.
+func (c *Controller) rollbackOnDeadline(deadline time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	st, _ := c.load()
+	return c.rollbackLocked(st, fmt.Sprintf("%s did not connect to the control plane within %s", st.To, deadline.Round(time.Second)))
 }
 
 func (c *Controller) confirm() error {

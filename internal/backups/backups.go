@@ -184,7 +184,7 @@ func (s *Service) CreateBackup(ctx context.Context, serviceID, destinationID uui
 		}
 		return BackupView{}, fmt.Errorf("create backup: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, b.ID)
+	s.publish(sc, b.ID)
 	return backupView(b, StatusQueued, dest.Name, dest.Kind), nil
 }
 
@@ -245,7 +245,7 @@ func (s *Service) SetLocked(ctx context.Context, id uuid.UUID, locked bool) (Bac
 	if err != nil {
 		return BackupView{}, fmt.Errorf("lock backup: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, id)
+	s.publish(sc, id)
 	return s.GetBackup(ctx, id)
 }
 
@@ -288,7 +288,7 @@ func (s *Service) DeleteBackup(ctx context.Context, id uuid.UUID) error {
 		}
 		return fmt.Errorf("delete backup: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, id)
+	s.publish(sc, id)
 	return nil
 }
 

@@ -142,8 +142,9 @@ func newFixture(t *testing.T) *fixture {
 // deployed inserts an image service on the server with a succeeded deployment
 // whose release carries a secret variable (canary), a plain variable and a
 // build-only variable.
-func (f *fixture) deployed(slug string) db.Service {
+func (f *fixture) deployed() db.Service {
 	f.t.Helper()
+	const slug = "api"
 	bg := context.Background()
 	raw, _ := json.Marshal(services.Config{Image: "ghcr.io/acme/api:1", Port: 8080, MemoryMB: 256, CPUs: 0.5}.WithDefaults())
 	sv, err := f.q.InsertService(bg, db.InsertServiceParams{
@@ -204,7 +205,7 @@ func (f *fixture) task(serviceID uuid.UUID, schedule string, mut ...func(*TaskIn
 
 func TestSchedulerFiresOnTheMinuteWithFakeClock(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	task := f.task(sv.ID, "*/5 * * * *") // created at 12:03:10
 	require.NotNil(t, task.NextRunAt)
 	require.Equal(t, time.Date(2026, 10, 26, 12, 5, 0, 0, time.UTC), *task.NextRunAt)
@@ -247,7 +248,7 @@ func TestSchedulerFiresOnTheMinuteWithFakeClock(t *testing.T) {
 
 func TestSchedulerEveryMinuteTask(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	f.task(sv.ID, "* * * * *", func(in *TaskInput) { in.Concurrency = ConcurrencyAllow })
 	for i := 1; i <= 3; i++ {
 		f.clock = f.clock.Truncate(time.Minute).Add(time.Minute + time.Second)
@@ -258,7 +259,7 @@ func TestSchedulerEveryMinuteTask(t *testing.T) {
 
 func TestDisabledTaskNeverRuns(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	task := f.task(sv.ID, "* * * * *", func(in *TaskInput) { in.Enabled = new(false) })
 	require.Nil(t, task.NextRunAt)
 	f.clock = f.clock.Add(time.Hour)
@@ -274,7 +275,7 @@ func TestDisabledTaskNeverRuns(t *testing.T) {
 
 func TestOverlapForbidSkipsAndAllowStarts(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	task := f.task(sv.ID, "* * * * *") // forbid is the default
 
 	f.clock = time.Date(2026, 10, 26, 12, 4, 1, 0, time.UTC)
@@ -307,7 +308,7 @@ func TestOverlapForbidSkipsAndAllowStarts(t *testing.T) {
 
 func TestTickSkipsWhenServerOfflineOrNotDeployed(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	f.task(sv.ID, "* * * * *")
 	_, err := f.pool.Exec(context.Background(), "UPDATE servers SET status = 'offline' WHERE id = $1", f.server.ID)
 	require.NoError(t, err)
@@ -342,7 +343,7 @@ func requireAPIError(t *testing.T, err error, code string) {
 
 func TestRunCommandPayloadNeverCarriesSecrets(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 
 	v, err := f.svc.RunCommand(f.ctx, sv.ID, []string{"rake", "db:migrate"}, 120)
 	require.NoError(t, err)
@@ -381,7 +382,7 @@ func TestRunCommandPayloadNeverCarriesSecrets(t *testing.T) {
 
 func TestRunCommandNeedsDeploymentsWriteAndAuditsTheCommand(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 
 	readOnly := auth.WithPrincipal(context.Background(), &auth.Principal{
 		Type: auth.TypeToken, WorkspaceID: f.ws.ID, Label: "ci", Scopes: []string{policy.ScopeProjectsRead, policy.ScopeProjectsWrite},
@@ -411,7 +412,7 @@ func TestRunCommandNeedsDeploymentsWriteAndAuditsTheCommand(t *testing.T) {
 
 func TestRunTaskNowIgnoresScheduleAndPolicy(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	task := f.task(sv.ID, "0 3 * * *")
 	v, err := f.svc.RunTaskNow(f.ctx, task.ID)
 	require.NoError(t, err)
@@ -427,7 +428,7 @@ func TestRunTaskNowIgnoresScheduleAndPolicy(t *testing.T) {
 
 func TestResultLifecycleAndNotifications(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	started := time.Date(2026, 10, 26, 12, 5, 1, 0, time.UTC)
 	ended := started.Add(42 * time.Second)
 
@@ -493,7 +494,7 @@ func TestResultLifecycleAndNotifications(t *testing.T) {
 
 func TestUndeliveredRunFailsAndStaleRunsAreFailed(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	v, err := f.svc.RunCommand(f.ctx, sv.ID, []string{"ls"}, 60)
 	require.NoError(t, err)
 	_, cmdID := f.disp.last()
@@ -515,7 +516,7 @@ func TestUndeliveredRunFailsAndStaleRunsAreFailed(t *testing.T) {
 
 func TestHistoryKeepsTheNewest50Runs(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	task := f.task(sv.ID, "0 3 * * *")
 	var ids []uuid.UUID
 	for i := range HistoryPerTask + 7 {
@@ -554,7 +555,7 @@ func TestHistoryKeepsTheNewest50Runs(t *testing.T) {
 
 func TestRunActiveRunsAreNeverPruned(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	v, err := f.svc.RunCommand(f.ctx, sv.ID, []string{"sleep", "1000"}, 0)
 	require.NoError(t, err)
 	_, err = f.pool.Exec(context.Background(), "UPDATE task_runs SET created_at = now() - interval '10 minutes' WHERE id = $1", v.ID)
@@ -576,7 +577,7 @@ func TestRunActiveRunsAreNeverPruned(t *testing.T) {
 
 func TestOutputIsRedactedAndCapped(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	v, err := f.svc.RunCommand(f.ctx, sv.ID, []string{"env"}, 0)
 	require.NoError(t, err)
 
@@ -628,7 +629,7 @@ func TestOutputIsRedactedAndCapped(t *testing.T) {
 
 func TestResultMessageIsRedacted(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	v, err := f.svc.RunCommand(f.ctx, sv.ID, []string{"x"}, 0)
 	require.NoError(t, err)
 	_, cmdID := f.disp.last()
@@ -644,7 +645,7 @@ func TestResultMessageIsRedacted(t *testing.T) {
 
 func TestRunOneOffForInternalCallers(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 
 	var runID uuid.UUID
 	err := db.InTx(context.Background(), f.pool, func(tx pgx.Tx) error {
@@ -695,7 +696,7 @@ func TestRunOneOffForInternalCallers(t *testing.T) {
 
 func TestTaskValidationAndIsolation(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 
 	_, err := f.svc.CreateTask(f.ctx, sv.ID, TaskInput{Name: "x", Schedule: "61 * * * *", Command: []string{"a"}})
 	requireAPIError(t, err, "invalid_cron")
@@ -733,7 +734,7 @@ func TestTaskValidationAndIsolation(t *testing.T) {
 
 func TestTaskLimitPerService(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	for i := range MaxTasksPerService {
 		f.task(sv.ID, "@daily", func(in *TaskInput) { in.Name = fmt.Sprintf("t%d", i) })
 	}
@@ -817,7 +818,7 @@ func TestNextRunHonoursTimezoneAndDST(t *testing.T) {
 }
 
 func TestNormalizeTimezone(t *testing.T) {
-	for in, want := range map[string]string{"": "UTC", "utc": "UTC", " UTC ": "UTC", "Europe/Berlin": "Europe/Berlin"} {
+	for in, want := range map[string]string{"": "UTC", "utc": "UTC", " UTC ": "UTC", "Europe/Berlin": "Europe/Berlin"} { //nolint:gocritic // the padded key is a deliberate fixture: NormalizeTimezone must trim whitespace
 		got, err := NormalizeTimezone(in)
 		require.NoError(t, err, in)
 		require.Equal(t, want, got, in)
@@ -828,7 +829,7 @@ func TestNormalizeTimezone(t *testing.T) {
 
 func TestTaskTimezoneLifecycle(t *testing.T) {
 	f := newFixture(t)
-	sv := f.deployed("api")
+	sv := f.deployed()
 	// The fixture clock is 2026-10-26 12:03:10 UTC. 09:00 Europe/Berlin (CET) = 08:00 UTC.
 	task := f.task(sv.ID, "0 9 * * *", func(in *TaskInput) { in.Timezone = "Europe/Berlin" })
 	require.Equal(t, "Europe/Berlin", task.Timezone)

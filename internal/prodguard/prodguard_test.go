@@ -436,3 +436,6 @@ func TestFromProblemRoundTrip(t *testing.T) {
 	_, ok = FromProblem(http.StatusConflict, []byte(`{"code":"deployment_in_progress"}`))
 	require.False(t, ok)
 }
+
+// Uninstall removes the installed Guard. Check then refuses guarded calls.
+func Uninstall() { active.Store(nil) }

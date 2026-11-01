@@ -303,7 +303,7 @@ func (s *Service) createReplicaTx(ctx context.Context, tx pgx.Tx, psc services.S
 		return db.Service{}, fmt.Errorf("insert volume: %w", err)
 	}
 	ref := func(key string) string { return "${{" + psc.Service.Slug + "." + key + "}}" }
-	if err := s.writeReplicaVars(ctx, q, rsc, eng, pspec, ref, true); err != nil {
+	if err := s.writeReplicaVars(ctx, q, rsc, eng, ref); err != nil {
 		return db.Service{}, err
 	}
 	replPW, err := secretgen.Secret(passwordLength, secretgen.AlphaAlnum)
@@ -339,7 +339,7 @@ func (s *Service) createReplicaTx(ctx context.Context, tx pgx.Tx, psc services.S
 
 // writeReplicaVars writes the replica's credential variables: references to the
 // primary's (so a rotation, which replicates through WAL, stays consistent).
-func (s *Service) writeReplicaVars(ctx context.Context, q *db.Queries, rsc services.Scope, eng *engines.Engine, spec engines.Spec, ref func(string) string, generated bool) error {
+func (s *Service) writeReplicaVars(ctx context.Context, q *db.Queries, rsc services.Scope, eng *engines.Engine, ref func(string) string) error {
 	for _, v := range []struct {
 		key    string
 		secret bool
@@ -427,8 +427,11 @@ func (s *Service) advanceOnce(ctx context.Context, r db.DatabaseReplica) (moved,
 		return false, true, nil
 	}
 	rsc, err := services.LoadScopeInternal(ctx, s.q, r.ServiceID)
-	if err != nil {
+	if apierr.IsNotFound(err) {
 		return false, true, nil // the replica service is gone
+	}
+	if err != nil {
+		return false, false, err
 	}
 	psc, err := services.LoadScopeInternal(ctx, s.q, r.PrimaryServiceID)
 	if err != nil {
@@ -819,7 +822,13 @@ const dropAttempts = 3
 // goes on with a warning.
 func (s *Service) dropReplicaSide(ctx context.Context, r db.DatabaseReplica, tag string) (wait bool, err error) {
 	psc, err := services.LoadScopeInternal(ctx, s.q, r.PrimaryServiceID)
-	if err != nil || psc.Service.CurrentDeploymentID == nil {
+	if apierr.IsNotFound(err) {
+		return false, nil // the primary is gone: nothing to drop
+	}
+	if err != nil {
+		return false, err
+	}
+	if psc.Service.CurrentDeploymentID == nil {
 		return false, nil
 	}
 	pspec := psc.Config().Database
@@ -827,10 +836,20 @@ func (s *Service) dropReplicaSide(ctx context.Context, r db.DatabaseReplica, tag
 		return false, nil
 	}
 	psrv, err := s.currentServer(ctx, s.q, psc)
-	if err != nil {
-		return false, nil
+	if _, ok := apierr.As(err); ok {
+		return false, nil // the primary is not deployed or its server is revoked: nothing to drop
 	}
-	if srv, err := s.loadServer(ctx, s.q, psc.WorkspaceID, psrv); err != nil || srv.Status != "online" {
+	if err != nil {
+		return false, err
+	}
+	srv, err := s.loadServer(ctx, s.q, psc.WorkspaceID, psrv)
+	if isNoRows(err) {
+		return false, nil // the primary's server is gone
+	}
+	if err != nil {
+		return false, err
+	}
+	if srv.Status != "online" {
 		return false, nil
 	}
 	base := "repl_drop:" + tag

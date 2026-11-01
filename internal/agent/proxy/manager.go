@@ -692,7 +692,14 @@ func (m *Manager) listRouters(ctx context.Context, path string) (map[string]apiR
 		for _, r := range rs {
 			out[r.Name] = r
 		}
-		if n, err := strconv.Atoi(next); err != nil || n <= page {
+		if next == "" {
+			return out, nil // no header: a single page
+		}
+		n, err := strconv.Atoi(next)
+		if err != nil {
+			return nil, fmt.Errorf("proxy admin sent an invalid X-Next-Page %q: %w", next, err)
+		}
+		if n <= page {
 			return out, nil
 		}
 		page++
@@ -960,12 +967,6 @@ func (m *Manager) inputsFor(routes []agentprotocol.Route, cfg agentprotocol.Prox
 		in.DNS = sortedResolvers(cloneDNS(cfg.DNSResolvers))
 	}
 	return in
-}
-
-// desiredSpec is the container the agent wants for the current table and
-// configuration.
-func (m *Manager) desiredSpec() docker.ContainerSpec {
-	return m.specFor(m.inputsFor(m.Current(), m.ProxyConfig()))
 }
 
 // specFor is the container for in. The bootstrap file is not part of the spec;

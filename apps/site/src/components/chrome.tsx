@@ -149,7 +149,7 @@ export function Document({
 }
 
 /** The NebulaCtrl mark, variant G: embossed over a dithered shadow from 24 px, solid below and in forced colours. */
-export function LogoMark({ size = 28 }: { size?: number }) {
+function LogoMark({ size = 28 }: { size?: number }) {
 	return <NebulaMark size={size} className="block" />;
 }
 
@@ -184,7 +184,7 @@ function navLinks(ctx: RenderContext, current: NavId) {
 	return links;
 }
 
-export function SiteHeader({
+function SiteHeader({
 	ctx,
 	current,
 	floating,
@@ -271,7 +271,7 @@ export function SiteHeader({
 	);
 }
 
-export function SiteFooter({ ctx }: { ctx: RenderContext }) {
+function SiteFooter({ ctx }: { ctx: RenderContext }) {
 	const col = "m-0 flex list-none flex-col gap-2 p-0 text-sm";
 	const link = "text-ink-2 no-underline hover:text-ink-1 hover:underline";
 	return (

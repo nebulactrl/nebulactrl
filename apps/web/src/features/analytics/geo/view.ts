@@ -32,13 +32,13 @@ export const clamp = (n: number, lo: number, hi: number) =>
 const LINE_PX = 16;
 
 /** Zoom per pixel of wheel travel: a 100px notch is about x1.25. */
-export const WHEEL_RATE = 0.0022;
+const WHEEL_RATE = 0.0022;
 /** A trackpad pinch arrives as many small deltas, so each pixel counts for more. */
-export const PINCH_RATE = 0.01;
+const PINCH_RATE = 0.01;
 /** One event never zooms by more than this many pixels of travel. */
 export const WHEEL_CAP = 240;
 /** A ctrl-wheel event under this many pixels is a pinch, not a notch. */
-export const PINCH_MAX_DELTA = 50;
+const PINCH_MAX_DELTA = 50;
 
 /** A wheel's `deltaY` in pixels: lines and pages (`deltaMode` 1 and 2) are scaled up. */
 export function wheelPixels(
@@ -209,7 +209,7 @@ export function panLimits(
 }
 
 /** `offset` held inside `range`. */
-export function clampOffset(offset: number, range: Range): number {
+function clampOffset(offset: number, range: Range): number {
 	return clamp(offset, range.lo, range.hi);
 }
 

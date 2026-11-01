@@ -364,11 +364,14 @@ func (r *Reconciler) HandleObserved(ctx context.Context, serverID uuid.UUID, obs
 func (r *Reconciler) observeOne(ctx context.Context, serverID uuid.UUID, o agentprotocol.ObservedService) error {
 	svcID, err := uuid.Parse(o.ServiceID)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // the id comes from the agent's observed report; a non-UUID one can never match a service, and failing would reject the whole report every 15 seconds
 	}
 	sc, err := services.LoadScopeInternal(ctx, r.q, svcID)
 	if err != nil {
-		return nil // unknown or deleted service
+		if apierr.IsNotFound(err) {
+			return nil // unknown or deleted service: nothing to record
+		}
+		return fmt.Errorf("load service: %w", err)
 	}
 	sv := sc.Service
 	if sv.CurrentDeploymentID == nil {
@@ -413,7 +416,7 @@ func (r *Reconciler) observeOne(ctx context.Context, serverID uuid.UUID, o agent
 	}
 
 	if o.State == agentprotocol.StateMissing || anyProcessMissing(o.Processes) {
-		msg, err := r.recover(ctx, sc, cur[0])
+		msg, err := r.recover(ctx, sc)
 		if err != nil {
 			return err
 		}
@@ -465,7 +468,7 @@ func anyProcessMissing(ps []agentprotocol.ObservedProcess) bool {
 
 // recover handles a missing container of a current deployment. It returns the
 // node error text when the redeploy limit is exhausted.
-func (r *Reconciler) recover(ctx context.Context, sc services.Scope, cur db.Deployment) (string, error) {
+func (r *Reconciler) recover(ctx context.Context, sc services.Scope) (string, error) {
 	active, err := r.q.CountActiveDeployments(ctx, sc.Service.ID)
 	if err != nil {
 		return "", fmt.Errorf("count active deployments: %w", err)
@@ -539,7 +542,13 @@ func (w *redeployWorker) Work(ctx context.Context, job *river.Job[RedeployArgs])
 // redeploy starts a `reconcile` deployment of the service's current release.
 func (r *Reconciler) redeploy(ctx context.Context, serviceID uuid.UUID) error {
 	sc, err := services.LoadScopeInternal(ctx, r.q, serviceID)
-	if err != nil || sc.Service.CurrentDeploymentID == nil {
+	if err != nil {
+		if apierr.IsNotFound(err) {
+			return nil // the service was deleted: nothing to redeploy
+		}
+		return fmt.Errorf("load service: %w", err)
+	}
+	if sc.Service.CurrentDeploymentID == nil {
 		return nil
 	}
 	if active, err := r.q.CountActiveDeployments(ctx, serviceID); err != nil || active > 0 {

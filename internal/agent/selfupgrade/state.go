@@ -48,7 +48,7 @@ func (c *Controller) load() (state, error) {
 	var st state
 	if err := json.Unmarshal(b, &st); err != nil {
 		// A torn or foreign file must not block the agent: start fresh.
-		return state{}, nil
+		return state{}, nil //nolint:nilerr // a torn or foreign state file is discarded in favor of a fresh record so a bad file cannot keep the agent from starting
 	}
 	return st, nil
 }

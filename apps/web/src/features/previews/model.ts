@@ -36,11 +36,11 @@ export function statusDetail(preview: PreviewView): string | undefined {
 	return preview.statusMessage || undefined;
 }
 
-export function isPreviewEnvironment(environment: Environment): boolean {
+function isPreviewEnvironment(environment: Environment): boolean {
 	return environment.kind === "preview";
 }
 
-export interface EnvironmentGroup {
+interface EnvironmentGroup {
 	/** A standard environment. */
 	base: Environment;
 	/** Its pull-request previews, newest PR first. */

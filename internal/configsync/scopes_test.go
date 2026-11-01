@@ -54,7 +54,7 @@ func TestScopeOfFieldTable(t *testing.T) {
 }
 
 func TestScopeOfFieldEveryCatalogIDNeedsAValidScope(t *testing.T) {
-	for _, spec := range projectconfig.Catalog() {
+	for _, spec := range projectconfig.Fields {
 		id := strings.ReplaceAll(spec.ID, "*", "sample")
 		got := scopeOfField(id)
 		require.True(t, policy.ValidScope(got), "%s needs the unknown scope %q", id, got)

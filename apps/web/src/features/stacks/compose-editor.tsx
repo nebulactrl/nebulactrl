@@ -7,7 +7,7 @@ import { StackCheckPanel } from "./check-panel";
 import type { StackCheckState } from "./model";
 
 /** The API accepts up to 256 KB per text field. */
-export const COMPOSE_MAX_BYTES = 262144;
+const COMPOSE_MAX_BYTES = 262144;
 
 const PLACEHOLDER = `services:
   web:

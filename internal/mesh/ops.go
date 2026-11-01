@@ -201,7 +201,7 @@ func (s *Service) enableServer(ctx context.Context, sn *snapshot, srv db.Server)
 		if err != nil {
 			return err
 		}
-		if _, err := s.enqueueSync(ctx, tx, srv.ID, fresh.desiredNodes(srv.ID, true)); err != nil {
+		if err := s.enqueueSync(ctx, tx, srv.ID, fresh.desiredNodes(srv.ID, true)); err != nil {
 			return err
 		}
 		return audit.Record(ctx, tx, audit.Entry{
@@ -228,7 +228,7 @@ func (s *Service) disableServer(ctx context.Context, sn *snapshot, srv db.Server
 		if _, err := q.DeleteServerMesh(ctx, srv.ID); err != nil {
 			return err
 		}
-		if _, err := s.enqueueSync(ctx, tx, srv.ID, nil); err != nil {
+		if err := s.enqueueSync(ctx, tx, srv.ID, nil); err != nil {
 			return err
 		}
 		if err := s.ts.EnqueueDeleteNode(ctx, tx, srv.WorkspaceID, tailscale.NodeRef{DeviceID: n.DeviceID, IPs: n.Ips, Hostname: n.Hostname}); err != nil {
@@ -284,7 +284,7 @@ func (s *Service) ReprovisionServer(ctx context.Context, serverID uuid.UUID) err
 		if err != nil {
 			return err
 		}
-		if _, err := s.enqueueSync(ctx, tx, serverID, fresh.desiredNodes(serverID, true)); err != nil {
+		if err := s.enqueueSync(ctx, tx, serverID, fresh.desiredNodes(serverID, true)); err != nil {
 			return err
 		}
 		return audit.Record(ctx, tx, audit.Entry{
@@ -335,7 +335,7 @@ func (s *Service) ReprovisionLink(ctx context.Context, linkID uuid.UUID) error {
 		if err != nil {
 			return err
 		}
-		if _, err := s.enqueueSync(ctx, tx, l.ServerID, fresh.desiredNodes(l.ServerID, true)); err != nil {
+		if err := s.enqueueSync(ctx, tx, l.ServerID, fresh.desiredNodes(l.ServerID, true)); err != nil {
 			return err
 		}
 		return audit.Record(ctx, tx, audit.Entry{

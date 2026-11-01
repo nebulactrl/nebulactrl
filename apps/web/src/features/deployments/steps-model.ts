@@ -18,7 +18,7 @@ const PHASE_STATUSES: Record<string, true> = {
 };
 
 /** A step's result as the timeline shows it. */
-export type StepState = "started" | "succeeded" | "failed" | "warning" | "info";
+type StepState = "started" | "succeeded" | "failed" | "warning" | "info";
 
 /** One row of the timeline: a step folded from its start and its result. */
 export interface StepRow {

@@ -441,9 +441,12 @@ func (s *Service) CheckACL(ctx context.Context) (ACLCheck, error) {
 	}
 	out := ACLCheck{Missing: []acl.Rule{}, Stale: []acl.Rule{}}
 	api, err := s.ts.PolicyAPI(ctx, sn.ws)
-	if err != nil {
+	if noPolicyAccess(err) {
 		out.Message = "This credential cannot read the tailnet policy."
 		return out, nil
+	}
+	if err != nil {
+		return ACLCheck{}, fmt.Errorf("policy api: %w", err)
 	}
 	cur, err := api.Get(ctx)
 	switch {

@@ -141,11 +141,11 @@ func (f *fixture) reload(id uuid.UUID) db.Service {
 	return sc.Service
 }
 
-func (f *fixture) setVar(serviceID uuid.UUID, key, value string, secret bool) {
+func (f *fixture) setVar(serviceID uuid.UUID, key, value string) {
 	f.t.Helper()
 	sc, err := services.LoadScopeInternal(context.Background(), f.q, serviceID)
 	require.NoError(f.t, err)
-	_, err = services.WriteServiceVariable(context.Background(), f.q, f.box, sc, services.VarWrite{Key: key, Value: value, Secret: secret})
+	_, err = services.WriteServiceVariable(context.Background(), f.q, f.box, sc, services.VarWrite{Key: key, Value: value})
 	require.NoError(f.t, err)
 }
 
@@ -309,9 +309,9 @@ func TestDerivedExportsResolveForConsumers(t *testing.T) {
 	pg := f.createDB("pg", "postgres", "17")
 	kv := f.createDB("cache", "valkey", "9")
 	api := f.app("api")
-	f.setVar(api.ID, "DATABASE_URL", "${{pg.DATABASE_URL}}", false)
-	f.setVar(api.ID, "REDIS_URL", "${{cache.REDIS_URL}}", false)
-	f.setVar(api.ID, "DB_HOST", "${{pg.DATABASE_HOST}}", false)
+	f.setVar(api.ID, "DATABASE_URL", "${{pg.DATABASE_URL}}")
+	f.setVar(api.ID, "REDIS_URL", "${{cache.REDIS_URL}}")
+	f.setVar(api.ID, "DB_HOST", "${{pg.DATABASE_HOST}}")
 
 	pw := f.getVar(pg.ID, "POSTGRES_PASSWORD")
 	kpw := f.getVar(kv.ID, "VALKEY_PASSWORD")
@@ -329,7 +329,7 @@ func TestDerivedExportsResolveForConsumers(t *testing.T) {
 	require.NotContains(t, raw, "DATABASE_URL")
 
 	// A reference to an export the engine does not have fails.
-	f.setVar(api.ID, "BAD", "${{cache.DATABASE_URL}}", false)
+	f.setVar(api.ID, "BAD", "${{cache.DATABASE_URL}}")
 	env, _ := services.LoadEnvInfo(context.Background(), f.q, f.env.ID)
 	r, err := services.LoadResolver(context.Background(), f.q, f.box, env)
 	require.NoError(t, err)
@@ -409,7 +409,7 @@ func TestRotateExecChangesPasswordThroughAgentAndStagesReferrers(t *testing.T) {
 	pg := f.createDB("pg", "postgres", "17")
 	f.deploy(pg.ID)
 	api := f.app("api")
-	f.setVar(api.ID, "DATABASE_URL", "${{pg.DATABASE_URL}}", false)
+	f.setVar(api.ID, "DATABASE_URL", "${{pg.DATABASE_URL}}")
 	worker := f.app("worker") // unrelated: never staged
 	oldPW := f.getVar(pg.ID, "POSTGRES_PASSWORD")
 	f.deploy(api.ID)
@@ -497,7 +497,7 @@ func TestRotateExecFailureKeepsTheOldCredentials(t *testing.T) {
 	pg := f.createDB("pg", "postgres", "17")
 	f.deploy(pg.ID)
 	api := f.app("api")
-	f.setVar(api.ID, "DATABASE_URL", "${{pg.DATABASE_URL}}", false)
+	f.setVar(api.ID, "DATABASE_URL", "${{pg.DATABASE_URL}}")
 	f.deploy(api.ID)
 	oldPW := f.getVar(pg.ID, "POSTGRES_PASSWORD")
 
@@ -547,7 +547,7 @@ func TestRotateRedeployEngineRestagesDatabaseAndConsumers(t *testing.T) {
 	kv := f.createDB("cache", "valkey", "9")
 	f.deploy(kv.ID)
 	api := f.app("api")
-	f.setVar(api.ID, "REDIS_URL", "${{cache.REDIS_URL}}", false)
+	f.setVar(api.ID, "REDIS_URL", "${{cache.REDIS_URL}}")
 	f.deploy(api.ID)
 	oldPW := f.getVar(kv.ID, "VALKEY_PASSWORD")
 

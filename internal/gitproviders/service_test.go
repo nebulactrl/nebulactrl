@@ -799,6 +799,22 @@ func TestReadScopeCannotLink(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, ae.Status)
 }
 
+// The clone URL is a join of the connection's base URL and the repository: no
+// API call, no credential. A read-only principal (the system actor behind a
+// config check) may resolve it; a caller without a principal may not.
+func TestCloneURLForNeedsOnlyReadScope(t *testing.T) {
+	f := newFixture(t)
+	conn := f.giteaConnection()
+
+	url, branch, err := f.svc.CloneURLFor(f.reader, conn.Connection.ID, "acme/shop")
+	require.NoError(t, err, "a read-only principal can resolve a clone URL")
+	require.Equal(t, f.provider.srv.URL+"/acme/shop.git", url)
+	require.Empty(t, branch)
+
+	_, _, err = f.svc.CloneURLFor(context.Background(), conn.Connection.ID, "acme/shop")
+	require.Error(t, err, "no principal, no clone URL")
+}
+
 func TestRepoPickerListsAndFilters(t *testing.T) {
 	f := newFixture(t)
 	conn := f.giteaConnection()

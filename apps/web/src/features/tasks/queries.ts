@@ -3,7 +3,7 @@ import { errorCode, errorMessage } from "#/api/client-config";
 import { invalidateOperations } from "#/api/invalidate";
 
 /** Everything the tasks UI shows; refetched after any task mutation. */
-export const TASK_OPERATIONS = [
+const TASK_OPERATIONS = [
 	"listServiceTasks",
 	"listServiceTaskRuns",
 	"getTaskRun",

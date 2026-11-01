@@ -14,7 +14,7 @@ import type { LampTone } from "#/components/ui/lamp";
 import type { StatusKind } from "#/components/ui/status-icon";
 import { absoluteDate, relativeTime } from "#/lib/format";
 
-export type DnsState = Exclude<DnsStatus["status"], "">;
+type DnsState = Exclude<DnsStatus["status"], "">;
 
 export interface DnsStateInfo {
 	label: string;
@@ -79,7 +79,7 @@ export interface RecordText {
 	proxied: boolean;
 }
 
-export function recordText(record: RecordText): string {
+function recordText(record: RecordText): string {
 	return `${record.type} ${record.content} (${proxyLabel(record.proxied)})`;
 }
 
@@ -157,7 +157,7 @@ export function fixAction(status: DnsStatus): FixAction {
 }
 
 /** "203.0.113.10" or "abc.cfargotunnel.com": where the record should point. */
-export function targetText(status: Pick<DnsStatus, "desired">): string {
+function targetText(status: Pick<DnsStatus, "desired">): string {
 	return status.desired?.content || "the server";
 }
 
@@ -301,8 +301,8 @@ function unzonedDnsLine(
 export const ORIGIN_LOCK_OPT_OUT_WARNING =
 	"Anyone who finds this server's IP can bypass Cloudflare.";
 
-export type LockLayerId = "ip" | "aop" | "realIp";
-export type LockLayerState = "on" | "off" | "unavailable";
+type LockLayerId = "ip" | "aop" | "realIp";
+type LockLayerState = "on" | "off" | "unavailable";
 
 export interface LockLayer {
 	id: LockLayerId;

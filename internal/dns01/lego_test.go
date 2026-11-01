@@ -80,7 +80,7 @@ func TestAnyLegoProviderEndToEnd(t *testing.T) {
 	require.Len(t, curated, 19)
 	rest, err := svc.LegoProviders(dev)
 	require.NoError(t, err)
-	require.Len(t, rest, len(agentprotocol.LegoProviderCodes())-19)
+	require.Len(t, rest, len(agentprotocol.LegoProviders()))
 	_, err = svc.LegoProviders(principal(ws.ID, nil))
 	require.Error(t, err)
 

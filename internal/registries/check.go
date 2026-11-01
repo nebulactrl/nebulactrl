@@ -226,11 +226,13 @@ func (s *Service) HandleUndelivered(ctx context.Context, commandID uuid.UUID, ms
 
 func (s *Service) recordCheck(ctx context.Context, cmd db.AgentCommand, out RegistryCheck) error {
 	var p checkPayload
-	if json.Unmarshal(cmd.Payload, &p) != nil {
+	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+		s.Logger.WarnContext(ctx, "registry check result ignored: the stored payload cannot be parsed", "command_id", cmd.ID, "err", err)
 		return nil
 	}
 	id, err := uuid.Parse(p.RegistryID)
 	if err != nil {
+		s.Logger.WarnContext(ctx, "registry check result ignored: the stored payload has no valid registry id", "command_id", cmd.ID, "err", err)
 		return nil
 	}
 	out.ServerID = &cmd.ServerID

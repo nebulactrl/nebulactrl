@@ -33,7 +33,7 @@ export interface LinkContext {
 }
 
 /** Paths the control plane serves next to /docs that a page may link to. */
-export const SITE_PATHS: readonly string[] = [
+const SITE_PATHS: readonly string[] = [
 	"/llms.txt",
 	"/llms-full.txt",
 	"/api/v1/openapi.json",

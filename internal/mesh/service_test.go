@@ -99,9 +99,9 @@ func newFixture(t *testing.T, hsOpts ...meshtest.HeadscaleOption) *fixture {
 	return f
 }
 
-func (f *fixture) commands(kind string) []db.AgentCommand {
+func (f *fixture) syncMeshCommands() []db.AgentCommand {
 	var out []db.AgentCommand
-	rows, err := f.pool.Query(bg, "SELECT id FROM agent_commands WHERE kind = $1 ORDER BY created_at", kind)
+	rows, err := f.pool.Query(bg, "SELECT id FROM agent_commands WHERE kind = $1 ORDER BY created_at", agentprotocol.KindSyncMesh)
 	require.NoError(f.t, err)
 	defer rows.Close()
 	var ids []uuid.UUID
@@ -135,10 +135,10 @@ func TestEnablingNeedsConfirmationAndTheKeyIsMintedOnlyWhenSent(t *testing.T) {
 	ae, ok := apierr.As(err)
 	require.True(t, ok)
 	require.Equal(t, apierr.CodeMeshConfirmationRequired, ae.Code)
-	require.Empty(t, f.commands(agentprotocol.KindSyncMesh), "nothing was sent without the confirmation")
+	require.Empty(t, f.syncMeshCommands(), "nothing was sent without the confirmation")
 
 	f.enable(f.a)
-	cmds := f.commands(agentprotocol.KindSyncMesh)
+	cmds := f.syncMeshCommands()
 	require.Len(t, cmds, 1)
 	require.Empty(t, f.hs.Keys(), "no key exists before the command is sent")
 
@@ -155,7 +155,7 @@ func TestEnablingNeedsConfirmationAndTheKeyIsMintedOnlyWhenSent(t *testing.T) {
 	require.Len(t, f.hs.ActiveKeys(), 1, "one single-use key was minted when the command was sent")
 
 	// The key never reaches agent_commands.
-	for _, c := range f.commands(agentprotocol.KindSyncMesh) {
+	for _, c := range f.syncMeshCommands() {
 		require.NotContains(t, string(c.Payload), key)
 	}
 	var all string
@@ -315,7 +315,7 @@ func TestRevokingAServerDeletesItsDevicesAndRegeneratesTheACL(t *testing.T) {
 func TestUnusedKeyIsRevokedByTheSweeper(t *testing.T) {
 	f := newFixture(t)
 	f.enable(f.a)
-	cmds := f.commands(agentprotocol.KindSyncMesh)
+	cmds := f.syncMeshCommands()
 	_, err := f.svc.SecretsForCommand(bg, cmds[0].Kind, cmds[0].Payload)
 	require.NoError(t, err)
 	row, err := f.q.GetServerMesh(bg, f.a.ID)
@@ -334,7 +334,7 @@ func TestUnusedKeyIsRevokedByTheSweeper(t *testing.T) {
 func TestSyncResultAppliesNodeStateAndAHeartbeatKeepsIt(t *testing.T) {
 	f := newFixture(t)
 	f.enable(f.a)
-	cmds := f.commands(agentprotocol.KindSyncMesh)
+	cmds := f.syncMeshCommands()
 	st, _ := json.Marshal(agentprotocol.MeshStatus{TunDevice: true, Nodes: []agentprotocol.MeshNodeStatus{{
 		NodeID: f.a.ID.String(), Kind: agentprotocol.MeshKindServer, State: agentprotocol.MeshStateOnline, FQDN: "nc-agent1.tailnet.internal", IPs: []string{"100.64.0.1"}, DeviceID: "7",
 	}}})

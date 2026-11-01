@@ -170,7 +170,7 @@ func (s *Service) writeUpdate(ctx context.Context, tx pgx.Tx, p updatePlan) (db.
 	}
 	switch p.www.action {
 	case wwwCreate:
-		if _, err := s.insertCompanion(ctx, tx, sc, row, p.www.spec, p.publicIP); err != nil {
+		if err := s.insertCompanion(ctx, tx, sc, row, p.www.spec, p.publicIP); err != nil {
 			return db.Domain{}, 0, err
 		}
 	case wwwSync:

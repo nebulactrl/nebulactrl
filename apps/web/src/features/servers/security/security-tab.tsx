@@ -735,5 +735,3 @@ function RunRow({ run }: { run: HardeningRun }) {
 		</li>
 	);
 }
-
-export type { HardeningView };

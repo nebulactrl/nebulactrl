@@ -31,7 +31,7 @@ func TestL4PortChangeRecreatesContainer(t *testing.T) {
 	require.NotContains(t, strings.Join(spec0.Cmd, " "), "tcp-")
 
 	// A new tcp port: static entrypoint, published port, container recreated.
-	table := withL4(base, tcpRoute(svcDB, 5432))
+	table := withL4(base, tcpRoute(5432))
 	require.NoError(t, m.Apply(table))
 	require.Equal(t, 2, eng.count("create:"+px), "adding a port recreates the proxy")
 	require.Equal(t, 1, eng.count("remove:"+px))
@@ -49,21 +49,21 @@ func TestL4PortChangeRecreatesContainer(t *testing.T) {
 	require.False(t, m.LastApply().Restarted)
 
 	// A udp port, then removing the tcp port: each change of the port set recreates.
-	table = withL4(table, udpRoute(svcDNS2, 5353))
+	table = withL4(table, udpRoute())
 	require.NoError(t, m.Apply(table))
 	_, spec2, _ := eng.container(px)
 	require.Contains(t, spec2.Cmd, "--entrypoints.udp-5353.address=:5353/udp")
 	require.Contains(t, portsOf(spec2), "5353->5353/udp")
 	require.Equal(t, 3, eng.count("create:"+px))
 
-	table = withL4(base, udpRoute(svcDNS2, 5353))
+	table = withL4(base, udpRoute())
 	require.NoError(t, m.Apply(table))
 	_, spec3, _ := eng.container(px)
 	require.NotContains(t, portsOf(spec3), "5432->5432/tcp")
 	require.Equal(t, 4, eng.count("create:"+px))
 
 	// A change of routes only (same ports) is hot.
-	table = withL4(twoRoutes()[:1], udpRoute(svcDNS2, 5353))
+	table = withL4(twoRoutes()[:1], udpRoute())
 	require.NoError(t, m.Apply(table))
 	require.Equal(t, 4, eng.count("create:"+px))
 }
@@ -87,7 +87,7 @@ func TestStartFailureRestoresPreviousContainerAndRoutes(t *testing.T) {
 		return nil
 	}
 	n := len(eng.events())
-	err := m.Apply(withL4(base, tcpRoute(svcDB, 5432)))
+	err := m.Apply(withL4(base, tcpRoute(5432)))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "5432", "the error names the port")
 	require.Contains(t, err.Error(), "tcp")
@@ -115,7 +115,7 @@ func TestStartFailureRestoresPreviousContainerAndRoutes(t *testing.T) {
 
 	// Once the port is free the same change goes through.
 	eng.startErr = nil
-	require.NoError(t, m.Apply(withL4(base, tcpRoute(svcDB, 5432))))
+	require.NoError(t, m.Apply(withL4(base, tcpRoute(5432))))
 	_, spec, _ := eng.container(px)
 	require.Contains(t, portsOf(spec), "5432->5432/tcp")
 }
@@ -135,13 +135,13 @@ func TestFirstStartFailureHasNothingToRestore(t *testing.T) {
 func TestRejectedL4RoutersRestorePreviousContainerAndTable(t *testing.T) {
 	m, eng, tr, _ := newFleetManager(t, nil, nil)
 	px := agentprotocol.ProxyContainer
-	base := withL4(twoRoutes(), tcpRoute(svcDB, 5432))
+	base := withL4(twoRoutes(), tcpRoute(5432))
 	require.NoError(t, m.Apply(base))
 	_, before, _ := eng.container(px)
 
 	// Traefik starts but disables the new udp router.
 	tr.disabledL4 = true
-	err := m.Apply(withL4(base, udpRoute(svcDNS2, 5353)))
+	err := m.Apply(withL4(base, udpRoute()))
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "disabled routers")
 
@@ -175,7 +175,7 @@ func TestValidationFailureLeavesContainerAndConfigAlone(t *testing.T) {
 func TestL4PortCollidingWithProxyListenerIsRejected(t *testing.T) {
 	m, _, _, _ := newFleetManager(t, nil, nil)
 	for _, port := range []int{8880, 8443, agentprotocol.ProxyAdminPort} {
-		err := m.Apply(withL4(twoRoutes(), tcpRoute(svcDB, port)))
+		err := m.Apply(withL4(twoRoutes(), tcpRoute(port)))
 		require.Error(t, err, port)
 	}
 }
@@ -337,4 +337,10 @@ func TestRouteStoreOptionalConfigNilStore(t *testing.T) {
 	m, _, _, _ := newFleetManager(t, nil, nil)
 	require.Equal(t, agentprotocol.DefaultUpstreamPolicy(), m.ProxyConfig().UpstreamPolicy)
 	require.NoError(t, m.Apply(twoRoutes()))
+}
+
+// desiredSpec is the container the agent wants for the current table and
+// configuration.
+func (m *Manager) desiredSpec() docker.ContainerSpec {
+	return m.specFor(m.inputsFor(m.Current(), m.ProxyConfig()))
 }

@@ -25,7 +25,7 @@ import { invalidateOperations } from "#/api/invalidate";
 const REFRESH_MS = 30_000;
 
 /** Everything the status pages UI shows; refetched after any mutation. */
-export const STATUS_PAGE_OPERATIONS = [
+const STATUS_PAGE_OPERATIONS = [
 	"listStatusPages",
 	"getStatusPage",
 	"checkStatusPageDns",

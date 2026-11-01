@@ -26,7 +26,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"github.com/nebulactrl/nebulactrl/internal/auth"
+	"github.com/nebulactrl/nebulactrl/internal/auth/totptest"
 )
 
 // ---- helpers ----
@@ -66,7 +66,7 @@ func totpCode(t *testing.T, secretB32 string, at time.Time) string {
 	t.Helper()
 	b, err := base32.StdEncoding.WithPadding(base32.NoPadding).DecodeString(secretB32)
 	require.NoError(t, err)
-	return auth.TOTPCode(b, at)
+	return totptest.Code(b, at)
 }
 
 // enrolTOTP turns 2FA on for whoever h is signed in as and returns the base32
@@ -492,7 +492,7 @@ func TestOIDCLoginLinksByVerifiedEmailOnly(t *testing.T) {
 	noPw := h.using(b).do("POST", "/me/identities/link", "", map[string]any{"providerId": pid})
 	require.Equal(t, 422, noPw.Status, string(noPw.Raw))
 	require.Equal(t, "invalid_password", noPw.JSON()["code"])
-	require.Equal(t, "/account/security#sso=linked", h.linkProvider(b, idp, pid, testPassword, verified("sub-1", "Admin@Example.com")))
+	require.Equal(t, "/account/security#sso=linked", h.linkProvider(b, idp, pid, verified("sub-1", "Admin@Example.com")))
 	me := h.using(b).do("GET", "/me", "", nil)
 	require.Equal(t, 200, me.Status, string(me.Raw))
 	require.Equal(t, "admin@example.com", me.JSON()["email"])
@@ -503,7 +503,7 @@ func TestOIDCLoginLinksByVerifiedEmailOnly(t *testing.T) {
 	require.Equal(t, "/", h.providerLogin(b1, idp, pid, map[string]any{"sub": "sub-1"}, ""))
 	require.Equal(t, 200, h.using(b1).do("GET", "/me", "", nil).Status)
 	// Linking it again changes nothing; another account cannot take the identity.
-	require.Equal(t, "/account/security#sso=linked", h.linkProvider(b, idp, pid, testPassword, verified("sub-1", "Admin@Example.com")))
+	require.Equal(t, "/account/security#sso=linked", h.linkProvider(b, idp, pid, verified("sub-1", "Admin@Example.com")))
 	require.Len(t, h.using(b).do("GET", "/me/security", "", nil).JSON()["identities"], 1)
 	// A link started by a signed-out browser is refused outright.
 	out := h.using(newBrowser(t)).do("POST", "/me/identities/link", "", map[string]any{"providerId": pid, "password": testPassword})
@@ -564,7 +564,7 @@ func TestOIDCAllowedDomains(t *testing.T) {
 	// The domain rule also applies to linking: the owner links from Account → Security.
 	b := newBrowser(t)
 	require.Equal(t, 200, h.using(b).login("admin@example.com", testPassword).Status)
-	require.Equal(t, "/account/security#sso=linked", h.linkProvider(b, idp, pid, testPassword, verified("sub-1", "admin@example.com")))
+	require.Equal(t, "/account/security#sso=linked", h.linkProvider(b, idp, pid, verified("sub-1", "admin@example.com")))
 	b2 := newBrowser(t)
 	require.Equal(t, "/", h.providerLogin(b2, idp, pid, verified("sub-1", "admin@example.com"), ""))
 	require.Equal(t, 200, h.using(b2).do("GET", "/me", "", nil).Status)
@@ -776,7 +776,7 @@ func TestOIDCTrustedMFASkipsTheSecondFactor(t *testing.T) {
 	bl := newBrowser(t)
 	require.Equal(t, 401, h.using(bl).login("admin@example.com", testPassword).Status)
 	require.Equal(t, 200, h.using(bl).do("POST", "/auth/2fa", "", map[string]any{"code": totpCode(t, secret, clock.Now())}).Status)
-	require.Equal(t, "/account/security#sso=linked", h.linkProvider(bl, idp, pid, testPassword, verified("sub-1", "admin@example.com")))
+	require.Equal(t, "/account/security#sso=linked", h.linkProvider(bl, idp, pid, verified("sub-1", "admin@example.com")))
 	clock.Advance(30 * time.Second) // the next code is a new step
 	claims := func(amr ...string) map[string]any {
 		c := verified("sub-1", "admin@example.com")
@@ -921,9 +921,9 @@ func TestGitHubLogin(t *testing.T) {
 
 // linkProvider walks the Account → Security link flow as browser b (signed in),
 // and returns where the callback sent the browser.
-func (h *harness) linkProvider(b *http.Client, idp *fakeIdP, providerID, password string, claims map[string]any) string {
+func (h *harness) linkProvider(b *http.Client, idp *fakeIdP, providerID string, claims map[string]any) string {
 	h.t.Helper()
-	start := h.using(b).do("POST", "/me/identities/link", "", map[string]any{"providerId": providerID, "password": password})
+	start := h.using(b).do("POST", "/me/identities/link", "", map[string]any{"providerId": providerID, "password": testPassword})
 	require.Equal(h.t, 200, start.Status, string(start.Raw))
 	cb := idp.authorize(start.JSON()["url"].(string), claims)
 	res := h.get(b, cb)

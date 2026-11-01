@@ -21,7 +21,7 @@ function backupPath(_server: ServerView): string {
 }
 
 /** What the person runs on the host by hand after a server was forgotten. */
-export function manualCleanupCommand(origin: string): string {
+function manualCleanupCommand(origin: string): string {
 	return [
 		`docker ps -aq --filter label=nebulactrl.managed | xargs -r docker rm -f`,
 		`docker rm -f nebulactrl-traefik nebulactrl-pages nebulactrl-cloudflared nebulactrl-tailscale`,

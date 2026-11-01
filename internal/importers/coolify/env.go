@@ -136,7 +136,7 @@ func (a *analyzer) buildEnv(r *CoolifyPlanResource, c *refCtx) {
 			}
 		}
 		rendered = apply(val, hits).render()
-		if _, err := validTemplate(rendered); err != nil {
+		if err := validTemplate(rendered); err != nil {
 			rendered, hits = segs{{lit: val}}.render(), nil
 			pe.Note = joinNote(pe.Note, "A reference could not be written for this value; it was kept as it is.")
 		}
@@ -218,13 +218,11 @@ func joinNote(a, b string) string {
 
 func varexprKey(k string) bool { return varexpr.IsKey(k) && len(k) <= 255 }
 
-func validTemplate(v string) (*varexpr.Template, error) {
+func validTemplate(v string) error {
 	t, err := varexpr.Parse(v)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	if _, err := varexpr.Validate(t); err != nil {
-		return nil, err
-	}
-	return t, nil
+	_, err = varexpr.Validate(t)
+	return err
 }

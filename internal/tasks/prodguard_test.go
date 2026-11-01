@@ -10,6 +10,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/auth"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 )
 
 // restToken is a REST token as authentication builds it: guarded unless exempt.
@@ -33,7 +34,7 @@ func (f *fixture) installGuard() *prodguard.Guard {
 	f.t.Helper()
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: f.box})
 	g.Install()
-	f.t.Cleanup(prodguard.Uninstall)
+	f.t.Cleanup(prodguardtest.Uninstall)
 	return g
 }
 
@@ -50,7 +51,7 @@ func (f *fixture) approve(g *prodguard.Guard, err error) {
 func TestTaskChangesInProductionNeedApprovalForRESTTokens(t *testing.T) {
 	f := newFixture(t) // the fixture environment is production
 	g := f.installGuard()
-	sv := f.deployed("api")
+	sv := f.deployed()
 	rest := f.restToken(policy.AllScopes)
 
 	in := TaskInput{Name: "x", Schedule: "* * * * *", Command: []string{"sh", "-c", "env | rev"}}
@@ -100,7 +101,7 @@ func TestTaskChangesInProductionNeedApprovalForRESTTokens(t *testing.T) {
 func TestProductionTaskCommandNeedsDeploymentsWrite(t *testing.T) {
 	f := newFixture(t)
 	g := f.installGuard()
-	sv := f.deployed("api")
+	sv := f.deployed()
 	writeOnly := f.restToken([]string{policy.ScopeProjectsRead, policy.ScopeProjectsWrite})
 
 	in := TaskInput{Name: "x", Schedule: "* * * * *", Command: []string{"sh", "-c", "env | rev"}}

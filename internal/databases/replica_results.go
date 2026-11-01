@@ -39,12 +39,15 @@ func (s *Service) replicationSecrets(ctx context.Context, kind string, payload j
 		out[agentprotocol.SecretReplPassword] = pw
 	case agentprotocol.KindDBAdmin:
 		var p agentprotocol.DBAdminPayload
-		if err := json.Unmarshal(payload, &p); err != nil || p.Action != agentprotocol.DBActionReplPrepare || p.Repl == nil {
+		if err := json.Unmarshal(payload, &p); err != nil {
+			return fmt.Errorf("decode db_admin payload: %w", err)
+		}
+		if p.Action != agentprotocol.DBActionReplPrepare || p.Repl == nil {
 			return nil
 		}
 		primary, err := uuid.Parse(p.ServiceID)
 		if err != nil {
-			return nil
+			return fmt.Errorf("db_admin service id: %w", err)
 		}
 		rows, err := s.q.ListDatabaseReplicasOfPrimary(ctx, primary)
 		if err != nil {

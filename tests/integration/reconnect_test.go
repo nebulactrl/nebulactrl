@@ -45,7 +45,7 @@ func startSlowV2(t *testing.T, s *Stack, svcID string) string {
 func TestReconnectResultReplayAfterPartition(t *testing.T) {
 	requireTier(t, tierFull)
 	s := ExclusiveStack(t, StackOptions{Partitionable: true})
-	svc, px := liveV1(t, s, "web", map[string]any{"startPeriodSeconds": 6})
+	svc, px := liveV1(t, s, map[string]any{"startPeriodSeconds": 6})
 
 	dep := startSlowV2(t, s, svc.ID)
 	s.Net.Cut()
@@ -73,7 +73,7 @@ func TestReconnectResultReplayAfterPartition(t *testing.T) {
 func TestReconnectAgentKilledMidDeploy(t *testing.T) {
 	requireTier(t, tierFull)
 	s := ExclusiveStack(t)
-	svc, px := liveV1(t, s, "web", map[string]any{"startPeriodSeconds": 6})
+	svc, px := liveV1(t, s, map[string]any{"startPeriodSeconds": 6})
 
 	dep := startSlowV2(t, s, svc.ID)
 	s.Agent.Stop() // crash: in-flight work is abandoned, no result is recorded

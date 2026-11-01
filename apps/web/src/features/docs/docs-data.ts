@@ -32,7 +32,7 @@ export function childrenOf(slug: string): DocMeta[] {
 		.sort((a, b) => a.order - b.order);
 }
 
-export function loadDocPage(slug: string): Promise<DocPage> {
+function loadDocPage(slug: string): Promise<DocPage> {
 	const load = loaders[slug];
 	if (!load) return Promise.reject(new Error(`No docs page "${slug}"`));
 	return load().then((module) => module.default);

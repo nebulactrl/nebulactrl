@@ -483,7 +483,7 @@ func (r *runner) pass(ctx context.Context, sink sinks.Sink) (moved bool, retryAf
 	var backlog int64
 	for _, id := range r.m.st.ServiceIDs() {
 		if ctx.Err() != nil {
-			return moved, 0, nil
+			return moved, 0, ctx.Err()
 		}
 		if !r.inScope(id, meta) {
 			r.skipTo(id)
@@ -505,7 +505,7 @@ func (r *runner) pass(ctx context.Context, sink sinks.Sink) (moved bool, retryAf
 		if len(batch) > 0 {
 			if serr := sink.Send(ctx, batch); serr != nil {
 				if ctx.Err() != nil {
-					return moved, 0, nil
+					return moved, 0, ctx.Err()
 				}
 				var se *sinks.SendError
 				if errors.As(serr, &se) && se.Permanent {

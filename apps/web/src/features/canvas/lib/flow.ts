@@ -31,7 +31,7 @@ export function groupNodeId(groupId: string): string {
 	return `${GROUP_PREFIX}${groupId}`;
 }
 
-export function isGroupNodeId(id: string): boolean {
+function isGroupNodeId(id: string): boolean {
 	return id.startsWith(GROUP_PREFIX);
 }
 

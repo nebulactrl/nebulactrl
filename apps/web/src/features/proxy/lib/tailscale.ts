@@ -18,7 +18,7 @@ export function parseTags(text: string): string[] {
 }
 
 /** A Tailscale tag: `tag:` and a name of letters, digits and dashes. */
-export function validateTag(tag: string): string | null {
+function validateTag(tag: string): string | null {
 	return /^tag:[A-Za-z][A-Za-z0-9-]*$/.test(tag)
 		? null
 		: `“${tag}” is not a tag. Use tag:name, starting with a letter.`;

@@ -122,6 +122,10 @@ type Binding interface {
 	// Check reads the file now (at sha, "" = branch head), stores the status
 	// and returns it (projects:read).
 	Check(ctx context.Context, environmentID uuid.UUID, sha string) (EnvironmentConfigSource, error)
+	// Refresh schedules a debounced check of the environment's file, so the
+	// stored status follows a change the file did not make itself (a dashboard
+	// apply). It does nothing when the environment has no binding.
+	Refresh(environmentID uuid.UUID)
 }
 
 // UpdateSourceInput is the body of PUT /environments/{environmentId}/config-source.
@@ -654,7 +658,7 @@ func (g *GitSync) Put(ctx context.Context, environmentID uuid.UUID, in UpdateSou
 	}
 	g.publish(cur)
 	if explicitChange {
-		g.refresh(environmentID)
+		g.Refresh(environmentID)
 	}
 	return g.viewOf(ctx, environmentID)
 }
@@ -677,7 +681,7 @@ func (g *GitSync) Clear(ctx context.Context, environmentID uuid.UUID) error {
 		return fmt.Errorf("clear config source: %w", err)
 	}
 	services.Publish(g.bus, services.EventConfigUpdated, es.Env.ProjectID, environmentID, environmentID)
-	g.refresh(environmentID)
+	g.Refresh(environmentID)
 	return nil
 }
 

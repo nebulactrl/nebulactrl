@@ -235,7 +235,7 @@ func parseProject(src string, dotenv map[string]string, files FileFn) (*project,
 		n := cNetwork{Name: name}
 		if ext, ok := m["external"]; ok {
 			n.External = truthy(ext)
-			if em := asMap(ext); len(em) > 0 { // legacy: external: {name: x}
+			if em := asMap(ext); len(em) > 0 { // legacy form: external is a mapping carrying the name
 				n.External = true
 				if s, ok := scalar(em["name"]); ok && s != "" {
 					n.Name = s
@@ -461,8 +461,6 @@ func mergeService(base, child map[string]any) map[string]any {
 			bm, cm := asMap(bv), asMap(v)
 			if bm != nil && cm != nil {
 				out[k] = mergeMaps(bm, cm)
-			} else if bm == nil && cm != nil {
-				out[k] = v
 			} else {
 				out[k] = v
 			}
@@ -628,7 +626,7 @@ func buildService(key string, m map[string]any, p *project, files FileFn) (*cSer
 	s.Ports, s.Expose = parsePorts(m["ports"], m["expose"], key, note)
 	s.Mounts = parseMounts(m["volumes"], key, note)
 	s.DependsOn = parseDepends(m["depends_on"], m["links"])
-	s.Healthcheck = parseHealth(m["healthcheck"], key, note)
+	s.Healthcheck = parseHealth(m["healthcheck"])
 	s.Profiles = stringList(m["profiles"])
 	s.Networks, s.NetworkMode = parseNetworks(m["networks"], asStr(m["network_mode"]))
 	s.ContainerName = asStr(m["container_name"])
@@ -973,7 +971,7 @@ func parseDepends(dep, links any) []cDep {
 	return out
 }
 
-func parseHealth(v any, key string, note func(k, sev, msg string)) *cHealth {
+func parseHealth(v any) *cHealth {
 	m := asMap(v)
 	if m == nil {
 		return nil

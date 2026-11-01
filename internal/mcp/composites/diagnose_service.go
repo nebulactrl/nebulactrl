@@ -314,7 +314,7 @@ func (c *composites) runDiagnoseService(ctx context.Context, p *auth.Principal, 
 				return nil
 			})
 		} else {
-			pr.note("server", mcpkit.CodeForbidden, "host server health needs the servers:read scope")
+			pr.forbidden("server", "host server health needs the servers:read scope")
 		}
 	}
 	pr.run("metrics", func(ctx context.Context) error {
@@ -346,7 +346,7 @@ func (c *composites) runDiagnoseService(ctx context.Context, p *auth.Principal, 
 	})
 	switch {
 	case !holds(p, policy.ScopeLogsRead):
-		pr.note("logs", mcpkit.CodeForbidden, "runtime logs need the logs:read scope")
+		pr.forbidden("logs", "runtime logs need the logs:read scope")
 		logsReason = "the token lacks logs:read"
 	case view.Kind == services.KindRoute:
 		logsReason = "route services have no container and no runtime logs"
@@ -387,7 +387,7 @@ func (c *composites) runDiagnoseService(ctx context.Context, p *auth.Principal, 
 	}
 
 	info := c.diagServiceInfo(view, sc)
-	findings := diagnoseServiceFindings(view, sc, subject, deps, varsOut, doms, srvOut, metricsOut, errLines, len(logLines))
+	findings := diagnoseServiceFindings(view, subject, deps, varsOut, doms, srvOut, metricsOut, errLines, len(logLines))
 	sortFindings(findings)
 	verdict := diagServiceVerdict(view)
 	if verdict == diagHealthy {
@@ -522,7 +522,7 @@ func diagServiceVerdict(v services.ServiceView) string {
 	return diagHealthy
 }
 
-func diagnoseServiceFindings(v services.ServiceView, sc services.Scope, subject string, deps []diagDeployment,
+func diagnoseServiceFindings(v services.ServiceView, subject string, deps []diagDeployment,
 	vars diagVariables, doms []diagDomain, srv *diagServiceServer, m *diagServiceMetrics, errLines, logCount int) []Finding {
 	var fs []Finding
 	add := func(f Finding) {

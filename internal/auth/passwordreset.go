@@ -133,7 +133,7 @@ func (s *Service) RequestPasswordReset(ctx context.Context, email string) error 
 	}
 	email = normalizeEmail(email)
 	if _, err := mail.ParseAddress(email); err != nil {
-		return nil
+		return nil //nolint:nilerr // an unparseable address gets the same nil answer as an unknown account, so the response cannot be used to probe for accounts
 	}
 	u, err := s.q.GetUserByEmail(ctx, email)
 	if errors.Is(err, pgx.ErrNoRows) {

@@ -22,7 +22,7 @@ func TestTrafficAnalytics(t *testing.T) {
 	requireTier(t, tierFull)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, px := liveV1(t, s, "web", nil)
+	svc, px := liveV1(t, s, nil)
 	px.UA = marker + " (Macintosh; Intel Mac OS X 10_15_7)"
 
 	// Baseline so the assertion measures these requests, not the warm-up ones.

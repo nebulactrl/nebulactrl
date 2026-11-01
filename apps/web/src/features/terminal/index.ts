@@ -1,9 +1,6 @@
 export { HostShellSheet } from "./host-shell-sheet";
-export { useHostShellInfo, useTerminalInfo } from "./queries";
+export { useHostShellInfo } from "./queries";
 export {
-	closeFiles,
-	closeHostShell,
-	closeShell,
 	openFiles,
 	openHostShell,
 	openShell,

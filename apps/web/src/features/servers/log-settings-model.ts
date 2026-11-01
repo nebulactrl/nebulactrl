@@ -13,7 +13,7 @@ export const MB = 1024 * 1024;
 export const GB = 1024 * MB;
 
 /** The API's bounds: a cap is at least 32 MB, retention is 1 to 90 days. */
-export const MIN_CAP_BYTES = 32 * MB;
+const MIN_CAP_BYTES = 32 * MB;
 export const RETENTION_LIMITS = { min: 1, max: 90 } as const;
 
 export type CapUnit = "MB" | "GB";

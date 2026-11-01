@@ -25,7 +25,7 @@ const VIEWPORT_CAP = 0.9;
  * Below this viewport width the panel is a full-screen sheet:
  * the canvas is not meant to show, so it neither resizes nor reserves room.
  */
-export const FULL_SCREEN_BELOW = 760;
+const FULL_SCREEN_BELOW = 760;
 
 /** Whether the panel covers the whole screen at this viewport width. */
 export function isFullScreen(viewport: number): boolean {

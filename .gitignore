@@ -18,6 +18,7 @@
 .DS_Store
 /tmp/
 coverage.out
+coverage/
 
 # Internal notes kept out of the public repository (they stay on the maintainer's disk).
 /DESIGN.md

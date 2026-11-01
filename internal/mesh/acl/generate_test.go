@@ -212,5 +212,5 @@ func TestHash(t *testing.T) {
 	a, b := Hash([]byte("x")), Hash([]byte("y"))
 	require.Len(t, a, 64)
 	require.NotEqual(t, a, b)
-	require.True(t, strings.EqualFold(a, a))
+	require.Equal(t, strings.ToLower(a), a, "hash is lowercase hex")
 }

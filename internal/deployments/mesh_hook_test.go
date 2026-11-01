@@ -49,7 +49,7 @@ func (f *routeFixture) meshDeploy(h *fakeMeshHook, slug string) (uuid.UUID, erro
 	web := f.web(slug)
 	v, err := f.deps.Deploy(f.ctx, web.ID, "", "")
 	require.NoError(f.t, err)
-	return v.ID, f.deps.runDeploy(context.Background(), v.ID, "")
+	return v.ID, f.deps.runDeploy(context.Background(), v.ID)
 }
 
 func (f *routeFixture) status(id uuid.UUID) string {
@@ -100,7 +100,7 @@ func TestDeployWaitsForTheMeshLinksThenDispatchesWithTheAlias(t *testing.T) {
 	require.Equal(t, []string{TriggerManual}, h.prepared)
 
 	h.waiting = ""
-	require.NoError(t, f.deps.runDeploy(context.Background(), id, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), id))
 	var p agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &p))
 	require.Equal(t, "nc-svc-abcd1234", p.MeshAlias)
@@ -147,7 +147,7 @@ func TestDeployNeverProceedsWithAPendingMeshRoute(t *testing.T) {
 
 	v, err := f.deps.Deploy(f.ctx, api.ID, "", "")
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(bg, v.ID, ""))
+	require.NoError(t, f.deps.runDeploy(bg, v.ID))
 	require.Equal(t, "failed", f.status(v.ID))
 	var msg string
 	require.NoError(t, f.pool.QueryRow(bg, "SELECT status_message FROM deployments WHERE id = $1", v.ID).Scan(&msg))

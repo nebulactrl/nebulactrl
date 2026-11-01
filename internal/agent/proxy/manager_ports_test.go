@@ -241,7 +241,7 @@ func TestPortValidationLeavesTheProxyAlone(t *testing.T) {
 
 	// A tcp route on the new HTTPS port is a clash too.
 	withPorts(m, 9080, 9443)
-	err := m.Apply(withL4(twoRoutes(), tcpRoute(svcDB, 9443)))
+	err := m.Apply(withL4(twoRoutes(), tcpRoute(9443)))
 	require.ErrorContains(t, err, "is the proxy's own HTTPS port")
 	require.Equal(t, n, len(eng.events()))
 }

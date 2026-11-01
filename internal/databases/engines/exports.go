@@ -39,16 +39,6 @@ func LinkPrefix(engine string) string {
 	return "DATABASE_"
 }
 
-// ExportKeys lists the export names of an engine in display order.
-func ExportKeys(engine string) []string {
-	exs := ExportList(engine)
-	out := make([]string, len(exs))
-	for i, e := range exs {
-		out[i] = e.Key
-	}
-	return out
-}
-
 // ExportList lists the exports of an engine in display order with their
 // descriptions and secrecy; values are placeholders. It is what a reference
 // to the engine can name.

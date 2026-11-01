@@ -187,7 +187,7 @@ func TestIncidentDayKeys(t *testing.T) {
 func TestNormalizeHost(t *testing.T) {
 	for in, want := range map[string]string{
 		"status.example.com":      "status.example.com",
-		" Status.Example.COM ":    "status.example.com",
+		" Status.Example.COM ":    "status.example.com", //nolint:gocritic // the padded mixed-case key deliberately checks that normalizeHost trims and lowercases
 		"status.example.com:8081": "status.example.com",
 		"status.example.com.":     "status.example.com",
 		"":                        "",

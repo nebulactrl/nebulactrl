@@ -20,7 +20,7 @@ import {
 import { invalidateOperations, invalidateServices } from "#/api/invalidate";
 
 /** Everything the nebula.toml screens show; refetched after any apply, release or binding change. */
-export const CONFIG_OPERATIONS = [
+const CONFIG_OPERATIONS = [
 	"getServiceConfigSource",
 	"getEnvironmentConfigSource",
 ] as const;

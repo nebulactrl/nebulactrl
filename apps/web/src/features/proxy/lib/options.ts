@@ -38,20 +38,19 @@ export const GROUP_TITLE: Record<OptionGroup, string> = {
 };
 
 /** The RouteOptions keys each group owns (TLS also owns the domain's tlsMode and pinned certificate). */
-export const GROUP_KEYS: Record<OptionGroup, readonly (keyof RouteOptions)[]> =
-	{
-		access: ["basicAuth", "access"],
-		headers: [
-			"requestHeaders",
-			"responseHeaders",
-			"cors",
-			"securityHeaders",
-			"noindex",
-		],
-		redirects: ["redirects"],
-		limits: ["rateLimit", "compress"],
-		tls: ["forceHttps"],
-	};
+const GROUP_KEYS: Record<OptionGroup, readonly (keyof RouteOptions)[]> = {
+	access: ["basicAuth", "access"],
+	headers: [
+		"requestHeaders",
+		"responseHeaders",
+		"cors",
+		"securityHeaders",
+		"noindex",
+	],
+	redirects: ["redirects"],
+	limits: ["rateLimit", "compress"],
+	tls: ["forceHttps"],
+};
 
 export type SecurityHeaders = "" | "basic" | "strict";
 
@@ -60,7 +59,7 @@ export interface HeaderRow {
 	value: string;
 }
 
-export interface RedirectRow {
+interface RedirectRow {
 	regex: string;
 	replacement: string;
 	permanent: boolean;
@@ -95,7 +94,7 @@ export interface OptionsForm {
 	forceHttps: boolean;
 }
 
-export const RATE_DEFAULTS = { average: "50", period: "1", burst: "100" };
+const RATE_DEFAULTS = { average: "50", period: "1", burst: "100" };
 
 /** Split a comma/space/newline separated list, dropping blanks. */
 export function splitList(text: string): string[] {
@@ -566,40 +565,39 @@ export function optionsErrorTarget(message: string): {
 // --- per-group edits --------------------------------------------------------
 
 /** The form fields each group edits, so one group can be reset without touching the rest. */
-export const GROUP_FIELDS: Record<OptionGroup, readonly (keyof OptionsForm)[]> =
-	{
-		access: [
-			"basicAuth",
-			"accessOn",
-			"allowCidrs",
-			"denyCidrs",
-			"accessDepth",
-			"rejectStatus",
-		],
-		headers: [
-			"requestHeaders",
-			"responseHeaders",
-			"securityHeaders",
-			"noindex",
-			"corsOn",
-			"corsOrigins",
-			"corsMethods",
-			"corsHeaders",
-			"corsExpose",
-			"corsCredentials",
-			"corsMaxAge",
-		],
-		redirects: ["redirects"],
-		limits: [
-			"rateOn",
-			"rateAverage",
-			"ratePeriod",
-			"rateBurst",
-			"rateDepth",
-			"compress",
-		],
-		tls: ["forceHttps"],
-	};
+const GROUP_FIELDS: Record<OptionGroup, readonly (keyof OptionsForm)[]> = {
+	access: [
+		"basicAuth",
+		"accessOn",
+		"allowCidrs",
+		"denyCidrs",
+		"accessDepth",
+		"rejectStatus",
+	],
+	headers: [
+		"requestHeaders",
+		"responseHeaders",
+		"securityHeaders",
+		"noindex",
+		"corsOn",
+		"corsOrigins",
+		"corsMethods",
+		"corsHeaders",
+		"corsExpose",
+		"corsCredentials",
+		"corsMaxAge",
+	],
+	redirects: ["redirects"],
+	limits: [
+		"rateOn",
+		"rateAverage",
+		"ratePeriod",
+		"rateBurst",
+		"rateDepth",
+		"compress",
+	],
+	tls: ["forceHttps"],
+};
 
 /** Edits kept per group on top of the saved options, so a refetch never resurrects stale fields of another group. */
 export type GroupEdits = Partial<Record<OptionGroup, Partial<OptionsForm>>>;

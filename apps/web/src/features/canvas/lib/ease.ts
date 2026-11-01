@@ -2,7 +2,7 @@
 export const ARRANGE_MS = 300;
 
 /** `ease-in-out` with punch: for a thing that is already on screen and moves. */
-export const ARRANGE_EASE = [0.77, 0, 0.175, 1] as const;
+const ARRANGE_EASE = [0.77, 0, 0.175, 1] as const;
 
 /**
  * The CSS `cubic-bezier(x1, y1, x2, y2)` timing function as a function of

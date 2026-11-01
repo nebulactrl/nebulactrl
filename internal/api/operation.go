@@ -62,7 +62,7 @@ func WithScopes(op huma.Operation, scopes ...string) huma.Operation {
 
 // ScopesOf returns the scopes declared by WithScopes: nil when op was not
 // wrapped (it may still be Public), a non-nil empty slice for "any
-// authenticated principal". Use IsScoped to tell the two apart cheaply.
+// authenticated principal".
 func ScopesOf(op *huma.Operation) []string {
 	if op == nil || op.Metadata == nil {
 		return nil
@@ -72,15 +72,6 @@ func ScopesOf(op *huma.Operation) []string {
 		return nil
 	}
 	return cloneScopes(s)
-}
-
-// IsScoped reports whether op was wrapped with WithScopes.
-func IsScoped(op *huma.Operation) bool {
-	if op == nil || op.Metadata == nil {
-		return false
-	}
-	_, ok := op.Metadata[ScopesKey].([]string)
-	return ok
 }
 
 func cloneScopes(s []string) []string {
@@ -96,15 +87,6 @@ func Public(op huma.Operation) huma.Operation {
 	op.Metadata[PublicKey] = true
 	op.Security = []map[string][]string{{}}
 	return op
-}
-
-// IsPublic reports whether op was marked with Public.
-func IsPublic(op *huma.Operation) bool {
-	if op == nil || op.Metadata == nil {
-		return false
-	}
-	v, _ := op.Metadata[PublicKey].(bool)
-	return v
 }
 
 // IsIdempotent reports whether op was marked with WithIdempotency.

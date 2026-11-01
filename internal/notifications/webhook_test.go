@@ -3,7 +3,10 @@ package notifications
 import (
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -66,4 +69,46 @@ func TestGenerateSigningSecret(t *testing.T) {
 	require.NotEqual(t, a, b)
 	require.True(t, strings.HasPrefix(a, "whsec_"))
 	require.GreaterOrEqual(t, len(a), 40)
+}
+
+// Reference receiver of the documented scheme (docs/operations/notifications.md).
+// VerifySignature checks a signature header against the raw body: the timestamp
+// must be within tolerance of now (0: DefaultSignatureTolerance) and at least
+// one v1 entry must equal the expected HMAC (compared in constant time).
+// Receivers must verify the raw bytes, not a re-serialized JSON value.
+func VerifySignature(secret, header string, body []byte, now time.Time, tolerance time.Duration) error {
+	if tolerance <= 0 {
+		tolerance = DefaultSignatureTolerance
+	}
+	var ts string
+	var sigs []string
+	for _, part := range strings.Split(header, ",") {
+		k, v, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok {
+			continue
+		}
+		switch k {
+		case "t":
+			ts = v
+		case "v1":
+			sigs = append(sigs, v)
+		}
+	}
+	if ts == "" || len(sigs) == 0 {
+		return errors.New("malformed signature header")
+	}
+	sec, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil {
+		return errors.New("malformed signature timestamp")
+	}
+	if d := now.Sub(time.Unix(sec, 0)); d > tolerance || d < -tolerance {
+		return fmt.Errorf("signature timestamp outside the %s tolerance", tolerance)
+	}
+	want := []byte(signHex(secret, ts, body))
+	for _, s := range sigs {
+		if subtle.ConstantTimeCompare(want, []byte(s)) == 1 {
+			return nil
+		}
+	}
+	return errors.New("signature mismatch")
 }

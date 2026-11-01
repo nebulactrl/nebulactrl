@@ -165,10 +165,11 @@ func (p *partial) fail(section string, err error) {
 	p.mu.Unlock()
 }
 
-// note records a section error that is not a Go error (e.g. a missing scope).
-func (p *partial) note(section, code, msg string) {
+// forbidden records a section the caller's token may not read (a missing
+// scope is not a Go error).
+func (p *partial) forbidden(section, msg string) {
 	p.mu.Lock()
-	p.errs = append(p.errs, SectionError{Section: section, Code: code, Message: msg})
+	p.errs = append(p.errs, SectionError{Section: section, Code: mcpkit.CodeForbidden, Message: msg})
 	p.mu.Unlock()
 }
 

@@ -321,7 +321,10 @@ func (s *Service) subject(ctx context.Context, sc services.Scope, process string
 func (s *Service) evaluate(ctx context.Context, id, serverID uuid.UUID, process string) error {
 	sc, err := services.LoadScopeInternal(ctx, s.q, id)
 	if err != nil {
-		return nil // deleted
+		if apierr.IsNotFound(err) {
+			return nil // deleted
+		}
+		return err
 	}
 	sv := sc.Service
 	cfg := sc.Config()

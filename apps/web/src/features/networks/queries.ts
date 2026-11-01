@@ -3,7 +3,7 @@ import { listNetworksOptions } from "#/api/gen/@tanstack/react-query.gen";
 import { invalidateOperations } from "#/api/invalidate";
 
 /** Everything a network change can touch: the lists, the services that attach to it, their staged changes. */
-export const NETWORK_OPERATIONS = [
+const NETWORK_OPERATIONS = [
 	"listNetworks",
 	"getNetwork",
 	"listServices",

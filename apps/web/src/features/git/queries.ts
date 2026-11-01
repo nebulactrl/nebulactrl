@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { invalidateOperations } from "#/api/invalidate";
 
 /** Everything the git UI shows; refetched after any connection or link mutation. */
-export const GIT_OPERATIONS = [
+const GIT_OPERATIONS = [
 	"listGitConnections",
 	"getGitConnection",
 	"listGitDeliveries",

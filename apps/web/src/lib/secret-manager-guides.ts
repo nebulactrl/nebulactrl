@@ -12,11 +12,11 @@ export type SecretManagerKind = "vault" | "infisical" | "doppler";
 export type VaultAuth = "token" | "approle";
 
 /** https://developer.hashicorp.com/vault/docs/auth/approle */
-export const VAULT_APPROLE_DOCS =
+const VAULT_APPROLE_DOCS =
 	"https://developer.hashicorp.com/vault/docs/auth/approle";
 
 /** https://developer.hashicorp.com/vault/docs/auth/token */
-export const VAULT_TOKEN_DOCS =
+const VAULT_TOKEN_DOCS =
 	"https://developer.hashicorp.com/vault/docs/auth/token";
 
 /** https://infisical.com/docs/documentation/platform/identities/universal-auth */

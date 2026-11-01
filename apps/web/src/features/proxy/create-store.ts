@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type RouteCreateMode = "external" | "port";
+type RouteCreateMode = "external" | "port";
 
 export interface RouteCreateRequest {
 	mode: RouteCreateMode;

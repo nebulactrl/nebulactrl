@@ -191,11 +191,6 @@ func Compute(agent, control string) Skew {
 	return SkewCurrent
 }
 
-// Upgradable reports whether an agent in this skew may be upgraded by an
-// administrator: it is behind, or its order is unknown but the versions differ
-// (for example a development build). A newer agent is never downgraded.
-func (s Skew) Upgradable() bool { return s == SkewBehind || s == SkewUnknown }
-
 // AutoUpgradable reports whether the automatic upgrade may pick this skew: only
 // a provably older agent. An unknown order is left to the administrator.
 func (s Skew) AutoUpgradable() bool { return s == SkewBehind }

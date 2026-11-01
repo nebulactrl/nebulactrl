@@ -44,7 +44,7 @@ func (e *env) pageRow(t *testing.T, id uuid.UUID) db.StatusPage {
 
 func (e *env) recordsByType(host string) map[string]Record {
 	out := map[string]Record{}
-	for _, r := range e.fake.records("z1", host) {
+	for _, r := range e.fake.records(host) {
 		out[r.Type] = r
 	}
 	return out
@@ -98,14 +98,14 @@ func TestStatusPageGetsMarkedRecordsOfTheControlPlane(t *testing.T) {
 
 	// The collector never takes a page's records for orphans while the page has the hostname.
 	require.NoError(t, e.svc.Collect(bg, e.ws))
-	require.Len(t, e.fake.records("z1", "status.example.com"), 2)
+	require.Len(t, e.fake.records("status.example.com"), 2)
 
 	// Removing the hostname lets the collector delete the records NebulaCtrl created.
 	e.exec(t, `UPDATE status_pages SET hostname = NULL WHERE id = $1`, id)
 	e.inTx(t, func(tx pgx.Tx) error { return e.svc.StatusPageHostChanged(bg, tx, id, false) })
 	require.Empty(t, e.pageRow(t, id).CfZoneID)
 	require.NoError(t, e.svc.Collect(bg, e.ws))
-	require.Empty(t, e.fake.records("z1", "status.example.com"))
+	require.Empty(t, e.fake.records("status.example.com"))
 }
 
 func TestStatusPageWithoutAControlPlaneIPCreatesNothing(t *testing.T) {
@@ -113,7 +113,7 @@ func TestStatusPageWithoutAControlPlaneIPCreatesNothing(t *testing.T) {
 	e.connect(t)
 	id := e.page(t, "status.example.com", false)
 	require.NoError(t, e.svc.SyncStatusPage(context.Background(), id))
-	require.Empty(t, e.fake.records("z1", "status.example.com"))
+	require.Empty(t, e.fake.records("status.example.com"))
 	st, err := e.svc.StatusPageStatus(e.admin, id)
 	require.NoError(t, err)
 	require.Equal(t, StatusMissing, st.Status)
@@ -175,7 +175,7 @@ func TestStatusPageSettingsAreAuditedAndFixAdoptsOnRequest(t *testing.T) {
 	bg := context.Background()
 	e.connect(t)
 	e.controlPlane(t, ipA)
-	e.fake.put("z1", Record{Type: "A", Name: "status.example.com", Content: "198.51.100.99", Comment: "my own note"})
+	e.fake.put(Record{Type: "A", Name: "status.example.com", Content: "198.51.100.99", Comment: "my own note"})
 	id := e.page(t, "status.example.com", false)
 
 	// Sync reports but never writes over a record NebulaCtrl did not create.
@@ -193,7 +193,7 @@ func TestStatusPageSettingsAreAuditedAndFixAdoptsOnRequest(t *testing.T) {
 	st, err = e.svc.FixStatusPage(e.admin, id, true)
 	require.NoError(t, err)
 	require.Equal(t, StatusManaged, st.Status)
-	recs := e.fake.records("z1", "status.example.com")
+	recs := e.fake.records("status.example.com")
 	require.Len(t, recs, 1)
 	require.Equal(t, ipA, recs[0].Content)
 	require.Equal(t, Marker(id), recs[0].Comment, "adopting marks the record with the page's id")
@@ -229,7 +229,7 @@ func TestProxiedStatusPageIsLockedToCloudflareAndTheLockReachesTheRouteTable(t *
 
 	// A new page starts proxied and opted in: its record is proxied and the route is locked.
 	require.NoError(t, e.svc.SyncStatusPage(bg, id))
-	require.True(t, e.fake.records("z1", host)[0].Proxied)
+	require.True(t, e.fake.records(host)[0].Proxied)
 	require.True(t, table().Domains[0].OriginLocked)
 	st, err := e.svc.StatusPageStatus(e.admin, id)
 	require.NoError(t, err)
@@ -249,7 +249,7 @@ func TestProxiedStatusPageIsLockedToCloudflareAndTheLockReachesTheRouteTable(t *
 	st, err = e.svc.SetStatusPageSettings(e.admin, id, SettingsInput{Proxied: &on})
 	require.NoError(t, err)
 	require.Equal(t, StatusManaged, st.Status)
-	require.True(t, e.fake.records("z1", host)[0].Proxied)
+	require.True(t, e.fake.records(host)[0].Proxied)
 	require.Equal(t, "on", e.fake.aop["z1"])
 	require.Positive(t, rec.count())
 	for _, sid := range rec.servers {
@@ -302,7 +302,7 @@ func TestProxiedStatusPageIsLockedToCloudflareAndTheLockReachesTheRouteTable(t *
 	// Back to DNS only: unlocked first (the push precedes the record change).
 	_, err = e.svc.SetStatusPageSettings(e.admin, id, SettingsInput{OriginLock: &on, Proxied: &off})
 	require.NoError(t, err)
-	require.False(t, e.fake.records("z1", host)[0].Proxied)
+	require.False(t, e.fake.records(host)[0].Proxied)
 	require.False(t, table().Domains[0].OriginLocked)
 
 	// Proxied again: locked again.
@@ -373,7 +373,7 @@ func TestStatusPagesFollowTheConnection(t *testing.T) {
 	require.Equal(t, "z1", p.CfZoneID)
 	require.Equal(t, 1, e.count(t, `SELECT count(*) FROM river_job WHERE kind = 'cloudflare_sync_status_page'`))
 	require.NoError(t, e.svc.SyncStatusPage(bg, id))
-	require.Len(t, e.fake.records("z1", "status.example.com"), 1)
+	require.Len(t, e.fake.records("status.example.com"), 1)
 
 	// The periodic sweep syncs pages in zones.
 	e.exec(t, `UPDATE river_job SET state = 'completed', finalized_at = now() WHERE kind = 'cloudflare_sync_status_page'`)
@@ -383,5 +383,5 @@ func TestStatusPagesFollowTheConnection(t *testing.T) {
 	// Disconnecting forgets the zone match; the records stay unless removal was asked for.
 	require.NoError(t, e.svc.Delete(e.admin, false))
 	require.Empty(t, e.pageRow(t, id).CfZoneID)
-	require.Len(t, e.fake.records("z1", "status.example.com"), 1)
+	require.Len(t, e.fake.records("status.example.com"), 1)
 }

@@ -27,7 +27,7 @@ export const platformServiceQuery = (id: string) =>
 	});
 
 /** What the platform UI shows; refetched after any platform mutation. */
-export const PLATFORM_OPERATIONS = [
+const PLATFORM_OPERATIONS = [
 	"listPlatformServices",
 	"getPlatformService",
 ] as const;
@@ -36,7 +36,7 @@ export const PLATFORM_OPERATIONS = [
  * Everything the team's Headscale feeds: its own views plus the Tailscale
  * integration it is wired into.
  */
-export const PLATFORM_AFFECTED_OPERATIONS = [
+const PLATFORM_AFFECTED_OPERATIONS = [
 	...PLATFORM_OPERATIONS,
 	"getTailscaleIntegration",
 ] as const;

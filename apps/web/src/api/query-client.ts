@@ -2,7 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { ApiError } from "./client-config";
 
 /** Every query polls at this interval; SSE invalidation makes it a fallback. */
-export const POLL_FALLBACK_MS = 15_000;
+const POLL_FALLBACK_MS = 15_000;
 
 export const queryClient = new QueryClient({
 	defaultOptions: {

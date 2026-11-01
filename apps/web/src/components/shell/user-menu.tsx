@@ -29,7 +29,7 @@ import { ROLE_LABEL } from "#/features/teams/roles";
 import { userCaption, versionLabel } from "./user-card";
 
 /** The person's role in the current team: "Owner", "Admin", "Developer" or "Viewer". */
-export function roleLabel(user: Pick<Me, "principal">): string {
+function roleLabel(user: Pick<Me, "principal">): string {
 	const role = user.principal.role;
 	return role ? ROLE_LABEL[role] : "No team";
 }

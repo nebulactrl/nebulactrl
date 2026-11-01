@@ -62,7 +62,7 @@ const LANGUAGE_LABELS: Record<string, string> = {
 	json: "json",
 };
 
-export interface CalloutKind {
+interface CalloutKind {
 	tone: "info" | "success" | "warning" | "danger";
 	label: string;
 }
@@ -95,14 +95,14 @@ function icon(name: keyof typeof ICON_BODIES, cls: string): string {
 }
 
 /** One heading's worth of plain text, for the search index. */
-export interface TextSection {
+interface TextSection {
 	/** "" for the lead before the first h2. */
 	anchor: string;
 	heading: string;
 	text: string;
 }
 
-export interface PageLink {
+interface PageLink {
 	href: string;
 	slug: string;
 	anchor: string;

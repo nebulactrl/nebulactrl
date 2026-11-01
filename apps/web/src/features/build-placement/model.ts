@@ -19,7 +19,7 @@ export interface RoleFlags {
 }
 
 /** The build capability an agent advertises in `facts.capabilities`. */
-export const CAP_BUILD_PUSH = "build.push";
+const CAP_BUILD_PUSH = "build.push";
 
 /** The PATCH /servers bounds of `buildMaxConcurrent` (the `servers.build_max_concurrent` CHECK). */
 export const BUILD_CONCURRENCY = { min: 1, max: 16, default: 2 } as const;
@@ -216,7 +216,7 @@ export function resolveBuild(chain: {
 	};
 }
 
-export const LOCATION_LABEL: Record<BuildLocation, string> = {
+const LOCATION_LABEL: Record<BuildLocation, string> = {
 	inherit: "Inherit",
 	target: "On the app's server",
 	build_server: "On a build server",
@@ -400,7 +400,7 @@ export function builtOnText(
 }
 
 /** The timeline step id the control plane gives placement notices. */
-export const PLACEMENT_STEP = "placement";
+const PLACEMENT_STEP = "placement";
 
 /** An event of the placement step: a fallback or a wait for a build slot, shown as an info alert, not a step. */
 export function isPlacementEvent(event: { step: string }): boolean {

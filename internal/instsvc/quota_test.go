@@ -164,3 +164,10 @@ func TestReleaseReadsTheTeamsUsageAgain(t *testing.T) {
 	require.Eventually(t, func() bool { return f.slice(f.a, KindS3).UsedBytes == 500 }, 5*time.Second, 20*time.Millisecond,
 		"the bytes an upload added count as used, they do not vanish between the release and the next usage job")
 }
+
+// inflightBytes is what the gate holds for a team right now.
+func (s *Service) inflightBytes(teamID uuid.UUID) int64 {
+	s.gate.mu.Lock()
+	defer s.gate.mu.Unlock()
+	return s.gate.inflight[teamID]
+}

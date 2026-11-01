@@ -10,10 +10,10 @@ export interface OriginRow {
 }
 
 /** Rows a list shows before its disclosure. */
-export const LIST_ROWS = 8;
+const LIST_ROWS = 8;
 
 /** A row under this share (1%) is not worth a line of its own while the list is folded. */
-export const OTHER_BELOW = 0.01;
+const OTHER_BELOW = 0.01;
 
 export interface FoldedRows {
 	rows: OriginRow[];

@@ -139,7 +139,7 @@ function brief(value: unknown): string {
 }
 
 /** The fallback: "key value" pairs, collections collapsed to a count. */
-export function metadataFallback(metadata: Metadata): string {
+function metadataFallback(metadata: Metadata): string {
 	return Object.entries(metadata ?? {})
 		.map(([key, value]) => `${key} ${brief(value)}`)
 		.join(" · ");

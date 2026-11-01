@@ -186,7 +186,7 @@ func (c *composites) overview(ctx context.Context, p *auth.Principal, in getOver
 			return nil
 		})
 	} else {
-		run.note("servers", mcpkit.CodeForbidden, "the token lacks servers:read; the servers summary is omitted")
+		run.forbidden("servers", "the token lacks servers:read; the servers summary is omitted")
 	}
 
 	est, err := c.walkEstate(ctx, run, estateSelector{Project: in.Project, Environment: in.Environment})

@@ -136,7 +136,7 @@ func Validate(t *CatalogTemplate) error {
 		if keys[s.Key] != s {
 			continue
 		}
-		c.service(t, s, keys, inputs)
+		c.service(s, keys, inputs)
 		for _, p := range s.Ports {
 			hasPublished = hasPublished || p.Publish
 		}
@@ -226,7 +226,7 @@ func isHTTPURL(u string) bool {
 	return strings.HasPrefix(u, "https://") || strings.HasPrefix(u, "http://")
 }
 
-func (c *checker) service(t *CatalogTemplate, s *TemplateService, keys map[string]*TemplateService, inputs map[string]TemplateInput) {
+func (c *checker) service(s *TemplateService, keys map[string]*TemplateService, inputs map[string]TemplateInput) {
 	at := "service " + s.Key + ": "
 	if strings.TrimSpace(s.Name) == "" {
 		c.add(at + "name is required")

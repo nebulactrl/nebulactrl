@@ -229,7 +229,7 @@ func TestDeployCarriesPortsAndResultAppliesThem(t *testing.T) {
 	res, err := f.svc.Deploy(f.token, f.srv.ID, false)
 	require.NoError(t, err)
 	require.True(t, res.Plan.RestartRequired)
-	cmd := f.lastCommand(agentprotocol.KindProxyConfigure)
+	cmd := f.lastProxyConfigure()
 	var payload agentprotocol.ProxyConfigurePayload
 	require.NoError(t, json.Unmarshal(cmd.Payload, &payload))
 	require.Equal(t, 8080, payload.Proxy.HTTPPort)
@@ -256,10 +256,10 @@ func TestDeployCarriesPortsAndResultAppliesThem(t *testing.T) {
 	// A second deploy succeeds and flips the applied ports.
 	res, err = f.svc.Deploy(f.token, f.srv.ID, false)
 	require.NoError(t, err)
-	cmd = f.lastCommand(agentprotocol.KindProxyConfigure)
+	cmd = f.lastProxyConfigure()
 	require.Equal(t, res.CommandID, cmd.ID)
 	f.finish(cmd, "succeeded")
-	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, result(t, agentprotocol.OutcomeSucceeded, agentprotocol.ProxyConfigureResult{Restarted: true}, cmd)))
+	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, succeededResult(t, agentprotocol.ProxyConfigureResult{Restarted: true}, cmd)))
 	srv := f.reload()
 	require.EqualValues(t, 8080, *srv.ProxyAppliedHttpPort)
 	require.EqualValues(t, 8443, *srv.ProxyAppliedHttpsPort)
@@ -277,12 +277,12 @@ func TestDeployCarriesPortsAndResultAppliesThem(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.svc.Deploy(f.token, f.srv.ID, false)
 	require.NoError(t, err)
-	cmd = f.lastCommand(agentprotocol.KindProxyConfigure)
+	cmd = f.lastProxyConfigure()
 	var reset agentprotocol.ProxyConfigurePayload
 	require.NoError(t, json.Unmarshal(cmd.Payload, &reset))
 	require.Zero(t, reset.Proxy.HTTPPort)
 	require.Zero(t, reset.Proxy.HTTPSPort)
-	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, result(t, agentprotocol.OutcomeSucceeded, agentprotocol.ProxyConfigureResult{Restarted: true}, cmd)))
+	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, succeededResult(t, agentprotocol.ProxyConfigureResult{Restarted: true}, cmd)))
 	require.Nil(t, f.reload().ProxyAppliedHttpPort)
 }
 

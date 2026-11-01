@@ -42,11 +42,11 @@ export function modeLabel(mode: string): string {
 	return option.label.replace(" (recommended)", "");
 }
 
-export const FREEZE_BUDGET_DEFAULT = 5;
+const FREEZE_BUDGET_DEFAULT = 5;
 export const FREEZE_BUDGET_MIN = 1;
 export const FREEZE_BUDGET_MAX = 60;
-export const HOOK_TIMEOUT_DEFAULT = 300;
-export const HOOK_TIMEOUT_MAX = 3600;
+const HOOK_TIMEOUT_DEFAULT = 300;
+const HOOK_TIMEOUT_MAX = 3600;
 
 /** What a local destination does and does not protect against. */
 export const LOCAL_DESTINATION_WARNING =
@@ -156,7 +156,7 @@ export interface HookDraft {
 	continueOnError: boolean;
 }
 
-export const EMPTY_HOOK: HookDraft = {
+const EMPTY_HOOK: HookDraft = {
 	command: "",
 	user: "",
 	timeout: String(HOOK_TIMEOUT_DEFAULT),
@@ -226,7 +226,7 @@ export interface ConfigLike {
 	enabled: boolean;
 }
 
-export interface HookLike {
+interface HookLike {
 	command: readonly string[] | null;
 	user?: string | undefined;
 	timeoutSeconds?: number | undefined;
@@ -280,7 +280,7 @@ export function parseExcludes(text: string): string[] {
 }
 
 /** The wire shape of a hook (`VolumeBackupHook`). */
-export interface HookInput {
+interface HookInput {
 	command: string[];
 	user?: string;
 	timeoutSeconds?: number;
@@ -288,7 +288,7 @@ export interface HookInput {
 }
 
 /** The wire shape of the config (`VolumeBackupConfigInput`). */
-export interface ConfigInput {
+interface ConfigInput {
 	destinationId: string;
 	mode: VolumeMode;
 	freezeBudgetSeconds: number;
@@ -303,7 +303,7 @@ export interface ConfigInput {
 	enabled: boolean;
 }
 
-export type ConfigField =
+type ConfigField =
 	| "destination"
 	| "freezeBudget"
 	| "preHook"

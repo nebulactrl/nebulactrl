@@ -15,7 +15,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
-var ansiRe = regexp.MustCompile(`\x1b\[[0-9;?]*[ -/]*[@-~]`)
+var ansiRe = regexp.MustCompile(`\x1b\[[0-9;?]*[\x20-\x2f]*[\x40-\x7e]`)
 
 // execOnce runs argv inside the running container of a service and returns its
 // output (stdout and stderr, as a terminal merges them) and exit code. It uses the

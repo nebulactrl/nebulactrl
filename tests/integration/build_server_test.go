@@ -178,10 +178,7 @@ func StartBuildAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	go func() { defer wg.Done(); deployer.Run(rctx) }()
 	go func() {
 		defer close(a.done)
-		err := client.Run(rctx)
-		a.mu.Lock()
-		a.runErr = err
-		a.mu.Unlock()
+		_ = client.Run(rctx)
 		cancel()
 		wg.Wait()
 		cleanupEarly()

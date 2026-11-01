@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/nebulactrl/nebulactrl/internal/releasesign/releasesigntest"
 )
 
 // A signature made by the real minisign 0.12 (minisign -S, a throwaway key), so
@@ -47,11 +49,11 @@ func TestVerifyRefusesWhatIsNotTheSignedFile(t *testing.T) {
 }
 
 func TestSignerRoundTrip(t *testing.T) {
-	s, pub := NewSigner()
+	s, pub := releasesigntest.NewSigner()
 	sig := s.Sign([]byte("installer"), "version:0.1.2")
 	require.NoError(t, Verify(pub, []byte("installer"), sig))
 	require.ErrorIs(t, Verify(pub, []byte("installer2"), sig), ErrInvalid)
-	_, other := NewSigner()
+	_, other := releasesigntest.NewSigner()
 	require.ErrorIs(t, Verify(other, []byte("installer"), sig), ErrInvalid)
 }
 
@@ -70,7 +72,7 @@ func TestValidateSourceURL(t *testing.T) {
 }
 
 func TestFetchVerified(t *testing.T) {
-	s, pub := NewSigner()
+	s, pub := releasesigntest.NewSigner()
 	body := []byte("#!/usr/bin/env bash\nNC_INSTALLER_VERSION=1\n")
 	var tamper bool
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

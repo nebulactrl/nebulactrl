@@ -181,13 +181,13 @@ func TestRememberedExternalValuesAreBoundedAndInMemory(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		ext.Remember(id, []string{"value-" + string(rune('a'+i))})
 	}
-	vals, _ := ext.values(id)
+	vals := ext.values(id)
 	require.Equal(t, []string{"value-c", "value-d", "value-e"}, vals, "only the newest batches are kept")
 	g := ext.generation()
 	ext.Remember(id, nil)
 	require.Equal(t, g, ext.generation(), "an empty batch changes nothing")
 	// Two handles never share state, and a nil handle is inert.
-	require.Empty(t, func() []string { v, _ := NewExtSecrets(nil).values(id); return v }())
+	require.Empty(t, NewExtSecrets(nil).values(id))
 	var none *ExtSecrets
 	none.Remember(id, []string{"x"})
 	require.Nil(t, none.Fetcher(ExtScope{}))

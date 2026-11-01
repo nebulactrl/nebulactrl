@@ -60,16 +60,16 @@ func proxyGet(host, path string, plain bool) (pageResp, error) {
 	return pageResp{Status: res.StatusCode, Header: res.Header, Body: string(b)}, err
 }
 
-// waitPage waits until GET host/path answers with a status accepted by ok.
-func waitPage(t *testing.T, host, path string, timeout time.Duration, ok func(pageResp) bool) pageResp {
+// waitPage waits until GET host/ answers with a status accepted by ok.
+func waitPage(t *testing.T, host string, timeout time.Duration, ok func(pageResp) bool) pageResp {
 	t.Helper()
 	var last pageResp
 	var err error
 	good := eventually(timeout, 300*time.Millisecond, func() bool {
-		last, err = proxyGet(host, path, false)
+		last, err = proxyGet(host, "/", false)
 		return err == nil && ok(last)
 	})
-	require.True(t, good, "GET https://%s%s: last %d err=%v\n%.400s", host, path, last.Status, err, last.Body)
+	require.True(t, good, "GET https://%s/: last %d err=%v\n%.400s", host, last.Status, err, last.Body)
 	return last
 }
 
@@ -84,7 +84,7 @@ func TestMaintenanceAndErrorPages(t *testing.T) {
 	requireTier(t, tierFull)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, px := liveV1(t, s, "web", nil)
+	svc, px := liveV1(t, s, nil)
 	svcPath := "/services/" + svc.ID
 
 	// -- maintenance on: 503 + Retry-After + our page, escaped text -------------
@@ -96,7 +96,7 @@ func TestMaintenanceAndErrorPages(t *testing.T) {
 	require.True(t, r.JSON().Obj("maintenance").Bool("enabled"))
 	require.Equal(t, s.Service(svc.ID).Int("generation"), s.Service(svc.ID).Int("appliedGeneration"), "never staged")
 
-	page := waitPage(t, s.Host(), "/", 30*time.Second, func(p pageResp) bool { return p.Status == http.StatusServiceUnavailable })
+	page := waitPage(t, s.Host(), 30*time.Second, func(p pageResp) bool { return p.Status == http.StatusServiceUnavailable })
 	require.True(t, isOurPage(page, "maintenance"), "%.300s", page.Body)
 	require.Contains(t, page.Body, "Upgrading &lt;db&gt;")
 	require.Contains(t, page.Body, "Back at &lt;b&gt;5&lt;/b&gt; &amp; soon")
@@ -146,7 +146,7 @@ func TestMaintenanceAndErrorPages(t *testing.T) {
 	px.WaitBody(t, "/", "v2", 30*time.Second)
 
 	// -- unknown host: our 404 page (https and plain http) ---------------------------
-	nf := waitPage(t, "nobody.localhost", "/", 20*time.Second, func(p pageResp) bool { return isOurPage(p, "404") })
+	nf := waitPage(t, "nobody.localhost", 20*time.Second, func(p pageResp) bool { return isOurPage(p, "404") })
 	require.Equal(t, http.StatusNotFound, nf.Status)
 	require.Contains(t, nf.Body, "No service is configured for this address.")
 	require.Equal(t, "no-store", nf.Header.Get("Cache-Control"))
@@ -157,7 +157,7 @@ func TestMaintenanceAndErrorPages(t *testing.T) {
 
 	// -- stopped service: our 502/503 page, with the status of the failure -----------
 	require.Equal(t, http.StatusAccepted, s.Do("POST", svcPath+"/stop", nil).Status)
-	down := waitPage(t, s.Host(), "/", 60*time.Second, func(p pageResp) bool {
+	down := waitPage(t, s.Host(), 60*time.Second, func(p pageResp) bool {
 		return (p.Status == http.StatusBadGateway || p.Status == http.StatusServiceUnavailable) && isOurPage(p, fmt.Sprint(p.Status))
 	})
 	require.Contains(t, down.Body, "Service unavailable")
@@ -174,14 +174,14 @@ func TestMaintenanceSurvivesPagesReplacement(t *testing.T) {
 	requireTier(t, tierFull)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, _ := liveV1(t, s, "web", nil)
+	svc, _ := liveV1(t, s, nil)
 	app := appFixture(t)
 	other := s.NewService(SvcSpec{Name: "churn", Image: app.AppImage, Vars: map[string]string{"VERSION": "n"}, Domain: s.Host("churn")})
 	s.DeployOK(other.ID)
 
 	r := s.Do("PUT", "/services/"+svc.ID+"/maintenance", map[string]any{"enabled": true, "title": "Upgrading"})
 	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
-	waitPage(t, s.Host(), "/", 30*time.Second, func(p pageResp) bool { return p.Status == http.StatusServiceUnavailable })
+	waitPage(t, s.Host(), 30*time.Second, func(p pageResp) bool { return p.Status == http.StatusServiceUnavailable })
 
 	stop := make(chan struct{})
 	var churn sync.WaitGroup

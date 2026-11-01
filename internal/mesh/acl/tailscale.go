@@ -63,16 +63,12 @@ func parseRules(entries []json.RawMessage) []rawRule {
 	return out
 }
 
-// IsOurs reports whether an acls entry belongs to NebulaCtrl: every src and dst
+// isOurs reports whether an acls entry belongs to NebulaCtrl: every src and dst
 // host is a mesh-node IP (an address in known, or any literal IPv4 of the
 // tailnet range, which covers the rules of nodes that were re-provisioned and
 // whose old address is no longer in the database), the action is accept and the
 // rule carries no other key (no proto, no posture). Anything else is the
 // user's and is never touched.
-func IsOurs(r Rule, known map[string]bool) bool {
-	return isOurs(rawRule{Action: r.Action, Src: r.Src, Dst: r.Dst, Extra: map[string]json.RawMessage{}}, known)
-}
-
 func isOurs(r rawRule, known map[string]bool) bool {
 	if r.Action != "accept" || len(r.Extra) > 0 || len(r.Src) == 0 || len(r.Dst) == 0 {
 		return false

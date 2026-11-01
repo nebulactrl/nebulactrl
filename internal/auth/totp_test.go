@@ -108,3 +108,8 @@ func TestRecoveryCodes(t *testing.T) {
 	require.NotContains(t, HashRecoveryCode(c), c[:4], "the stored form must not contain the code")
 	require.Len(t, normalizeRecoveryCode(c), 16)
 }
+
+// TOTPCode returns the 6-digit code for the time step containing t.
+func TOTPCode(secret []byte, t time.Time) string {
+	return hotp(secret, uint64(TOTPStep(t)), TOTPDigits)
+}

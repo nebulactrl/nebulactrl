@@ -55,7 +55,7 @@ export type SectionId =
 	| "stack-limits"
 	| "stack-networking";
 
-export interface SectionRef {
+interface SectionRef {
 	id: SectionId;
 	label: string;
 }

@@ -257,7 +257,7 @@ func (s *Service) Provision(ctx context.Context, in ProvisionInput) (ProvisionRe
 			return apierr.Unprocessable("proxy_unavailable", "The proxy on "+srv.Name+" is not running, so the service could not be reached.")
 		}
 
-		host, generated, err := s.chooseHostname(ctx, q, in, info, srv, proj, env)
+		host, generated, err := s.chooseHostname(ctx, q, in, srv, proj, env)
 		if err != nil {
 			return err
 		}
@@ -375,7 +375,7 @@ func withReplace(o options, replace bool) options {
 }
 
 // chooseHostname validates the requested hostname or generates one.
-func (s *Service) chooseHostname(ctx context.Context, q *db.Queries, in ProvisionInput, info PlatformKindInfo, srv db.Server, proj db.Project, env db.Environment) (string, bool, error) {
+func (s *Service) chooseHostname(ctx context.Context, q *db.Queries, in ProvisionInput, srv db.Server, proj db.Project, env db.Environment) (string, bool, error) {
 	if h := strings.TrimSpace(in.Hostname); h != "" {
 		host, err := hostnameRe(h)
 		if err != nil {

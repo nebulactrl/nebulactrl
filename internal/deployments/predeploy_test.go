@@ -18,7 +18,7 @@ func TestStepPredeployMapsToReleasing(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, Releasing, st)
 	// Image sources skip building: preparing → releasing is a legal move.
-	require.True(t, CanTransition(Preparing, Releasing))
+	require.Equal(t, []Status{Releasing}, Path(Preparing, Releasing))
 }
 
 // deployWeb deploys the service end to end against the fake agent and returns
@@ -27,7 +27,7 @@ func (f *routeFixture) deployWeb(id uuid.UUID) (uuid.UUID, agentprotocol.DeployP
 	f.t.Helper()
 	v, err := f.deps.Deploy(f.ctx, id, "", "")
 	require.NoError(f.t, err)
-	require.NoError(f.t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(f.t, f.deps.runDeploy(context.Background(), v.ID))
 	var p agentprotocol.DeployPayload
 	require.NoError(f.t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &p))
 	data, _ := json.Marshal(agentprotocol.DeployResult{Outcome: agentprotocol.OutcomeSucceeded, ImageDigest: "traefik/whoami@sha256:abc"})
@@ -62,7 +62,7 @@ func TestPreDeployCommandRidesNewReleasesOnly(t *testing.T) {
 	require.NoError(t, err)
 	var rb uuid.UUID
 	require.NoError(t, f.pool.QueryRow(context.Background(), `SELECT id FROM deployments WHERE service_id = $1 AND trigger = 'rollback'`, web.ID).Scan(&rb))
-	require.NoError(t, f.deps.runDeploy(context.Background(), rb, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), rb))
 	var p2 agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &p2))
 	require.Nil(t, p2.PreDeploy, "rollbacks never run the pre-deploy command")
@@ -98,7 +98,7 @@ func TestPostDeployCommandRidesNewReleasesOnly(t *testing.T) {
 	require.NoError(t, err)
 	var rb uuid.UUID
 	require.NoError(t, f.pool.QueryRow(context.Background(), `SELECT id FROM deployments WHERE service_id = $1 AND trigger = 'rollback'`, web.ID).Scan(&rb))
-	require.NoError(t, f.deps.runDeploy(context.Background(), rb, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), rb))
 	var p2 agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &p2))
 	require.Nil(t, p2.PostDeploy, "rollbacks never run the post-deploy command")
@@ -116,7 +116,7 @@ func TestPostDeployWarningRecordsEventNotifiesAndStillSucceeds(t *testing.T) {
 
 	v, err := f.deps.Deploy(f.ctx, web.ID, "", "")
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID))
 	bg := context.Background()
 
 	warning := "Post-deploy command failed with exit code 3. The new release is live; the deployment was not rolled back."

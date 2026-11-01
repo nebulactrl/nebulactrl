@@ -5,7 +5,7 @@ export const STACK_GAP = 8;
 /** A toast's height before it has been measured: one title and one description line. */
 export const DEFAULT_HEIGHT = 58;
 
-export interface ToastSlot<T> {
+interface ToastSlot<T> {
 	item: T;
 	y: number;
 	scale: number;

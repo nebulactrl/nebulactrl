@@ -24,24 +24,6 @@ const (
 // InputFormats lists every valid TemplateInput.Format ("" means text).
 var InputFormats = []string{FormatText, FormatEmail, FormatURL, FormatHostname, FormatNumber}
 
-// SampleInputValue is a realistic value of a format, for tests and docs.
-func SampleInputValue(format string) string {
-	switch format {
-	case FormatEmail:
-		// Not a reserved TLD such as .test: apps such as pgAdmin reject
-		// special-use domains in their email validation.
-		return "ops@nebulactrl.dev"
-	case FormatURL:
-		return "https://example.nebulactrl.test"
-	case FormatHostname:
-		return "host.nebulactrl.test"
-	case FormatNumber:
-		return "587"
-	default:
-		return "nebula-test"
-	}
-}
-
 var hostnameRe = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?)*$`)
 
 // CheckInputFormat reports why v does not fit format ("" = it does). An empty

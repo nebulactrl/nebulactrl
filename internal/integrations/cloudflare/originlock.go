@@ -351,7 +351,7 @@ func (c *Client) ZoneAOP(ctx context.Context, zoneID string) (bool, error) {
 	var s struct {
 		Value string `json:"value"`
 	}
-	if err := c.do(ctx, http.MethodGet, "/zones/"+url.PathEscape(zoneID)+"/settings/tls_client_auth", nil, nil, &s); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/zones/"+url.PathEscape(zoneID)+"/settings/tls_client_auth", nil, &s); err != nil {
 		return false, err
 	}
 	return strings.EqualFold(s.Value, "on"), nil
@@ -366,7 +366,7 @@ func (c *Client) SetZoneAOP(ctx context.Context, zoneID string, on bool) error {
 	if on {
 		v = "on"
 	}
-	return c.do(ctx, http.MethodPatch, "/zones/"+url.PathEscape(zoneID)+"/settings/tls_client_auth", nil, map[string]string{"value": v}, nil)
+	return c.do(ctx, http.MethodPatch, "/zones/"+url.PathEscape(zoneID)+"/settings/tls_client_auth", map[string]string{"value": v}, nil)
 }
 
 // AOPState is what is known about a zone's Authenticated Origin Pulls.

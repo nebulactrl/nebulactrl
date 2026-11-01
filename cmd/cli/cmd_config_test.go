@@ -1471,7 +1471,11 @@ func TestLayoutRowsKeepsColumnsAndGrowsForLongNames(t *testing.T) {
 		{indent: 6, marker: "~", name: "x", desc: "a" + strings.Repeat("b", 50), applies: "staged", note: "edited"},
 	}
 	lines := layoutRows(rows)
-	col := func(line, sub string) int { return runeLen(line[:strings.Index(line, sub)]) }
+	col := func(line, sub string) int {
+		at := strings.Index(line, sub)
+		require.GreaterOrEqual(t, at, 0, "%q not found in %q", sub, line)
+		return runeLen(line[:at])
+	}
 	require.Equal(t, 32, col(lines[0], "new"))
 	require.Equal(t, 6+2+runeLen(rows[1].name)+2, col(lines[1], "1 → 2"), "a long name pushes its own description")
 	require.Equal(t, 32, col(lines[2], "ab"))

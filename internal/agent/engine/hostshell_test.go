@@ -56,10 +56,10 @@ func (d *helperDocker) RunHostShell(_ context.Context, spec docker.HostShellSpec
 	return id, t, nil
 }
 
-func (d *helperDocker) helperTTY(i int) *fakeTTY {
+func (d *helperDocker) helperTTY() *fakeTTY {
 	d.hmu.Lock()
 	defer d.hmu.Unlock()
-	return d.ttys[i]
+	return d.ttys[0]
 }
 
 func (d *helperDocker) spec(i int) docker.HostShellSpec {
@@ -86,10 +86,10 @@ func hostSetup(t *testing.T, inContainer bool) (*Engine, *helperDocker, *streamR
 	return e, d, rec
 }
 
-func openHost(t *testing.T, e *Engine, rec *streamRec, sid string) agentprotocol.ExecOpened {
+func openHost(t *testing.T, e *Engine, rec *streamRec) agentprotocol.ExecOpened {
 	t.Helper()
-	e.HandleStream(frameOf(t, agentprotocol.TypeExecOpen, sid, agentprotocol.ExecOpen{SessionID: sid, Host: true, Cols: 100, Rows: 30, Command: []string{"rm", "-rf", "/"}}))
-	return decode[agentprotocol.ExecOpened](t, rec.waitFor(t, agentprotocol.TypeExecOpened, sid, 1)[0])
+	e.HandleStream(frameOf(t, agentprotocol.TypeExecOpen, hostSid, agentprotocol.ExecOpen{SessionID: hostSid, Host: true, Cols: 100, Rows: 30, Command: []string{"rm", "-rf", "/"}}))
+	return decode[agentprotocol.ExecOpened](t, rec.waitFor(t, agentprotocol.TypeExecOpened, hostSid, 1)[0])
 }
 
 func (d *helperDocker) exists(name string) bool {
@@ -103,7 +103,7 @@ func TestHostShellOnTheBareHostRunsOnAPtyOfItsOwn(t *testing.T) {
 	tty := newFakeTTY(true)
 	e.term.hostPTY = func(s hostpty.Spec) (docker.TTYSession, error) { got = s; return tty, nil }
 
-	opened := openHost(t, e, rec, hostSid)
+	opened := openHost(t, e, rec)
 	require.Empty(t, opened.Error)
 	require.Equal(t, "host", opened.Container)
 	require.Contains(t, []string{hostShellBash, hostShellSh}, got.Argv[0])
@@ -129,7 +129,7 @@ func TestHostShellOnTheBareHostRunsOnAPtyOfItsOwn(t *testing.T) {
 func TestHostShellStartFailureIsReported(t *testing.T) {
 	e, _, rec := hostSetup(t, false)
 	e.term.hostPTY = func(hostpty.Spec) (docker.TTYSession, error) { return nil, errors.New("no ptys left") }
-	opened := openHost(t, e, rec, hostSid)
+	opened := openHost(t, e, rec)
 	require.Equal(t, "failed", opened.Code)
 	require.Contains(t, opened.Error, "no ptys left")
 	require.Nil(t, e.term.session(hostSid))
@@ -138,7 +138,7 @@ func TestHostShellStartFailureIsReported(t *testing.T) {
 
 func TestHostShellInAContainerUsesAPrivilegedNsenterHelper(t *testing.T) {
 	e, d, rec := hostSetup(t, true)
-	opened := openHost(t, e, rec, hostSid)
+	opened := openHost(t, e, rec)
 	require.Empty(t, opened.Error)
 	require.Equal(t, hostName, opened.Container)
 	require.Equal(t, nsenterShell, opened.Command)
@@ -164,8 +164,8 @@ func TestHostShellHelperIsRemovedWhenTheSessionEnds(t *testing.T) {
 			e.HandleStream(frameOf(t, agentprotocol.TypeExecClose, hostSid, agentprotocol.ExecClose{SessionID: hostSid}))
 		},
 		"the shell exits": func(t *testing.T, e *Engine, d *helperDocker, rec *streamRec) {
-			d.helperTTY(0).exitCode = 4
-			_ = d.helperTTY(0).Close()
+			d.helperTTY().exitCode = 4
+			_ = d.helperTTY().Close()
 			exit := decode[agentprotocol.ExecExit](t, rec.waitFor(t, agentprotocol.TypeExecExit, hostSid, 1)[0])
 			require.Equal(t, 4, exit.ExitCode)
 		},
@@ -176,13 +176,13 @@ func TestHostShellHelperIsRemovedWhenTheSessionEnds(t *testing.T) {
 	for name, end := range cases {
 		t.Run(name, func(t *testing.T) {
 			e, d, rec := hostSetup(t, true)
-			require.Empty(t, openHost(t, e, rec, hostSid).Error)
+			require.Empty(t, openHost(t, e, rec).Error)
 			require.True(t, d.exists(hostName))
 			end(t, e, d, rec)
 			require.Eventually(t, func() bool { return !d.exists(hostName) }, 3*time.Second, 5*time.Millisecond, "the helper container is removed")
 			require.Eventually(t, func() bool { return e.term.session(hostSid) == nil }, 2*time.Second, 5*time.Millisecond)
 			require.Contains(t, d.removed, hostName)
-			require.True(t, d.helperTTY(0).isClosed())
+			require.True(t, d.helperTTY().isClosed())
 		})
 	}
 }
@@ -190,7 +190,7 @@ func TestHostShellHelperIsRemovedWhenTheSessionEnds(t *testing.T) {
 func TestHostShellHelperFailureLeavesNothingBehind(t *testing.T) {
 	e, d, rec := hostSetup(t, true)
 	d.runErr = errors.New("cannot start privileged container")
-	opened := openHost(t, e, rec, hostSid)
+	opened := openHost(t, e, rec)
 	require.Equal(t, "failed", opened.Code)
 	require.Contains(t, opened.Error, "cannot start privileged container")
 	require.False(t, d.exists(hostName))
@@ -199,7 +199,7 @@ func TestHostShellHelperFailureLeavesNothingBehind(t *testing.T) {
 
 func TestHostShellDuplicateSessionIsRefused(t *testing.T) {
 	e, d, rec := hostSetup(t, true)
-	require.Empty(t, openHost(t, e, rec, hostSid).Error)
+	require.Empty(t, openHost(t, e, rec).Error)
 	// The same session ID again: the second session is refused, its helper
 	// removed again, and the first session stays intact.
 	e.HandleStream(frameOf(t, agentprotocol.TypeExecOpen, hostSid, agentprotocol.ExecOpen{SessionID: hostSid, Host: true, Cols: 80, Rows: 24}))
@@ -207,7 +207,7 @@ func TestHostShellDuplicateSessionIsRefused(t *testing.T) {
 	second := decode[agentprotocol.ExecOpened](t, rec.of(agentprotocol.TypeExecOpened, hostSid)[1])
 	require.Equal(t, "failed", second.Code)
 	require.NotNil(t, e.term.session(hostSid))
-	require.False(t, d.helperTTY(0).isClosed(), "the first session is untouched")
+	require.False(t, d.helperTTY().isClosed(), "the first session is untouched")
 	require.True(t, d.exists(hostName))
 }
 
@@ -223,7 +223,7 @@ func seedHelper(d *helperDocker, sid string, age time.Duration) string {
 
 func TestSweepRemovesHelpersOfDeadSessionsOnly(t *testing.T) {
 	e, d, rec := hostSetup(t, true)
-	require.Empty(t, openHost(t, e, rec, hostSid).Error) // a live session and its helper
+	require.Empty(t, openHost(t, e, rec).Error) // a live session and its helper
 
 	const deadSid = "deadbeef-0000-4000-8000-000000000002"
 	const startingSid = "5ca1ab1e-0000-4000-8000-000000000003"
@@ -246,7 +246,7 @@ func TestSweepRemovesHelpersOfDeadSessionsOnly(t *testing.T) {
 func TestAgentRestartMidSessionLeavesAHelperTheNextAgentSweeps(t *testing.T) {
 	// The first agent opens a session and dies with it: the helper stays.
 	e1, d, rec := hostSetup(t, true)
-	require.Empty(t, openHost(t, e1, rec, hostSid).Error)
+	require.Empty(t, openHost(t, e1, rec).Error)
 	require.True(t, d.exists(hostName))
 
 	// A new agent process (empty session table) on the same daemon.
@@ -267,7 +267,7 @@ func TestHostShellWithoutAHelperRunnerFails(t *testing.T) {
 	rec := &streamRec{fakeSender: &fakeSender{}}
 	e, err := New(Config{Docker: d, Proxy: &fakeProxy{}, Sender: rec, AgentContainer: selfName})
 	require.NoError(t, err)
-	opened := openHost(t, e, rec, hostSid)
+	opened := openHost(t, e, rec)
 	require.Equal(t, "failed", opened.Code)
 	require.Contains(t, opened.Error, "helper container")
 }

@@ -13,7 +13,7 @@ AGENT_ARCHES := amd64 arm64
 LOAD_ENV := set -a; if [ -f .env ]; then . ./.env; fi; set +a;
 
 .PHONY: help setup keygen dev-deps dev dev-agent dev-down dev-reset generate test test-db \
-        test-smoke test-full lint lint-go lint-workflows test-release-rules build build-web build-agents \
+        test-smoke test-full lint lint-go lint-dead lint-workflows test-release-rules build build-web build-agents \
         release-binaries e2e site-dev site-build
 
 help: ## List targets
@@ -84,7 +84,7 @@ test-smoke: test-db ## Tier 2: ~8 core Docker scenarios, shared control plane + 
 test-full: test-db ## Tier 3: every Docker scenario incl. templates sample, Railpack, backups, reconnect (pauses dev agent1; NEBULACTRL_TEST_MULTI=1 adds multi-server)
 	@./tests/run.sh full
 
-lint: lint-go ## golangci-lint (includes go vet) and biome
+lint: lint-go lint-dead ## golangci-lint (includes go vet), deadcode, knip and biome
 	cd apps/web && bun run lint
 	cd packages/ascii && bun run lint
 	cd packages/dither && bun run lint
@@ -108,6 +108,10 @@ release-binaries: ## Release archives and SHA256SUMS into dist/ (CLI and agent, 
 
 lint-go: ## golangci-lint v2 (go vet, errcheck, staticcheck, gosec, ...) over all Go code, including the integration tests
 	go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run ./...
+
+lint-dead: ## Dead code: unreachable Go functions (deadcode), unused files/exports/dependencies of the Bun workspace (knip)
+	scripts/ci/deadcode.sh
+	scripts/ci/knip.sh
 
 lint-workflows: ## Workflow rules (allowed triggers, GitHub-hosted runners, SHA-pinned actions, timeouts) and actionlint
 	scripts/release/check-workflows.sh

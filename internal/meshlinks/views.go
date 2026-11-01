@@ -115,7 +115,7 @@ type ServiceMeshView struct {
 }
 
 // routes builds the route views of wants.
-func (s *Service) routes(d Derived, st *state, names map[uuid.UUID]string, wants []Want) []RouteView {
+func (s *Service) routes(st *state, names map[uuid.UUID]string, wants []Want) []RouteView {
 	type rk struct{ consumer, provider uuid.UUID }
 	idx := map[rk]int{}
 	out := []RouteView{}
@@ -219,7 +219,7 @@ func (s *Service) EnvironmentMesh(ctx context.Context, envID uuid.UUID) (Environ
 		})
 	}
 	out.Grants = grants
-	out.Routes = s.routes(d, st, names, d.Wants)
+	out.Routes = s.routes(st, names, d.Wants)
 	return out, nil
 }
 
@@ -253,7 +253,7 @@ func (s *Service) ServiceMesh(ctx context.Context, serviceID uuid.UUID) (Service
 		})
 	}
 	sort.Slice(out.Exposures, func(i, j int) bool { return out.Exposures[i].Purpose < out.Exposures[j].Purpose })
-	out.Routes = s.routes(d, st, names, wantsOfConsumer(d, serviceID))
+	out.Routes = s.routes(st, names, wantsOfConsumer(d, serviceID))
 	var asProvider []Want
 	for _, w := range d.Wants {
 		if w.ProviderID == serviceID {

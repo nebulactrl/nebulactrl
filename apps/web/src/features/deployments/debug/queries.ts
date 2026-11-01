@@ -6,7 +6,7 @@ import {
 import type * as Gen from "#/api/gen/types.gen";
 
 /** A release's placement; the ids are null when nothing was built or placed. */
-export interface DebugPlacement {
+interface DebugPlacement {
 	strategy: string;
 	targetServerId: string | null;
 	targetServerName: string;

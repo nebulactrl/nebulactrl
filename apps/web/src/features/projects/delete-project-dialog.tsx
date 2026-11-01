@@ -67,7 +67,7 @@ function PlanList({ plan }: { plan: ReturnType<typeof useDeletionPlan> }) {
  * counts right now, and the action stays locked until it has arrived and
  * the project's name is typed, so nobody confirms what they were not shown.
  */
-export function DeleteProjectDialog({
+function DeleteProjectDialog({
 	project,
 	open,
 	onOpenChange,

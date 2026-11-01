@@ -127,8 +127,9 @@ type Report struct {
 	GeoReason string `json:"geoReason,omitempty" enum:"geo_disabled,traffic_disabled" doc:"Why geo is absent"`
 }
 
-// topListLen is the length of every ranked list in a report.
-const topListLen = 20
+// topListLen is the length of every ranked list in a report: the length the
+// agent keeps per dimension.
+const topListLen = agentprotocol.TopN
 
 type reportInput struct {
 	rows         []row
@@ -185,7 +186,7 @@ type scanResult struct {
 	peak     int64
 }
 
-func scan(rows []row, bucketWidth time.Duration, detail bool, each func(r *row, sk *hyperloglog.Sketch)) scanResult {
+func scan(rows []row, detail bool, each func(r *row, sk *hyperloglog.Sketch)) scanResult {
 	res := scanResult{total: newSum(detail)}
 	days := map[int64]*hyperloglog.Sketch{}
 	perBucket := map[int64]int64{}
@@ -242,7 +243,7 @@ func build(in reportInput) Report {
 	var unroutedHosts = map[string]*agentprotocol.TopEntry{}
 	var unroutedReq int64
 
-	sc := scan(in.rows, in.tier.Width(), true, func(r *row, sk *hyperloglog.Sketch) {
+	sc := scan(in.rows, true, func(r *row, sk *hyperloglog.Sketch) {
 		if idx := int(r.Bucket.Sub(first) / in.step); idx >= 0 && idx < n {
 			steps[idx].add(r, sk)
 		}
@@ -282,21 +283,21 @@ func build(in reportInput) Report {
 
 	rep.StatusCodes = sc.total.statusCodes()
 	rep.TopPathsKind = "pages"
-	pages := sc.total.ranked(dimPages, topListLen)
+	pages := sc.total.ranked(dimPages)
 	if in.allPaths || len(pages) == 0 {
 		rep.TopPathsKind = "requests"
-		pages = sc.total.ranked(dimPaths, topListLen)
+		pages = sc.total.ranked(dimPaths)
 	}
 	rep.TopPaths = toItems(pages)
 	rep.TopHosts = toItems(rankMap(hosts, topListLen))
-	rep.TopReferrers = toItems(sc.total.ranked(dimReferrers, topListLen))
-	rep.TopBrowsers = toItems(sc.total.ranked(dimBrowsers, topListLen))
-	rep.TopOS = toItems(sc.total.ranked(dimOS, topListLen))
-	rep.TopDevices = toItems(sc.total.ranked(dimDevices, topListLen))
-	rep.NotFound = toItems(sc.total.ranked(dimNotFound, topListLen))
+	rep.TopReferrers = toItems(sc.total.ranked(dimReferrers))
+	rep.TopBrowsers = toItems(sc.total.ranked(dimBrowsers))
+	rep.TopOS = toItems(sc.total.ranked(dimOS))
+	rep.TopDevices = toItems(sc.total.ranked(dimDevices))
+	rep.NotFound = toItems(sc.total.ranked(dimNotFound))
 
 	if in.compare {
-		ps := scan(in.prev, in.tier.Width(), false, nil)
+		ps := scan(in.prev, false, nil)
 		prev := summarize(ps.total, ps.visitors, ps.peak, in.tier.Width())
 		rep.Comparison = &prev
 	}

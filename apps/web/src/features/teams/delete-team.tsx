@@ -19,7 +19,7 @@ function plural(n: number, one: string, many = `${one}s`) {
 }
 
 /** The lines of the plan that are not zero, in plain words. */
-export function planLines(p: TeamDeletionPlan): string[] {
+function planLines(p: TeamDeletionPlan): string[] {
 	const lines: string[] = [];
 	const add = (n: number, text: string) => n > 0 && lines.push(text);
 	add(p.projects, `${plural(p.projects, "project")}`);

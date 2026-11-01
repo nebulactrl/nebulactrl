@@ -13,7 +13,7 @@ import type {
 
 export type { EngineView, FlavorView, VersionView };
 
-export const DATABASE_NAME_PATTERN = /^[a-z_][a-z0-9_]{0,62}$/;
+const DATABASE_NAME_PATTERN = /^[a-z_][a-z0-9_]{0,62}$/;
 
 /** What the server falls back to when the field is left empty. */
 export const DEFAULT_DATABASE_NAME = "app";

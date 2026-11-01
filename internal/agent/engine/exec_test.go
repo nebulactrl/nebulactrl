@@ -182,10 +182,10 @@ func (d *termFake) CopyFromContainer(_ context.Context, _, p string) (io.ReadClo
 	return nil, docker.PathStat{}, notFound(p)
 }
 
-func (d *termFake) tty(i int) *fakeTTY {
+func (d *termFake) tty() *fakeTTY {
 	d.tmu.Lock()
 	defer d.tmu.Unlock()
-	return d.ttys[i]
+	return d.ttys[0]
 }
 
 func tarOf(t *testing.T, files map[string][]byte, dirs ...string) []byte {
@@ -256,15 +256,15 @@ func TestTerminalSessionInputOutputResizeClose(t *testing.T) {
 	e.HandleStream(frameOf(t, agentprotocol.TypeExecInput, "s1", agentprotocol.ExecInput{SessionID: "s1", Data: []byte("ls\n")}))
 	out := decode[agentprotocol.ExecOutput](t, rec.waitFor(t, agentprotocol.TypeExecOutput, "s1", 1)[0])
 	require.Equal(t, "echo:ls\n", string(out.Data))
-	require.Equal(t, "ls\n", d.tty(0).gotInput())
+	require.Equal(t, "ls\n", d.tty().gotInput())
 
 	e.HandleStream(frameOf(t, agentprotocol.TypeExecResize, "s1", agentprotocol.ExecResize{SessionID: "s1", Cols: 132, Rows: 43}))
-	require.Eventually(t, func() bool { return len(d.tty(0).sizes()) == 1 }, 2*time.Second, 5*time.Millisecond)
-	require.Equal(t, [2]int{132, 43}, d.tty(0).sizes()[0])
+	require.Eventually(t, func() bool { return len(d.tty().sizes()) == 1 }, 2*time.Second, 5*time.Millisecond)
+	require.Equal(t, [2]int{132, 43}, d.tty().sizes()[0])
 
 	e.HandleStream(frameOf(t, agentprotocol.TypeStreamAck, "s1", agentprotocol.StreamAck{StreamID: "s1", Bytes: len(out.Data)}))
 	e.HandleStream(frameOf(t, agentprotocol.TypeExecClose, "s1", agentprotocol.ExecClose{SessionID: "s1"}))
-	require.Eventually(t, d.tty(0).isClosed, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, d.tty().isClosed, 2*time.Second, 5*time.Millisecond)
 	require.Eventually(t, func() bool { return e.term.session("s1") == nil }, 2*time.Second, 5*time.Millisecond, "a closed session is forgotten")
 	require.Empty(t, rec.of(agentprotocol.TypeExecExit, "s1"), "the control plane closed it: no exit frame is owed")
 }
@@ -274,8 +274,8 @@ func TestTerminalReportsExit(t *testing.T) {
 	d.nextTTY = newFakeTTY(false)
 	d.nextTTY.exitCode = 3
 	require.Empty(t, openTerm(t, e, rec, "s2").Error)
-	d.tty(0).out <- []byte("bye\n")
-	_ = d.tty(0).Close() // the shell exited
+	d.tty().out <- []byte("bye\n")
+	_ = d.tty().Close() // the shell exited
 	exit := decode[agentprotocol.ExecExit](t, rec.waitFor(t, agentprotocol.TypeExecExit, "s2", 1)[0])
 	require.Equal(t, 3, exit.ExitCode)
 	require.Empty(t, exit.Error)
@@ -303,7 +303,7 @@ func TestTerminalOutputHonorsTheStreamWindow(t *testing.T) {
 	// 2 MiB of output with no acknowledgement: only a window's worth goes out.
 	chunk := bytes.Repeat([]byte("x"), agentprotocol.ExecChunk)
 	for range 128 {
-		d.tty(0).out <- chunk
+		d.tty().out <- chunk
 	}
 	time.Sleep(300 * time.Millisecond)
 	var sent int
@@ -335,7 +335,7 @@ func TestDisconnectEndsEverySession(t *testing.T) {
 	e, d, rec := termSetup(t)
 	require.Empty(t, openTerm(t, e, rec, "s6").Error)
 	e.Disconnected()
-	require.Eventually(t, d.tty(0).isClosed, 2*time.Second, 5*time.Millisecond)
+	require.Eventually(t, d.tty().isClosed, 2*time.Second, 5*time.Millisecond)
 }
 
 func TestCreditGate(t *testing.T) {
@@ -354,7 +354,7 @@ func TestCreditGate(t *testing.T) {
 
 // ---- file browser ----
 
-func fsReq(t *testing.T, e *Engine, rec *streamRec, id string, req agentprotocol.FSRequest) {
+func fsReq(t *testing.T, e *Engine, id string, req agentprotocol.FSRequest) {
 	t.Helper()
 	req.RequestID, req.ServiceID = id, termSvc
 	e.HandleStream(frameOf(t, agentprotocol.TypeFSRequest, id, req))
@@ -379,7 +379,7 @@ func TestFileListThroughTheShell(t *testing.T) {
 				"garbage line\n")
 		return 0, nil
 	}
-	fsReq(t, e, rec, "f1", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/app/../app/"})
+	fsReq(t, e, "f1", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/app/../app/"})
 	r := fsResp(t, rec, "f1", 1)
 	require.Empty(t, r.Error)
 	require.Equal(t, agentprotocol.FSDone, r.Stage)
@@ -406,7 +406,7 @@ func TestFileListTruncates(t *testing.T) {
 		}
 		return 0, nil
 	}
-	fsReq(t, e, rec, "f2", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/big"})
+	fsReq(t, e, "f2", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/big"})
 	r := fsResp(t, rec, "f2", 1)
 	require.True(t, r.Truncated)
 	require.Len(t, r.Entries, agentprotocol.MaxListEntries)
@@ -419,7 +419,7 @@ func TestFileListFallsBackToTheArchive(t *testing.T) {
 		return -1, errors.New(`exec attach: OCI runtime exec failed: exec: "sh": executable file not found in $PATH`)
 	}
 	d.archive["/srv/."] = tarOf(t, map[string][]byte{"./app": []byte("binary"), "./sub/deep.txt": []byte("x")}, "./", "./sub/")
-	fsReq(t, e, rec, "f3", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/srv"})
+	fsReq(t, e, "f3", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/srv"})
 	r := fsResp(t, rec, "f3", 1)
 	require.Empty(t, r.Error)
 	var names []string
@@ -432,11 +432,11 @@ func TestFileListFallsBackToTheArchive(t *testing.T) {
 func TestFileListErrors(t *testing.T) {
 	e, d, rec := termSetup(t)
 	d.stats["/etc/hosts"] = docker.PathStat{Mode: 0o644, Size: 3}
-	fsReq(t, e, rec, "e1", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/missing"})
+	fsReq(t, e, "e1", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/missing"})
 	require.Equal(t, agentprotocol.FSErrNotFound, fsResp(t, rec, "e1", 1).Code)
-	fsReq(t, e, rec, "e2", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/etc/hosts"})
+	fsReq(t, e, "e2", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "/etc/hosts"})
 	require.Equal(t, agentprotocol.FSErrNotDir, fsResp(t, rec, "e2", 1).Code)
-	fsReq(t, e, rec, "e3", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "relative/path"})
+	fsReq(t, e, "e3", agentprotocol.FSRequest{Op: agentprotocol.FSList, Path: "relative/path"})
 	require.Contains(t, fsResp(t, rec, "e3", 1).Error, "absolute")
 }
 
@@ -445,7 +445,7 @@ func TestFileReadStreamsInChunksUnderTheWindow(t *testing.T) {
 	body := bytes.Repeat([]byte("0123456789abcdef"), 40_000) // 640 KB
 	d.stats["/data/log.txt"] = docker.PathStat{Name: "log.txt", Mode: 0o644, Size: int64(len(body))}
 	d.archive["/data/log.txt"] = tarOf(t, map[string][]byte{"log.txt": body})
-	fsReq(t, e, rec, "r1", agentprotocol.FSRequest{Op: agentprotocol.FSRead, Path: "/data/log.txt"})
+	fsReq(t, e, "r1", agentprotocol.FSRequest{Op: agentprotocol.FSRead, Path: "/data/log.txt"})
 	resp := fsResp(t, rec, "r1", 1)
 	require.Equal(t, agentprotocol.FSReady, resp.Stage)
 	require.Equal(t, "log.txt", resp.Entry.Name)
@@ -478,9 +478,9 @@ func TestFileReadRefusals(t *testing.T) {
 	e, d, rec := termSetup(t)
 	d.stats["/dir"] = docker.PathStat{Mode: os.ModeDir | 0o755}
 	d.stats["/huge"] = docker.PathStat{Mode: 0o644, Size: 10 << 20}
-	fsReq(t, e, rec, "x1", agentprotocol.FSRequest{Op: agentprotocol.FSRead, Path: "/dir"})
+	fsReq(t, e, "x1", agentprotocol.FSRequest{Op: agentprotocol.FSRead, Path: "/dir"})
 	require.Equal(t, agentprotocol.FSErrIsDir, fsResp(t, rec, "x1", 1).Code)
-	fsReq(t, e, rec, "x2", agentprotocol.FSRequest{Op: agentprotocol.FSRead, Path: "/huge", MaxBytes: 1 << 20})
+	fsReq(t, e, "x2", agentprotocol.FSRequest{Op: agentprotocol.FSRead, Path: "/huge", MaxBytes: 1 << 20})
 	require.Equal(t, agentprotocol.FSErrTooLarge, fsResp(t, rec, "x2", 1).Code)
 }
 
@@ -489,7 +489,7 @@ func TestFileReadFollowsSymlinks(t *testing.T) {
 	d.stats["/cur"] = docker.PathStat{Name: "cur", Mode: os.ModeSymlink | 0o777, LinkTarget: "releases/7/app.conf"}
 	d.stats["/releases/7/app.conf"] = docker.PathStat{Name: "app.conf", Mode: 0o644, Size: 5}
 	d.archive["/releases/7/app.conf"] = tarOf(t, map[string][]byte{"app.conf": []byte("hello")})
-	fsReq(t, e, rec, "l1", agentprotocol.FSRequest{Op: agentprotocol.FSRead, Path: "/cur"})
+	fsReq(t, e, "l1", agentprotocol.FSRequest{Op: agentprotocol.FSRead, Path: "/cur"})
 	resp := fsResp(t, rec, "l1", 1)
 	require.Empty(t, resp.Error)
 	require.Equal(t, "/releases/7/app.conf", resp.Path, "a relative link resolves against its own directory")
@@ -499,7 +499,7 @@ func TestFileUpload(t *testing.T) {
 	e, d, rec := termSetup(t)
 	d.stats["/data"] = docker.PathStat{Mode: os.ModeDir | 0o755}
 	payload := []byte("uploaded bytes")
-	fsReq(t, e, rec, "u1", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/data/new.txt", Size: int64(len(payload)), Mode: 0o600})
+	fsReq(t, e, "u1", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/data/new.txt", Size: int64(len(payload)), Mode: 0o600})
 	require.Equal(t, agentprotocol.FSReady, fsResp(t, rec, "u1", 1).Stage)
 
 	e.HandleStream(frameOf(t, agentprotocol.TypeFSData, "u1", agentprotocol.FSData{RequestID: "u1", Data: payload[:6]}))
@@ -530,17 +530,17 @@ func TestFileUploadRefusals(t *testing.T) {
 	e, d, rec := termSetup(t)
 	d.stats["/data"] = docker.PathStat{Mode: os.ModeDir | 0o755}
 	d.stats["/file"] = docker.PathStat{Mode: 0o644}
-	fsReq(t, e, rec, "w1", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/data/x", Size: agentprotocol.MaxUploadBytes + 1})
+	fsReq(t, e, "w1", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/data/x", Size: agentprotocol.MaxUploadBytes + 1})
 	require.Equal(t, agentprotocol.FSErrTooLarge, fsResp(t, rec, "w1", 1).Code)
-	fsReq(t, e, rec, "w2", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/nowhere/x", Size: 1})
+	fsReq(t, e, "w2", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/nowhere/x", Size: 1})
 	require.Equal(t, agentprotocol.FSErrNotFound, fsResp(t, rec, "w2", 1).Code)
-	fsReq(t, e, rec, "w3", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/file/x", Size: 1})
+	fsReq(t, e, "w3", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/file/x", Size: 1})
 	require.Equal(t, agentprotocol.FSErrNotDir, fsResp(t, rec, "w3", 1).Code)
-	fsReq(t, e, rec, "w4", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/data/..", Size: 1})
+	fsReq(t, e, "w4", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/data/..", Size: 1})
 	require.Equal(t, agentprotocol.FSErrFailed, fsResp(t, rec, "w4", 1).Code, "the path must name a file")
 
 	// More data than announced aborts and stores nothing.
-	fsReq(t, e, rec, "w5", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/data/y", Size: 3})
+	fsReq(t, e, "w5", agentprotocol.FSRequest{Op: agentprotocol.FSWrite, Path: "/data/y", Size: 3})
 	require.Equal(t, agentprotocol.FSReady, fsResp(t, rec, "w5", 1).Stage)
 	e.HandleStream(frameOf(t, agentprotocol.TypeFSData, "w5", agentprotocol.FSData{RequestID: "w5", Data: []byte("toolong"), EOF: true}))
 	r := fsResp(t, rec, "w5", 2)

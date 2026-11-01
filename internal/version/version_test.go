@@ -41,25 +41,23 @@ func TestComputeSkew(t *testing.T) {
 	cases := []struct {
 		agent, control string
 		want           Skew
-		upgradable     bool
 		auto           bool
 	}{
-		{"1.3.0", "1.4.0", SkewBehind, true, true},
-		{"v1.3.0", "1.4.0", SkewBehind, true, true},
-		{"1.4.0", "1.4.0", SkewCurrent, false, false},
-		{"v1.4.0", "1.4.0", SkewCurrent, false, false},
-		{"1.5.0", "1.4.0", SkewAhead, false, false},
-		{"1.4.0-rc.1", "1.4.0", SkewBehind, true, true},
-		{"dev", "dev", SkewCurrent, false, false},
-		{"dev", "1.4.0", SkewUnknown, true, false},
-		{"1.4.0", "dev", SkewUnknown, true, false},
-		{"", "1.4.0", SkewUnknown, true, false},
-		{"v1.3.0-4-gabc", "1.4.0", SkewUnknown, true, false},
+		{"1.3.0", "1.4.0", SkewBehind, true},
+		{"v1.3.0", "1.4.0", SkewBehind, true},
+		{"1.4.0", "1.4.0", SkewCurrent, false},
+		{"v1.4.0", "1.4.0", SkewCurrent, false},
+		{"1.5.0", "1.4.0", SkewAhead, false},
+		{"1.4.0-rc.1", "1.4.0", SkewBehind, true},
+		{"dev", "dev", SkewCurrent, false},
+		{"dev", "1.4.0", SkewUnknown, false},
+		{"1.4.0", "dev", SkewUnknown, false},
+		{"", "1.4.0", SkewUnknown, false},
+		{"v1.3.0-4-gabc", "1.4.0", SkewUnknown, false},
 	}
 	for _, c := range cases {
 		got := Compute(c.agent, c.control)
 		require.Equal(t, c.want, got, "%q vs %q", c.agent, c.control)
-		require.Equal(t, c.upgradable, got.Upgradable(), "%q vs %q", c.agent, c.control)
 		require.Equal(t, c.auto, got.AutoUpgradable(), "%q vs %q", c.agent, c.control)
 	}
 }

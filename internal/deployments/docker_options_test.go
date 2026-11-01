@@ -44,7 +44,7 @@ func TestDockerOptionsPlacementPlanDeployAndPayload(t *testing.T) {
 	require.NoError(t, err)
 	v, err := f.deps.Deploy(f.ctx, hardened.ID, "", "")
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID))
 	var pl agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &pl))
 	require.Equal(t, &agentprotocol.DockerPolicy{Unrestricted: false}, pl.DockerPolicy, "the agent is told the server is restricted")
@@ -61,7 +61,7 @@ func TestDockerOptionsPlacementPlanDeployAndPayload(t *testing.T) {
 	require.Contains(t, plan.Warnings, host.Warnings()[0], "the plan repeats the options' warnings")
 	v, err = f.deps.Deploy(f.ctx, gpu.ID, "", "")
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID))
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &pl))
 	require.Equal(t, &agentprotocol.DockerPolicy{Unrestricted: true}, pl.DockerPolicy)
 	require.True(t, pl.Docker.Privileged)

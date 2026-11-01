@@ -79,7 +79,6 @@ type lockRow struct {
 
 // owner is what the DNS sync needs of the kind of object that owns a name.
 type owner interface {
-	kind() OwnerKind
 	// audit says how the owner's changes are recorded: the resource type and
 	// the action of a settings change.
 	resource() string
@@ -119,7 +118,6 @@ func (s *Service) ownerOf(k OwnerKind) owner {
 
 type domainOwner struct{ s *Service }
 
-func (domainOwner) kind() OwnerKind        { return OwnerDomain }
 func (domainOwner) resource() string       { return string(OwnerDomain) }
 func (domainOwner) settingsAction() string { return "domain.dns.update" }
 
@@ -244,7 +242,6 @@ func (domainOwner) failure(n *dnsName, err error) notifications.Event {
 
 type pageOwner struct{ s *Service }
 
-func (pageOwner) kind() OwnerKind        { return OwnerStatusPage }
 func (pageOwner) resource() string       { return string(OwnerStatusPage) }
 func (pageOwner) settingsAction() string { return "status_page.dns.update" }
 

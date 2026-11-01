@@ -130,7 +130,7 @@ func (s *Service) applyAndDiff(ctx context.Context, q *db.Queries, infos []servi
 }
 
 // finishPlan fills strategy, downtime and the deploy order.
-func (s *Service) finishPlan(ctx context.Context, q *db.Queries, envID uuid.UUID, infos []services.EnvInfo, affected []RotationAffected) ([]RotationAffected, []string, error) {
+func (s *Service) finishPlan(ctx context.Context, q *db.Queries, infos []services.EnvInfo, affected []RotationAffected) ([]RotationAffected, []string, error) {
 	for i := range affected {
 		asc, err := services.LoadScopeInternal(ctx, q, affected[i].ServiceID)
 		if err != nil {
@@ -214,7 +214,7 @@ func (s *Service) RotateVariable(ctx context.Context, serviceID uuid.UUID, key s
 			return errDryRun
 		}
 		affected, err := s.applyAndDiff(ctx, q, infos, serviceID, func() error {
-			pw, err := s.prepareWriteForced(ctx, q, sc, row, tmpl)
+			pw, err := s.prepareWriteForced(row, tmpl)
 			if err != nil {
 				return err
 			}
@@ -240,7 +240,7 @@ func (s *Service) RotateVariable(ctx context.Context, serviceID uuid.UUID, key s
 		if !found {
 			affected = append(affected, RotationAffected{ServiceID: serviceID, Slug: sc.Service.Slug, Via: []string{key}})
 		}
-		if plan.Affected, plan.DeployOrder, err = s.finishPlan(ctx, q, sc.EnvironmentID, infos, affected); err != nil {
+		if plan.Affected, plan.DeployOrder, err = s.finishPlan(ctx, q, infos, affected); err != nil {
 			return err
 		}
 		plan.Warnings = append(plan.Warnings, "Existing sessions, tokens or signatures made with the old value become invalid once the change is deployed.")
@@ -301,7 +301,7 @@ func engineBound(sc services.Scope, row db.ServiceVariable, volumes int) *Rotati
 }
 
 // prepareWriteForced re-materialises a stored template.
-func (s *Service) prepareWriteForced(ctx context.Context, q *db.Queries, sc services.Scope, row db.ServiceVariable, tmpl string) (preparedWrite, error) {
+func (s *Service) prepareWriteForced(row db.ServiceVariable, tmpl string) (preparedWrite, error) {
 	m, err := varexpr.Materialize(tmpl)
 	if err != nil {
 		return preparedWrite{}, templateError(row.Key, err)

@@ -71,7 +71,7 @@ func cleanBase(p string) string {
 
 // planApplication maps one Coolify application. Variables are built later, once
 // every resource of the environment has its slug.
-func (a *analyzer) planApplication(app *Application, rc CoolifyResourceChoice, env *CoolifyPlanEnvironment) CoolifyPlanResource {
+func (a *analyzer) planApplication(app *Application, rc CoolifyResourceChoice) CoolifyPlanResource {
 	name := app.Name
 	if rc.Name != nil && strings.TrimSpace(*rc.Name) != "" {
 		name = strings.TrimSpace(*rc.Name)
@@ -340,7 +340,7 @@ func volumeName(name, appUUID string) string {
 func mapHealth(app *Application, res *CoolifyPlanResource) *CoolifyPlanHealth {
 	h := app.Health
 	deadline := func() int {
-		d := h.StartPeriod + h.Retries*maxInt(h.Interval, 1)
+		d := h.StartPeriod + h.Retries*max(h.Interval, 1)
 		if d < 30 {
 			d = 30
 		}
@@ -351,7 +351,7 @@ func mapHealth(app *Application, res *CoolifyPlanResource) *CoolifyPlanHealth {
 	}
 	switch {
 	case h.Enabled && h.Type == "cmd" && strings.TrimSpace(h.Command) != "":
-		return &CoolifyPlanHealth{Type: "exec", command: []string{"CMD-SHELL", strings.TrimSpace(h.Command)}, IntervalSeconds: maxInt(h.Interval, 1), TimeoutSeconds: maxInt(h.Timeout, 1), StartPeriodSeconds: h.StartPeriod, DeadlineSeconds: deadline()}
+		return &CoolifyPlanHealth{Type: "exec", command: []string{"CMD-SHELL", strings.TrimSpace(h.Command)}, IntervalSeconds: max(h.Interval, 1), TimeoutSeconds: max(h.Timeout, 1), StartPeriodSeconds: h.StartPeriod, DeadlineSeconds: deadline()}
 	case h.Enabled:
 		port := res.Port
 		if n, err := strconv.Atoi(strings.TrimSpace(h.Port)); err == nil && n > 0 {
@@ -372,7 +372,7 @@ func mapHealth(app *Application, res *CoolifyPlanResource) *CoolifyPlanHealth {
 		}
 		return &CoolifyPlanHealth{
 			Type: "exec", command: []string{"CMD-SHELL", healthCommand(healthURL(h, port))},
-			IntervalSeconds: maxInt(h.Interval, 1), TimeoutSeconds: maxInt(h.Timeout, 1), StartPeriodSeconds: h.StartPeriod, DeadlineSeconds: deadline(),
+			IntervalSeconds: max(h.Interval, 1), TimeoutSeconds: max(h.Timeout, 1), StartPeriodSeconds: h.StartPeriod, DeadlineSeconds: deadline(),
 		}
 	case app.CustomHealthcheckFound:
 		res.addNote("health check", SevInfo, "No Coolify health check, but the image defines HEALTHCHECK: its status is used.")
@@ -409,13 +409,6 @@ func healthCommand(target string) string {
 // shellQuote single-quotes s for sh.
 func shellQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-func maxInt(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
 }
 
 var autoDomainRe = regexp.MustCompile(`\.(sslip\.io|nip\.io|traefik\.me)$`)

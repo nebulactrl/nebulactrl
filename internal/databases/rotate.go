@@ -244,8 +244,11 @@ func (s *Service) applyRotationResult(ctx context.Context, rotationID uuid.UUID,
 		return err
 	}
 	sc, err := services.LoadScopeInternal(ctx, s.q, rot.ServiceID)
-	if err != nil {
+	if apierr.IsNotFound(err) {
 		return nil // database deleted meanwhile
+	}
+	if err != nil {
+		return err
 	}
 	var staged []db.Service
 	changed := false

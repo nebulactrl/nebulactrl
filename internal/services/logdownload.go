@@ -85,12 +85,13 @@ func NewLogDownload(hctx huma.Context, format, filename string) *LogDownload {
 	hctx.SetHeader("Cache-Control", "no-store")
 	hctx.SetHeader("X-Content-Type-Options", "nosniff")
 	hctx.SetStatus(http.StatusOK)
-	d := &LogDownload{w: hctx.BodyWriter(), rc: http.NewResponseController(w), format: format}
+	d := NewLogDownloadTo(hctx.BodyWriter(), format)
+	d.rc = http.NewResponseController(w)
 	_ = d.rc.SetWriteDeadline(time.Time{}) // a long range streams for minutes
 	return d
 }
 
-// NewLogDownloadTo writes to w without HTTP (tests).
+// NewLogDownloadTo writes a log file to w, with no HTTP response to prepare.
 func NewLogDownloadTo(w io.Writer, format string) *LogDownload {
 	return &LogDownload{w: w, format: format}
 }

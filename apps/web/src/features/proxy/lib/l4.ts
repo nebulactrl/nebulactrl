@@ -11,7 +11,7 @@ export const RESTART_WARNING =
 export const UDP_WARNING =
 	"UDP cannot be restricted by IP: neither an allow list nor a deny list is enforced. Use a firewall or VPN.";
 
-export const TCP_OPEN_WARNING =
+const TCP_OPEN_WARNING =
 	"Open to the internet: anyone who can reach this server can connect to this port.";
 
 /** Docker publishes ports around ufw/iptables rules on the host. */
@@ -98,7 +98,7 @@ export function checkPort(
 }
 
 /** `192.168.1.20:8123` or `192.168.1.20:8123 +2`, from an http route's upstreams. */
-export function upstreamSummary(
+function upstreamSummary(
 	route: Pick<RouteConfig, "upstreams">,
 	nameOf: (serviceId: string) => string | undefined,
 ): string {

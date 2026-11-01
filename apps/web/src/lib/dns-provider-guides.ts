@@ -60,7 +60,7 @@ export const DNS_GUIDE_CODES = [
 	"netcup",
 ] as const;
 
-export type DnsGuideCode = (typeof DNS_GUIDE_CODES)[number];
+type DnsGuideCode = (typeof DNS_GUIDE_CODES)[number];
 
 /**
  * Gandi: a Personal Access Token is created per organization, under Sharing,

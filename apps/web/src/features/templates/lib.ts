@@ -5,7 +5,6 @@ import type {
 	TemplateInstance,
 	TemplatePlanCheck,
 	TemplatePlanInput,
-	TemplateService,
 	TemplateSummary,
 	TemplateUpdate,
 	TemplateUpdateChange,
@@ -13,7 +12,7 @@ import type {
 import type { Server } from "#/api/models";
 import { isSchedulable } from "#/features/fleet/model";
 
-export type { TemplateInput, TemplateService };
+export type { TemplateInput };
 
 // --- search and categories --------------------------------------------------
 

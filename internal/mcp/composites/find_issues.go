@@ -110,7 +110,7 @@ func (c *composites) findIssuesRun(ctx context.Context, p *auth.Principal, in fi
 			return nil
 		})
 	} else {
-		run.note("servers", mcpkit.CodeForbidden, "the token lacks servers:read; proxy, disk and heartbeat checks are skipped (offline servers are still found through their services)")
+		run.forbidden("servers", "the token lacks servers:read; proxy, disk and heartbeat checks are skipped (offline servers are still found through their services)")
 	}
 	est, err := c.walkEstate(ctx, run, estateSelector{Project: in.Project, Environment: in.Environment})
 	if err != nil {

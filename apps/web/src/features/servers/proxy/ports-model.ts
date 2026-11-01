@@ -27,9 +27,9 @@ export interface ReservedPort {
 }
 
 /** The proxy's admin entrypoint (the agent's default; the control plane refuses it too). */
-export const ADMIN_PORT = 9000;
-export const MIN_PORT = 1;
-export const MAX_PORT = 65535;
+const ADMIN_PORT = 9000;
+const MIN_PORT = 1;
+const MAX_PORT = 65535;
 
 /** What the form holds: text per port; blank = the agent's own port. */
 export interface PortsForm {
@@ -37,7 +37,7 @@ export interface PortsForm {
 	https: string;
 }
 
-export interface PortsErrors {
+interface PortsErrors {
 	http?: string;
 	https?: string;
 	/** A problem with the pair (equal ports, a route that holds one). */

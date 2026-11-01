@@ -23,7 +23,7 @@ func openPTY() (master, slave *os.File, err error) {
 	}()
 	// TIOCPTYGNAME takes a 128-byte buffer (IOCPARM_LEN of the request).
 	name := make([]byte, 128)
-	if err = ioctl(m, syscall.TIOCPTYGNAME, unsafe.Pointer(&name[0])); err != nil { //nolint:gosec // ioctl needs a pointer to the name buffer
+	if err := ioctl(m, syscall.TIOCPTYGNAME, unsafe.Pointer(&name[0])); err != nil { //nolint:gosec // ioctl needs a pointer to the name buffer
 		return nil, nil, err
 	}
 	end := 0
@@ -33,10 +33,10 @@ func openPTY() (master, slave *os.File, err error) {
 	if end == len(name) {
 		return nil, nil, errors.New("hostpty: TIOCPTYGNAME returned an unterminated name")
 	}
-	if err = ioctl(m, syscall.TIOCPTYGRANT, nil); err != nil {
+	if err := ioctl(m, syscall.TIOCPTYGRANT, nil); err != nil {
 		return nil, nil, err
 	}
-	if err = ioctl(m, syscall.TIOCPTYUNLK, nil); err != nil {
+	if err := ioctl(m, syscall.TIOCPTYUNLK, nil); err != nil {
 		return nil, nil, err
 	}
 	s, err := os.OpenFile(string(name[:end]), os.O_RDWR|syscall.O_NOCTTY, 0)

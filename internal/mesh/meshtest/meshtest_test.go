@@ -12,8 +12,8 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/mesh/meshtest"
 )
 
-func hsClient(h *meshtest.Headscale, user string) *tailscale.HeadscaleClient {
-	return tailscale.NewHeadscale(tailscale.HeadscaleConfig{LoginServer: h.URL, APIKey: h.APIKey(), User: user, HTTPClient: h.Client()})
+func hsClient(h *meshtest.Headscale) *tailscale.HeadscaleClient {
+	return tailscale.NewHeadscale(tailscale.HeadscaleConfig{LoginServer: h.URL, APIKey: h.APIKey(), HTTPClient: h.Client()})
 }
 
 func tsClient(f *meshtest.Tailscale) *tailscale.Client {
@@ -25,7 +25,7 @@ func tsClient(f *meshtest.Tailscale) *tailscale.Client {
 // A key is single-use, tagged, and joins exactly one node; nodes list and delete.
 func TestHeadscaleKeysAreSingleUseAndNodesJoinWithTheirTags(t *testing.T) {
 	h := meshtest.NewHeadscale(t)
-	c := hsClient(h, "")
+	c := hsClient(h)
 	ctx := context.Background()
 
 	k, err := c.MintPreAuthKey(ctx, []string{"tag:nebula-mesh"}, time.Hour)
@@ -61,7 +61,7 @@ func TestHeadscaleKeysAreSingleUseAndNodesJoinWithTheirTags(t *testing.T) {
 // check that rejects garbage, and file mode refusing updates.
 func TestHeadscalePolicyLifecycle(t *testing.T) {
 	h := meshtest.NewHeadscale(t)
-	c := hsClient(h, "")
+	c := hsClient(h)
 	ctx := context.Background()
 
 	_, err := c.GetPolicy(ctx)
@@ -84,7 +84,7 @@ func TestHeadscalePolicyLifecycle(t *testing.T) {
 	require.Equal(t, []string{doc}, h.PolicyHistory())
 
 	file := meshtest.NewHeadscale(t, meshtest.WithPolicyMode(meshtest.PolicyModeFile))
-	_, err = hsClient(file, "").SetPolicy(ctx, doc)
+	_, err = hsClient(file).SetPolicy(ctx, doc)
 	require.True(t, errors.Is(err, tailscale.ErrPolicyFileMode), "got %v", err)
 	require.Empty(t, file.PolicyHistory())
 }
@@ -100,16 +100,16 @@ func TestHeadscaleDownAndAuth(t *testing.T) {
 
 	h.SetDown(true)
 	require.Error(t, tailscale.HealthCheck(ctx, h.Client(), h.URL))
-	_, err = hsClient(h, "").Nodes(ctx)
+	_, err = hsClient(h).Nodes(ctx)
 	require.Error(t, err)
 	h.SetDown(false)
-	_, err = hsClient(h, "").Nodes(ctx)
+	_, err = hsClient(h).Nodes(ctx)
 	require.NoError(t, err)
 
 	h.FailNext("GET", "/api/v1/node", 502)
-	_, err = hsClient(h, "").Nodes(ctx)
+	_, err = hsClient(h).Nodes(ctx)
 	require.Error(t, err)
-	_, err = hsClient(h, "").Nodes(ctx)
+	_, err = hsClient(h).Nodes(ctx)
 	require.NoError(t, err)
 }
 

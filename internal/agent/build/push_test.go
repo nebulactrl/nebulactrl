@@ -85,9 +85,9 @@ func withDockerfile(t *testing.T) func(context.Context, Request, string) error {
 }
 
 // registry starts a plain-http registry that answers /v2/ and one manifest.
-func registry(t *testing.T) (host string, srv *httptest.Server) {
+func registry(t *testing.T) (host string) {
 	t.Helper()
-	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/v2/":
 			w.WriteHeader(http.StatusOK)
@@ -99,7 +99,7 @@ func registry(t *testing.T) (host string, srv *httptest.Server) {
 		}
 	}))
 	t.Cleanup(srv.Close)
-	return strings.TrimPrefix(srv.URL, "http://"), srv
+	return strings.TrimPrefix(srv.URL, "http://")
 }
 
 func goodPush(host string) PushRequest {
@@ -142,7 +142,7 @@ func TestPushArgsUsePerProjectBuilderPlatformPushAndNoProvenance(t *testing.T) {
 }
 
 func TestBuildAndPushHappyPath(t *testing.T) {
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	b := pushBuilder(t, d)
 	req := goodPush(host)
@@ -190,7 +190,7 @@ func TestBuildAndPushHappyPath(t *testing.T) {
 }
 
 func TestBuildAndPushPhaseCallbackFiresWhenTheOutputNamesThePush(t *testing.T) {
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	var order []string
 	d.onBuild = func(_ context.Context, _ []string, out io.Writer) error {
@@ -212,7 +212,7 @@ func TestBuildAndPushPhaseCallbackFiresWhenTheOutputNamesThePush(t *testing.T) {
 }
 
 func TestBuildAndPushFailureRemovesCredentialsAndWorkdir(t *testing.T) {
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	d.onBuild = func(_ context.Context, _ []string, out io.Writer) error {
 		_, _ = out.Write([]byte("#7 RUN npm ci\n#7 ERROR: process \"npm ci\" did not complete successfully: exit code: 1\nERROR: failed to solve: process \"/bin/sh -c npm ci\" did not complete\n"))
@@ -228,7 +228,7 @@ func TestBuildAndPushFailureRemovesCredentialsAndWorkdir(t *testing.T) {
 }
 
 func TestBuildAndPushCancelMidBuildStopsAndCleansUp(t *testing.T) {
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	started := make(chan struct{})
 	d.onBuild = func(ctx context.Context, _ []string, _ io.Writer) error {
@@ -277,7 +277,7 @@ func TestBuildAndPushRegistryPreflightFailureStopsBeforeCloning(t *testing.T) {
 }
 
 func TestBuildAndPushRefusesWhenDiskIsFull(t *testing.T) {
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	cloned := false
 	b := &Builder{StateDir: t.TempDir(), MinFreeBytes: 5 << 30, Run: d.run,
@@ -308,7 +308,7 @@ func TestBuildAndPushRefusesWhenDiskIsFull(t *testing.T) {
 
 func TestInsecureRegistryOnlyWhenTheRequestSaysSo(t *testing.T) {
 	// Insecure + loopback: http/insecure registry entry and the host network.
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	b := pushBuilder(t, d)
 	_, err := b.BuildAndPush(context.Background(), goodPush(host), func(string) {})
@@ -343,7 +343,7 @@ func TestInsecureRegistryOnlyWhenTheRequestSaysSo(t *testing.T) {
 }
 
 func TestProjectBuilderIsReusedAndRecreatedWhenItsConfigChanges(t *testing.T) {
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	b := pushBuilder(t, d)
 	run := func() {
@@ -377,7 +377,7 @@ func countVerb(d *pushDocker, verb string) int {
 }
 
 func TestBuildAndPushRailpackGoesThroughTheSameBuildxPath(t *testing.T) {
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	var info agentprotocol.BuildInfo
 	b := &Builder{StateDir: t.TempDir(), MinFreeBytes: -1, Run: d.run,

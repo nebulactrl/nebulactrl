@@ -149,7 +149,7 @@ func (s *Service) Cancel(ctx context.Context, id uuid.UUID) (DeploymentView, err
 		}
 		return DeploymentView{}, fmt.Errorf("cancel deployment: %w", err)
 	}
-	s.publish(services.EventDeploymentUpdated, dc)
+	s.publish(dc)
 	s.publishService(dc)
 	fresh, err := s.q.GetDeploymentScopeInternal(ctx, id) // id was authorized by loadDeployment above
 	if err != nil {

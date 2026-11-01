@@ -1,9 +1,11 @@
 package installdeploy
 
 import (
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -25,7 +27,7 @@ func TestScriptInlinesAssetsAndLibraries(t *testing.T) {
 			t.Errorf("assembled script lacks %q", want)
 		}
 	}
-	for _, lib := range Libraries() {
+	for _, lib := range libraries() {
 		if strings.Contains(s, includePrefix+lib+"\n") {
 			t.Errorf("include marker for %s was not replaced", lib)
 		}
@@ -54,7 +56,7 @@ func TestAssetFunctionServesTheComposeFile(t *testing.T) {
 		t.Skip("bash not available")
 	}
 	fn := assetFunction()
-	cases := []struct{ name, want string }{{"docker-compose.yml", Compose()}, {"uninstall.sh", Uninstall()}}
+	cases := []struct{ name, want string }{{"docker-compose.yml", mustRead("docker-compose.yml")}, {"uninstall.sh", Uninstall()}}
 	for _, name := range InstanceConfigs() {
 		cases = append(cases, struct{ name, want string }{name, mustRead(name)})
 	}
@@ -95,7 +97,7 @@ type composeFile struct {
 func parseCompose(t *testing.T) composeFile {
 	t.Helper()
 	var c composeFile
-	if err := yaml.Unmarshal([]byte(Compose()), &c); err != nil {
+	if err := yaml.Unmarshal([]byte(mustRead("docker-compose.yml")), &c); err != nil {
 		t.Fatal(err)
 	}
 	return c
@@ -253,4 +255,17 @@ func TestInstanceServicesMatchTheControlPlane(t *testing.T) {
 	if loki.Limits.Retention != "168h" || !loki.Compactor.Retention || loki.Compactor.Store == "" {
 		t.Errorf("Loki must keep 7 days with the compactor deleting: %+v", loki)
 	}
+}
+
+// libraries lists the shell libraries that ship with the installer.
+func libraries() []string {
+	var out []string
+	_ = fs.WalkDir(files, "lib", func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".sh") {
+			out = append(out, p)
+		}
+		return nil
+	})
+	sort.Strings(out)
+	return out
 }

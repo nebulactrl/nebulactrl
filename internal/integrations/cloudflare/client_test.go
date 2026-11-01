@@ -13,7 +13,7 @@ import (
 func TestListZonesPagesAndSorts(t *testing.T) {
 	f := newFake(t)
 	for i := range 120 {
-		f.addZone(fmt.Sprintf("z%03d", i), fmt.Sprintf("d%03d.example.com", 119-i), "acc1")
+		f.addZone(fmt.Sprintf("z%03d", i), fmt.Sprintf("d%03d.example.com", 119-i))
 	}
 	zones, err := f.client().ListZones(context.Background())
 	require.NoError(t, err)
@@ -24,7 +24,7 @@ func TestListZonesPagesAndSorts(t *testing.T) {
 
 func TestAPIErrorsAreTypedAndNeverEchoTheToken(t *testing.T) {
 	f := newFake(t)
-	f.addZone("z1", "example.com", "acc1")
+	f.addZone("z1", "example.com")
 	f.echoToken = true
 
 	bad := New(Config{BaseURL: f.srv.URL + "/client/v4", Token: "wrong-" + secretToken, HTTPClient: f.srv.Client()})
@@ -54,7 +54,7 @@ func TestAPIErrorsAreTypedAndNeverEchoTheToken(t *testing.T) {
 
 func TestRecordCRUDKeepsTheMarker(t *testing.T) {
 	f := newFake(t)
-	f.addZone("z1", "example.com", "acc1")
+	f.addZone("z1", "example.com")
 	c := f.client()
 	ctx := context.Background()
 
@@ -84,7 +84,7 @@ func TestRecordCRUDKeepsTheMarker(t *testing.T) {
 
 func TestTagsAreBestEffort(t *testing.T) {
 	f := newFake(t)
-	f.addZone("z1", "example.com", "acc1")
+	f.addZone("z1", "example.com")
 	f.noTags = true
 	c := f.client()
 
@@ -92,7 +92,7 @@ func TestTagsAreBestEffort(t *testing.T) {
 		Type: "A", Name: "app.example.com", Content: "203.0.113.10", TTL: 1, Comment: Marker(testDomain), Tags: []string{MarkerTag},
 	})
 	require.NoError(t, err, "a plan without tags still gets the record")
-	got := f.records("z1", "app.example.com")
+	got := f.records("app.example.com")
 	require.Len(t, got, 1)
 	require.Equal(t, rec.ID, got[0].ID)
 	require.Equal(t, Marker(testDomain), got[0].Comment, "the comment carries the marker either way")
@@ -104,10 +104,10 @@ func TestTagsAreBestEffort(t *testing.T) {
 
 func TestListRecordsOnlyReturnsAddressAndAliasRecords(t *testing.T) {
 	f := newFake(t)
-	f.addZone("z1", "example.com", "acc1")
-	f.put("z1", Record{Type: "TXT", Name: "app.example.com", Content: "v=spf1"})
-	f.put("z1", Record{Type: "A", Name: "app.example.com", Content: "203.0.113.10"})
-	f.put("z1", Record{Type: "A", Name: "other.example.com", Content: "203.0.113.11"})
+	f.addZone("z1", "example.com")
+	f.put(Record{Type: "TXT", Name: "app.example.com", Content: "v=spf1"})
+	f.put(Record{Type: "A", Name: "app.example.com", Content: "203.0.113.10"})
+	f.put(Record{Type: "A", Name: "other.example.com", Content: "203.0.113.11"})
 	got, err := f.client().ListRecords(context.Background(), "z1", "app.example.com")
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -131,7 +131,7 @@ func TestVerifyTokenFallsBackToTheAccountEndpoint(t *testing.T) {
 
 func TestZoneSSLMode(t *testing.T) {
 	f := newFake(t)
-	f.addZone("z1", "example.com", "acc1")
+	f.addZone("z1", "example.com")
 	mode, err := f.client().ZoneSSLMode(context.Background(), "z1")
 	require.NoError(t, err)
 	require.Equal(t, "full", mode)

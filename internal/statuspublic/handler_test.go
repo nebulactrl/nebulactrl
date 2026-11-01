@@ -653,3 +653,17 @@ func TestNormalizeHost(t *testing.T) {
 		require.Falsef(t, ok, "%q", in)
 	}
 }
+
+// size is the number of cached hosts.
+func (c *cache) size() int {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return len(c.entries)
+}
+
+// size is the number of tracked clients.
+func (l *limiter) size() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return len(l.clients)
+}

@@ -12,7 +12,7 @@ export const secretManagersQuery = () => {
 };
 
 /** Everything that shows integrations; a variable that references one also changes. */
-export const SECRET_MANAGER_OPERATIONS = ["listSecretManagers"] as const;
+const SECRET_MANAGER_OPERATIONS = ["listSecretManagers"] as const;
 
 export function invalidateSecretManagers(
 	queryClient: QueryClient,

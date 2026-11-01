@@ -4,7 +4,7 @@
 import type { FieldChange, RouteOptions } from "#/api/gen/types.gen";
 import { OPTION_GROUPS, type OptionGroup, pickGroup } from "./options";
 
-export type StagedBucket = "rule" | OptionGroup;
+type StagedBucket = "rule" | OptionGroup;
 
 export interface DomainStaged {
 	/** The domain itself is new (or newly attached) and not deployed yet. */

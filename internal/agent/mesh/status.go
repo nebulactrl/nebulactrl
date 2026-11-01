@@ -88,15 +88,10 @@ func hasAnyTag(have, want []string) bool {
 	return false
 }
 
-// ParseStatus maps `tailscale status --json` onto the reported state and
+// parseStatus maps `tailscale status --json` onto the reported state and
 // fills identity and peers. Peers are limited to devices carrying one of tags
-// (the team's mesh tag) when tags is non-empty, at most maxPeers, sorted by IP.
-// NodeID and Kind are the caller's.
-func ParseStatus(raw []byte, tags []string) agentprotocol.MeshNodeStatus {
-	return parseStatus(raw, tags, maxPeers)
-}
-
-// parseStatus is ParseStatus with an explicit peer cap (0 = no cap).
+// (the team's mesh tag) when tags is non-empty, at most limit (0 = no cap),
+// sorted by IP. NodeID and Kind are the caller's.
 func parseStatus(raw []byte, tags []string, limit int) agentprotocol.MeshNodeStatus {
 	provisioning := agentprotocol.MeshNodeStatus{State: agentprotocol.MeshStateProvisioning, Message: "Waiting for tailscaled to answer."}
 	var js tsStatus

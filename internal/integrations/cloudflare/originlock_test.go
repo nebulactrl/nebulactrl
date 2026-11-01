@@ -73,7 +73,8 @@ func lockEnv(t *testing.T) (*env, *pushRecorder, db.Domain) {
 	on := true
 	_, err := e.svc.SetSettings(e.dev, d.ID, SettingsInput{Proxied: &on})
 	require.NoError(t, err)
-	return e, rec, e.dom(t, d.ID)
+	dom := e.dom(t, d.ID)
+	return e, rec, dom
 }
 
 func TestOriginPullCAIsPinned(t *testing.T) {
@@ -124,7 +125,7 @@ func TestProxiedDomainIsLockedWithAOPAfterTheRecordIsProxied(t *testing.T) {
 
 	// The record is proxied, Authenticated Origin Pulls was switched on in the zone
 	// (PATCH of the tls_client_auth setting) and the proxy was told.
-	require.True(t, e.fake.records("z1", "app.example.com")[0].Proxied)
+	require.True(t, e.fake.records("app.example.com")[0].Proxied)
 	require.Equal(t, "on", e.fake.aop["z1"])
 	require.Contains(t, e.fake.writeLog(), "PATCH /zones/z1/settings/tls_client_auth on")
 	require.Len(t, e.audits(t, "cloudflare.zone.aop.enable"), 1, "the change in the customer's account is audited")
@@ -309,7 +310,7 @@ func TestAForeignRecordIsNeverLocked(t *testing.T) {
 	e, _, _ := lockEnv(t)
 	// A record NebulaCtrl did not create stays as it is until it is replaced:
 	// the name is not locked on a guess about it.
-	e.fake.put("z1", Record{Type: "A", Name: "foreign.example.com", Content: "198.51.100.99", Proxied: true})
+	e.fake.put(Record{Type: "A", Name: "foreign.example.com", Content: "198.51.100.99", Proxied: true})
 	f := e.domain(t, "foreign.example.com", "")
 	require.True(t, f.CfProxied)
 	require.NoError(t, e.svc.SyncDomain(context.Background(), f.ID))

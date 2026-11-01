@@ -142,5 +142,5 @@ func (s *Service) ConfirmPassword(ctx context.Context, userID uuid.UUID, passwor
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
-	return s.checkPassword(ctx, u, password)
+	return s.checkPassword(u, password)
 }

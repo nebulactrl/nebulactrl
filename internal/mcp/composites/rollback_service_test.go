@@ -12,6 +12,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/deployments"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 )
@@ -181,7 +182,7 @@ func TestRollbackServiceProductionSurfacesApproval(t *testing.T) {
 	f := newFx(t)
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: f.box})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 	r := rollbackSeed(f, f.prod, "api")
 
 	// The preview is free; the rollback itself needs a human.

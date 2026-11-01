@@ -4,7 +4,7 @@ import { lastInputWasKeyboard } from "#/lib/input-modality";
 const STORAGE_KEY = "nebulactrl:sidebar";
 
 /** Below this width the sidebar is an off-canvas drawer behind a menu button. */
-export const NARROW_QUERY = "(max-width: 759px)";
+const NARROW_QUERY = "(max-width: 759px)";
 
 interface SidebarState {
 	/** The desktop rail: persisted, ignored while the viewport is narrow. */
@@ -71,7 +71,7 @@ function subscribeNarrow(listener: () => void): () => void {
 }
 
 /** Whether the viewport is under 760px: the sidebar is a drawer there. */
-export function useNarrow(): boolean {
+function useNarrow(): boolean {
 	return useSyncExternalStore(
 		subscribeNarrow,
 		() => window.matchMedia(NARROW_QUERY).matches,

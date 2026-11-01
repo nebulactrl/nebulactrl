@@ -14,6 +14,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 )
 
@@ -33,7 +34,7 @@ func newGuardFixture(t *testing.T, production bool) *guardFixture {
 	require.NoError(t, err)
 	g := prodguard.New(prodguard.Deps{Pool: u.pool, Box: box})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 	return &guardFixture{unrestrictedFixture: u, g: g}
 }
 

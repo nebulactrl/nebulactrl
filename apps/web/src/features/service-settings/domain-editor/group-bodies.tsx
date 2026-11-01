@@ -686,7 +686,7 @@ export function LimitsBody({ form, set, errors }: BodyProps) {
 
 // --- TLS --------------------------------------------------------------------
 
-export const TLS_OPTIONS = [
+const TLS_OPTIONS = [
 	{ value: "auto", label: "Automatic" },
 	{ value: "custom", label: "Custom certificate" },
 	{ value: "none", label: "Off (HTTP only)" },

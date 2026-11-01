@@ -265,14 +265,14 @@ func newVarsRotateCmd(c *cli) *cobra.Command {
 			if err := check(r, err); err != nil {
 				return err
 			}
-			return c.printPlan(r.JSON200, dryRun, args[0])
+			return c.printPlan(r.JSON200, dryRun)
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show the plan without staging anything")
 	return cmd
 }
 
-func (c *cli) printPlan(p *apiclient.VariableRotationPlan, dryRun bool, ref string) error {
+func (c *cli) printPlan(p *apiclient.VariableRotationPlan, dryRun bool) error {
 	if c.asJSON {
 		return c.printJSON(p)
 	}
@@ -566,7 +566,7 @@ func newSharedRotateCmd(c *cli) *cobra.Command {
 				}
 				plan = r.JSON200
 			}
-			return c.printPlan(plan, dryRun, args[0])
+			return c.printPlan(plan, dryRun)
 		},
 	}
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "show the plan without staging anything")

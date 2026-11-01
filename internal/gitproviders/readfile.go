@@ -212,9 +212,11 @@ func doRaw(hc *http.Client, req *http.Request) ([]byte, error) {
 }
 
 // CloneURLFor returns the clone URL of repo on a connection without any API
-// call; the branch is left empty (the caller chooses).
+// call or credential (it joins the connection's base URL and the repository);
+// the branch is left empty (the caller chooses). Like GetConnection it needs
+// only projects:read, so a read-only config check can resolve it.
 func (s *Service) CloneURLFor(ctx context.Context, connectionID uuid.UUID, repo string) (cloneURL, branch string, err error) {
-	c, err := s.loadConnection(ctx, policy.ScopeProjectsWrite, connectionID)
+	c, err := s.loadConnection(ctx, policy.ScopeProjectsRead, connectionID)
 	if err != nil {
 		return "", "", err
 	}

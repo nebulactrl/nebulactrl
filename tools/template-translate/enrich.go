@@ -170,7 +170,7 @@ func pickTags(tags []string, suffix string, limit int) []string {
 	var full, majors []versionTag
 	for _, t := range tags {
 		m := versionTagRe.FindStringSubmatch(t)
-		if m == nil || m[3] != suffix {
+		if len(m) < 4 || m[3] != suffix {
 			continue
 		}
 		var parts []int
@@ -477,7 +477,7 @@ var ghURLRe = regexp.MustCompile(`^https://github\.com/([^/]+)/([^/#?]+)`)
 // from a ghcr.io image.
 func upstreamRepo(t *templates.CatalogTemplate) (owner, name string) {
 	for _, u := range []string{t.Links.Source, t.Links.Docs, t.Links.Website} {
-		if m := ghURLRe.FindStringSubmatch(u); m != nil && m[1] != "orgs" {
+		if m := ghURLRe.FindStringSubmatch(u); len(m) > 2 && m[1] != "orgs" {
 			return m[1], strings.TrimSuffix(m[2], ".git")
 		}
 	}

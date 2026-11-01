@@ -59,7 +59,7 @@ export const CLEANUP_LIMITS = {
 	diskTriggerPercent: { min: 50, max: 99 },
 } as const;
 
-export const DEFAULT_CLEANUP_CRON = "0 4 * * *";
+const DEFAULT_CLEANUP_CRON = "0 4 * * *";
 
 /** Schedules offered as shortcuts; any 5-field cron expression (UTC) works. */
 export const CLEANUP_SCHEDULE_PRESETS = [

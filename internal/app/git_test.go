@@ -136,7 +136,7 @@ func TestGitPushCreatesCommitDeploymentThroughTheRealStack(t *testing.T) {
 	_, err = deps.SecretsForCommand(context.Background(), uuid.New(), agentprotocol.KindBuildPlan, other)
 	require.ErrorContains(t, err, "git connection")
 
-	// git:// carries no credentials: that clone is anonymous, never refused.
+	// The git protocol carries no credentials: that clone is anonymous, never refused.
 	anon, err := json.Marshal(agentprotocol.BuildPlanPayload{ServiceID: svc, HasToken: true, GitURL: repoURL})
 	require.NoError(t, err)
 	secrets, err := deps.SecretsForCommand(context.Background(), uuid.New(), agentprotocol.KindBuildPlan, anon)

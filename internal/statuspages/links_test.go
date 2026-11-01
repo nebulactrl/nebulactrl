@@ -144,13 +144,13 @@ func TestPublicFooterLinksKeysAnd24hAvailability(t *testing.T) {
 	f.state(f.web, "up", "")
 
 	// 24 hours before now (2026-10-28 12:00) is 2026-10-27 12:00, inclusive.
-	f.minute(f.api, "2026-10-27T13:00:00Z", 4, 3, 0, 1, 0)
-	f.minute(f.api, "2026-10-27T11:59:00Z", 100, 0, 0, 100, 0) // too old
-	f.minute(f.api, "2026-10-27T12:00:00Z", 2, 2, 0, 0, 0)     // exactly 24 h ago
-	f.minute(f.api, "2026-10-28T10:00:00Z", 4, 4, 0, 0, 0)
-	f.minute(f.api, "2026-10-28T11:00:00Z", 2, 0, 0, 0, 2) // maintenance only
-	f.day(f.web, "2026-10-28", 10, 10, 0, 0, 0)            // day rows say nothing about the last 24 h
-	f.minute(f.database, "2026-10-28T09:00:00Z", 2, 0, 0, 0, 2)
+	f.minute(f.api, "2026-10-27T13:00:00Z", 4, 3, 1, 0)
+	f.minute(f.api, "2026-10-27T11:59:00Z", 100, 0, 100, 0) // too old
+	f.minute(f.api, "2026-10-27T12:00:00Z", 2, 2, 0, 0)     // exactly 24 h ago
+	f.minute(f.api, "2026-10-28T10:00:00Z", 4, 4, 0, 0)
+	f.minute(f.api, "2026-10-28T11:00:00Z", 2, 0, 0, 2) // maintenance only
+	f.day(f.web, "2026-10-28", 10, 10, 0, 0, 0)         // day rows say nothing about the last 24 h
+	f.minute(f.database, "2026-10-28T09:00:00Z", 2, 0, 0, 2)
 
 	// Incidents and maintenance, for the keys.
 	inc, err := f.svc.CreateIncident(f.ctx, IncidentCreate{Title: "Slow", Impact: ImpactMinor, Body: "Slow.", PageIDs: []uuid.UUID{page.ID}, ServiceIDs: []uuid.UUID{f.api}})

@@ -16,7 +16,7 @@ import {
 } from "#/features/proxy/lib/tailscale";
 import { curatedDnsGuide, legoGenericGuide } from "./dns-provider-guides";
 
-export interface CredentialPermission {
+interface CredentialPermission {
 	/** What to select, as the provider words it: "Zone · DNS · Edit". */
 	label: string;
 	/** What NebulaCtrl uses it for. */
@@ -25,7 +25,7 @@ export interface CredentialPermission {
 	optional?: boolean;
 }
 
-export interface CredentialPolicy {
+interface CredentialPolicy {
 	/** "IAM policy" or "Run on your Headscale server". */
 	title: string;
 	/** The copy-ready text. */
@@ -61,11 +61,10 @@ const PASTE = "Then paste it here.";
  * (user token format: `permissionGroupKeys` = URL-encoded JSON array of
  * `{key, type}`, `accountId=*`, `zoneId=all`, optional `name`).
  */
-export const CLOUDFLARE_TOKEN_PAGE =
-	"https://dash.cloudflare.com/profile/api-tokens";
+const CLOUDFLARE_TOKEN_PAGE = "https://dash.cloudflare.com/profile/api-tokens";
 
 /** https://developers.cloudflare.com/fundamentals/api/reference/permissions/ */
-export const CLOUDFLARE_DOCS =
+const CLOUDFLARE_DOCS =
 	"https://developers.cloudflare.com/fundamentals/api/get-started/create-token/";
 
 export interface CloudflareGroup {
@@ -220,12 +219,11 @@ export function cloudflareDns01Guide(): CredentialGuide {
  * Tailscale documents no query parameters that prefill it, so the guide lists
  * the scopes and tags to select.
  */
-export const TAILSCALE_TRUST_CREDENTIALS_URL =
+const TAILSCALE_TRUST_CREDENTIALS_URL =
 	"https://console.tailscale.com/admin/settings/trust-credentials";
 
 /** https://tailscale.com/docs/reference/trust-credentials (scopes `auth_keys`, `devices:core`). */
-export const TAILSCALE_DOCS =
-	"https://tailscale.com/docs/reference/trust-credentials";
+const TAILSCALE_DOCS = "https://tailscale.com/docs/reference/trust-credentials";
 
 export interface TailscaleGuideOptions {
 	/** The tags minted keys carry; the OAuth client's owner tag owns them. */
@@ -341,8 +339,8 @@ const BAD_INSTANCE = "Enter a full instance URL, like https://git.example.com.";
  * `scopes` (comma separated, at least one valid scope).
  * https://docs.gitlab.com/user/profile/personal_access_tokens/#prefill-personal-access-token-details
  */
-export const GITLAB_DEFAULT_BASE = "https://gitlab.com";
-export const GITLAB_SCOPES = ["api", "read_repository"] as const;
+const GITLAB_DEFAULT_BASE = "https://gitlab.com";
+const GITLAB_SCOPES = ["api", "read_repository"] as const;
 
 /**
  * The prefilled page of a GitLab instance; null when `baseUrl` is not a URL.
@@ -392,7 +390,7 @@ export function giteaTokenUrl(baseUrl: string): string | null {
 	return base === null ? null : `${base}/user/settings/applications`;
 }
 
-export const GITEA_SCOPES: readonly CredentialPermission[] = [
+const GITEA_SCOPES: readonly CredentialPermission[] = [
 	{
 		label: "repository (Read and Write)",
 		why: "list repositories and branches, webhooks, commit statuses",
@@ -502,9 +500,9 @@ export function gitProviderGuide(
  * https://docs.hetzner.com/cloud/api/getting-started/generating-api-token/
  * (provider side: https://go-acme.github.io/lego/dns/hetzner/)
  */
-export const HETZNER_CONSOLE_URL = "https://console.hetzner.com/";
+const HETZNER_CONSOLE_URL = "https://console.hetzner.com/";
 
-export function hetznerGuide(): CredentialGuide {
+function hetznerGuide(): CredentialGuide {
 	return {
 		provider: "Hetzner",
 		cta: "Create a Hetzner token with read and write access",
@@ -528,10 +526,10 @@ export function hetznerGuide(): CredentialGuide {
  * https://docs.digitalocean.com/reference/api/scopes/). The tokens page is
  * linked from https://docs.digitalocean.com/reference/doctl/how-to/install/.
  */
-export const DIGITALOCEAN_TOKEN_URL =
+const DIGITALOCEAN_TOKEN_URL =
 	"https://cloud.digitalocean.com/account/api/tokens";
 
-export function digitaloceanGuide(): CredentialGuide {
+function digitaloceanGuide(): CredentialGuide {
 	return {
 		provider: "DigitalOcean",
 		cta: "Create a DigitalOcean token with domain write access",
@@ -560,7 +558,7 @@ export function digitaloceanGuide(): CredentialGuide {
  * https://go-acme.github.io/lego/dns/route53/#least-privilege-policy-for-production-purposes
  * https://docs.aws.amazon.com/IAM/latest/UserGuide/access_policies_create-console.html
  */
-export const AWS_IAM_CONSOLE_URL = "https://console.aws.amazon.com/iam/";
+const AWS_IAM_CONSOLE_URL = "https://console.aws.amazon.com/iam/";
 
 const HOSTED_ZONE_ID = /^[A-Z0-9]{1,32}$/;
 
@@ -696,7 +694,7 @@ export function dns01Guide(
  * `contents=read`.
  * https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens#pre-filling-fine-grained-personal-access-token-details-using-url-parameters
  */
-export const GITHUB_FINE_GRAINED_TOKEN_URL =
+const GITHUB_FINE_GRAINED_TOKEN_URL =
 	"https://github.com/settings/personal-access-tokens/new";
 
 const GITHUB_OWNER = /^[A-Za-z0-9-]{1,39}$/;
@@ -714,7 +712,7 @@ export function githubCloneTokenUrl(owner: string): string {
 	return `${GITHUB_FINE_GRAINED_TOKEN_URL}?${query.join("&")}`;
 }
 
-export interface GitRemote {
+interface GitRemote {
 	/** Lower-case host name: `github.com`. */
 	host: string;
 	/** `https://github.com`; the instance without a path. */
@@ -724,7 +722,7 @@ export interface GitRemote {
 }
 
 /** A repository's HTTP(S) URL taken apart; null for anything else (empty, SSH, a typo). */
-export function parseGitRemote(raw: string): GitRemote | null {
+function parseGitRemote(raw: string): GitRemote | null {
 	let url: URL;
 	try {
 		url = new URL(raw.trim());
@@ -866,7 +864,7 @@ export function registryKindOf(image: string): RegistryKind {
  * prefill the form.
  * https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry
  */
-export const GHCR_TOKEN_URL = `https://github.com/settings/tokens/new?scopes=read:packages&description=${encodeURIComponent("NebulaCtrl registry")}`;
+const GHCR_TOKEN_URL = `https://github.com/settings/tokens/new?scopes=read:packages&description=${encodeURIComponent("NebulaCtrl registry")}`;
 
 /**
  * Docker Hub access tokens: Account settings, Personal access tokens. A
@@ -876,7 +874,7 @@ export const GHCR_TOKEN_URL = `https://github.com/settings/tokens/new?scopes=rea
  * (the direct settings page is `app.docker.com/settings/personal-access-tokens`;
  * the docs only link `app.docker.com`.)
  */
-export const DOCKER_HUB_TOKEN_URL =
+const DOCKER_HUB_TOKEN_URL =
 	"https://app.docker.com/settings/personal-access-tokens";
 
 /**
@@ -956,7 +954,7 @@ export function registryGuide(image: string): CredentialGuide {
  * GitHub's classic token page with `write:packages` selected (it includes
  * read). Builds push with it; servers can pull with it too.
  */
-export const GHCR_PUSH_TOKEN_URL = `https://github.com/settings/tokens/new?scopes=write:packages&description=${encodeURIComponent("NebulaCtrl builds")}`;
+const GHCR_PUSH_TOKEN_URL = `https://github.com/settings/tokens/new?scopes=write:packages&description=${encodeURIComponent("NebulaCtrl builds")}`;
 
 /**
  * The credential a build server pushes images with, for a registry host
@@ -1137,8 +1135,7 @@ export interface BackupGuideInput {
 }
 
 /** R2 tokens live on the R2 overview page: https://developers.cloudflare.com/r2/api/tokens/ */
-export const R2_OVERVIEW_URL =
-	"https://dash.cloudflare.com/?to=/:account/r2/overview";
+const R2_OVERVIEW_URL = "https://dash.cloudflare.com/?to=/:account/r2/overview";
 
 /**
  * Backblaze B2: Application Keys under B2 Cloud Storage; pick one bucket and
@@ -1146,13 +1143,13 @@ export const R2_OVERVIEW_URL =
  * entry.
  * https://www.backblaze.com/docs/cloud-storage-create-and-manage-app-keys
  */
-export const B2_APP_KEYS_URL = "https://secure.backblaze.com/app_keys.htm";
+const B2_APP_KEYS_URL = "https://secure.backblaze.com/app_keys.htm";
 
 /** Hetzner Console, S3 credentials of the project: https://docs.hetzner.com/storage/object-storage/getting-started/generating-s3-keys/ */
-export const HETZNER_OBJECT_STORAGE_URL = "https://console.hetzner.com/";
+const HETZNER_OBJECT_STORAGE_URL = "https://console.hetzner.com/";
 
 /** Wasabi console: https://docs.wasabi.com/docs/creating-a-user-account-and-access-key */
-export const WASABI_CONSOLE_URL = "https://console.wasabisys.com/";
+const WASABI_CONSOLE_URL = "https://console.wasabisys.com/";
 
 const KEYS_PASTE = "Then paste the access key ID and secret here.";
 
@@ -1272,7 +1269,7 @@ export function backupGuide({
  * https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/
  * (the doc links `https://api.slack.com/apps?new_app=1`).
  */
-export const SLACK_NEW_APP_URL = "https://api.slack.com/apps?new_app=1";
+const SLACK_NEW_APP_URL = "https://api.slack.com/apps?new_app=1";
 
 export function slackWebhookGuide(): CredentialGuide {
 	return {
@@ -1320,7 +1317,7 @@ export function discordWebhookGuide(): CredentialGuide {
  * https://core.telegram.org/bots#how-do-i-create-a-bot
  * https://core.telegram.org/bots/api#getupdates
  */
-export const TELEGRAM_BOTFATHER_URL = "https://t.me/BotFather";
+const TELEGRAM_BOTFATHER_URL = "https://t.me/BotFather";
 
 export function telegramGuide(): CredentialGuide {
 	return {

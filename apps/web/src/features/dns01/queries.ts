@@ -12,8 +12,8 @@ import type { StatusKind } from "#/components/ui/status-icon";
 
 /** A lego DNS provider code: cloudflare, route53, ovh, gandiv5, pdns, … */
 export type DnsProvider = string;
-export type StagedChange = "none" | "add" | "update" | "remove";
-export type CertStatus = "pending" | "active" | "error";
+type StagedChange = "none" | "add" | "update" | "remove";
+type CertStatus = "pending" | "active" | "error";
 
 export interface DnsProviderSpec {
 	code: DnsProvider;
@@ -144,14 +144,13 @@ const SOURCE_TEXT: Record<DomainCert["source"], string> = {
 };
 
 /** The certificate of a name in a connected Cloudflare zone, obtained through Cloudflare. */
-export const CLOUDFLARE_DNS01_TEXT = "Certificate via Cloudflare DNS (DNS-01)";
+const CLOUDFLARE_DNS01_TEXT = "Certificate via Cloudflare DNS (DNS-01)";
 
 /** An automatic name whose existing certificate was issued over HTTP-01 and renews that way. */
-export const HTTP01_RENEWAL_TEXT =
-	"Certificate via HTTP-01, renews over HTTP-01";
+const HTTP01_RENEWAL_TEXT = "Certificate via HTTP-01, renews over HTTP-01";
 
 /** Said with it: only names without a certificate yet use DNS-01. */
-export const NEW_NAMES_DNS01_TEXT =
+const NEW_NAMES_DNS01_TEXT =
 	"New names in this zone use DNS-01 through Cloudflare.";
 
 /** Said while the server's proxy does not run the Cloudflare resolver yet. */

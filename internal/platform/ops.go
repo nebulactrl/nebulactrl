@@ -16,7 +16,7 @@ import (
 )
 
 // restart puts a platform service back into provisioning at step and starts the job.
-func (s *Service) restart(ctx context.Context, row db.PlatformService, step, msg string, action string) (db.PlatformService, error) {
+func (s *Service) restart(ctx context.Context, row db.PlatformService, step, msg string) (db.PlatformService, error) {
 	var cur db.PlatformService
 	err := db.InTx(ctx, s.Pool, func(tx pgx.Tx) error {
 		q := db.New(tx)
@@ -35,7 +35,7 @@ func (s *Service) restart(ctx context.Context, row db.PlatformService, step, msg
 			return err
 		}
 		return audit.Record(ctx, tx, audit.Entry{
-			Action: action, ResourceType: "platform_service", ResourceID: row.ID.String(),
+			Action: ActionRewire, ResourceType: "platform_service", ResourceID: row.ID.String(),
 			Metadata: map[string]any{"kind": row.Kind, "step": step},
 		})
 	})
@@ -60,7 +60,7 @@ func (s *Service) Retry(ctx context.Context, id uuid.UUID) (PlatformServiceView,
 	if step == StepAwait {
 		step = StepDeploy
 	}
-	cur, err := s.restart(ctx, row, step, "Retrying", ActionRewire)
+	cur, err := s.restart(ctx, row, step, "Retrying")
 	if err != nil {
 		return PlatformServiceView{}, err
 	}
@@ -77,7 +77,7 @@ func (s *Service) Rewire(ctx context.Context, id uuid.UUID) (PlatformServiceView
 	if row.Status != StatusReady {
 		return PlatformServiceView{}, apierr.Conflict("not_ready", "Only a ready platform service can be reconnected.")
 	}
-	cur, err := s.restart(ctx, row, StepWire, "Reconnecting", ActionRewire)
+	cur, err := s.restart(ctx, row, StepWire, "Reconnecting")
 	if err != nil {
 		return PlatformServiceView{}, err
 	}

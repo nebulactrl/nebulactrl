@@ -122,7 +122,7 @@ func (s *Service) planWWW(ctx context.Context, q *db.Queries, sc services.Scope,
 // insertCompanion creates the redirect domain of canon inside the caller's
 // transaction. It routes to the same component and port as canon so a
 // Compose stack's route table stays one route per component.
-func (s *Service) insertCompanion(ctx context.Context, tx pgx.Tx, sc services.Scope, canon db.Domain, cs spec, publicIP *string) (db.Domain, error) {
+func (s *Service) insertCompanion(ctx context.Context, tx pgx.Tx, sc services.Scope, canon db.Domain, cs spec, publicIP *string) error {
 	q := db.New(tx)
 	comp, err := q.InsertDomain(ctx, db.InsertDomainParams{
 		ServiceID: sc.Service.ID, Hostname: cs.Hostname, TargetPort: canon.TargetPort, Generated: canon.Generated,
@@ -131,20 +131,20 @@ func (s *Service) insertCompanion(ctx context.Context, tx pgx.Tx, sc services.Sc
 		Options: cs.optionsJSON(), DnsResolver: cs.DNSResolver, Component: canon.Component,
 	})
 	if services.IsUniqueViolation(err) {
-		return db.Domain{}, hostclaim.Unavailable("domain_conflict", cs.Hostname)
+		return hostclaim.Unavailable("domain_conflict", cs.Hostname)
 	}
 	if err != nil {
-		return db.Domain{}, fmt.Errorf("insert www redirect: %w", err)
+		return fmt.Errorf("insert www redirect: %w", err)
 	}
 	if err := s.jm.InsertTx(ctx, tx, DNSCheckArgs{DomainID: &comp.ID}, nil); err != nil {
-		return db.Domain{}, fmt.Errorf("enqueue dns check: %w", err)
+		return fmt.Errorf("enqueue dns check: %w", err)
 	}
 	if s.dns != nil {
 		if err := s.dns.DomainCreated(ctx, tx, comp.ID); err != nil {
-			return db.Domain{}, fmt.Errorf("dns hook: %w", err)
+			return fmt.Errorf("dns hook: %w", err)
 		}
 	}
-	return comp, nil
+	return nil
 }
 
 // syncCompanion rewrites the redirect domain to cs (a renamed or re-certified canonical domain).

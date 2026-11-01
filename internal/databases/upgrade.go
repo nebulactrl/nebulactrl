@@ -247,8 +247,11 @@ func (s *Service) applyUpgradeResult(ctx context.Context, upgradeID uuid.UUID, r
 		return err
 	}
 	sc, err := services.LoadScopeInternal(ctx, s.q, up.ServiceID)
+	if apierr.IsNotFound(err) {
+		return nil // database deleted meanwhile
+	}
 	if err != nil {
-		return nil
+		return err
 	}
 	changed := false
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {

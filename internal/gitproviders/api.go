@@ -56,8 +56,7 @@ type apiClient struct {
 }
 
 // do sends a JSON request and decodes a JSON response into out (when non-nil).
-// It returns the response headers.
-func (c *apiClient) do(ctx context.Context, method, path string, q url.Values, in, out any) (http.Header, error) {
+func (c *apiClient) do(ctx context.Context, method, path string, q url.Values, in, out any) error {
 	u := c.base + path
 	if len(q) > 0 {
 		u += "?" + q.Encode()
@@ -66,13 +65,13 @@ func (c *apiClient) do(ctx context.Context, method, path string, q url.Values, i
 	if in != nil {
 		raw, err := json.Marshal(in)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		body = bytes.NewReader(raw)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, u, body) //nolint:gosec // requests go to the git connection base URL an admin configured
 	if err != nil {
-		return nil, err
+		return err
 	}
 	req.Header.Set("Accept", "application/json")
 	if in != nil {
@@ -87,25 +86,25 @@ func (c *apiClient) do(ctx context.Context, method, path string, q url.Values, i
 	}
 	resp, err := c.hc.Do(req) //nolint:gosec // requests go to the git connection base URL an admin configured
 	if err != nil {
-		return nil, c.scrub(fmt.Errorf("%s %s: %w", method, path, err))
+		return c.scrub(fmt.Errorf("%s %s: %w", method, path, err))
 	}
 	defer resp.Body.Close()
 	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxAPIBody))
 	if err != nil {
-		return nil, c.scrub(fmt.Errorf("%s %s: read body: %w", method, path, err))
+		return c.scrub(fmt.Errorf("%s %s: read body: %w", method, path, err))
 	}
 	if resp.StatusCode/100 != 2 {
 		// Only the status: the body of a remote that a team admin pointed us at
 		// is not shown, so an internal service behind the URL cannot be read
 		// through the error.
-		return resp.Header, c.scrub(newAPIError(resp.StatusCode, resp.Header))
+		return c.scrub(newAPIError(resp.StatusCode, resp.Header))
 	}
 	if out != nil && len(raw) > 0 {
 		if err := json.Unmarshal(raw, out); err != nil {
-			return resp.Header, fmt.Errorf("%s %s: decode response: %w", method, path, err)
+			return fmt.Errorf("%s %s: decode response: %w", method, path, err)
 		}
 	}
-	return resp.Header, nil
+	return nil
 }
 
 // scrub removes credentials from an error before it is logged or shown.

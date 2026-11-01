@@ -12,6 +12,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
@@ -47,7 +48,7 @@ func (f *fixture) installGuard() *prodguard.Guard {
 	f.t.Helper()
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: f.box})
 	g.Install()
-	f.t.Cleanup(prodguard.Uninstall)
+	f.t.Cleanup(prodguardtest.Uninstall)
 	return g
 }
 

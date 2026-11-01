@@ -137,7 +137,7 @@ func fieldPath(base, id string) string {
 }
 
 // planServices plans every service of the file and lists the live services the file does not mention.
-func (s *Service) planServices(p *planned) error {
+func (s *Service) planServices(p *planned) {
 	for _, slug := range orderServices(p.res) {
 		rs := p.res.Services[slug]
 		if !serviceSelected(p.req.Only, rs) {
@@ -157,7 +157,6 @@ func (s *Service) planServices(p *planned) error {
 			Managed: ls.Source != nil, Note: "kept; remove it in the dashboard", Changes: []PlanChange{},
 		})
 	}
-	return nil
 }
 
 // serviceSelected reports whether the only filter reaches the service.
@@ -329,11 +328,11 @@ func (s *Service) planService(p *planned, slug string, rs *projectconfig.Resolve
 		}
 		for _, f := range sp.fields {
 			if f.changed && !f.skipped {
-				sp.pl.Changes = append(sp.pl.Changes, p.change(sp, f))
+				sp.pl.Changes = append(sp.pl.Changes, p.change(f))
 			}
 		}
 		for _, f := range sp.removes {
-			sp.pl.Changes = append(sp.pl.Changes, p.change(sp, f))
+			sp.pl.Changes = append(sp.pl.Changes, p.change(f))
 		}
 		if !sp.create && len(sp.pl.Changes) > 0 {
 			sp.pl.Action = ActionUpdate
@@ -436,7 +435,7 @@ func unmanagedCounts(ls *liveService, rs *projectconfig.ResolvedService) map[str
 }
 
 // change renders one field plan as a plan change.
-func (p *planned) change(sp *svcPlan, f *fieldPlan) PlanChange {
+func (p *planned) change(f *fieldPlan) PlanChange {
 	c := PlanChange{
 		Path: f.fv.Path, Line: f.fv.Pos.Line, Field: f.fv.ID, Applies: f.fv.Applies,
 		baseFP: f.base, liveFP: f.live.FP, desiredFP: f.desired.FP,

@@ -6,8 +6,6 @@ package installdeploy
 import (
 	"embed"
 	"fmt"
-	"io/fs"
-	"sort"
 	"strings"
 )
 
@@ -22,12 +20,6 @@ const (
 
 // Uninstall returns uninstall.sh.
 func Uninstall() string { return mustRead("uninstall.sh") }
-
-// Compose returns the installed control plane's docker-compose.yml.
-func Compose() string { return mustRead("docker-compose.yml") }
-
-// InstanceConfig returns one of InstanceConfigs by name ("instance/registry.yaml").
-func InstanceConfig(name string) string { return mustRead(name) }
 
 // InstanceConfigs lists the built-in services' configuration files the installer
 // writes to <dir>/instance/ (the compose file mounts them read-only).
@@ -102,17 +94,4 @@ func mustRead(name string) string {
 		panic("installdeploy: " + err.Error())
 	}
 	return string(b)
-}
-
-// Libraries lists the shell libraries that ship with the installer.
-func Libraries() []string {
-	var out []string
-	_ = fs.WalkDir(files, "lib", func(p string, d fs.DirEntry, err error) error {
-		if err == nil && !d.IsDir() && strings.HasSuffix(p, ".sh") {
-			out = append(out, p)
-		}
-		return nil
-	})
-	sort.Strings(out)
-	return out
 }

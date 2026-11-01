@@ -27,7 +27,7 @@ import (
 // deployStagedWait deploys the staged services of an environment (all when ids is
 // empty) and waits for every deployment; a consumer's deploy waits for its mesh
 // link (up to five minutes), so the timeout is generous.
-func (m *meshStack) deployStagedWait(env string, ids ...string) []J {
+func (m *meshStack) deployStagedWait(env string, ids ...string) {
 	t := m.T
 	body := map[string]any{}
 	if len(ids) > 0 {
@@ -35,13 +35,10 @@ func (m *meshStack) deployStagedWait(env string, ids ...string) []J {
 	}
 	r := m.Do("POST", "/environments/"+env+"/deploy-staged", body)
 	require.Equal(t, http.StatusAccepted, r.Status, string(r.Raw))
-	var out []J
 	for _, it := range r.JSON().Items() {
 		d := m.WaitDeployment(it.Str("id"), 12*time.Minute)
 		require.Equal(t, "succeeded", d.Str("status"), "deployment: %v\nlogs:\n%s", d, m.DeploymentLogs(d.Str("id")))
-		out = append(out, d)
 	}
-	return out
 }
 
 // planMesh returns the `mesh` section of a deployment plan.
@@ -67,7 +64,7 @@ func (m *meshStack) serviceExposure(serviceID string) meshExposureRow {
 
 // containerLogs returns the log of a service's container on a host.
 func (m *meshStack) containerLogs(h dockerHost, serviceID string) string {
-	c := h.waitContainer(m.T, serviceID, 60*time.Second)
+	c := h.waitContainer(m.T, serviceID)
 	out, _ := h.docker("logs", c)
 	return out
 }
@@ -138,9 +135,9 @@ func (m *meshStack) phaseServiceLinks(t *testing.T) {
 	}), "the consumer's UP must resolve to %s:\n%s", wantUP, m.containerLogs(m.Host2, api.ID))
 
 	// The traffic really goes through the mesh: each alias reaches ITS provider.
-	b1 := waitFetch(t, c, "http://"+who1.Slug+":80/", 200, "Hostname:", 90*time.Second)
+	b1 := waitFetch(t, c, "http://"+who1.Slug+":80/", "Hostname:", 90*time.Second)
 	require.Contains(t, b1, "Hostname: "+who1ID)
-	b2 := waitFetch(t, c, fmt.Sprintf("http://%s:%d/", who2.Slug, e2.MeshPort), 200, "Hostname:", 30*time.Second)
+	b2 := waitFetch(t, c, fmt.Sprintf("http://%s:%d/", who2.Slug, e2.MeshPort), "Hostname:", 30*time.Second)
 	require.Contains(t, b2, "Hostname: "+who2ID)
 	// Only the granted ports: another port of the same provider is closed.
 	requireFetchFails(t, c, "http://"+who1.Slug+":81/")
@@ -148,7 +145,7 @@ func (m *meshStack) phaseServiceLinks(t *testing.T) {
 	// The ACL: one rule per link, source = the link's IP, destinations = exactly the two
 	// granted (server node IP : mesh port) pairs, and nothing else.
 	want := []string{fmt.Sprintf("%s:80", node1), fmt.Sprintf("%s:%d", node1, e2.MeshPort)}
-	pol := m.waitPolicy(2*time.Minute, "service link rule", func(p hsPolicy) bool {
+	pol := m.waitPolicy("service link rule", func(p hsPolicy) bool {
 		return strings.Join(sortedCopy(p.dsts(svcLink.ipv4())), ",") == strings.Join(sortedCopy(want), ",")
 	})
 	for _, r := range pol.ACLs {
@@ -191,7 +188,7 @@ func (m *meshStack) phaseServiceLinks(t *testing.T) {
 	m.deployStagedWait(env, blocked.ID)
 	bc := host2Client(blockedHost)
 	waitConsumer(t, bc, "/", "b1", 90*time.Second)
-	waitFetch(t, bc, "http://"+who1.Slug+":80/", 200, "Hostname: "+who1ID, 90*time.Second)
+	waitFetch(t, bc, "http://"+who1.Slug+":80/", "Hostname: "+who1ID, 90*time.Second)
 	requireFetchFails(t, bc, "http://1.1.1.1/")
 	// The control: the consumer that does not block egress reaches the internet. A plain
 	// HTTP 200 target (1.1.1.1 redirects to https, and the fixture image has no CA bundle).
@@ -250,7 +247,7 @@ func (m *meshStack) phaseServiceLinks(t *testing.T) {
 	require.Equal(t, "edge", src)
 	// ... and the intruder now reaches ITS provider (whoami3 on the same server pair), not the other env's.
 	e3 := m.serviceExposure(who3.ID)
-	waitFetch(t, ic, fmt.Sprintf("http://%s:%d/", who3.Slug, e3.MeshPort), 200, "Hostname:", 90*time.Second)
+	waitFetch(t, ic, fmt.Sprintf("http://%s:%d/", who3.Slug, e3.MeshPort), "Hostname:", 90*time.Second)
 	require.Contains(t, requireFetchFails(t, ic, "http://"+who1.Slug+":80/"), "no such host", "the other environment's providers stay invisible")
 	require.NotEqual(t, svcLink.ID, env2Links[0].ID, "links are per environment")
 	require.NotEqual(t, svcLink.ipv4(), env2Links[0].ipv4())
@@ -273,7 +270,7 @@ func (m *meshStack) phaseServiceLinks(t *testing.T) {
 		gone = n == 0
 		return gone
 	}), "the grant of the removed reference was never removed")
-	m.waitPolicy(2*time.Minute, "rule without whoami2", func(p hsPolicy) bool {
+	m.waitPolicy("rule without whoami2", func(p hsPolicy) bool {
 		return strings.Join(p.dsts(svcLink.ipv4()), ",") == fmt.Sprintf("%s:80", node1)
 	})
 	// The next connectivity check is a timeout or a failed name: the path is closed, the other provider still works.
@@ -281,13 +278,13 @@ func (m *meshStack) phaseServiceLinks(t *testing.T) {
 		code, _, err := fetchVia(c, fmt.Sprintf("http://%s:%d/", who2.Slug, e2.MeshPort))
 		return err == nil && code == http.StatusInternalServerError
 	}), "whoami2 stayed reachable after its grant was removed")
-	waitFetch(t, c, "http://"+who1.Slug+":80/", 200, "Hostname: "+who1ID, 30*time.Second)
+	waitFetch(t, c, "http://"+who1.Slug+":80/", "Hostname: "+who1ID, 30*time.Second)
 
 	// ---- moving a provider to the consumer's server releases its exposure ----------------------
 	// Put the reference back (and the edge is gone), move whoami2 to host2, deploy it there.
 	m.SetVars(api.ID, map[string]string{"UP": up}, nil)
 	m.deployStagedWait(env, api.ID)
-	waitFetch(t, c, fmt.Sprintf("http://%s:%d/", who2.Slug, m.serviceExposure(who2.ID).MeshPort), 200, "Hostname: "+who2ID, 120*time.Second)
+	waitFetch(t, c, fmt.Sprintf("http://%s:%d/", who2.Slug, m.serviceExposure(who2.ID).MeshPort), "Hostname: "+who2ID, 120*time.Second)
 	mv := m.Do("PATCH", "/services/"+who2.ID, map[string]any{"serverId": m.Srv2}, "If-Match", m.serviceETag(who2.ID))
 	require.Equal(t, http.StatusOK, mv.Status, string(mv.Raw))
 	// (the consumer's restage is asserted after the deploy below)
@@ -305,7 +302,7 @@ func (m *meshStack) phaseServiceLinks(t *testing.T) {
 	require.True(t, m.Service(api.ID).Bool("hasStagedChanges"), "the consumer of a provider that moved is restaged")
 	m.deployStagedWait(env, api.ID)
 	// Same server now: the plain port, no mesh.
-	waitFetch(t, c, "http://"+who2.Slug+":80/", 200, "Hostname:", 120*time.Second)
+	waitFetch(t, c, "http://"+who2.Slug+":80/", "Hostname:", 120*time.Second)
 	require.Truef(t, strings.Contains(m.containerLogs(m.Host2, api.ID), fmt.Sprintf("startup: UP=%s:80,%s:80", who1.Slug, who2.Slug)),
 		"UP must follow the move to plain ports:\n%s", m.containerLogs(m.Host2, api.ID))
 }

@@ -166,22 +166,22 @@ func (f *fixture) upload(name string, dns ...string) (ServerCertificate, genResu
 	return c, g
 }
 
-// lastCommand returns the newest agent command row of the server.
-func (f *fixture) lastCommand(kind string) db.AgentCommand {
+// lastProxyConfigure returns the newest proxy_configure command row of the server.
+func (f *fixture) lastProxyConfigure() db.AgentCommand {
 	f.t.Helper()
 	var id uuid.UUID
 	require.NoError(f.t, f.pool.QueryRow(context.Background(),
-		`SELECT id FROM agent_commands WHERE server_id=$1 AND kind=$2 ORDER BY created_at DESC LIMIT 1`, f.srv.ID, kind).Scan(&id))
+		`SELECT id FROM agent_commands WHERE server_id=$1 AND kind=$2 ORDER BY created_at DESC LIMIT 1`, f.srv.ID, agentprotocol.KindProxyConfigure).Scan(&id))
 	cmd, err := f.q.GetAgentCommand(context.Background(), id)
 	require.NoError(f.t, err)
 	return cmd
 }
 
-func result(t *testing.T, outcome string, data agentprotocol.ProxyConfigureResult, cmd db.AgentCommand) agentprotocol.ResultFrame {
+func succeededResult(t *testing.T, data agentprotocol.ProxyConfigureResult, cmd db.AgentCommand) agentprotocol.ResultFrame {
 	t.Helper()
 	raw, err := json.Marshal(data)
 	require.NoError(t, err)
-	return agentprotocol.ResultFrame{CommandID: cmd.ID.String(), Outcome: outcome, Data: raw}
+	return agentprotocol.ResultFrame{CommandID: cmd.ID.String(), Outcome: agentprotocol.OutcomeSucceeded, Data: raw}
 }
 
 func TestUploadCertificateStagesAndNeverExposesTheKey(t *testing.T) {
@@ -459,7 +459,7 @@ func TestDeployBuildsPayloadWithoutSecretsAndResultFlipsAppliedState(t *testing.
 	res, err := f.svc.Deploy(f.token, f.srv.ID, false)
 	require.NoError(t, err)
 	require.EqualValues(t, 3, res.Generation)
-	cmd := f.lastCommand(agentprotocol.KindProxyConfigure)
+	cmd := f.lastProxyConfigure()
 	require.Equal(t, res.CommandID, cmd.ID)
 	require.Nil(t, cmd.DeploymentID)
 	require.True(t, strings.HasPrefix(cmd.IdempotencyKey, "proxy_configure:"+f.srv.ID.String()+":3:"))
@@ -498,7 +498,7 @@ func TestDeployBuildsPayloadWithoutSecretsAndResultFlipsAppliedState(t *testing.
 	require.Equal(t, "proxy_deploy_in_progress", code(t, err))
 
 	// The agent reports success: the cert fails to load, the node is online.
-	ok := result(t, agentprotocol.OutcomeSucceeded, agentprotocol.ProxyConfigureResult{
+	ok := succeededResult(t, agentprotocol.ProxyConfigureResult{
 		Outcome: "succeeded", Restarted: true,
 		Certificates: []agentprotocol.CertStatus{{ID: c.ID.String(), Loaded: false, Error: "tls: failed to parse"}},
 		Tailnet:      &agentprotocol.TailnetStatus{Mode: "managed", State: agentprotocol.TailnetStateOnline, FQDN: "nebula-edge-1.t.ts.net", IPs: []string{"100.64.0.5"}, DeviceID: "nDEV1"},
@@ -544,7 +544,7 @@ func TestDeployBuildsPayloadWithoutSecretsAndResultFlipsAppliedState(t *testing.
 	_, err = f.svc.Deploy(f.token, f.srv.ID, false)
 	require.NoError(t, err)
 	var again agentprotocol.ProxyConfigurePayload
-	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindProxyConfigure).Payload, &again))
+	require.NoError(t, json.Unmarshal(f.lastProxyConfigure().Payload, &again))
 	require.False(t, again.Proxy.Tailnet.Provision)
 }
 
@@ -554,7 +554,7 @@ func TestFailedResultChangesNothingButRecordsTheError(t *testing.T) {
 	c, _ := f.upload("site", "site.example.com")
 	_, err := f.svc.Deploy(f.admin, f.srv.ID, false)
 	require.NoError(t, err)
-	cmd := f.lastCommand(agentprotocol.KindProxyConfigure)
+	cmd := f.lastProxyConfigure()
 	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, agentprotocol.ResultFrame{
 		CommandID: cmd.ID.String(), Outcome: agentprotocol.OutcomeFailed, Error: "port 8443 in use",
 	}))
@@ -603,11 +603,11 @@ func TestDisablingOrReprovisioningDeletesTheOldDeviceViaJob(t *testing.T) {
 	// Reprovision: Provision=true, the new device replaces the old, a delete job is queued for the old.
 	_, err = f.svc.Deploy(f.admin, f.srv.ID, true)
 	require.NoError(t, err)
-	cmd := f.lastCommand(agentprotocol.KindProxyConfigure)
+	cmd := f.lastProxyConfigure()
 	var p agentprotocol.ProxyConfigurePayload
 	require.NoError(t, json.Unmarshal(cmd.Payload, &p))
 	require.True(t, p.Proxy.Tailnet.Provision)
-	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, result(t, agentprotocol.OutcomeSucceeded, agentprotocol.ProxyConfigureResult{
+	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, succeededResult(t, agentprotocol.ProxyConfigureResult{
 		Tailnet: &agentprotocol.TailnetStatus{Mode: "managed", State: "online", DeviceID: "nNEW"},
 	}, cmd)))
 	require.Equal(t, "nNEW", *f.reload().TailnetDeviceID)
@@ -623,13 +623,13 @@ func TestDisablingOrReprovisioningDeletesTheOldDeviceViaJob(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.svc.Deploy(f.admin, f.srv.ID, false)
 	require.NoError(t, err)
-	cmd = f.lastCommand(agentprotocol.KindProxyConfigure)
+	cmd = f.lastProxyConfigure()
 	p = agentprotocol.ProxyConfigurePayload{}
 	require.NoError(t, json.Unmarshal(cmd.Payload, &p))
 	require.NotNil(t, p.Proxy.Tailnet)
 	require.True(t, p.Proxy.Tailnet.Remove)
 	require.Equal(t, "off", p.Proxy.Tailnet.Mode)
-	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, result(t, agentprotocol.OutcomeSucceeded, agentprotocol.ProxyConfigureResult{}, cmd)))
+	require.NoError(t, f.svc.HandleResult(bg, f.srv.ID, cmd.ID, succeededResult(t, agentprotocol.ProxyConfigureResult{}, cmd)))
 	srv := f.reload()
 	require.Nil(t, srv.TailnetDeviceID)
 	require.Equal(t, "off", srv.TailnetAppliedMode)

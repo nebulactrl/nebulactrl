@@ -16,8 +16,8 @@ import {
 	sameNetworks,
 } from "#/features/access-rules/rules";
 
-export const PUBLIC_PORT_MIN = 1024;
-export const PUBLIC_PORT_MAX = 65535;
+const PUBLIC_PORT_MIN = 1024;
+const PUBLIC_PORT_MAX = 65535;
 
 /** Said when the control plane sent no warnings of its own. */
 export const PLAINTEXT_NOTE =

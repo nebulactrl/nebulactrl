@@ -182,9 +182,7 @@ function isValkey(service: ServiceIconSource): boolean {
  * image repository, else the brand of its git host, else a generic glyph for
  * its kind (database, worker, git source, docker image, empty).
  */
-export function resolveServiceIcon(
-	service: ServiceIconSource,
-): ResolvedServiceIcon {
+function resolveServiceIcon(service: ServiceIconSource): ResolvedServiceIcon {
 	const slug =
 		ENGINE_BRANDS[service.config?.database?.engine ?? ""] ??
 		brandForImage(service.config?.image) ??

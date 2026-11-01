@@ -224,7 +224,7 @@ func TestUnavailableInDev(t *testing.T) {
 			res, body = get(t, srv.URL+"/cli.sh")
 			require.Equal(t, http.StatusNotFound, res.StatusCode)
 			require.Contains(t, body, "development build")
-			sh(t, "-n", body)
+			shParses(t, body)
 			out, err := runScript(t, body, nil)
 			require.Error(t, err)
 			require.Contains(t, out, "no CLI binaries")
@@ -232,10 +232,10 @@ func TestUnavailableInDev(t *testing.T) {
 	}
 }
 
-// sh runs `sh <flag> -c <script>` style checks: -n parses without executing.
-func sh(t *testing.T, flag, script string) {
+// shParses checks that script is valid shell without executing it (`sh -n`).
+func shParses(t *testing.T, script string) {
 	t.Helper()
-	cmd := exec.Command("sh", flag)
+	cmd := exec.Command("sh", "-n")
 	cmd.Stdin = strings.NewReader(script)
 	out, err := cmd.CombinedOutput()
 	require.NoError(t, err, string(out))
@@ -263,7 +263,7 @@ func TestInstallerContent(t *testing.T) {
 		require.Contains(t, body, `NC_URL=${NEBULACTRL_URL:-'https://nebula.example.com'}`)
 		require.Contains(t, body, "curl -fsSL https://nebula.example.com/cli.sh | sh")
 		require.NotContains(t, body, "{{")
-		sh(t, "-n", body)
+		shParses(t, body)
 	})
 
 	t.Run("URL derived from the request, https behind a proxy", func(t *testing.T) {
@@ -284,7 +284,7 @@ func TestInstallerContent(t *testing.T) {
 		require.Contains(t, body, `NC_URL=${NEBULACTRL_URL:-''}`)
 		require.NotContains(t, body, "rm -rf ~")
 		require.NotContains(t, body, "x.example")
-		sh(t, "-n", body)
+		shParses(t, body)
 		out, err := runScript(t, body, nil)
 		require.Error(t, err)
 		require.Contains(t, out, "control plane URL is unknown")
@@ -293,7 +293,7 @@ func TestInstallerContent(t *testing.T) {
 	t.Run("sh -n and shellcheck", func(t *testing.T) {
 		srv := serve(t, dir, "https://nebula.example.com")
 		_, body := get(t, srv.URL+"/cli.sh")
-		sh(t, "-n", body)
+		shParses(t, body)
 		if _, err := exec.LookPath("shellcheck"); err != nil {
 			t.Skip("shellcheck is not installed")
 		}

@@ -212,7 +212,7 @@ func TestPageAccessControl(t *testing.T) {
 
 func TestPublishPreconditionsAndRoutePushes(t *testing.T) {
 	f := newFx(t)
-	cp := f.controlPlane("203.0.113.10")
+	cp := f.controlPlane()
 	events := f.bus.Subscribe(f.ctx)
 	yes, no := true, false
 
@@ -300,7 +300,7 @@ func TestPublishPreconditionsAndRoutePushes(t *testing.T) {
 
 func TestFailedRoutePushRollsTheChangeBack(t *testing.T) {
 	f := newFx(t)
-	f.controlPlane("203.0.113.10")
+	f.controlPlane()
 	host := "status.acme.com"
 	page := f.createPage("Acme", host)
 	f.components(page.ID, f.api)
@@ -720,7 +720,7 @@ func TestDNSCheckReportsRecordsAndResolution(t *testing.T) {
 	require.Equal(t, DNSUnknown, got.Status)
 	require.Empty(t, got.Records)
 
-	f.controlPlane("203.0.113.10")
+	f.controlPlane()
 	for _, tc := range []struct {
 		name     string
 		resolver fakeResolver

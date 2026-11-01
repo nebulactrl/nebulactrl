@@ -14,7 +14,7 @@ import {
 } from "./model";
 
 /** The components a compose file declares: name, image and ports as ruled rows. */
-export function ComponentList({
+function ComponentList({
 	components,
 	className,
 }: {

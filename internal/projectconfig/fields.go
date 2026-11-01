@@ -71,7 +71,9 @@ func DockerFieldUnrestricted(jsonName string) bool {
 	return false
 }
 
-var catalog = buildCatalog()
+// Fields is the field table: every ownable atom, its file key, platform field
+// and apply kind. It is shared and read-only; callers must not modify it.
+var Fields = buildCatalog()
 
 func buildCatalog() []FieldSpec {
 	var out []FieldSpec
@@ -263,15 +265,11 @@ func fieldDoc(f FieldSpec) string {
 	return "`" + f.Key + "` (" + f.Applies + "); " + kinds
 }
 
-// Catalog returns the field table as data: every ownable atom, its file
-// key, platform field and apply kind. The slice is a copy.
-func Catalog() []FieldSpec { return append([]FieldSpec(nil), catalog...) }
-
 // LookupField finds the spec of a concrete field id (for example
 // "variables.NODE_ENV", "domains.shop.acme.com/api.cloudflare" or
 // "config.port").
 func LookupField(id string) (FieldSpec, bool) {
-	for _, f := range catalog {
+	for _, f := range Fields {
 		if f.ID == id {
 			return f, true
 		}
@@ -280,8 +278,8 @@ func LookupField(id string) (FieldSpec, bool) {
 	// "domains.*.cloudflare" wins over "domains.*" and "#secret" over "variables.*".
 	var best *FieldSpec
 	bestSuffix := -1
-	for i := range catalog {
-		f := &catalog[i]
+	for i := range Fields {
+		f := &Fields[i]
 		pre, suf, ok := strings.Cut(f.ID, "*")
 		if !ok {
 			continue

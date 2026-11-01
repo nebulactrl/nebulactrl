@@ -11,6 +11,7 @@ import (
 
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 )
 
 // applyDeployment returns the newest deployment of a service with trigger.
@@ -303,7 +304,7 @@ func TestApplyChangesProductionSurfacesApproval(t *testing.T) {
 	f := newFx(t)
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: f.box})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 
 	sv := f.service(svcOpts{env: f.prod, slug: "api"})
 	chgPut(f, sv.ID, "FEATURE", "on", false)
@@ -328,7 +329,7 @@ func TestApplyChangesRejectsTwoProductionEnvironments(t *testing.T) {
 	f := newFx(t)
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: f.box})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 	// A second production environment in the same project.
 	prod2, err := f.q.CreateEnvironment(context.Background(), db.CreateEnvironmentParams{ProjectID: f.project.ID, Name: "prod-eu", Slug: "prod-eu", IsProduction: true})
 	require.NoError(t, err)

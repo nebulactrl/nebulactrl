@@ -215,15 +215,14 @@ func ParseDotenv(src string, base map[string]string) (map[string]string, []strin
 		var val string
 		switch {
 		case strings.HasPrefix(raw, `"`):
-			body, end, ok := scanQuoted(raw, lines, &n, '"')
+			body, ok := scanQuoted(raw, lines, &n, '"')
 			if !ok {
 				notes = append(notes, fmt.Sprintf("line %d: unterminated quote for %s", n+1, key))
 				continue
 			}
-			_ = end
 			val = newInterpolator(env).Expand(unescapeDouble(body))
 		case strings.HasPrefix(raw, `'`):
-			body, _, ok := scanQuoted(raw, lines, &n, '\'')
+			body, ok := scanQuoted(raw, lines, &n, '\'')
 			if !ok {
 				notes = append(notes, fmt.Sprintf("line %d: unterminated quote for %s", n+1, key))
 				continue
@@ -244,7 +243,7 @@ func ParseDotenv(src string, base map[string]string) (map[string]string, []strin
 // scanQuoted reads a quoted value that starts at raw[0], continuing over
 // following lines (advancing *n) until the closing quote. It returns the text
 // between the quotes.
-func scanQuoted(raw string, lines []string, n *int, q byte) (string, int, bool) {
+func scanQuoted(raw string, lines []string, n *int, q byte) (string, bool) {
 	var b strings.Builder
 	cur := raw[1:]
 	for {
@@ -256,12 +255,12 @@ func scanQuoted(raw string, lines []string, n *int, q byte) (string, int, bool) 
 				continue
 			}
 			if cur[i] == q {
-				return b.String(), i, true
+				return b.String(), true
 			}
 			b.WriteByte(cur[i])
 		}
 		if *n+1 >= len(lines) {
-			return "", 0, false
+			return "", false
 		}
 		b.WriteByte('\n')
 		*n++

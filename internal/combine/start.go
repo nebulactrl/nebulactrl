@@ -115,7 +115,7 @@ func (s *Service) Start(ctx context.Context, envID uuid.UUID, req CombineRequest
 	for _, f := range afters {
 		f(ctx)
 	}
-	s.publish(env, a.target.id(), req.ServiceIDs)
+	s.publish(env, req.ServiceIDs)
 	s.stopPlanned(ctx, row, env.WorkspaceID, env.Env.ProjectID)
 	return viewOf(row), nil
 }
@@ -508,7 +508,7 @@ func (s *Service) restartStopped(ctx context.Context, c db.ServiceCombine, works
 }
 
 // publish tells the live feed that the members changed.
-func (s *Service) publish(env services.EnvScope, target uuid.UUID, members []uuid.UUID) {
+func (s *Service) publish(env services.EnvScope, members []uuid.UUID) {
 	for _, id := range members {
 		services.PublishIn(s.Bus, env.WorkspaceID, services.EventServiceUpdated, env.Env.ProjectID, env.Env.ID, id)
 	}

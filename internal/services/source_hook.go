@@ -31,7 +31,8 @@ func (s *Service) AddSourceHook(h SourceHook) {
 	case nil:
 		s.sourceHook = h
 	case sourceHooks:
-		s.sourceHook = append(cur, h)
+		cur = append(cur, h)
+		s.sourceHook = cur
 	default:
 		s.sourceHook = sourceHooks{cur, h}
 	}

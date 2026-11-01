@@ -188,7 +188,7 @@ func (s *Service) Get(ctx context.Context, serviceID uuid.UUID) (DatabaseView, e
 		return DatabaseView{}, err
 	}
 	if spec.Engine == engines.Postgres {
-		rv, err := s.replicationView(ctx, s.q, sc, spec)
+		rv, err := s.replicationView(ctx, s.q, sc)
 		if err != nil {
 			return DatabaseView{}, err
 		}

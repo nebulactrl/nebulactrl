@@ -70,11 +70,6 @@ func hotp(secret []byte, counter uint64, digits int) string {
 // TOTPStep returns the 30 s time step containing t.
 func TOTPStep(t time.Time) int64 { return t.Unix() / TOTPPeriod }
 
-// TOTPCode returns the 6-digit code for the time step containing t.
-func TOTPCode(secret []byte, t time.Time) string {
-	return hotp(secret, uint64(TOTPStep(t)), TOTPDigits)
-}
-
 // VerifyTOTP checks code against the steps around now and returns the matching
 // step. Steps at or before lastStep are rejected, so an observed code cannot be
 // replayed. The comparison is constant-time.

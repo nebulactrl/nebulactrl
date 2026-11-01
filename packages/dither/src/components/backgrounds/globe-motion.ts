@@ -29,9 +29,9 @@ export const REST_VIEW: GlobeView = {
 };
 
 /** Seconds for a coast to lose most of its speed (time constant of the decay). */
-export const COAST_TAU = 0.55;
+const COAST_TAU = 0.55;
 /** Seconds for the idle spin to come back after a drag (time constant). */
-export const SPIN_RETURN_TAU = 0.9;
+const SPIN_RETURN_TAU = 0.9;
 /** Coasting slower than this, in degrees per second, stops. */
 export const COAST_STOP = 0.4;
 /** Fastest a release may coast, in degrees per second. */

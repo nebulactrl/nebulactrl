@@ -51,7 +51,7 @@ function nodeRect(p: Point, size: Size): Rect {
 }
 
 /** Whether a group draws as its single summary card. */
-export function groupRect(group: CanvasGroup): Rect {
+function groupRect(group: CanvasGroup): Rect {
 	return { x: group.x, y: group.y, w: group.w, h: group.h };
 }
 
@@ -271,7 +271,7 @@ export interface LayoutTraits {
 	dataIds: ReadonlySet<string>;
 }
 
-export const NO_TRAITS: LayoutTraits = {
+const NO_TRAITS: LayoutTraits = {
 	order: [],
 	entryIds: [],
 	dataIds: new Set(),

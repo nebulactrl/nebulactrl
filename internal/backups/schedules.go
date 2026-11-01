@@ -147,7 +147,7 @@ func (s *Service) CreateSchedule(ctx context.Context, serviceID uuid.UUID, in Sc
 	if err != nil {
 		return ScheduleView{}, fmt.Errorf("create schedule: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, row.ID)
+	s.publish(sc, row.ID)
 	return scheduleView(row, dest.Name), nil
 }
 
@@ -239,7 +239,7 @@ func (s *Service) UpdateSchedule(ctx context.Context, id uuid.UUID, p SchedulePa
 	if err != nil {
 		return ScheduleView{}, fmt.Errorf("update schedule: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, id)
+	s.publish(sc, id)
 	return scheduleView(row, dest.Name), nil
 }
 
@@ -266,6 +266,6 @@ func (s *Service) DeleteSchedule(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return fmt.Errorf("delete schedule: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, id)
+	s.publish(sc, id)
 	return nil
 }

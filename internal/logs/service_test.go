@@ -448,7 +448,7 @@ func TestEnvironmentHistoryMergesByTimeAndPages(t *testing.T) {
 					break
 				}
 			}
-			raw, _ := json.Marshal(agentprotocol.LogsQueryResult{Lines: page, Capturing: true, NextCursor: nextCursor(all[name], page, q.Cursor)})
+			raw, _ := json.Marshal(agentprotocol.LogsQueryResult{Lines: page, Capturing: true, NextCursor: nextCursor(all[name], page)})
 			return agentprotocol.ResultFrame{Outcome: agentprotocol.OutcomeSucceeded, Data: raw}
 		}
 	}
@@ -492,7 +492,7 @@ func TestEnvironmentHistoryMergesByTimeAndPages(t *testing.T) {
 
 // nextCursor reproduces the agent's rule: more may follow when lines older than
 // the page's last remain.
-func nextCursor(all, page []agentprotocol.HistoryLine, from string) string {
+func nextCursor(all, page []agentprotocol.HistoryLine) string {
 	if len(page) == 0 {
 		return ""
 	}

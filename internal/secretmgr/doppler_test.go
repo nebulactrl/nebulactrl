@@ -102,7 +102,7 @@ func dopplerCfg(site string) SecretManagerConfig { return SecretManagerConfig{Si
 
 func TestDopplerServiceTokenReadsItsConfigOncePerSession(t *testing.T) {
 	fd := newFakeDoppler(t)
-	p, err := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), dopplerServiceToken, nil)
+	p, err := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), dopplerServiceToken)
 	require.NoError(t, err)
 	ctx := context.Background()
 	require.NoError(t, p.check(ctx))
@@ -135,7 +135,7 @@ func TestDopplerPersonalTokenNeedsProjectAndConfig(t *testing.T) {
 	ctx := context.Background()
 
 	// The reference names them.
-	p, err := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), dopplerPersonalToken, nil)
+	p, err := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), dopplerPersonalToken)
 	require.NoError(t, err)
 	v, err := p.fetch(ctx, ref(t, "doppler:dp/web/dev#WEB_TOKEN"))
 	require.NoError(t, err)
@@ -151,7 +151,7 @@ func TestDopplerPersonalTokenNeedsProjectAndConfig(t *testing.T) {
 
 	cfg := dopplerCfg(fd.srv.URL)
 	cfg.DefaultProject, cfg.DefaultConfig = "backend", "prd"
-	p, err = newProvider(KindDoppler, cfg, dopplerPersonalToken, nil)
+	p, err = newProvider(KindDoppler, cfg, dopplerPersonalToken)
 	require.NoError(t, err)
 	v, err = p.fetch(ctx, ref(t, "doppler:dp#API_KEY"))
 	require.NoError(t, err)
@@ -172,7 +172,7 @@ func TestDopplerErrorsNameTheProblemNotTheToken(t *testing.T) {
 	fd := newFakeDoppler(t)
 	ctx := context.Background()
 
-	bad, err := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), "dp.st.wrong-token-value", nil)
+	bad, err := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), "dp.st.wrong-token-value")
 	require.NoError(t, err)
 	err = bad.check(ctx)
 	require.ErrorContains(t, err, "token check failed")
@@ -183,13 +183,13 @@ func TestDopplerErrorsNameTheProblemNotTheToken(t *testing.T) {
 	require.ErrorContains(t, err, "authentication failed")
 	require.NotContains(t, err.Error(), "wrong-token-value")
 
-	p, _ := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), dopplerServiceToken, nil)
+	p, _ := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), dopplerServiceToken)
 	_, err = p.fetch(ctx, ref(t, "doppler:dp#NOPE"))
 	require.ErrorContains(t, err, `no secret "NOPE" in the config the service token is bound to`)
 	_, err = p.fetch(ctx, ref(t, "doppler:dp#NOT_TEXT"))
 	require.ErrorContains(t, err, `no secret "NOT_TEXT"`, "a secret that is not text is not readable")
 
-	pt, _ := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), dopplerPersonalToken, nil)
+	pt, _ := newProvider(KindDoppler, dopplerCfg(fd.srv.URL), dopplerPersonalToken)
 	_, err = pt.fetch(ctx, ref(t, "doppler:dp/backend/stg#K"))
 	require.ErrorContains(t, err, `project "backend", config "stg" was not found`)
 	_, err = pt.fetch(ctx, ref(t, "doppler:dp/backend/prd#NOPE"))
@@ -199,7 +199,7 @@ func TestDopplerErrorsNameTheProblemNotTheToken(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	addr := srv.URL
 	srv.Close()
-	down, _ := newProvider(KindDoppler, dopplerCfg(addr), dopplerServiceToken, nil)
+	down, _ := newProvider(KindDoppler, dopplerCfg(addr), dopplerServiceToken)
 	_, err = down.fetch(ctx, ref(t, "doppler:dp#K"))
 	require.ErrorContains(t, err, "cannot reach")
 	require.NotContains(t, err.Error(), dopplerServiceToken)
@@ -209,7 +209,7 @@ func TestDopplerErrorsNameTheProblemNotTheToken(t *testing.T) {
 		w.WriteHeader(http.StatusTemporaryRedirect)
 	}))
 	defer redir.Close()
-	rp, _ := newProvider(KindDoppler, dopplerCfg(redir.URL), dopplerServiceToken, nil)
+	rp, _ := newProvider(KindDoppler, dopplerCfg(redir.URL), dopplerServiceToken)
 	_, err = rp.fetch(ctx, ref(t, "doppler:dp#K"))
 	require.ErrorContains(t, err, "redirected")
 }

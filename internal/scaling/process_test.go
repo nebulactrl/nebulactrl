@@ -95,16 +95,14 @@ func (f *fixture) enableProcessAutoscaling(id uuid.UUID, process string, a servi
 	require.NoError(f.t, err)
 }
 
-// loadProcess fills the last d with samples of one process every 10 s for n replicas.
-func (f *fixture) loadProcess(id uuid.UUID, process string, n int, cpu float64, d time.Duration) {
+// loadProcess fills the last 3 minutes with samples of one replica of one process every 10 s.
+func (f *fixture) loadProcess(id uuid.UUID, process string, cpu float64) {
 	f.t.Helper()
 	now := time.Now()
-	for ts := now.Add(-d); ts.Before(now); ts = ts.Add(10 * time.Second) {
-		for r := range n {
-			require.NoError(f.t, f.q.InsertServiceMetricSample(context.Background(), db.InsertServiceMetricSampleParams{
-				ServerID: &f.server.ID, ServiceID: id, Ts: ts, Replica: int32(r), Process: process, CpuPercent: cpu, MemBytes: 200 << 20, MemLimitBytes: 1 << 30,
-			}))
-		}
+	for ts := now.Add(-3 * time.Minute); ts.Before(now); ts = ts.Add(10 * time.Second) {
+		require.NoError(f.t, f.q.InsertServiceMetricSample(context.Background(), db.InsertServiceMetricSampleParams{
+			ServerID: &f.server.ID, ServiceID: id, Ts: ts, Replica: 0, Process: process, CpuPercent: cpu, MemBytes: 200 << 20, MemLimitBytes: 1 << 30,
+		}))
 	}
 }
 
@@ -334,8 +332,8 @@ func TestAutoscalerScalesANamedProcessFromItsOwnSamples(t *testing.T) {
 	f.enableProcessAutoscaling(sv.ID, "worker", services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
 
 	// The worker is hot, the web process idle: only the worker's own series counts.
-	f.loadProcess(sv.ID, "worker", 1, 90, 3*time.Minute)
-	f.loadProcess(sv.ID, "web", 1, 5, 3*time.Minute)
+	f.loadProcess(sv.ID, "worker", 90)
+	f.loadProcess(sv.ID, "web", 5)
 	require.NoError(t, f.scal.RunAutoscaler(context.Background()))
 
 	row, _ := f.processRow(sv.ID, "worker")
@@ -374,8 +372,8 @@ func TestAutoscalerDefaultProcessOfAMultiProcessServiceUsesItsOwnSamples(t *test
 	f.deployMulti(sv)
 	f.enableAutoscaling(sv.ID, services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
 
-	f.loadProcess(sv.ID, "web", 1, 90, 3*time.Minute)
-	f.loadProcess(sv.ID, "worker", 1, 5, 3*time.Minute)
+	f.loadProcess(sv.ID, "web", 90)
+	f.loadProcess(sv.ID, "worker", 5)
 	require.NoError(t, f.scal.RunAutoscaler(context.Background()))
 
 	require.EqualValues(t, 2, f.reload(sv.ID).Replicas)
@@ -393,7 +391,7 @@ func TestAutoscalerNeverScalesASingletonProcessOrOneThatIsNotDeployed(t *testing
 	sv := f.multi("shop")
 	f.deployMulti(sv)
 	f.enableProcessAutoscaling(sv.ID, "clock", services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
-	f.loadProcess(sv.ID, "clock", 1, 95, 3*time.Minute)
+	f.loadProcess(sv.ID, "clock", 95)
 
 	// A process the running release does not have yet.
 	staged := f.service("blog", services.KindApp, services.Config{Image: "x", Port: 80})
@@ -403,7 +401,7 @@ func TestAutoscalerNeverScalesASingletonProcessOrOneThatIsNotDeployed(t *testing
 	_, err := f.pool.Exec(context.Background(), "UPDATE services SET config = $2::jsonb WHERE id = $1", staged.ID, raw)
 	require.NoError(t, err)
 	f.enableProcessAutoscaling(staged.ID, "worker", services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
-	f.loadProcess(staged.ID, "worker", 1, 95, 3*time.Minute)
+	f.loadProcess(staged.ID, "worker", 95)
 
 	require.NoError(t, f.scal.RunAutoscaler(context.Background()))
 	row, _ := f.processRow(sv.ID, "clock")
@@ -436,7 +434,7 @@ func TestAutoscalerScalesTheRunningProcessWhileARenameIsPending(t *testing.T) {
 	f.stageRename(sv)
 	// The scale row was copied to the new name at rename time.
 	f.enableProcessAutoscaling(sv.ID, "web2", services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
-	f.loadProcess(sv.ID, "api", 1, 90, 3*time.Minute)
+	f.loadProcess(sv.ID, "api", 90)
 
 	require.NoError(t, f.scal.RunAutoscaler(context.Background()))
 
@@ -475,7 +473,7 @@ func TestAutoscalerFollowsTheStagedRowOfAPendingRename(t *testing.T) {
 	f.stageRename(sv)
 	// Autoscaling is on for the old name only: the staged row (off) wins.
 	f.enableProcessAutoscaling(sv.ID, "api", services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
-	f.loadProcess(sv.ID, "api", 1, 90, 3*time.Minute)
+	f.loadProcess(sv.ID, "api", 90)
 
 	require.NoError(t, f.scal.RunAutoscaler(context.Background()))
 
@@ -493,7 +491,7 @@ func TestBlockedProcessScaleOutNamesTheProcess(t *testing.T) {
 	sv := f.multi("shop")
 	f.deployMulti(sv)
 	f.enableProcessAutoscaling(sv.ID, "worker", services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
-	f.loadProcess(sv.ID, "worker", 1, 95, 3*time.Minute)
+	f.loadProcess(sv.ID, "worker", 95)
 	_, err := f.pool.Exec(context.Background(), "UPDATE servers SET disk_alert_active = true WHERE id = $1", f.server.ID)
 	require.NoError(t, err)
 

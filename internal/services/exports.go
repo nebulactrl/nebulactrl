@@ -63,11 +63,13 @@ var (
 )
 
 // RegisterExportProvider installs the export provider (the last registration
-// wins). Pass nil to remove it.
-func RegisterExportProvider(fn ExportProvider) {
+// wins) and returns the one it replaced (nil when none), so a test can restore
+// it. Pass nil to remove it.
+func RegisterExportProvider(fn ExportProvider) (prev ExportProvider) {
 	exportMu.Lock()
-	exportProvider = fn
+	prev, exportProvider = exportProvider, fn
 	exportMu.Unlock()
+	return prev
 }
 
 func currentExportProvider() ExportProvider {
@@ -169,7 +171,3 @@ func (r *Resolver) Exports(slug string) []ExportInfo {
 	sort.Slice(out, func(i, j int) bool { return out[i].Key < out[j].Key })
 	return out
 }
-
-// CurrentExportProvider returns the registered provider (nil when none); tests
-// use it to restore the provider after swapping in a fake.
-func CurrentExportProvider() ExportProvider { return currentExportProvider() }

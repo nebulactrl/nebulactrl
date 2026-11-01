@@ -11,6 +11,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 )
 
 // guardEnv is an environment whose service lives in a production environment,
@@ -36,7 +37,7 @@ func newGuardEnv(t *testing.T) *guardEnv {
 
 	g := prodguard.New(prodguard.Deps{Pool: e.pool, Box: e.box})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 
 	tok, mcpTok := uuid.New(), uuid.New()
 	return &guardEnv{
@@ -202,7 +203,7 @@ func TestDomainDNSSettingsAreNotGuardedForPeople(t *testing.T) {
 // A name outside production is not guarded.
 func TestDomainDNSSettingsOutsideProductionAreNotGuarded(t *testing.T) {
 	f := newGuardEnv(t)
-	f.fake.put("z1", Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99"})
+	f.fake.put(Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99"})
 	d := f.domain(t, "app.example.com", "")
 	f.exec(t, `UPDATE environments SET is_production = false`)
 	on, off := true, false
@@ -226,7 +227,7 @@ func TestDomainDNSSettingsOutsideProductionAreNotGuarded(t *testing.T) {
 // needs a person's approval, and the foreign record stays until then.
 func TestAdoptingForeignDNSRecordsInProductionNeedsApproval(t *testing.T) {
 	f := newGuardEnv(t)
-	foreign := f.fake.put("z1", Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99", Comment: "my own note"})
+	foreign := f.fake.put(Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99", Comment: "my own note"})
 	d := f.domain(t, "app.example.com", "")
 	require.NoError(t, f.svc.SyncDomain(context.Background(), d.ID))
 	f.fake.resetWrites()
@@ -236,7 +237,7 @@ func TestAdoptingForeignDNSRecordsInProductionNeedsApproval(t *testing.T) {
 	require.Contains(t, ar.Plan.Summary, "app.example.com")
 	require.Contains(t, ar.Plan.Summary, "production")
 	require.Empty(t, f.fake.writeLog(), "nothing is written before the approval")
-	got := f.fake.records("z1", "app.example.com")
+	got := f.fake.records("app.example.com")
 	require.Len(t, got, 1)
 	require.Equal(t, "198.51.100.99", got[0].Content)
 	require.Equal(t, "my own note", got[0].Comment)
@@ -245,7 +246,7 @@ func TestAdoptingForeignDNSRecordsInProductionNeedsApproval(t *testing.T) {
 	st, err := f.svc.Fix(f.rest, d.ID, true)
 	require.NoError(t, err)
 	require.Equal(t, StatusManaged, st.Status)
-	got = f.fake.records("z1", "app.example.com")
+	got = f.fake.records("app.example.com")
 	require.Len(t, got, 1)
 	require.Equal(t, foreign.ID, got[0].ID)
 	require.Equal(t, ipA, got[0].Content)
@@ -258,7 +259,7 @@ func TestAdoptingForeignDNSRecordsInProductionNeedsApproval(t *testing.T) {
 // The MCP principal is asked as well.
 func TestAdoptingForeignDNSRecordsIsGuardedForMCP(t *testing.T) {
 	f := newGuardEnv(t)
-	f.fake.put("z1", Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99"})
+	f.fake.put(Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99"})
 	d := f.domain(t, "app.example.com", "")
 	f.fake.resetWrites()
 
@@ -268,13 +269,13 @@ func TestAdoptingForeignDNSRecordsIsGuardedForMCP(t *testing.T) {
 	f.approve(t, err)
 	_, err = f.svc.Fix(f.mcp, d.ID, true)
 	require.NoError(t, err)
-	require.Equal(t, ipA, f.fake.records("z1", "app.example.com")[0].Content)
+	require.Equal(t, ipA, f.fake.records("app.example.com")[0].Content)
 }
 
 // Fix without adopt never replaces a record and is not guarded; a person adopting is never asked.
 func TestFixWithoutAdoptIsNotGuardedAndPeopleAreNeverAsked(t *testing.T) {
 	f := newGuardEnv(t)
-	f.fake.put("z1", Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99"})
+	f.fake.put(Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99"})
 	d := f.domain(t, "app.example.com", "")
 	f.fake.resetWrites()
 
@@ -288,14 +289,14 @@ func TestFixWithoutAdoptIsNotGuardedAndPeopleAreNeverAsked(t *testing.T) {
 	st, err := f.svc.Fix(f.user, d.ID, true)
 	require.NoError(t, err)
 	require.Equal(t, StatusManaged, st.Status)
-	require.Equal(t, ipA, f.fake.records("z1", "app.example.com")[0].Content)
+	require.Equal(t, ipA, f.fake.records("app.example.com")[0].Content)
 }
 
 // The adopt guard comes after the zone-admin check: a token without the admin
 // scope is refused outright, not asked.
 func TestAdoptNeedsZoneAdminBeforeTheGuard(t *testing.T) {
 	f := newGuardEnv(t)
-	f.fake.put("z1", Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99"})
+	f.fake.put(Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99"})
 	d := f.domain(t, "app.example.com", "")
 	tok := uuid.New()
 	p, _ := auth.PrincipalFrom(f.rest)

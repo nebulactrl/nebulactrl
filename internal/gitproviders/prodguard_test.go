@@ -14,6 +14,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 )
 
@@ -63,7 +64,7 @@ func TestLinkAndUnlinkInProductionNeedApprovalForRESTTokens(t *testing.T) {
 	f.giteaRepo("main")
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: f.box})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 	sv := f.gitService("api")
 	rest := f.restToken()
 	in := gitproviders.LinkInput{ConnectionID: conn.Connection.ID, Repo: "acme/shop", Branch: "agent-tmp"}

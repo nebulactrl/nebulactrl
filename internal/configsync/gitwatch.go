@@ -841,9 +841,10 @@ func (g *GitSync) async(fn func(ctx context.Context)) {
 	}()
 }
 
-// refresh checks an environment's file soon (debounced): the status after a
-// binding or source change. It writes nothing but the status.
-func (g *GitSync) refresh(environmentID uuid.UUID) {
+// Refresh implements Binding: it checks an environment's file soon (debounced),
+// the status after a binding or source change or a dashboard apply. It writes
+// nothing but the status.
+func (g *GitSync) Refresh(environmentID uuid.UUID) {
 	if g.planner == nil || g.q == nil {
 		return
 	}
@@ -880,7 +881,7 @@ func (g *GitSync) refresh(environmentID uuid.UUID) {
 // or its repository, branch, build context, server or token changed, so the
 // file may now live somewhere else. It only schedules a status refresh.
 func (g *GitSync) GitSourceChanged(_ context.Context, sc services.Scope) {
-	g.refresh(sc.EnvironmentID)
+	g.Refresh(sc.EnvironmentID)
 }
 
 // ---- pushes ----

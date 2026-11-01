@@ -1,4 +1,6 @@
-package releasesign
+// Package releasesigntest signs with a key of its own, for tests of the release
+// verification (internal/releasesign) and of the installer that embeds it.
+package releasesigntest
 
 import (
 	"crypto/ed25519"
@@ -8,8 +10,14 @@ import (
 	"golang.org/x/crypto/blake2b"
 )
 
+// The minisign layout of releasesign: algorithm tag and key id length.
+const (
+	algPrehashed = "ED"
+	keyIDLen     = 8
+)
+
 // Signer makes minisign-compatible prehashed signatures. Release signing is done
-// by minisign in CI; this exists for tests that need a key of their own.
+// by minisign in CI.
 type Signer struct {
 	priv ed25519.PrivateKey
 	id   [keyIDLen]byte

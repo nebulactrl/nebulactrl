@@ -143,27 +143,27 @@ func (a *Aggregator) Add(ev Event) {
 	if ev.Status >= 500 {
 		e5 = 1
 	}
-	c.paths.add(path, 1, e5, ev.BytesOut, ev.DurationMs)
-	c.devices.add(client.Device, 1, e5, ev.BytesOut, ev.DurationMs)
+	c.paths.add(path, e5, ev.BytesOut, ev.DurationMs)
+	c.devices.add(client.Device, e5, ev.BytesOut, ev.DurationMs)
 	if ev.Status == 404 {
-		c.notFound.add(path, 1, 0, 0, 0)
+		c.notFound.add(path, 0, 0, 0)
 	}
 
 	document := isDocument(ev)
 	if document {
 		c.documents++
-		c.pages.add(path, 1, e5, ev.BytesOut, ev.DurationMs)
+		c.pages.add(path, e5, ev.BytesOut, ev.DurationMs)
 	}
 
 	if client.Bot {
 		c.bots++
 		return
 	}
-	c.browsers.add(client.Browser, 1, 0, 0, 0)
-	c.oses.add(client.OS, 1, 0, 0, 0)
+	c.browsers.add(client.Browser, 0, 0, 0)
+	c.oses.add(client.OS, 0, 0, 0)
 	if document {
 		if ref := ReferrerHost(ev.Referer, ev.Host); ref != "" {
-			c.referrers.add(ref, 1, 0, 0, 0)
+			c.referrers.add(ref, 0, 0, 0)
 		}
 	}
 	if c.hll == nil {
@@ -268,10 +268,10 @@ func (c *acc) bucket(k accKey) agentprotocol.TrafficBucket {
 		}
 	}
 	b.Top = agentprotocol.TrafficTop{
-		Paths: c.paths.top(agentprotocol.TopN), Pages: c.pages.top(agentprotocol.TopN),
-		Referrers: c.referrers.top(agentprotocol.TopN), Browsers: c.browsers.top(agentprotocol.TopN),
-		OS: c.oses.top(agentprotocol.TopN), Devices: c.devices.top(agentprotocol.TopN),
-		NotFound: c.notFound.top(agentprotocol.TopN),
+		Paths: c.paths.top(), Pages: c.pages.top(),
+		Referrers: c.referrers.top(), Browsers: c.browsers.top(),
+		OS: c.oses.top(), Devices: c.devices.top(),
+		NotFound: c.notFound.top(),
 	}
 	b.Geo = c.geo.bucket()
 	return b
@@ -287,15 +287,15 @@ type topN struct {
 
 func newTopN() *topN { return &topN{m: map[string]*agentprotocol.TopEntry{}} }
 
-func (t *topN) add(k string, n, e, b int64, ms float64) {
+func (t *topN) add(k string, e, b int64, ms float64) {
 	if e2 := t.m[k]; e2 != nil {
-		e2.N += n
+		e2.N++
 		e2.E += e
 		e2.B += b
 		e2.Ms += ms
 		return
 	}
-	t.m[k] = &agentprotocol.TopEntry{K: k, N: n, E: e, B: b, Ms: ms}
+	t.m[k] = &agentprotocol.TopEntry{K: k, N: 1, E: e, B: b, Ms: ms}
 	if len(t.m) > 2*liveTopCap {
 		t.compact(liveTopCap)
 	}
@@ -330,18 +330,19 @@ func addTo(dst *agentprotocol.TopEntry, v agentprotocol.TopEntry) {
 	dst.Ms += v.Ms
 }
 
-// top returns the limit largest entries plus an "Other" entry for the rest.
-func (t *topN) top(limit int) []agentprotocol.TopEntry {
+// top returns the agentprotocol.TopN largest entries plus an "Other" entry for
+// the rest.
+func (t *topN) top() []agentprotocol.TopEntry {
 	all := t.sorted()
 	if len(all) == 0 && t.other.N == 0 {
 		return nil
 	}
 	other := t.other
-	if len(all) > limit {
-		for _, v := range all[limit:] {
+	if len(all) > agentprotocol.TopN {
+		for _, v := range all[agentprotocol.TopN:] {
 			addTo(&other, v)
 		}
-		all = all[:limit]
+		all = all[:agentprotocol.TopN]
 	}
 	if other.N > 0 {
 		other.K = agentprotocol.OtherKey

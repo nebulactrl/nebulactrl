@@ -14,7 +14,7 @@
 
 import type { StreamStatus } from "./stream-hub";
 
-export const FEED_LOCK = "nebulactrl-events-feed";
+const FEED_LOCK = "nebulactrl-events-feed";
 
 export type FeedMessage<T> =
 	| { t: "event"; event: T }
@@ -38,7 +38,7 @@ export interface FeedChannel<T> {
 	close(): void;
 }
 
-export interface FeedHandlers<T> {
+interface FeedHandlers<T> {
 	onEvent(event: T): void;
 	onStatus(status: StreamStatus): void;
 }

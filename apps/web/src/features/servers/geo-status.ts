@@ -17,7 +17,7 @@ export interface GeoDatabase {
 	error?: string | undefined;
 }
 
-export interface GeoStatusRow {
+interface GeoStatusRow {
 	label: string;
 	value: string;
 	/** The exact time behind a relative value. */

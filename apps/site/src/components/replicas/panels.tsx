@@ -109,7 +109,7 @@ export function ServersMini() {
 }
 
 /** The catalog's seven engines in the order the product lists them: the default key value engine leads. */
-export const ENGINES: {
+const ENGINES: {
 	name: string;
 	kind: string;
 	note?: "Default" | "Opt in";

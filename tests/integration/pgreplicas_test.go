@@ -180,7 +180,7 @@ func networksOf(t *testing.T, containerID string) map[string]bool {
 	names := strings.Fields(inspectFmt(t, containerID, `{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}`))
 	out := map[string]bool{}
 	for _, n := range names {
-		out[n] = strings.TrimSpace(mustSh(t, "docker", "network", "inspect", "-f", "{{.Internal}}", n)) == "true"
+		out[n] = strings.TrimSpace(mustSh(t, "network", "inspect", "-f", "{{.Internal}}", n)) == "true"
 	}
 	return out
 }
@@ -430,17 +430,17 @@ func TestReplicaSameServerStreamsAndReads(t *testing.T) {
 
 	// ---- an emptied data volume: exit 3, never initdb ------------------------
 	cid := s.RunningContainers(r.ID)[0].ID
-	mustSh(t, "docker", "stop", cid)
+	mustSh(t, "stop", cid)
 	vol := dataVolume(r.ID)
-	mustSh(t, "docker", "run", "--rm", "-v", vol+":/v", "alpine:3", "sh", "-c", "find /v -mindepth 1 -delete")
-	mustSh(t, "docker", "start", cid)
+	mustSh(t, "run", "--rm", "-v", vol+":/v", "alpine:3", "sh", "-c", "find /v -mindepth 1 -delete")
+	mustSh(t, "start", cid)
 	require.Truef(t, eventually(60*time.Second, time.Second, func() bool {
 		return inspectFmt(t, cid, "{{.State.ExitCode}}") == "3"
 	}), "an empty replica data directory must exit with code 3, got %s", inspectFmt(t, cid, "{{.State.ExitCode}} {{.State.Status}}"))
-	logs := mustSh(t, "docker", "logs", cid)
+	logs := mustSh(t, "logs", cid)
 	require.Contains(t, logs, "replica data directory is empty")
-	mustSh(t, "docker", "stop", cid)
-	require.Empty(t, strings.TrimSpace(mustSh(t, "docker", "run", "--rm", "-v", vol+":/v", "alpine:3", "ls", "-A", "/v")),
+	mustSh(t, "stop", cid)
+	require.Empty(t, strings.TrimSpace(mustSh(t, "run", "--rm", "-v", vol+":/v", "alpine:3", "ls", "-A", "/v")),
 		"the replica start command must write nothing (no initdb of a fresh, non-replicating primary)")
 
 	// ---- rebuild: a fresh clone, streaming again -------------------------------
@@ -532,7 +532,7 @@ func TestReplicaSameServerPromoteSwitchover(t *testing.T) {
 	require.NoError(t, s.Pool.QueryRow(ctx, `SELECT count(*) FROM database_fences WHERE service_id = $1`, pg.ID).Scan(&fenced))
 	require.Equal(t, 1, fenced)
 	require.Equal(t, "fenced", s.replicationView(pg.ID).Str("role"))
-	require.Contains(t, mustSh(t, "docker", "volume", "ls", "-q", "--filter", "name="+dataVolume(pg.ID)), dataVolume(pg.ID), "the old primary's data is kept")
+	require.Contains(t, mustSh(t, "volume", "ls", "-q", "--filter", "name="+dataVolume(pg.ID)), dataVolume(pg.ID), "the old primary's data is kept")
 	// With no replicas left the new primary is a plain database: its role is
 	// "standalone" (a "primary" is a database that has replicas).
 	require.Equal(t, "standalone", s.replicationView(r.ID).Str("role"))
@@ -601,7 +601,7 @@ func TestReplicaSameServerRemoveDropsSlot(t *testing.T) {
 		"SELECT count(*) FROM pg_hba_file_rules WHERE 'replication' = ANY(database) AND '"+repl+"' = ANY(user_name)"), "the pg_hba line is removed")
 	require.Equal(t, "0", pgExec(t, s, pg.ID, "SELECT count(*) FROM pg_stat_replication"))
 	require.Empty(t, s.RunningContainers(r.ID), "the replica container is removed")
-	require.NotContains(t, mustSh(t, "docker", "volume", "ls", "-q", "--filter", "name="+dataVolume(r.ID)), dataVolume(r.ID), "a removed replica's volume goes with it")
+	require.NotContains(t, mustSh(t, "volume", "ls", "-q", "--filter", "name="+dataVolume(r.ID)), dataVolume(r.ID), "a removed replica's volume goes with it")
 
 	// The primary has no replicas again: it can be deleted/upgraded like any database,
 	// and its reader falls back to the writer.

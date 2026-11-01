@@ -4,7 +4,7 @@ import type { ServerCertificate } from "#/api/gen/types.gen";
 
 const DAY_MS = 86_400_000;
 
-export type ExpiryTone = "ok" | "warn" | "bad";
+type ExpiryTone = "ok" | "warn" | "bad";
 
 export interface CertExpiry {
 	/** Share of the validity window still ahead, 0..1 (0 when expired or not yet valid). */
@@ -16,8 +16,8 @@ export interface CertExpiry {
 }
 
 /** Amber under 30 days left, red under 7 or when expired. */
-export const EXPIRY_WARN_DAYS = 30;
-export const EXPIRY_BAD_DAYS = 7;
+const EXPIRY_WARN_DAYS = 30;
+const EXPIRY_BAD_DAYS = 7;
 
 export function certExpiry(
 	cert: Pick<ServerCertificate, "notBefore" | "notAfter">,

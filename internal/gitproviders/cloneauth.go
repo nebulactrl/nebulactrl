@@ -37,7 +37,7 @@ func cloneURLMatchesLink(c db.GitConnection, drv driver, repo, gitURL string, re
 			}
 			web = true
 		case "ssh": // authenticates with a deploy key
-		default: // file://, ftp://…: not a repository the connection's credentials can serve
+		default: // any other scheme (file, ftp, ...) is not a repository the connection's credentials can serve
 			return false
 		}
 	}
@@ -100,7 +100,7 @@ func (s *Service) CloneAuth(ctx context.Context, serviceID uuid.UUID, gitURL str
 		return agentprotocol.GitAuth{}, fmt.Errorf("load git link: %w", err)
 	}
 	if anonymousScheme(gitURL) {
-		return agentprotocol.GitAuth{}, nil // git:// cannot carry a credential: an anonymous clone
+		return agentprotocol.GitAuth{}, nil // the git protocol cannot carry a credential: an anonymous clone
 	}
 	c, err := s.loadConnectionInternal(ctx, sg.ConnectionID)
 	if err != nil {

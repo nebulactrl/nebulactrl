@@ -16,7 +16,7 @@ import { FUNCTION_SNIPPETS } from "./generator";
 // A reference to another service's variable. It is this product's own
 // syntax, not a JavaScript template.
 export const REFERENCE_OPEN = "${{";
-export const REFERENCE_CLOSE = "}}";
+const REFERENCE_CLOSE = "}}";
 
 /** What the platform injects into every service, in display order. */
 export const PLATFORM_REFERENCE_KEYS = [
@@ -38,10 +38,10 @@ export const SHARED_NAMESPACE = "shared";
 export const TEAM_NAMESPACE = "team";
 
 /** The scheme of a secret manager reference: `${{vault:<name>/<path>#<key>}}`. */
-export const VAULT_SCHEME = "vault";
+const VAULT_SCHEME = "vault";
 
 /** The scheme of a Doppler reference: `${{doppler:<name>[/<project>/<config>]#<key>}}`. */
-export const DOPPLER_SCHEME = "doppler";
+const DOPPLER_SCHEME = "doppler";
 
 /**
  * What may sit between `${{` and the caret: optional blanks, then a partial
@@ -72,7 +72,7 @@ export interface ReferenceService {
 	exports?: readonly { key: string; description?: string; secret: boolean }[];
 }
 
-export type CandidateKind =
+type CandidateKind =
 	| "variable"
 	| "platform"
 	| "export"

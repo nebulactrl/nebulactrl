@@ -64,8 +64,10 @@ Commit generated output; never edit it by hand. `make generate` rebuilds all of 
 ## Conventions
 
 - Go: standard `gofmt`, errors wrapped with `%w`, `log/slog` JSON logging, `context.Context` first. Deployment log lines carry `correlation_id` = deployment ID.
-- Go lint: `make lint-go` runs a pinned golangci-lint v2 (config in `.golangci.yml`: the `standard` linters plus `gosec`, `errorlint`, `bodyclose`, `gofmt`) over every package, including the `integration`-tagged tests. Fix findings rather than silencing them; when a finding is a false positive, add `//nolint:<linter> // <reason>` on that line, and keep new config exclusions narrow, with a reason.
+- Go lint: `make lint-go` runs a pinned golangci-lint v2 (config in `.golangci.yml`: the `standard` linters plus `gosec`, `errorlint`, `bodyclose`, `nilerr`, `unparam`, the diagnostic checks of `gocritic`, and `gofmt`) over every package, including the `integration`-tagged tests. Fix findings rather than silencing them; when a finding is a false positive, add `//nolint:<linter> // <reason>` on that line, and keep new config exclusions narrow, with a reason.
+- Dead code: `make lint-dead` runs `scripts/ci/deadcode.sh` (Go functions no `main` package reaches; production code that only tests call counts as dead) and `scripts/ci/knip.sh` (unused files, exports and dependencies of the Bun workspace, configured in `knip.json`). Delete what they report; generated code is excluded in the scripts.
 - TypeScript: biome (tabs, double quotes), strict `tsc`, the `#/*` import alias.
+- Coverage: CI uploads the Go and web unit-test coverage to [Codecov](https://app.codecov.io/gh/nebulactrl/nebulactrl). It is informational: a pull request gets a coverage comment and status, never a failure.
 - Web motion and surfaces follow the tokens in `apps/web/src/styles.css`; animate named properties only (never `transition-all`), and gate motion with `MotionConfig reducedMotion="user"`.
 - Decisions that change the architecture get an ADR in `docs/decisions/` (Context, Decision, Consequences, Alternatives).
 - Commits follow [Conventional Commits](https://www.conventionalcommits.org/) (see [Commits and versions](#commits-and-versions)); one logical change per commit.
@@ -76,7 +78,7 @@ GitHub Actions runs on standard GitHub-hosted runners (`ubuntu-24.04`; `ubuntu-2
 
 | Workflow | When | What |
 |---|---|---|
-| `ci` | every pull request to `main`, every push to `main`, on demand, and as a release gate | tier 1 (`go vet`, `go test` in 3 shards, web typecheck/lint/test/build), tier 2 (the smoke Docker scenarios), and the static checks: workflow rules + actionlint + zizmor, govulncheck, golangci-lint and, on pull requests, dependency review |
+| `ci` | every pull request to `main`, every push to `main`, on demand, and as a release gate | tier 1 (`go vet`, `go test` in 3 shards, web typecheck/lint/knip/test/build, with coverage uploaded to Codecov), tier 2 (the smoke Docker scenarios), and the static checks: workflow rules + actionlint + zizmor, govulncheck, golangci-lint + deadcode and, on pull requests, dependency review |
 | `docs` | every pull request to `main`, every push to `main`, on demand, and as a release gate | docs links, search index, web and site builds |
 | `full` | nightly (03:17 UTC, on `main`), on demand (`templates: sample` or `all`; `run` for a focused repeat of chosen tests), and as a release gate | tier 3, every Docker scenario, in 4 shards |
 | `security` | nightly (04:41 UTC, on `main`), on demand, and on a push to `main` that changes `bun.lock`, `go.mod` or `go.sum` | govulncheck, osv-scanner over `bun.lock` and `go.mod`, and a Grype scan of `ghcr.io/nebulactrl/nebulactrl:latest` whose findings go to code scanning (skipped while no release exists) |

@@ -130,26 +130,24 @@ func (s *Service) SyncServer(ctx context.Context, serverID uuid.UUID, force bool
 		}
 	}
 	return db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		_, err := s.enqueueSync(ctx, tx, serverID, want)
-		return err
+		return s.enqueueSync(ctx, tx, serverID, want)
 	})
 }
 
 // enqueueSync stores a sync_mesh command with the complete set. The payload
 // holds no key: it is minted when the command is sent.
-func (s *Service) enqueueSync(ctx context.Context, tx pgx.Tx, serverID uuid.UUID, nodes []agentprotocol.MeshNodeSpec) (uuid.UUID, error) {
+func (s *Service) enqueueSync(ctx context.Context, tx pgx.Tx, serverID uuid.UUID, nodes []agentprotocol.MeshNodeSpec) error {
 	if nodes == nil {
 		nodes = []agentprotocol.MeshNodeSpec{}
 	}
 	raw, err := json.Marshal(agentprotocol.SyncMeshPayload{Nodes: nodes})
 	if err != nil {
-		return uuid.Nil, err
+		return err
 	}
-	id, err := s.disp.Enqueue(ctx, tx, agents.NewCommand{ServerID: serverID, Kind: agentprotocol.KindSyncMesh, Payload: raw})
-	if err != nil {
-		return uuid.Nil, fmt.Errorf("enqueue sync_mesh: %w", err)
+	if _, err := s.disp.Enqueue(ctx, tx, agents.NewCommand{ServerID: serverID, Kind: agentprotocol.KindSyncMesh, Payload: raw}); err != nil {
+		return fmt.Errorf("enqueue sync_mesh: %w", err)
 	}
-	return id, nil
+	return nil
 }
 
 // SecretsForCommand attaches the send-time node keys of a sync_mesh command:

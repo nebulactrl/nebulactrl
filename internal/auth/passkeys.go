@@ -152,14 +152,14 @@ func (s *Service) takeCeremony(ctx context.Context, sm *scs.SessionManager, kind
 }
 
 // loadPasskeyUser loads the account and its credentials in WebAuthn form.
-func (s *Service) loadPasskeyUser(ctx context.Context, q *db.Queries, userID uuid.UUID) (*waUser, []db.UserPasskey, error) {
+func (s *Service) loadPasskeyUser(ctx context.Context, q *db.Queries, userID uuid.UUID) (*waUser, error) {
 	u, err := q.GetUser(ctx, userID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("get user: %w", err)
+		return nil, fmt.Errorf("get user: %w", err)
 	}
 	rows, err := q.ListUserPasskeys(ctx, userID)
 	if err != nil {
-		return nil, nil, fmt.Errorf("list passkeys: %w", err)
+		return nil, fmt.Errorf("list passkeys: %w", err)
 	}
 	wu := &waUser{id: userHandle(u.ID), name: u.Email, disp: u.Name, creds: make([]webauthn.Credential, 0, len(rows))}
 	if wu.disp == "" {
@@ -168,11 +168,11 @@ func (s *Service) loadPasskeyUser(ctx context.Context, q *db.Queries, userID uui
 	for _, r := range rows {
 		var c webauthn.Credential
 		if err := json.Unmarshal(r.Credential, &c); err != nil {
-			return nil, nil, fmt.Errorf("decode passkey %s: %w", r.ID, err)
+			return nil, fmt.Errorf("decode passkey %s: %w", r.ID, err)
 		}
 		wu.creds = append(wu.creds, c)
 	}
-	return wu, rows, nil
+	return wu, nil
 }
 
 func descriptors(creds []webauthn.Credential) []protocol.CredentialDescriptor {
@@ -208,7 +208,7 @@ func (s *Service) ListPasskeys(ctx context.Context, userID uuid.UUID) ([]Passkey
 	return out, nil
 }
 
-func (s *Service) checkPassword(ctx context.Context, u db.User, password string) error {
+func (s *Service) checkPassword(u db.User, password string) error {
 	if u.PasswordHash == "" {
 		return nil
 	}
@@ -233,10 +233,10 @@ func (s *Service) BeginPasskeyRegistration(ctx context.Context, sm *scs.SessionM
 	if err != nil {
 		return nil, fmt.Errorf("get user: %w", err)
 	}
-	if err := s.checkPassword(ctx, u, password); err != nil {
+	if err := s.checkPassword(u, password); err != nil {
 		return nil, err
 	}
-	wu, _, err := s.loadPasskeyUser(ctx, s.q, userID)
+	wu, err := s.loadPasskeyUser(ctx, s.q, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -270,7 +270,7 @@ func (s *Service) FinishPasskeyRegistration(ctx context.Context, tx pgx.Tx, sm *
 		return nil, nil, err
 	}
 	q := s.q.WithTx(tx)
-	wu, _, err := s.loadPasskeyUser(ctx, q, userID)
+	wu, err := s.loadPasskeyUser(ctx, q, userID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -347,7 +347,7 @@ func (s *Service) DeletePasskey(ctx context.Context, tx pgx.Tx, userID, id uuid.
 	if err != nil {
 		return fmt.Errorf("get user: %w", err)
 	}
-	if err := s.checkPassword(ctx, u, password); err != nil {
+	if err := s.checkPassword(u, password); err != nil {
 		return err
 	}
 	if _, err := q.GetUserPasskey(ctx, db.GetUserPasskeyParams{ID: id, UserID: userID}); errors.Is(err, pgx.ErrNoRows) {
@@ -425,7 +425,7 @@ func (s *Service) FinishPasskeyLogin(ctx context.Context, sm *scs.SessionManager
 		if err != nil {
 			return nil, errors.New("unknown user handle")
 		}
-		wu, _, err := s.loadPasskeyUser(ctx, s.q, id)
+		wu, err := s.loadPasskeyUser(ctx, s.q, id)
 		if err != nil {
 			return nil, err
 		}
@@ -493,7 +493,7 @@ func (s *Service) BeginPasskeySecondFactor(ctx context.Context, sm *scs.SessionM
 	if err != nil {
 		return nil, err
 	}
-	wu, _, err := s.loadPasskeyUser(ctx, s.q, id)
+	wu, err := s.loadPasskeyUser(ctx, s.q, id)
 	if err != nil {
 		return nil, err
 	}
@@ -532,7 +532,7 @@ func (s *Service) CompletePasskeySecondFactor(ctx context.Context, sm *scs.Sessi
 	if err != nil {
 		return nil, err
 	}
-	wu, _, err := s.loadPasskeyUser(ctx, s.q, id)
+	wu, err := s.loadPasskeyUser(ctx, s.q, id)
 	if err != nil {
 		return nil, err
 	}

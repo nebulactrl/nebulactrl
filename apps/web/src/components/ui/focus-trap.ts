@@ -27,7 +27,7 @@ function isTabbable(element: HTMLElement, container: HTMLElement): boolean {
  * control is skipped, so a dialog whose last button is disabled still has a
  * real last stop.
  */
-export function tabbableWithin(container: HTMLElement): HTMLElement[] {
+function tabbableWithin(container: HTMLElement): HTMLElement[] {
 	return Array.from(container.querySelectorAll<HTMLElement>(TABBABLE)).filter(
 		(element) => isTabbable(element, container),
 	);

@@ -23,7 +23,7 @@ import {
 import { Disclosure } from "./parts";
 
 /** Under a restricted problem on a server that is not unrestricted. */
-export const ASK_ADMIN_HINT =
+const ASK_ADMIN_HINT =
 	"Ask an admin to enable Unrestricted for this server, or remove these settings from the Compose file.";
 
 function Section({

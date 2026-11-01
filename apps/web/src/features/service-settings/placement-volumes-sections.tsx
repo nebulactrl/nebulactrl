@@ -26,7 +26,7 @@ import {
 	SelectRow,
 } from "./fields";
 
-export function headroom(server: Server): string {
+function headroom(server: Server): string {
 	if (!server.latest)
 		return server.status === "online" ? "no sample yet" : server.status;
 	const { cpuPercent, memUsed, memTotal, diskUsed, diskTotal } = server.latest;
@@ -41,7 +41,7 @@ export function headroom(server: Server): string {
  * service whose Docker options need that tier; the server the service is
  * placed on now (`current`) stays choosable so the form can show where it is.
  */
-export function serverOptions(
+function serverOptions(
 	servers: readonly Server[],
 	needsUnrestricted = false,
 	current = "",

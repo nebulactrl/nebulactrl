@@ -190,6 +190,12 @@ func (s *Service) Apply(ctx context.Context, projectID uuid.UUID, r ApplyRequest
 
 	// Phase 4: events.
 	a.publish()
+
+	// The stored status of the environment's file ("differs") is stale after a write.
+	// A git auto-apply plans again itself and stores its own status.
+	if result.Status != StatusNoop && s.binding != nil && originOf(a.p.src, prin) != OriginGit {
+		s.binding.Refresh(a.p.env.Env.ID)
+	}
 	return result, nil
 }
 

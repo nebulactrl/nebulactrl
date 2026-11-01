@@ -110,6 +110,13 @@ func As(err error) (*Error, bool) {
 	return nil, false
 }
 
+// IsNotFound reports whether err's chain holds a 404 *Error, as the Load*
+// helpers (services.LoadScopeInternal and friends) report a missing row.
+func IsNotFound(err error) bool {
+	e, ok := As(err)
+	return ok && e.Status == http.StatusNotFound
+}
+
 // codeForStatus maps framework-generated statuses to stable codes.
 func codeForStatus(status int) string {
 	switch status {

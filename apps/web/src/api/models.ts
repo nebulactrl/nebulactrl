@@ -16,13 +16,13 @@ import { type MeshPlan, toMeshPlan } from "#/features/mesh/model";
 import type * as Gen from "./gen/types.gen";
 
 export type ServiceKind = Gen.ServiceView["kind"];
-export type ServiceSourceType = Gen.ServiceView["sourceType"];
+type ServiceSourceType = Gen.ServiceView["sourceType"];
 export type ServerStatus = Gen.Server["status"];
-export type DeploymentStrategy = Gen.DeploymentView["strategy"];
-export type DeploymentTrigger = Gen.DeploymentView["trigger"];
+type DeploymentStrategy = Gen.DeploymentView["strategy"];
+type DeploymentTrigger = Gen.DeploymentView["trigger"];
 export type HealthcheckType = NonNullable<Gen.HealthcheckInput["type"]>;
 
-export const DEPLOYMENT_STATUSES = [
+const DEPLOYMENT_STATUSES = [
 	"created",
 	"queued",
 	"preparing",
@@ -42,7 +42,7 @@ export function asDeploymentStatus(value: string): DeploymentStatus {
 	return STATUS_SET.has(value) ? (value as DeploymentStatus) : "failed";
 }
 
-export type Healthcheck = Omit<Gen.Healthcheck, "type"> & {
+type Healthcheck = Omit<Gen.Healthcheck, "type"> & {
 	type: HealthcheckType;
 };
 
@@ -55,7 +55,7 @@ export type ProcessConfig = Omit<
 	startCommand: string[];
 };
 
-export type ServiceConfig = Omit<
+type ServiceConfig = Omit<
 	Gen.Config,
 	"healthcheck" | "startCommand" | "processes"
 > & {
@@ -65,7 +65,7 @@ export type ServiceConfig = Omit<
 	processes: ProcessConfig[];
 };
 
-export interface ServiceServerRef {
+interface ServiceServerRef {
 	id: string;
 	name: string;
 	status: ServerStatus;
@@ -91,22 +91,19 @@ export interface LatestDeployment {
 
 export type ReleaseSource = Gen.ReleaseSource;
 
-export interface CurrentRelease {
+interface CurrentRelease {
 	id: string;
 	imageRef: string;
 	source: ReleaseSource;
 }
 
-export type ObservedState = Gen.ObservedView;
+type ObservedState = Gen.ObservedView;
 
 /** What the agent reports of one process: its containers aggregated. */
 export type ObservedProcess = Gen.ObservedProcessView;
 
 /** One process of a service (the default one first), with its own scaling and state. */
-export type ProcessView = Omit<
-	Gen.ProcessView,
-	"command" | "scaling" | "observed"
-> & {
+type ProcessView = Omit<Gen.ProcessView, "command" | "scaling" | "observed"> & {
 	command: string[];
 	scaling: Scaling;
 	/** Null until the agent has reported the process. */
@@ -285,7 +282,7 @@ export interface CanvasGroup {
 	serviceIds: string[];
 }
 
-export type CanvasViewport = Gen.Viewport;
+type CanvasViewport = Gen.Viewport;
 
 /** What the canvas persists per environment; never read by deployment code. */
 export interface CanvasLayout {
@@ -335,7 +332,7 @@ export interface Deployment {
 }
 
 export type VariableScope = Gen.Variable["scope"];
-export type VariableSource = Gen.Variable["source"];
+type VariableSource = Gen.Variable["source"];
 
 export interface Variable {
 	key: string;
@@ -497,7 +494,7 @@ function toProcess(view: Gen.ProcessView): ProcessView {
 	};
 }
 
-export function toDomain(view: Gen.DomainView): ServiceDomain {
+function toDomain(view: Gen.DomainView): ServiceDomain {
 	return {
 		id: view.id,
 		hostname: view.hostname,

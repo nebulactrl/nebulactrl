@@ -13,7 +13,7 @@ import {
 import { toast } from "#/components/ui/toast";
 
 /** How long a drag must rest before the layout is written back. */
-export const SAVE_DEBOUNCE_MS = 500;
+const SAVE_DEBOUNCE_MS = 500;
 
 const ERROR_TOAST_GAP_MS = 60_000;
 

@@ -114,8 +114,7 @@ func (g *fakeGitea) connect(h *harness) (id, secret string) {
 
 func withDatabaseExports(t *testing.T) {
 	t.Helper()
-	prev := services.CurrentExportProvider()
-	services.RegisterExportProvider(func(in services.ExportInput) []services.Export {
+	prev := services.RegisterExportProvider(func(in services.ExportInput) []services.Export {
 		if in.Kind != services.KindDatabase {
 			return nil
 		}

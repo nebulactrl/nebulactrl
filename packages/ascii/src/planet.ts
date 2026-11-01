@@ -44,8 +44,8 @@ import { VERT } from "./shader";
 /** A cell is this many CSS px across. */
 export const PLANET_CELL_CSS_PX = 2;
 /** The light and the cursor weight ease toward their targets by this share per 60 Hz frame. */
-export const LIGHT_EASE = 0.08;
-export const POINTER_EASE = 0.06;
+const LIGHT_EASE = 0.08;
+const POINTER_EASE = 0.06;
 /** Where the light sits before any pointer has been over the canvas (canvas fractions, y up). */
 const REST_CURSOR = [0.7, 0.6] as const;
 /** The hard quiet region: rect only, one cell of feather, nothing at all inside. */

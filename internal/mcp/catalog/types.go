@@ -129,15 +129,6 @@ const (
 	DetailFull    Detail = "full"
 )
 
-// ParseDetail maps the tool argument to a Detail; empty and unknown values
-// are concise.
-func ParseDetail(s string) Detail {
-	if s == string(DetailFull) {
-		return DetailFull
-	}
-	return DetailConcise
-}
-
 // Confirm describes a REST confirmation argument the caller must echo for an
 // irreversible operation. It is a speed bump and a statement of intent, never
 // the production control (see ProdGuard).

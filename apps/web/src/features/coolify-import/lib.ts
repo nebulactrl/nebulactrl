@@ -346,7 +346,7 @@ export function draftSecrets(
 
 // --- what a plan says ---------------------------------------------------------
 
-export type Severity = "danger" | "warning" | "info";
+type Severity = "danger" | "warning" | "info";
 
 const SEVERITY_RANK: Record<Severity, number> = {
 	danger: 0,
@@ -473,9 +473,7 @@ export function envRowState(
 }
 
 /** The resources of a project, environment by environment. */
-export function projectResources(
-	project: CoolifyPlanProject,
-): CoolifyPlanResource[] {
+function projectResources(project: CoolifyPlanProject): CoolifyPlanResource[] {
 	return (project.environments ?? []).flatMap(
 		(environment) => environment.resources ?? [],
 	);
@@ -641,12 +639,12 @@ const ENGINE_LABEL: Record<string, string> = {
 	clickhouse: "ClickHouse",
 };
 
-export function engineLabel(engine: string): string {
+function engineLabel(engine: string): string {
 	return ENGINE_LABEL[engine] ?? engine;
 }
 
 /** The image reference as the row shows it: no digest. */
-export function shortImage(image: string): string {
+function shortImage(image: string): string {
 	return (image.split("@")[0] ?? image).replace(
 		/^(docker\.io|registry-1\.docker\.io)\//,
 		"",

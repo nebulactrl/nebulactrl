@@ -347,7 +347,7 @@ func TestGitLabOAuthFlowAndRefresh(t *testing.T) {
 		require.ErrorAs(t, err, &ae, u)
 		require.Equal(t, "git_link_mismatch", ae.Code, u)
 	}
-	// git:// has no authentication: the clone is anonymous and never carries the token.
+	// The git protocol has no authentication: the clone is anonymous and never carries the token.
 	anon, err := f.svc.CloneAuth(context.Background(), svc.ID, strings.Replace(gl.srv.URL, "http://", "git://", 1)+"/attacker/repo.git")
 	require.NoError(t, err)
 	require.Empty(t, anon.Token)

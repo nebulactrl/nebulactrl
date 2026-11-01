@@ -27,7 +27,7 @@ import { COMBINE_POLL_MS, isSettled } from "./model";
  * `signal`, and nothing keeps it: a plan is only as good as the moment it was
  * made (its fingerprint says which state of the services it describes).
  */
-export const combinePlanQuery = (
+const combinePlanQuery = (
 	environmentId: string,
 	serviceIds: readonly string[],
 	targetServiceId: string,
@@ -77,7 +77,7 @@ export function useCombinePlan({
 	});
 }
 
-export const combineQuery = (combineId: string) =>
+const combineQuery = (combineId: string) =>
 	queryOptions({
 		queryKey: ["combine", combineId],
 		queryFn: async ({ signal }): Promise<CombineView> => {

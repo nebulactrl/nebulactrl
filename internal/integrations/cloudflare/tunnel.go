@@ -140,7 +140,7 @@ func (c *Client) CreateTunnel(ctx context.Context, accountID, name string) (Tunn
 	}
 	var t Tunnel
 	body := map[string]string{"name": name, "config_src": "cloudflare"}
-	if err := c.do(ctx, http.MethodPost, p, nil, body, &t); err != nil {
+	if err := c.do(ctx, http.MethodPost, p, body, &t); err != nil {
 		return Tunnel{}, err
 	}
 	if !tunnelIDRe.MatchString(t.ID) {
@@ -156,7 +156,7 @@ func (c *Client) GetTunnel(ctx context.Context, accountID, tunnelID string) (Tun
 		return Tunnel{}, err
 	}
 	var t Tunnel
-	if err := c.do(ctx, http.MethodGet, p, nil, nil, &t); err != nil {
+	if err := c.do(ctx, http.MethodGet, p, nil, &t); err != nil {
 		return Tunnel{}, err
 	}
 	return t, nil
@@ -173,7 +173,7 @@ func (c *Client) PutTunnelConfig(ctx context.Context, accountID, tunnelID string
 		return errors.New("cloudflare: the last ingress rule must be a catch-all")
 	}
 	body := map[string]any{"config": map[string]any{"ingress": ingress}}
-	return c.do(ctx, http.MethodPut, p, nil, body, nil)
+	return c.do(ctx, http.MethodPut, p, body, nil)
 }
 
 // TunnelToken returns the connector token of a tunnel (what cloudflared runs
@@ -184,7 +184,7 @@ func (c *Client) TunnelToken(ctx context.Context, accountID, tunnelID string) (s
 		return "", err
 	}
 	var tok string
-	if err := c.do(ctx, http.MethodGet, p, nil, nil, &tok); err != nil {
+	if err := c.do(ctx, http.MethodGet, p, nil, &tok); err != nil {
 		return "", err
 	}
 	if tok == "" {
@@ -200,7 +200,7 @@ func (c *Client) TunnelConnections(ctx context.Context, accountID, tunnelID stri
 		return nil, err
 	}
 	var out []TunnelClient
-	if err := c.do(ctx, http.MethodGet, p, nil, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, p, nil, &out); err != nil {
 		return nil, err
 	}
 	return out, nil
@@ -215,14 +215,14 @@ func (c *Client) DeleteTunnel(ctx context.Context, accountID, tunnelID string) e
 	if err != nil {
 		return err
 	}
-	if err := c.do(ctx, http.MethodDelete, conns, nil, nil, nil); err != nil {
+	if err := c.do(ctx, http.MethodDelete, conns, nil, nil); err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return nil
 		}
 		return err
 	}
 	p, _ := tunnelPath(accountID, tunnelID)
-	if err := c.do(ctx, http.MethodDelete, p, nil, nil, nil); err != nil && !errors.Is(err, ErrNotFound) {
+	if err := c.do(ctx, http.MethodDelete, p, nil, nil); err != nil && !errors.Is(err, ErrNotFound) {
 		return err
 	}
 	return nil

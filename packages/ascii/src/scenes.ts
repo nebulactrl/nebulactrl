@@ -279,7 +279,7 @@ const BAND_FREE_TOP = 0.8;
  * clearance to the right, so the dense core never sits in the dimmed zone; it
  * may start up to half a half-width past the right edge when that takes.
  */
-export function bandLine(
+function bandLine(
 	W: number,
 	H: number,
 	dpr: number,

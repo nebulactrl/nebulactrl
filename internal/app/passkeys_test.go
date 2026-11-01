@@ -22,11 +22,11 @@ func newPasskeyHarness(t *testing.T) *harness {
 }
 
 // rawBody sends an already-encoded JSON document as the request body.
-func (h *harness) rawBody(method, path string, body []byte) resp {
+func (h *harness) rawBody(path string, body []byte) resp {
 	h.t.Helper()
 	var v any
 	require.NoError(h.t, json.Unmarshal(body, &v))
-	return h.do(method, path, "", v)
+	return h.do("POST", path, "", v)
 }
 
 // addPasskey registers a passkey for whoever h is signed in as and returns the
@@ -47,7 +47,7 @@ func (h *harness) passkeyLogin(a *passkeytest.Authenticator) resp {
 	require.Equal(h.t, 200, opt.Status, string(opt.Raw))
 	assertion, err := a.Get(opt.Raw)
 	require.NoError(h.t, err)
-	return h.rawBody("POST", "/auth/passkey/login", assertion)
+	return h.rawBody("/auth/passkey/login", assertion)
 }
 
 func codesOf(t *testing.T, r resp) []string {
@@ -128,7 +128,8 @@ func keyedHarness(t *testing.T) (*harness, *harness, *passkeytest.Authenticator)
 	h.setup()
 	a := passkeytest.New(passkeyOrigin)
 	require.Equal(t, 201, h.addPasskey(a, "key").Status)
-	return h, h.using(newBrowser(t)), a
+	b := h.using(newBrowser(t))
+	return h, b, a
 }
 
 func TestPasskeyLoginNeedsItsOwnCeremony(t *testing.T) {
@@ -137,11 +138,11 @@ func TestPasskeyLoginNeedsItsOwnCeremony(t *testing.T) {
 	good, err := a.Get(opt.Raw)
 	require.NoError(t, err)
 	// Another browser never asked for a challenge: its finish call is refused.
-	r := h.using(newBrowser(t)).rawBody("POST", "/auth/passkey/login", good)
+	r := h.using(newBrowser(t)).rawBody("/auth/passkey/login", good)
 	require.Equal(t, 401, r.Status, string(r.Raw))
 	require.Equal(t, "no_pending_passkey", r.JSON()["code"])
 	// The right browser can still finish it, once.
-	require.Equal(t, 200, b.rawBody("POST", "/auth/passkey/login", good).Status)
+	require.Equal(t, 200, b.rawBody("/auth/passkey/login", good).Status)
 }
 
 func TestPasskeyLoginRefusesAWrongOrigin(t *testing.T) {
@@ -152,11 +153,11 @@ func TestPasskeyLoginRefusesAWrongOrigin(t *testing.T) {
 	a.Origin = "https://evil.example" // a phishing page relays the challenge
 	bad, err := a.Get(opt.Raw)
 	require.NoError(t, err)
-	r := b.rawBody("POST", "/auth/passkey/login", bad)
+	r := b.rawBody("/auth/passkey/login", bad)
 	require.Equal(t, 401, r.Status, string(r.Raw))
 	require.Equal(t, "passkey_failed", r.JSON()["code"])
 	// The refusal burns the ceremony: the genuine answer to it no longer works.
-	require.Equal(t, 401, b.rawBody("POST", "/auth/passkey/login", good).Status)
+	require.Equal(t, 401, b.rawBody("/auth/passkey/login", good).Status)
 	require.Equal(t, 401, b.do("GET", "/me", "", nil).Status)
 }
 
@@ -166,7 +167,7 @@ func TestPasskeyLoginRefusesAnotherChallenge(t *testing.T) {
 	_ = b.do("POST", "/auth/passkey/options", "", nil) // replaces the ceremony of opt1
 	stale, err := a.Get(opt1.Raw)
 	require.NoError(t, err)
-	r := b.rawBody("POST", "/auth/passkey/login", stale)
+	r := b.rawBody("/auth/passkey/login", stale)
 	require.Equal(t, 401, r.Status, string(r.Raw))
 }
 
@@ -176,7 +177,7 @@ func TestPasskeyLoginNeedsUserVerification(t *testing.T) {
 	opt := b.do("POST", "/auth/passkey/options", "", nil)
 	noUV, err := a.Get(opt.Raw)
 	require.NoError(t, err)
-	r := b.rawBody("POST", "/auth/passkey/login", noUV)
+	r := b.rawBody("/auth/passkey/login", noUV)
 	require.Equal(t, 401, r.Status, string(r.Raw))
 	require.Equal(t, 401, b.do("GET", "/me", "", nil).Status)
 }
@@ -235,7 +236,7 @@ func TestPasskeyAsSecondFactor(t *testing.T) {
 	require.Error(t, err)
 	good, err := a.Get(opt.Raw)
 	require.NoError(t, err)
-	done := b.rawBody("POST", "/auth/2fa/passkey", good)
+	done := b.rawBody("/auth/2fa/passkey", good)
 	require.Equal(t, 200, done.Status, string(done.Raw))
 	require.Equal(t, 200, b.do("GET", "/me", "", nil).Status)
 	require.Equal(t, true, b.do("GET", "/me/security", "", nil).JSON()["sessionMfa"])
@@ -250,7 +251,7 @@ func TestPasskeyAsSecondFactor(t *testing.T) {
 	require.NoError(t, json.Unmarshal(sig, &doc))
 	doc["response"].(map[string]any)["signature"] = "AAAA"
 	broken, _ := json.Marshal(doc)
-	r := c.rawBody("POST", "/auth/2fa/passkey", broken)
+	r := c.rawBody("/auth/2fa/passkey", broken)
 	require.Equal(t, 401, r.Status, string(r.Raw))
 	require.Equal(t, "passkey_failed", r.JSON()["code"])
 	require.Equal(t, 401, c.do("GET", "/me", "", nil).Status)
@@ -373,7 +374,7 @@ func TestPasskeyManagement(t *testing.T) {
 	opt := fresh.do("POST", "/auth/passkey/options", "", nil)
 	removed, err := k1.Get(opt.Raw)
 	require.NoError(t, err)
-	require.Equal(t, 401, fresh.rawBody("POST", "/auth/passkey/login", removed).Status, "a removed passkey no longer signs in")
+	require.Equal(t, 401, fresh.rawBody("/auth/passkey/login", removed).Status, "a removed passkey no longer signs in")
 	require.Equal(t, 200, h.using(newBrowser(t)).passkeyLogin(k2).Status)
 
 	// Recovery codes remain while a passkey remains, and can be replaced with the

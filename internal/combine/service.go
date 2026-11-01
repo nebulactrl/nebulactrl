@@ -135,7 +135,7 @@ func (s *Service) Abort(ctx context.Context, id uuid.UUID) (CombineView, error) 
 	for _, f := range afters {
 		f(ctx)
 	}
-	s.publish(env, row.TargetServiceID, append([]uuid.UUID{row.TargetServiceID}, row.SourceServiceIds...))
+	s.publish(env, append([]uuid.UUID{row.TargetServiceID}, row.SourceServiceIds...))
 	return viewOf(row), nil
 }
 
@@ -273,6 +273,6 @@ func (s *Service) Retry(ctx context.Context, id uuid.UUID) (CombineView, error) 
 	if err != nil {
 		return CombineView{}, err
 	}
-	s.publish(env, row.TargetServiceID, []uuid.UUID{row.TargetServiceID})
+	s.publish(env, []uuid.UUID{row.TargetServiceID})
 	return viewOf(row), nil
 }

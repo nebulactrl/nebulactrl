@@ -143,7 +143,7 @@ func (s *stackRig) replaceStack(dep, failComp string) {
 }
 
 // spawn adds a stack container to the fake daemon.
-func (s *stackRig) spawn(component string, index int, dep, state string, exitCode int, age time.Duration) *docker.ContainerInfo {
+func (s *stackRig) spawn(component string, index int, dep, state string, exitCode int, age time.Duration) {
 	dk := s.dk
 	dk.mu.Lock()
 	defer dk.mu.Unlock()
@@ -168,7 +168,6 @@ func (s *stackRig) spawn(component string, index int, dep, state string, exitCod
 		c.State, c.ExitCode = "exited", exitCode
 	}
 	dk.containers[c.ID] = c
-	return c
 }
 
 func (s *stackRig) components() []agentprotocol.StackComponent {

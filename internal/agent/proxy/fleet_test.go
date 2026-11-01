@@ -257,17 +257,17 @@ func newFleetManager(t *testing.T, st RouteStore, mut func(*Config)) (*Manager, 
 	return m, eng, tr, logs
 }
 
-func tcpRoute(id string, port int) agentprotocol.Route {
+func tcpRoute(port int) agentprotocol.Route {
 	return agentprotocol.Route{
-		ServiceID: id, Upstreams: []string{"192.168.1.50:5432"},
+		ServiceID: svcDB, Upstreams: []string{"192.168.1.50:5432"},
 		RouteExt: agentprotocol.RouteExt{Protocol: agentprotocol.ProtoTCP, ListenPort: port, AllowCIDRs: []string{"10.0.0.0/8"}, Kind: agentprotocol.RouteKindExternal},
 	}
 }
 
-func udpRoute(id string, port int) agentprotocol.Route {
+func udpRoute() agentprotocol.Route {
 	return agentprotocol.Route{
-		ServiceID: id, Upstreams: []string{"192.168.1.50:53"},
-		RouteExt: agentprotocol.RouteExt{Protocol: agentprotocol.ProtoUDP, ListenPort: port, Kind: agentprotocol.RouteKindExternal},
+		ServiceID: svcDNS2, Upstreams: []string{"192.168.1.50:53"},
+		RouteExt: agentprotocol.RouteExt{Protocol: agentprotocol.ProtoUDP, ListenPort: 5353, Kind: agentprotocol.RouteKindExternal},
 	}
 }
 

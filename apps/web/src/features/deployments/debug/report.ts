@@ -9,7 +9,7 @@ import {
 	summarizeTimeline,
 } from "./timeline-model";
 
-export interface ReportLine {
+interface ReportLine {
 	ts?: string | undefined;
 	stream?: string | undefined;
 	line: string;

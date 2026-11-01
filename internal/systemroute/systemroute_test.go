@@ -42,7 +42,7 @@ func TestConfigureEnablesOnlyForAnHTTPSDNSNameWithAnUpstream(t *testing.T) {
 
 func TestRouteIsAValidExternalRoute(t *testing.T) {
 	rt := Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"}.Route()
-	require.True(t, IsRoute(rt.ServiceID))
+	require.Equal(t, ServiceID, rt.ServiceID)
 	require.Equal(t, agentprotocol.RouteKindExternal, rt.Kind)
 	require.Equal(t, []string{"nebula.example.com"}, rt.Hosts)
 	require.Equal(t, "nebula.example.com", rt.Domains[0].Host)
@@ -108,4 +108,13 @@ func TestSetAccessUpdatesTheInstalledConfig(t *testing.T) {
 	require.Equal(t, []string{"10.0.0.0/8"}, c.AllowCIDRs)
 	require.Equal(t, "cloudflare", c.DNSResolver)
 	require.Equal(t, "nebula.example.com", c.Host)
+}
+
+// Set installs c directly. The zero Config disables the route.
+func Set(c Config) {
+	if c.Host == "" || c.Upstream == "" {
+		current.Store(nil)
+		return
+	}
+	current.Store(&c)
 }

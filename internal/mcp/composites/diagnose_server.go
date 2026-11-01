@@ -260,10 +260,10 @@ func (c *composites) runDiagnoseServer(ctx context.Context, p *auth.Principal, s
 			return nil
 		})
 	} else {
-		pr.note("services", mcpkit.CodeForbidden, "services placed on the server need the projects:read scope")
+		pr.forbidden("services", "services placed on the server need the projects:read scope")
 	}
 	pr.run("commands", func(ctx context.Context) error {
-		cmds, err := c.stuckCommands(ctx, p, srv.ID, now)
+		cmds, err := c.stuckCommands(ctx, srv.ID, now)
 		if err != nil {
 			return err
 		}
@@ -290,7 +290,7 @@ func (c *composites) runDiagnoseServer(ctx context.Context, p *auth.Principal, s
 		out.Usage = diagUsage(srv, now)
 	}
 	out.Errors = errs
-	out.NextTools = diagServerNext(srv, placement, findings)
+	out.NextTools = diagServerNext(srv, placement)
 	out.Summary = diagServerSummary(srv, verdict, findings, placement, errs)
 	return out
 }
@@ -473,7 +473,7 @@ func diagPlacedProblem(it diagPlaced) bool { return diagPlacedRank(it) <= 1 && i
 
 // stuckCommands lists the server's commands that are not finished: pending,
 // sent, or acked without a result (the agent may be gone mid-command).
-func (c *composites) stuckCommands(ctx context.Context, p *auth.Principal, serverID uuid.UUID, now time.Time) ([]diagCommand, error) {
+func (c *composites) stuckCommands(ctx context.Context, serverID uuid.UUID, now time.Time) ([]diagCommand, error) {
 	rows, err := c.q().ListDeliverableAgentCommands(ctx, db.ListDeliverableAgentCommandsParams{ServerID: serverID, IncludeSent: true})
 	if err != nil {
 		return nil, fmt.Errorf("list agent commands: %w", err)
@@ -657,7 +657,7 @@ func diagIfSet(ok bool, s string) string {
 	return ""
 }
 
-func diagServerNext(srv servers.Server, pl diagPlacement, fs []Finding) []NextTool {
+func diagServerNext(srv servers.Server, pl diagPlacement) []NextTool {
 	next := []NextTool{}
 	for _, it := range pl.Items {
 		if diagPlacedProblem(it) {

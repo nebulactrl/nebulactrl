@@ -9,9 +9,9 @@
 export const MAX_ACCESS_ENTRIES = 200;
 
 /** The proxy renders one allow list of at most this many networks. */
-export const MAX_EFFECTIVE_NETWORKS = 4096;
+const MAX_EFFECTIVE_NETWORKS = 4096;
 
-export type Family = 4 | 6;
+type Family = 4 | 6;
 
 /** A network: its address family, the masked base address and the prefix length. */
 export interface Network {

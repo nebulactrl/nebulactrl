@@ -62,7 +62,7 @@ func run() error {
 		return err
 	}
 	defer session.Close()
-	if _, err := listTools(ctx, session, "default"); err != nil {
+	if err := listTools(ctx, session, "default"); err != nil {
 		return err
 	}
 	overview, err := call(ctx, session, "get_overview", map[string]any{})
@@ -77,7 +77,7 @@ func run() error {
 		return err
 	}
 	defer configSession.Close()
-	if _, err := listTools(ctx, configSession, "core,config"); err != nil {
+	if err := listTools(ctx, configSession, "core,config"); err != nil {
 		return err
 	}
 	envID := os.Getenv("NEBULACTRL_ENVIRONMENT_ID")
@@ -164,17 +164,17 @@ func connect(ctx context.Context, endpoint, token string) (*mcp.ClientSession, e
 	return session, nil
 }
 
-func listTools(ctx context.Context, s *mcp.ClientSession, label string) ([]string, error) {
+func listTools(ctx context.Context, s *mcp.ClientSession, label string) error {
 	tools, err := s.ListTools(ctx, nil)
 	if err != nil {
-		return nil, fmt.Errorf("list tools (%s): %w", label, err)
+		return fmt.Errorf("list tools (%s): %w", label, err)
 	}
 	names := make([]string, 0, len(tools.Tools))
 	for _, t := range tools.Tools {
 		names = append(names, t.Name)
 	}
 	fmt.Printf("tools %s (%d): %s\n", label, len(names), strings.Join(names, ", "))
-	return names, nil
+	return nil
 }
 
 func printJSON(label string, v any) {

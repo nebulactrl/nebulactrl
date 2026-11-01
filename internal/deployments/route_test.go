@@ -130,7 +130,7 @@ func (f *routeFixture) deployRoute(id uuid.UUID) (uuid.UUID, agents.NewCommand) 
 	v, err := f.deps.Deploy(f.ctx, id, "", "")
 	require.NoError(f.t, err)
 	require.Equal(f.t, StrategyRouteOnly, v.Strategy)
-	require.NoError(f.t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(f.t, f.deps.runDeploy(context.Background(), v.ID))
 	cmd := f.lastCommand(agentprotocol.KindSyncRoutes)
 	f.finish(v.ID)
 	return v.ID, cmd
@@ -249,7 +249,7 @@ func TestRouteOnlyDeployEndToEnd(t *testing.T) {
 	var rb uuid.UUID
 	require.NoError(t, f.pool.QueryRow(context.Background(), `SELECT id FROM deployments WHERE service_id = $1 AND trigger = 'rollback'`, rv.ID).Scan(&rb))
 	require.NotEqual(t, dep2, rb)
-	require.NoError(t, f.deps.runDeploy(context.Background(), rb, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), rb))
 	cmd3 := f.lastCommand(agentprotocol.KindSyncRoutes)
 	require.Contains(t, string(cmd3.Payload), "192.168.1.20:8080")
 	require.NotContains(t, string(cmd3.Payload), "192.168.1.21:8080")

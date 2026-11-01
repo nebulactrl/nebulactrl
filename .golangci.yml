@@ -10,7 +10,10 @@ linters:
   enable:
     - bodyclose
     - errorlint
+    - gocritic
     - gosec
+    - nilerr
+    - unparam
   settings:
     errcheck:
       exclude-functions:
@@ -34,6 +37,12 @@ linters:
         - G602
         # Name-based guess on JSON field names; this product's API carries secrets by design.
         - G117
+    gocritic:
+      # Only the checks that find bugs (dupArg, badCond, ...); style, performance
+      # and opinionated checks are left to review.
+      disable-all: true
+      enabled-tags:
+        - diagnostic
     staticcheck:
       # SA and S checks find bugs and simplifications; ST and QF are style suggestions.
       # S1016 would couple request DTOs to domain types that are mapped field by field on purpose.

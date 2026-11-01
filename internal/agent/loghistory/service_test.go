@@ -39,10 +39,10 @@ func newService(t *testing.T) (*Service, *statusCatcher) {
 	return s, sc
 }
 
-func command(t *testing.T, kind string, payload any, secrets map[string]string) agentprotocol.Command {
+func command(t *testing.T, kind string, payload any) agentprotocol.Command {
 	t.Helper()
 	raw, _ := json.Marshal(payload)
-	return agentprotocol.Command{ID: "c1", Kind: kind, Payload: raw, Secrets: secrets}
+	return agentprotocol.Command{ID: "c1", Kind: kind, Payload: raw}
 }
 
 func TestQueryCommandAnswersFromTheStore(t *testing.T) {
@@ -54,7 +54,7 @@ func TestQueryCommandAnswersFromTheStore(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	res := s.HandleLogsCommand(context.Background(), command(t, agentprotocol.KindLogsQuery, agentprotocol.LogsQuery{ServiceID: "svc1", Query: "level:error"}, nil))
+	res := s.HandleLogsCommand(context.Background(), command(t, agentprotocol.KindLogsQuery, agentprotocol.LogsQuery{ServiceID: "svc1", Query: "level:error"}))
 	if res.Outcome != agentprotocol.OutcomeSucceeded || res.CommandID != "c1" {
 		t.Fatalf("result %+v", res)
 	}
@@ -68,9 +68,9 @@ func TestQueryCommandAnswersFromTheStore(t *testing.T) {
 
 	for _, bad := range []agentprotocol.Command{
 		{ID: "c2", Kind: agentprotocol.KindLogsQuery, Payload: json.RawMessage(`{`)},
-		command(t, agentprotocol.KindLogsQuery, agentprotocol.LogsQuery{}, nil),
-		command(t, agentprotocol.KindLogsQuery, agentprotocol.LogsQuery{ServiceID: "svc1", Cursor: "x"}, nil),
-		command(t, "deploy", struct{}{}, nil),
+		command(t, agentprotocol.KindLogsQuery, agentprotocol.LogsQuery{}),
+		command(t, agentprotocol.KindLogsQuery, agentprotocol.LogsQuery{ServiceID: "svc1", Cursor: "x"}),
+		command(t, "deploy", struct{}{}),
 	} {
 		if r := s.HandleLogsCommand(context.Background(), bad); r.Outcome != agentprotocol.OutcomeFailed || r.Error == "" {
 			t.Errorf("%s accepted: %+v", bad.Kind, r)
@@ -124,7 +124,7 @@ func TestDrainTestCommandReportsFailureAsAResult(t *testing.T) {
 	s, _ := newService(t)
 	res := s.HandleLogsCommand(context.Background(), command(t, agentprotocol.KindLogsDrainTest, agentprotocol.LogsDrainTest{
 		Drain: agentprotocol.LogDrain{ID: "d1", Name: "x", Kind: agentprotocol.DrainHTTP, Enabled: true, HTTP: &agentprotocol.HTTPDrainConfig{URL: "ftp://nope"}},
-	}, nil))
+	}))
 	if res.Outcome != agentprotocol.OutcomeSucceeded {
 		t.Fatalf("a failed test is an answer, not a command failure: %+v", res)
 	}

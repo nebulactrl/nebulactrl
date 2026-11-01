@@ -1,7 +1,7 @@
 import { cn } from "cn";
 import type { ReactNode } from "react";
 
-export type DiffSign = "+" | "−" | "~";
+type DiffSign = "+" | "−" | "~";
 
 export interface DiffLineProps {
 	/** Added, removed or changed. */

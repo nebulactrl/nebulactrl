@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 
+	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
@@ -74,7 +75,7 @@ func (s *Service) VolumeTick(ctx context.Context) error {
 	}
 	for _, b := range started {
 		if sc, err := services.LoadScopeInternal(ctx, s.q, b.ServiceID); err == nil {
-			s.publish(sc, EventBackupUpdated, b.ID)
+			s.publish(sc, b.ID)
 		}
 	}
 	for _, b := range skipped {
@@ -112,8 +113,11 @@ func (s *Service) runVolumeSchedule(ctx context.Context, tx pgx.Tx, cfg db.Volum
 		return db.VolumeBackup{}, false, err
 	}
 	sc, err := services.LoadScopeInternal(ctx, q, cfg.ServiceID)
+	if apierr.IsNotFound(err) {
+		return db.VolumeBackup{}, false, nil // the service was deleted after the config fired: skip this run, the config cascades away
+	}
 	if err != nil {
-		return db.VolumeBackup{}, false, nil // service deleted
+		return db.VolumeBackup{}, false, fmt.Errorf("load service: %w", err)
 	}
 	dest, err := q.GetBackupDestinationInternal(ctx, cfg.DestinationID)
 	if err != nil {

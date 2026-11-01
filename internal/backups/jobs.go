@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 
+	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
 	"github.com/nebulactrl/nebulactrl/internal/services"
@@ -171,7 +172,7 @@ func (s *Service) Tick(ctx context.Context) error {
 	}
 	for _, b := range started {
 		if sc, err := services.LoadScopeInternal(ctx, s.q, b.ServiceID); err == nil {
-			s.publish(sc, EventBackupUpdated, b.ID)
+			s.publish(sc, b.ID)
 		}
 	}
 	for _, f := range skipped {
@@ -209,8 +210,11 @@ func (s *Service) runSchedule(ctx context.Context, tx pgx.Tx, sch db.BackupSched
 		return db.Backup{}, false, err
 	}
 	sc, err := services.LoadScopeInternal(ctx, q, sch.ServiceID)
+	if apierr.IsNotFound(err) {
+		return db.Backup{}, false, nil // the database was deleted after the schedule fired: skip this run, the schedule cascades away
+	}
 	if err != nil {
-		return db.Backup{}, false, nil // database deleted
+		return db.Backup{}, false, fmt.Errorf("load service: %w", err)
 	}
 	dest, err := q.GetBackupDestinationInternal(ctx, sch.DestinationID)
 	if err != nil {

@@ -216,7 +216,7 @@ func (gitlabDriver) currentUser(ctx context.Context, c *apiClient) (string, erro
 	var out struct {
 		Username string `json:"username"`
 	}
-	if _, err := c.do(ctx, http.MethodGet, "/user", nil, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/user", nil, nil, &out); err != nil {
 		return "", err
 	}
 	return out.Username, nil
@@ -232,7 +232,7 @@ func (gitlabDriver) listRepos(ctx context.Context, c *apiClient, query string, p
 		q.Set("search_namespaces", "true")
 	}
 	var out []glRepo
-	if _, err := c.do(ctx, http.MethodGet, "/projects", q, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/projects", q, nil, &out); err != nil {
 		return nil, false, err
 	}
 	repos := make([]Repo, 0, len(out))
@@ -244,7 +244,7 @@ func (gitlabDriver) listRepos(ctx context.Context, c *apiClient, query string, p
 
 func (gitlabDriver) getRepo(ctx context.Context, c *apiClient, repo string) (Repo, error) {
 	var out glRepo
-	if _, err := c.do(ctx, http.MethodGet, "/projects/"+glProject(repo), nil, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/projects/"+glProject(repo), nil, nil, &out); err != nil {
 		return Repo{}, err
 	}
 	return out.repo(), nil
@@ -257,7 +257,7 @@ func (gitlabDriver) listBranches(ctx context.Context, c *apiClient, repo string)
 			Name string `json:"name"`
 		}
 		q := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
-		if _, err := c.do(ctx, http.MethodGet, "/projects/"+glProject(repo)+"/repository/branches", q, nil, &out); err != nil {
+		if err := c.do(ctx, http.MethodGet, "/projects/"+glProject(repo)+"/repository/branches", q, nil, &out); err != nil {
 			return nil, err
 		}
 		for _, b := range out {
@@ -280,7 +280,7 @@ func (gitlabDriver) setStatus(ctx context.Context, c *apiClient, repo, sha strin
 	if st.TargetURL != "" {
 		body["target_url"] = st.TargetURL
 	}
-	_, err := c.do(ctx, http.MethodPost, "/projects/"+glProject(repo)+"/statuses/"+sha, nil, body, nil)
+	err := c.do(ctx, http.MethodPost, "/projects/"+glProject(repo)+"/statuses/"+sha, nil, body, nil)
 	return err
 }
 
@@ -292,12 +292,12 @@ func (gitlabDriver) upsertComment(ctx context.Context, c *apiClient, repo string
 			Body string `json:"body"`
 		}
 		q := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
-		if _, err := c.do(ctx, http.MethodGet, base, q, nil, &out); err != nil {
+		if err := c.do(ctx, http.MethodGet, base, q, nil, &out); err != nil {
 			return err
 		}
 		for _, n := range out {
 			if strings.Contains(n.Body, marker) {
-				_, err := c.do(ctx, http.MethodPut, base+"/"+strconv.FormatInt(n.ID, 10), nil, map[string]string{"body": body}, nil)
+				err := c.do(ctx, http.MethodPut, base+"/"+strconv.FormatInt(n.ID, 10), nil, map[string]string{"body": body}, nil)
 				return err
 			}
 		}
@@ -305,7 +305,7 @@ func (gitlabDriver) upsertComment(ctx context.Context, c *apiClient, repo string
 			break
 		}
 	}
-	_, err := c.do(ctx, http.MethodPost, base, nil, map[string]string{"body": body}, nil)
+	err := c.do(ctx, http.MethodPost, base, nil, map[string]string{"body": body}, nil)
 	return err
 }
 
@@ -318,14 +318,14 @@ func (gitlabDriver) createHook(ctx context.Context, c *apiClient, repo, hookURL,
 		"url": hookURL, "token": secret, "push_events": true, "merge_requests_events": true,
 		"tag_push_events": false, "enable_ssl_verification": strings.HasPrefix(hookURL, "https://"),
 	}
-	if _, err := c.do(ctx, http.MethodPost, "/projects/"+glProject(repo)+"/hooks", nil, body, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/projects/"+glProject(repo)+"/hooks", nil, body, &out); err != nil {
 		return "", err
 	}
 	return strconv.FormatInt(out.ID, 10), nil
 }
 
 func (gitlabDriver) deleteHook(ctx context.Context, c *apiClient, repo, id string) error {
-	_, err := c.do(ctx, http.MethodDelete, "/projects/"+glProject(repo)+"/hooks/"+id, nil, nil, nil)
+	err := c.do(ctx, http.MethodDelete, "/projects/"+glProject(repo)+"/hooks/"+id, nil, nil, nil)
 	if isNotFound(err) {
 		return nil
 	}
@@ -337,7 +337,7 @@ func (gitlabDriver) findHook(ctx context.Context, c *apiClient, repo, hookURL st
 		ID  int64  `json:"id"`
 		URL string `json:"url"`
 	}
-	if _, err := c.do(ctx, http.MethodGet, "/projects/"+glProject(repo)+"/hooks", url.Values{"per_page": {"100"}}, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/projects/"+glProject(repo)+"/hooks", url.Values{"per_page": {"100"}}, nil, &out); err != nil {
 		return "", err
 	}
 	for _, h := range out {

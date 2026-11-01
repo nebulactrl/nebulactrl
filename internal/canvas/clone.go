@@ -27,7 +27,7 @@ func CloneLayout(ctx context.Context, q *db.Queries, fromEnvID, toEnvID uuid.UUI
 	}
 	var in Layout
 	if err := json.Unmarshal(row.Layout, &in); err != nil {
-		return nil // unreadable layouts are not worth failing a clone for
+		return nil //nolint:nilerr // an unreadable saved layout copies nothing, so the new environment gets the automatic layout instead of failing the clone
 	}
 	out := Layout{Nodes: map[string]Pos{}, Groups: []Group{}, Viewport: in.Viewport}
 	for k, p := range in.Nodes {

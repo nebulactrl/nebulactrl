@@ -3,7 +3,7 @@
 // repeats the cheap checks in the browser so a wrong file is refused before a
 // new database is created and before gigabytes are sent.
 
-export type DumpFormat = "pg_custom" | "pg_tar" | "sql" | "mongo_archive";
+type DumpFormat = "pg_custom" | "pg_tar" | "sql" | "mongo_archive";
 
 export interface DumpKind {
 	/** Null for a gzip file: what is inside is for the control plane to check. */
@@ -18,7 +18,7 @@ export interface DumpProblem {
 }
 
 /** Bytes of the file's start `sniffDump` needs. */
-export const SNIFF_BYTES = 16 * 1024;
+const SNIFF_BYTES = 16 * 1024;
 
 const startsWith = (b: Uint8Array, magic: readonly number[], at = 0) =>
 	magic.every((m, i) => b[at + i] === m);

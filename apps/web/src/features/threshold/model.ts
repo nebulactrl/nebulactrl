@@ -7,7 +7,7 @@ import {
 } from "#/features/settings/update-model";
 
 /** The steps of a team deletion, in the order the job runs them. */
-export const DELETION_STEPS = [
+const DELETION_STEPS = [
 	{ id: "projects", label: "Deleting projects and their services" },
 	{ id: "servers", label: "Emptying and removing servers" },
 	{
@@ -20,7 +20,7 @@ export const DELETION_STEPS = [
 	label: string;
 }[];
 
-export type DeletionStepId = (typeof DELETION_STEPS)[number]["id"];
+type DeletionStepId = (typeof DELETION_STEPS)[number]["id"];
 
 /** The words for the step a deletion is at; "Working" before the job reports one. */
 export function deletionStepLabel(step: TeamDeletion["step"]): string {

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/nebulactrl/nebulactrl/internal/releasesign"
+	"github.com/nebulactrl/nebulactrl/internal/releasesign/releasesigntest"
 )
 
 // The key in install.sh is the one the control plane and the agent verify with.
@@ -75,11 +76,11 @@ func TestShellVerifierChecksMinisignSignatures(t *testing.T) {
 	sig := write("f.sig", minisignSig)
 	tampered := write("tampered.sh", minisignFile+"x")
 	legacy := write("legacy.sig", strings.Replace(minisignSig, "RURU", "RWRU", 1))
-	other, otherPub := releasesign.NewSigner()
+	other, otherPub := releasesigntest.NewSigner()
 	otherSig := write("other.sig", string(other.Sign([]byte(minisignFile), "x")))
 
 	// The Go-made signature too: the signer used by the tests is the same format.
-	goSigner, goPub := releasesign.NewSigner()
+	goSigner, goPub := releasesigntest.NewSigner()
 	goSig := write("go.sig", string(goSigner.Sign([]byte(minisignFile), "x")))
 
 	run := func(noMinisign bool) {
@@ -118,14 +119,14 @@ func TestShellVerifierChecksMinisignSignatures(t *testing.T) {
 // signature and the files it lists, all served from one directory.
 type fixtureRelease struct {
 	dir    string
-	signer *releasesign.Signer
+	signer *releasesigntest.Signer
 	pub    string
 	lib    []byte
 }
 
 func newFixtureRelease(t *testing.T, version, image string) *fixtureRelease {
 	t.Helper()
-	signer, pub := releasesign.NewSigner()
+	signer, pub := releasesigntest.NewSigner()
 	r := &fixtureRelease{dir: t.TempDir(), signer: signer, pub: pub, lib: []byte("nc_hardening_step() { echo hardened; }\n")}
 	r.write(t, "hardening.sh", r.lib)
 	manifest := "nebulactrl-release-manifest 1\nversion " + version + "\ntag v" + version + "\nimage " + image + "\n" +
@@ -201,7 +202,7 @@ func TestStepReleaseRefusesWhatIsNotSignedByTheReleaseKey(t *testing.T) {
 			r.write(t, "release-manifest.txt", []byte(strings.Replace(m, goodImage, "ghcr.io/evil/nebulactrl@sha256:"+strings.Repeat("a", 64), 1)))
 		},
 		"signed with another key": func(t *testing.T, r *fixtureRelease) {
-			other, _ := releasesign.NewSigner()
+			other, _ := releasesigntest.NewSigner()
 			r.write(t, "release-manifest.txt.minisig", other.Sign([]byte(readFile(t, filepath.Join(r.dir, "release-manifest.txt"))), "x"))
 		},
 		"no signature": func(t *testing.T, r *fixtureRelease) {

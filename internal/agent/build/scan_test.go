@@ -143,7 +143,7 @@ func TestScanConfigFilesLooksInTheRootAndTheBuildContext(t *testing.T) {
 	put("nebula.toml", "schema = 1\n")
 	put("apps/web/nebula.toml", "schema = 1\nproject = \"web\"\n")
 
-	paths, files := ScanConfigFiles(root, filepath.Join(root, "apps/web"))
+	paths, files := ScanConfigFiles(root, filepath.Join(root, "apps", "web"))
 	require.Equal(t, []string{"nebula.toml", "apps/web/nebula.toml"}, paths)
 	require.Equal(t, map[string][]byte{
 		"nebula.toml":          []byte("schema = 1\n"),
@@ -154,7 +154,7 @@ func TestScanConfigFilesLooksInTheRootAndTheBuildContext(t *testing.T) {
 	require.Equal(t, []string{"nebula.toml"}, paths, "a build context equal to the root adds no second candidate")
 	require.Len(t, files, 1)
 
-	paths, files = ScanConfigFiles(root, filepath.Join(root, "apps/none"))
+	paths, files = ScanConfigFiles(root, filepath.Join(root, "apps", "none"))
 	require.Equal(t, []string{"nebula.toml", "apps/none/nebula.toml"}, paths, "a missing file is reported as looked at, not found")
 	require.Len(t, files, 1)
 }

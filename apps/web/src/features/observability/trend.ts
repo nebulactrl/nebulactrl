@@ -4,7 +4,7 @@ interface CpuPoint {
 }
 
 /** Fewest samples that draw a trend; fewer say "collecting" via no sparkline. */
-export const MIN_TREND_SAMPLES = 2;
+const MIN_TREND_SAMPLES = 2;
 
 /**
  * The CPU series of a card's sparkline: the sampled points only (gap rows

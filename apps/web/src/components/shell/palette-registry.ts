@@ -48,7 +48,7 @@ function emit() {
  * Sets `sourceId`'s commands, replacing what it registered before. Returns
  * the unregister function.
  */
-export function registerCommands(
+function registerCommands(
 	sourceId: string,
 	commands: readonly PaletteCommand[],
 ): () => void {

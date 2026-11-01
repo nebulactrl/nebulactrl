@@ -462,8 +462,7 @@ func TestRotationPlanAndEngineBoundBlocker(t *testing.T) {
 func TestSuggestionsFromEnvExampleAndDatabases(t *testing.T) {
 	h := newHarness(t)
 	h.setup()
-	prev := services.CurrentExportProvider()
-	services.RegisterExportProvider(func(in services.ExportInput) []services.Export {
+	prev := services.RegisterExportProvider(func(in services.ExportInput) []services.Export {
 		if in.Kind != services.KindDatabase {
 			return nil
 		}

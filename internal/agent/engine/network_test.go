@@ -252,18 +252,18 @@ func TestScaleUpKeepsTheNetworkPlanOfTheSet(t *testing.T) {
 
 const agentCtr = "nc-agent-dev"
 
-func seedAgent(r *rig, id string) {
+func seedAgent(r *rig) {
 	r.dk.mu.Lock()
 	defer r.dk.mu.Unlock()
-	r.dk.containers[id] = &docker.ContainerInfo{
-		ID: id, Name: agentCtr, State: "running", Running: true,
+	r.dk.containers["agent-id"] = &docker.ContainerInfo{
+		ID: "agent-id", Name: agentCtr, State: "running", Running: true,
 		Networks: map[string]docker.ContainerNetwork{agentprotocol.EdgeNetwork: {IP: "10.2.0.2"}},
 	}
 }
 
 func TestContainerisedAgentJoinsTheProbedNetworkAndLeavesAgain(t *testing.T) {
 	r := newNetRig(t, nil, func(c *Config) { c.AgentContainer = agentCtr })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 
 	res, dr := r.deploy(basePayload(), nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
@@ -275,7 +275,7 @@ func TestContainerisedAgentJoinsTheProbedNetworkAndLeavesAgain(t *testing.T) {
 
 func TestContainerisedAgentProbesBlockedServicesThroughTheInternalNetwork(t *testing.T) {
 	r := newNetRig(t, nil, func(c *Config) { c.AgentContainer = agentCtr })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 	p := basePayload()
 	p.BlockEgress = true
 
@@ -287,7 +287,7 @@ func TestContainerisedAgentProbesBlockedServicesThroughTheInternalNetwork(t *tes
 
 func TestAgentDetectsItsContainerFromTheHostname(t *testing.T) {
 	r := newNetRig(t, nil, func(c *Config) { c.Hostname = "agent-id" })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 
 	res, dr := r.deploy(basePayload(), nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
@@ -305,7 +305,7 @@ func TestBareHostAgentNeverAttachesItself(t *testing.T) {
 
 	// A container that merely carries the hostname as its name is not the agent.
 	r2 := newNetRig(t, nil, func(c *Config) { c.Hostname = agentCtr })
-	seedAgent(r2, "agent-id")
+	seedAgent(r2)
 	res, dr = r2.deploy(basePayload(), nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	require.Empty(t, r2.dk.connects)
@@ -313,7 +313,7 @@ func TestBareHostAgentNeverAttachesItself(t *testing.T) {
 
 func TestAgentLeavesNetworksItHoldsWithoutAProbe(t *testing.T) {
 	r := newNetRig(t, nil, func(c *Config) { c.AgentContainer = agentCtr })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 	r.dk.mu.Lock()
 	r.dk.containers["agent-id"].Networks[netEnv] = docker.ContainerNetwork{IP: "10.0.0.9"}
 	r.dk.mu.Unlock()

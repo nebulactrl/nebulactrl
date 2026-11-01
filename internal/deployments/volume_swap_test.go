@@ -86,7 +86,7 @@ func TestDeployMountsTheRestoredDockerVolume(t *testing.T) {
 
 	v, err := f.deps.Deploy(f.ctx, web.ID, "", "")
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID))
 	cmd := f.lastCommand(agentprotocol.KindDeploy)
 	var p agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(cmd.Payload, &p))

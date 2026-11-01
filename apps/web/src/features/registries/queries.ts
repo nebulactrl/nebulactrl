@@ -8,7 +8,7 @@ import { fetchImages, fetchRegistries } from "./api";
 import type { ImageState } from "./model";
 
 /** The built-in registry answers or not; the list is re-read on a timer. */
-export const REGISTRY_REFRESH_MS = 15_000;
+const REGISTRY_REFRESH_MS = 15_000;
 
 const ROOT = ["registries"] as const;
 

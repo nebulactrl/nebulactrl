@@ -40,7 +40,7 @@ export interface ToastActionConfig {
 	onClick: () => void;
 }
 
-export interface AnimatedToast {
+interface AnimatedToast {
 	id: string;
 	title: ReactNode;
 	description?: ReactNode | undefined;
@@ -62,17 +62,17 @@ export interface AnimatedToast {
 
 // Every field explicitly nullable (not merely optional) — see `ToastPatch`
 // below for why `exactOptionalPropertyTypes` requires this.
-export type ToastInput = {
+type ToastInput = {
 	[K in keyof Omit<AnimatedToast, "createdAt">]?: AnimatedToast[K] | undefined;
 } & Pick<AnimatedToast, "title">;
 
-export type ToastPatch = {
+type ToastPatch = {
 	[K in keyof Omit<AnimatedToast, "id" | "createdAt">]?:
 		| AnimatedToast[K]
 		| undefined;
 };
 
-export type ToastDirection = "left" | "right" | "down";
+type ToastDirection = "left" | "right" | "down";
 
 export interface AnimatedToastStore {
 	subscribe(listener: () => void): () => void;

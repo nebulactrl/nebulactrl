@@ -107,8 +107,8 @@ type s3Op struct {
 }
 
 // classifyS3 validates the request against what a backup needs and says whether
-// it stores data. bucket is the first path segment, key the rest.
-func classifyS3(r *http.Request, bucket, key string) (s3Op, error) {
+// it stores data. key is the object key (the path after the bucket).
+func classifyS3(r *http.Request, key string) (s3Op, error) {
 	q := r.URL.Query()
 	for k := range q {
 		if !s3Query[k] {
@@ -206,7 +206,7 @@ func (h *s3Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		deny(err.Error())
 		return
 	}
-	op, err := classifyS3(r, bucket, key)
+	op, err := classifyS3(r, key)
 	switch {
 	case errors.Is(err, errNotImplemented):
 		s3Error(w, http.StatusNotImplemented, "NotImplemented", "Copying objects is not supported on built-in backup storage.")

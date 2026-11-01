@@ -47,7 +47,7 @@ function flatten(items: NavItem[]): string[] {
 }
 
 /** Pages in reading order: section by section, parents before their children. */
-export function docOrder(data: SiteData): DocMeta[] {
+function docOrder(data: SiteData): DocMeta[] {
 	return data.corpus.nav
 		.flatMap((section) => flatten(section.items))
 		.flatMap((slug) => {

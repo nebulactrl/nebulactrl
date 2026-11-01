@@ -129,5 +129,3 @@ client.interceptors.error.use((error, response, request) => {
 	}
 	return apiError;
 });
-
-export { client };

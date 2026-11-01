@@ -19,7 +19,7 @@ import { Slider } from "#/components/ui/slider";
 import { Switch } from "#/components/ui/switch";
 
 /** Every background in the library, part 1 then part 2. */
-export const BACKGROUNDS: readonly BackgroundEntry[] = [
+const BACKGROUNDS: readonly BackgroundEntry[] = [
 	...BACKGROUNDS_1,
 	...BACKGROUNDS_2,
 ];

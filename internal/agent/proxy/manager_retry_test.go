@@ -66,17 +66,17 @@ func (f *flakyTransport) requestCount() int {
 	return len(f.reqs)
 }
 
-func newFlakyManager(t *testing.T) (*Manager, *fakeEngine, *fakeTraefik, *flakyTransport) {
+func newFlakyManager(t *testing.T) (*Manager, *fakeTraefik, *flakyTransport) {
 	t.Helper()
-	m, eng, tr := newTestManager(t, nil)
+	m, _, tr := newTestManager(t, nil)
 	ft := &flakyTransport{inner: tr}
 	m.http = &http.Client{Transport: ft}
 	m.adminRetryWindow, m.adminRetryInitial, m.adminRetryMax = 5*time.Second, time.Millisecond, 5*time.Millisecond
-	return m, eng, tr, ft
+	return m, tr, ft
 }
 
 func TestApplyWaitsForAdminBeforeFirstPut(t *testing.T) {
-	m, _, tr, ft := newFlakyManager(t)
+	m, tr, ft := newFlakyManager(t)
 	require.NoError(t, m.Apply(oneRoute("nc-app-1:80")))
 	tr.mu.Lock()
 	tr.puts = nil
@@ -99,7 +99,7 @@ func TestApplyWaitsForAdminBeforeFirstPut(t *testing.T) {
 }
 
 func TestApplyRetriesAConnectionRefusedPut(t *testing.T) {
-	m, _, tr, ft := newFlakyManager(t)
+	m, tr, ft := newFlakyManager(t)
 	require.NoError(t, m.Apply(oneRoute("nc-app-1:80")))
 
 	// The admin answers the readiness poll, then goes away exactly for the PUT.
@@ -123,7 +123,7 @@ func TestApplyRetriesAConnectionRefusedPut(t *testing.T) {
 }
 
 func TestApplyDoesNotRetryARejectedConfig(t *testing.T) {
-	m, _, tr, ft := newFlakyManager(t)
+	m, tr, ft := newFlakyManager(t)
 	require.NoError(t, m.Apply(oneRoute("nc-app-1:80")))
 	ft.mu.Lock()
 	ft.puts = 0
@@ -145,7 +145,7 @@ func TestApplyDoesNotRetryARejectedConfig(t *testing.T) {
 }
 
 func TestApplyGivesUpOnAPermanentlyDownAdmin(t *testing.T) {
-	m, _, _, ft := newFlakyManager(t)
+	m, _, ft := newFlakyManager(t)
 	require.NoError(t, m.Apply(oneRoute("nc-app-1:80")))
 	m.adminRetryWindow = 60 * time.Millisecond
 
@@ -159,7 +159,7 @@ func TestApplyGivesUpOnAPermanentlyDownAdmin(t *testing.T) {
 }
 
 func TestRestoreFollowsTheSameRetryRules(t *testing.T) {
-	m, _, tr, ft := newFlakyManager(t)
+	m, tr, ft := newFlakyManager(t)
 	require.NoError(t, m.Apply(oneRoute("nc-app-1:80")))
 
 	// The new table is accepted but Traefik cannot build it; the admin then

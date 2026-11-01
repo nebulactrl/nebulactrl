@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nebulactrl/nebulactrl/internal/systemroute"
+	"github.com/nebulactrl/nebulactrl/internal/systemroute/systemroutetest"
 )
 
 func TestInstanceDashboardAccess(t *testing.T) {
@@ -16,8 +17,8 @@ func TestInstanceDashboardAccess(t *testing.T) {
 	r := e.mustRun("", "instance", "dashboard-access", "get")
 	require.Contains(t, r.stdout, "nothing to restrict")
 
-	systemroute.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"})
-	t.Cleanup(func() { systemroute.Set(systemroute.Config{}) })
+	systemroutetest.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"})
+	t.Cleanup(func() { systemroutetest.Set(systemroute.Config{}) })
 
 	r = e.mustRun("", "instance", "dashboard-access", "get")
 	require.Contains(t, r.stdout, "nebula.example.com")

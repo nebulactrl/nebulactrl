@@ -197,14 +197,3 @@ func JSONSize(v any) int {
 	}
 	return len(raw)
 }
-
-// PageLimit clamps a requested page size to [1, MaxPage], default DefaultPage.
-func PageLimit(n int) int {
-	switch {
-	case n <= 0:
-		return DefaultPage
-	case n > MaxPage:
-		return MaxPage
-	}
-	return n
-}

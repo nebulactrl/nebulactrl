@@ -46,15 +46,9 @@ func New(origin string) *Authenticator {
 	return &Authenticator{Origin: origin, UserVerified: true}
 }
 
-// Credentials is the number of credentials held.
-func (a *Authenticator) Credentials() int { return len(a.creds) }
-
 // SetCounter forces the signature counter of the i-th credential (to test clone
 // detection).
 func (a *Authenticator) SetCounter(i int, n uint32) { a.creds[i].counter = n }
-
-// CredentialID returns the raw ID of the i-th credential.
-func (a *Authenticator) CredentialID(i int) []byte { return a.creds[i].id }
 
 type creationOptions struct {
 	PublicKey struct {
@@ -193,15 +187,6 @@ func (a *Authenticator) Get(options []byte) ([]byte, error) {
 		return nil, errors.New("NotAllowedError: no matching credential on this authenticator")
 	}
 	return a.sign(c, pk.Challenge)
-}
-
-// GetWith signs with the i-th credential, whatever the options allow.
-func (a *Authenticator) GetWith(i int, options []byte) ([]byte, error) {
-	var o requestOptions
-	if err := json.Unmarshal(options, &o); err != nil {
-		return nil, err
-	}
-	return a.sign(a.creds[i], o.PublicKey.Challenge)
 }
 
 func (a *Authenticator) sign(c *credential, challenge string) ([]byte, error) {

@@ -126,8 +126,8 @@ func (c *client) iam(ctx context.Context, action string, kv ...string) ([]byte, 
 }
 
 // s3 calls an S3 operation on a bucket path.
-func (c *client) s3(ctx context.Context, method, path, rawQuery string, body []byte) ([]byte, error) {
-	return c.call(ctx, "s3", method, path, rawQuery, body, nil)
+func (c *client) s3(ctx context.Context, method, path, rawQuery string) ([]byte, error) {
+	return c.call(ctx, "s3", method, path, rawQuery, nil, nil)
 }
 
 func newClient(endpoint, key, secret string, hc *http.Client) (*client, error) {

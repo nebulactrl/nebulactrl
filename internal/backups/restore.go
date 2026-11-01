@@ -133,7 +133,7 @@ func (s *Service) restoreNew(ctx context.Context, b db.Backup, sc services.Scope
 		return RestoreView{}, err
 	}
 	_ = s.q.SetRestoreDeployment(ctx, db.SetRestoreDeploymentParams{ID: r.ID, DeploymentID: &dep.ID})
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	r.DeploymentID = &dep.ID
 	return restoreView(r), nil
 }
@@ -191,7 +191,7 @@ func (s *Service) restoreInPlace(ctx context.Context, b db.Backup, sc services.S
 		}
 		return RestoreView{}, fmt.Errorf("start restore: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	return restoreView(r), nil
 }
 
@@ -247,7 +247,7 @@ func (s *Service) afterRestoreFinished(ctx context.Context, r db.BackupRestore) 
 	if err != nil {
 		return
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	if r.TargetServiceID != nil && *r.TargetServiceID != r.SourceServiceID {
 		services.PublishService(s.bus, services.EventServiceUpdated, services.Scope{
 			Service: db.Service{ID: *r.TargetServiceID}, ProjectID: sc.ProjectID, EnvironmentID: sc.EnvironmentID,

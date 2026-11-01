@@ -360,7 +360,7 @@ func (s *Service) PutVolumeBackupConfig(ctx context.Context, serviceID uuid.UUID
 	if err != nil {
 		return VolumeBackupConfigView{}, fmt.Errorf("save volume backup config: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, serviceID)
+	s.publish(sc, serviceID)
 	return s.volumeConfigView(ctx, sc, vols, &row)
 }
 
@@ -394,7 +394,7 @@ func (s *Service) DeleteVolumeBackupConfig(ctx context.Context, serviceID uuid.U
 		}
 		return fmt.Errorf("delete volume backup config: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, serviceID)
+	s.publish(sc, serviceID)
 	return nil
 }
 
@@ -591,7 +591,7 @@ func (s *Service) CreateVolumeBackup(ctx context.Context, serviceID uuid.UUID) (
 		}
 		return VolumeBackupView{}, fmt.Errorf("create volume backup: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, b.ID)
+	s.publish(sc, b.ID)
 	return volumeBackupView(b, StatusQueued, dest.Name, dest.Kind), nil
 }
 
@@ -652,7 +652,7 @@ func (s *Service) SetVolumeBackupLocked(ctx context.Context, id uuid.UUID, locke
 	if err != nil {
 		return VolumeBackupView{}, fmt.Errorf("lock volume backup: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, id)
+	s.publish(sc, id)
 	return s.GetVolumeBackup(ctx, id)
 }
 
@@ -700,7 +700,7 @@ func (s *Service) DeleteVolumeBackup(ctx context.Context, id uuid.UUID) error {
 		}
 		return fmt.Errorf("delete volume backup: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, id)
+	s.publish(sc, id)
 	return nil
 }
 

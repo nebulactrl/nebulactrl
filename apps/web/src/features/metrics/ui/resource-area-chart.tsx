@@ -25,7 +25,7 @@ import {
 	timeXAxis,
 } from "./time-chart";
 
-export interface LimitLine {
+interface LimitLine {
 	y: number;
 	label: string;
 	/** The series reached the line: it turns amber and says so in its label. */

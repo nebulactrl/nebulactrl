@@ -36,6 +36,10 @@ func init() {
 	client.InstallProtocol("https", tr)
 }
 
+// errBadRemote refuses a git:// or SSH remote that cannot be parsed. It carries
+// no detail: parse errors quote the URL, which may hold credentials.
+var errBadRemote = errors.New("the git URL cannot be parsed")
+
 // guardRemote refuses a git:// or SSH remote whose host is a private,
 // loopback, link-local or metadata address (go-git dials those itself; the
 // http(s) transport is guarded at connect time).
@@ -45,13 +49,13 @@ func guardRemote(ctx context.Context, rawURL string) error {
 	case gitssh.LooksLikeSSH(rawURL):
 		ep, err := gitssh.ParseURL(rawURL)
 		if err != nil {
-			return nil // validation reports a malformed URL
+			return errBadRemote
 		}
 		host = ep.Host
 	case strings.HasPrefix(strings.ToLower(rawURL), "git://"):
 		u, err := url.Parse(rawURL)
 		if err != nil {
-			return nil
+			return errBadRemote
 		}
 		host = u.Hostname()
 	default:

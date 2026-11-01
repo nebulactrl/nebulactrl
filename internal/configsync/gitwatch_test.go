@@ -368,10 +368,10 @@ func (f *gitFixture) hasSettings(env db.Environment) bool {
 	return err == nil
 }
 
-func (f *gitFixture) setAutoApply(env db.Environment, on bool) {
+func (f *gitFixture) enableAutoApply(env db.Environment) {
 	f.t.Helper()
 	require.NoError(f.t, f.q.SetEnvironmentConfigAutoApply(context.Background(), db.SetEnvironmentConfigAutoApplyParams{
-		EnvironmentID: env.ID, WorkspaceID: f.ws.ID, AutoApply: on,
+		EnvironmentID: env.ID, WorkspaceID: f.ws.ID, AutoApply: true,
 	}))
 }
 
@@ -872,7 +872,7 @@ func TestReadReturnsTheFileAtTheRef(t *testing.T) {
 func TestAutoApplyStagesBeforeThePushHookReturns(t *testing.T) {
 	f := newGitFixture(t)
 	f.gitService(f.staging, "web", "main", "")
-	f.setAutoApply(f.staging, true)
+	f.enableAutoApply(f.staging)
 	sha := shaOf('a')
 	f.repos.put(sha, "nebula.toml", tomlV1)
 
@@ -965,7 +965,7 @@ func TestAutoApplyRefusesWhatAPersonMustDecide(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			f := newGitFixture(t)
 			f.gitService(f.staging, "web", "main", "")
-			f.setAutoApply(f.staging, true)
+			f.enableAutoApply(f.staging)
 			f.repos.put(shaOf('a'), "nebula.toml", tomlV1)
 			f.planner.result, f.planner.applyErr = c.plan, c.apply
 
@@ -987,7 +987,7 @@ func TestAutoApplyRefusesWhatAPersonMustDecide(t *testing.T) {
 func TestPartialAutoApplyIsReportedInTheStatus(t *testing.T) {
 	f := newGitFixture(t)
 	f.gitService(f.staging, "web", "main", "")
-	f.setAutoApply(f.staging, true)
+	f.enableAutoApply(f.staging)
 	f.repos.put(shaOf('a'), "nebula.toml", tomlV1)
 	f.planner.applyStat = configsync.StatusPartial
 	f.gs.BeforePush(context.Background(), f.push(shaOf('a'), true, "nebula.toml"))
@@ -1001,7 +1001,7 @@ func TestProductionNeverAutoApplies(t *testing.T) {
 	f.gs.Wait()
 	f.planner.reset()
 	// Even a row that says otherwise (written around the service layer) is not obeyed.
-	f.setAutoApply(f.prod, true)
+	f.enableAutoApply(f.prod)
 	f.repos.put(shaOf('a'), "nebula.toml", tomlV1)
 
 	f.gs.BeforePush(context.Background(), f.push(shaOf('a'), true, "nebula.toml"))
@@ -1191,7 +1191,7 @@ func (f *gitFixture) frame(svc uuid.UUID, commit string, files map[string][]byte
 func TestBuildCheckoutRefreshesTheStatusWithoutApplying(t *testing.T) {
 	f := newGitFixture(t)
 	web := f.gitService(f.staging, "web", "main", "")
-	f.setAutoApply(f.staging, true)
+	f.enableAutoApply(f.staging)
 	ctx := context.Background()
 	f.repos.put(shaOf('a'), "nebula.toml", tomlV1)
 	f.planner.result = func(req configsync.PlanRequest, _ bool) configsync.Plan { return differsPlan(req, false) }
@@ -1269,7 +1269,7 @@ func TestSourceChangesRefreshTheStatus(t *testing.T) {
 
 	// A second service of the repository appears: the hook schedules a status
 	// refresh of its environment (no push, no auto-apply).
-	f.setAutoApply(f.staging, true)
+	f.enableAutoApply(f.staging)
 	_, err := f.svcs.Create(f.admin, f.staging.ID, services.CreateInput{
 		Name: "worker", SourceType: services.SourceGit, ServerID: &f.server.ID,
 		Config: services.Config{GitURL: "https://git.example.com/acme/shop.git", GitBranch: "main", Port: 80},
@@ -1339,7 +1339,7 @@ func TestPushHookStagesTheConfigBeforeThePushDeploys(t *testing.T) {
 	require.NoError(t, err)
 	_, err = gp.Link(f.admin, svc.ID, gitproviders.LinkInput{ConnectionID: res.Connection.ID, Repo: "team/webapp", Branch: "main"})
 	require.NoError(t, err)
-	f.setAutoApply(f.staging, true)
+	f.enableAutoApply(f.staging)
 	f.repos.noAPI = true
 	const sha = "709d658dc5b6d6afcd46049c2f332ee3f515a67d"
 	f.scan.files = map[string][]byte{"nebula.toml": []byte(tomlV1)}

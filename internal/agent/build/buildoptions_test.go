@@ -120,7 +120,7 @@ func TestNoCacheRailpackBuildPassesTheFlagsAndKeepsThemOnTheBuildxRetry(t *testi
 }
 
 func TestNoCachePushedBuildPassesTheFlags(t *testing.T) {
-	host, _ := registry(t)
+	host := registry(t)
 	d := newPushDocker(t)
 	req := goodPush(host)
 	req.NoCache = true

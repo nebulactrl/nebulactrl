@@ -38,7 +38,7 @@ function ms(iso: string | null | undefined): number | null {
 }
 
 /** The delivery steps of a command with the wait since the one before. */
-export function commandTimes(command: DebugCommand) {
+function commandTimes(command: DebugCommand) {
 	const steps = [
 		{ label: "Enqueued", at: command.createdAt },
 		{ label: "Sent", at: command.sentAt },

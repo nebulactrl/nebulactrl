@@ -546,7 +546,10 @@ func (s *Service) RecordScaleFailure(ctx context.Context, serviceID uuid.UUID, m
 func (s *Service) recordScaleFailure(ctx context.Context, serviceID uuid.UUID, process, msg string) error {
 	sc, err := services.LoadScopeInternal(ctx, s.q, serviceID)
 	if err != nil {
-		return nil // deleted
+		if apierr.IsNotFound(err) {
+			return nil // deleted
+		}
+		return err
 	}
 	if msg == "" {
 		msg = "the agent could not scale the service"
@@ -602,11 +605,11 @@ func (s *Service) HandleResult(ctx context.Context, commandID uuid.UUID, res age
 	}
 	var p agentprotocol.ScaleServicePayload
 	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
-		return nil
+		return nil //nolint:nilerr // the stored scale_service payload can never decode; an error would make the hub redeliver this result on every agent reconnect, forever
 	}
 	id, err := uuid.Parse(p.ServiceID)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // the stored scale_service payload carries no valid service ID and never will; an error would make the hub redeliver this result on every agent reconnect, forever
 	}
 	msg := res.Error
 	if msg == "" {

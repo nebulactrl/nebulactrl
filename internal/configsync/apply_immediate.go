@@ -83,14 +83,14 @@ func (a *applier) planImmediate(sp *svcPlan) {
 		add(&immStep{name: stepName("git", slug), fields: fs, run: func(ctx context.Context) error { return a.runGit(ctx, sp, id, fs) }})
 	}
 	if fs := imm("uptime."); len(fs) > 0 {
-		add(&immStep{name: stepName("uptime", slug), fields: fs, run: func(ctx context.Context) error { return a.runUptime(ctx, sp, id, fs, false) }})
+		add(&immStep{name: stepName("uptime", slug), fields: fs, run: func(ctx context.Context) error { return a.runUptime(ctx, sp, id, false) }})
 	}
 	if rm := sp.removesWith("uptime."); len(rm) > 0 {
 		var ids []string
 		for _, f := range rm {
 			ids = append(ids, f.fv.ID)
 		}
-		add(&immStep{name: stepName("uptime", slug, "reset"), drop: ids, run: func(ctx context.Context) error { return a.runUptime(ctx, sp, id, nil, true) }})
+		add(&immStep{name: stepName("uptime", slug, "reset"), drop: ids, run: func(ctx context.Context) error { return a.runUptime(ctx, sp, id, true) }})
 	}
 	for _, f := range imm("tasks.") {
 		f := f
@@ -252,7 +252,7 @@ func (a *applier) runGit(ctx context.Context, sp *svcPlan, id uuid.UUID, fs []*f
 	return err
 }
 
-func (a *applier) runUptime(ctx context.Context, sp *svcPlan, id uuid.UUID, fs []*fieldPlan, reset bool) error {
+func (a *applier) runUptime(ctx context.Context, sp *svcPlan, id uuid.UUID, reset bool) error {
 	v := uptime.MonitorView{Enabled: true, Alerts: true, FailureThreshold: 3, RecoveryThreshold: 2}
 	if !reset && sp.ls != nil && sp.ls.Monitor != nil {
 		m := sp.ls.Monitor

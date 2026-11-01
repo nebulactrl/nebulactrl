@@ -394,9 +394,9 @@ func (f *applyFixture) apply(ctx context.Context, env, file string, opts ...appl
 	return f.cfg.Apply(ctx, f.project.ID, applyReq(env, file, opts...))
 }
 
-func (f *applyFixture) mustApply(env, file string, opts ...applyOpt) configsync.ApplyResult {
+func (f *applyFixture) mustApply(file string, opts ...applyOpt) configsync.ApplyResult {
 	f.t.Helper()
-	res, err := f.apply(f.admin, env, file, opts...)
+	res, err := f.apply(f.admin, "staging", file, opts...)
 	require.NoError(f.t, err)
 	return res
 }
@@ -629,12 +629,12 @@ func (f *applyFixture) state() applyState {
 
 // ---- UI-side changes (what the dashboard does) ----
 
-func (f *applyFixture) uiService(env db.Environment, slug, kind, source string, cfg services.Config) db.Service {
+func (f *applyFixture) uiService(env db.Environment, slug, source string, cfg services.Config) db.Service {
 	f.t.Helper()
 	raw, err := json.Marshal(cfg.WithDefaults())
 	require.NoError(f.t, err)
 	sv, err := f.q.InsertService(context.Background(), db.InsertServiceParams{
-		ID: uuid.New(), EnvironmentID: env.ID, Name: slug, Slug: slug, Kind: kind, SourceType: source, Config: raw, ServerID: &f.server.ID,
+		ID: uuid.New(), EnvironmentID: env.ID, Name: slug, Slug: slug, Kind: services.KindApp, SourceType: source, Config: raw, ServerID: &f.server.ID,
 	})
 	require.NoError(f.t, err)
 	return sv
@@ -913,7 +913,7 @@ func TestApplyCreatesServicesOfEveryKindInOneTransaction(t *testing.T) {
 	require.Equal(t, 5, pl.Summary.Create)
 
 	mark := f.auditMark()
-	res := f.mustApply("staging", applyKindsFile, applyWithPlanID(pl.PlanID))
+	res := f.mustApply(applyKindsFile, applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	require.Equal(t, pl.PlanID, res.PlanID)
 	for _, s := range res.Steps {
@@ -985,7 +985,7 @@ func TestApplyWritesEveryFieldFamilyAndRecordsOwnership(t *testing.T) {
 	require.ElementsMatch(t, []string{"pg", "app", "api"}, pl.Summary.RequiresDeploy)
 
 	mark := f.auditMark()
-	res := f.mustApply("staging", applyFullFile, applyWithPlanID(pl.PlanID))
+	res := f.mustApply(applyFullFile, applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	for _, s := range res.Steps {
 		require.NotEqual(t, configsync.StepFailed, s.Status, applyJSON(s))
@@ -1107,7 +1107,7 @@ func TestApplyWritesEveryFieldFamilyAndRecordsOwnership(t *testing.T) {
 func TestApplySecondIdenticalApplyIsANoopWithNoTrace(t *testing.T) {
 	f := newApplyFixture(t)
 	f.network("backplane")
-	f.mustApply("staging", applyFullFile)
+	f.mustApply(applyFullFile)
 	app := f.svcRow(f.staging, "app")
 	appliedAt := f.source(app.ID).AppliedAt
 	before := f.state()
@@ -1120,7 +1120,7 @@ func TestApplySecondIdenticalApplyIsANoopWithNoTrace(t *testing.T) {
 		require.Equal(t, configsync.StateInSync, s.State, s.Slug)
 	}
 
-	res := f.mustApply("staging", applyFullFile, applyWithPlanID(pl.PlanID))
+	res := f.mustApply(applyFullFile, applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusNoop, res.Status)
 	require.Equal(t, pl.PlanID, res.PlanID, "the same plan id")
 	require.Empty(t, res.Steps)
@@ -1132,15 +1132,69 @@ func TestApplySecondIdenticalApplyIsANoopWithNoTrace(t *testing.T) {
 	require.Len(t, f.audits("action = 'config.apply'"), 1)
 
 	// And again, without a plan id.
-	again := f.mustApply("staging", applyFullFile)
+	again := f.mustApply(applyFullFile)
 	require.Equal(t, configsync.StatusNoop, again.Status)
 	require.Equal(t, pl.PlanID, again.PlanID)
 	require.Equal(t, before, f.state())
 }
 
+// applyBinding records the environments whose file status an apply asked to refresh.
+type applyBinding struct {
+	configsync.Binding
+	mu   sync.Mutex
+	envs []uuid.UUID
+}
+
+func (b *applyBinding) Refresh(environmentID uuid.UUID) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.envs = append(b.envs, environmentID)
+}
+
+func (b *applyBinding) refreshed() []uuid.UUID {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	return append([]uuid.UUID(nil), b.envs...)
+}
+
+// After a dashboard apply stages something, the stored status of the file ("differs") is
+// stale: the environment is checked again. An apply that writes nothing leaves it alone.
+func TestApplyRefreshesTheFileStatusOnlyWhenSomethingWasWritten(t *testing.T) {
+	f := newApplyFixture(t)
+	b := &applyBinding{}
+	f.cfg.SetBinding(b)
+	const fileA = "schema = 1\nserver = \"agent1\"\n\n[services.app]\nimage = \"nginx:1.27\"\nport = 8080\n"
+	const fileB = "schema = 1\nserver = \"agent1\"\n\n[services.app]\nimage = \"nginx:1.27\"\nport = 9090\n"
+
+	res, err := f.apply(f.admin, "staging", fileA)
+	require.NoError(t, err)
+	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
+	require.Equal(t, []uuid.UUID{f.staging.ID}, b.refreshed(), "a staged apply schedules the re-check of its environment")
+
+	res, err = f.apply(f.admin, "staging", fileA)
+	require.NoError(t, err)
+	require.Equal(t, configsync.StatusNoop, res.Status)
+	require.Len(t, b.refreshed(), 1, "an apply that writes nothing schedules no re-check")
+
+	_, err = f.apply(f.admin, "staging", "this is = [not toml")
+	require.Error(t, err)
+	require.Len(t, b.refreshed(), 1, "a refused apply schedules no re-check")
+
+	// The guarded entry (REST and MCP) goes through the same apply.
+	res, err = f.cfg.ApplyGuarded(f.admin, f.project.ID, applyReq("staging", fileB))
+	require.NoError(t, err)
+	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
+	require.Equal(t, []uuid.UUID{f.staging.ID, f.staging.ID}, b.refreshed())
+
+	// An unattended apply of a git file checks again by itself.
+	_, err = f.apply(f.admin, "staging", fileA, applyWithSource(configsync.SourceInfo{Origin: configsync.OriginGit}))
+	require.NoError(t, err)
+	require.Len(t, b.refreshed(), 2, "the git auto-apply plans again itself: no second check")
+}
+
 func TestApplyNeverWipesSettingsTheFileDoesNotOwn(t *testing.T) {
 	f := newApplyFixture(t)
-	web := f.uiService(f.staging, "web", services.KindApp, services.SourceGit, services.Config{
+	web := f.uiService(f.staging, "web", services.SourceGit, services.Config{
 		GitURL: "https://github.com/acme/shop.git", GitBranch: "main", Port: 3000, MemoryMB: 256, StartCommand: []string{"bun", "run", "start"},
 		Files:         []services.FileMount{{Path: "/etc/app/app.conf", Mode: "0640", Content: "listen = 3000\n"}},
 		Docker:        &agentprotocol.DockerOptions{NoNewPrivileges: true, CapDrop: []string{"ALL"}},
@@ -1165,7 +1219,7 @@ func TestApplyNeverWipesSettingsTheFileDoesNotOwn(t *testing.T) {
 	require.Equal(t, "3000", c.From)
 	require.Equal(t, "8080", c.To)
 
-	res := f.mustApply("staging", file, applyWithPlanID(pl.PlanID))
+	res := f.mustApply(file, applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	after := f.row(web.ID)
 
@@ -1199,7 +1253,7 @@ func TestApplyNeverWipesSettingsTheFileDoesNotOwn(t *testing.T) {
 
 	// A second change of the same key keeps everything else too.
 	const file2 = "schema = 1\n\n[services.web]\nport = 9000\n\n[services.web.git]\nurl = \"https://github.com/acme/shop.git\"\nbranch = \"main\"\n"
-	f.mustApply("staging", file2)
+	f.mustApply(file2)
 	again := f.row(web.ID)
 	diff = services.DiffConfig("config", services.DecodeConfig(after.Config).WithDefaults(), services.DecodeConfig(again.Config).WithDefaults())
 	require.Len(t, diff, 1, applyJSON(diff))
@@ -1209,7 +1263,7 @@ func TestApplyNeverWipesSettingsTheFileDoesNotOwn(t *testing.T) {
 
 func TestApplySwitchesAnImageServiceToGitAsAStagedChange(t *testing.T) {
 	f := newApplyFixture(t)
-	web := f.uiService(f.staging, "web", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000, MemoryMB: 256})
+	web := f.uiService(f.staging, "web", services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000, MemoryMB: 256})
 	f.setVar(web.ID, "KEEP", "1", false)
 	vol, err := f.q.InsertVolume(context.Background(), db.InsertVolumeParams{ServiceID: web.ID, Name: "data", MountPath: "/data"})
 	require.NoError(t, err)
@@ -1230,7 +1284,7 @@ func TestApplySwitchesAnImageServiceToGitAsAStagedChange(t *testing.T) {
 	require.Equal(t, "services.web.git", src.Path)
 	require.Contains(t, pl.Summary.RequiresDeploy, "web")
 
-	res := f.mustApply("staging", file, applyWithPlanID(pl.PlanID))
+	res := f.mustApply(file, applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "source:web"))
 
@@ -1255,7 +1309,7 @@ func TestApplySwitchesAnImageServiceToGitAsAStagedChange(t *testing.T) {
 
 func TestApplySwitchesAGitServiceToAnImageAsAStagedChange(t *testing.T) {
 	f := newApplyFixture(t)
-	web := f.uiService(f.staging, "web", services.KindApp, services.SourceGit, services.Config{
+	web := f.uiService(f.staging, "web", services.SourceGit, services.Config{
 		GitURL: "https://github.com/acme/shop.git", GitBranch: "main", Port: 3000, BuildType: "dockerfile", DockerfilePath: "docker/Dockerfile",
 	})
 	f.setVar(web.ID, "KEEP", "1", false)
@@ -1269,7 +1323,7 @@ func TestApplySwitchesAGitServiceToAnImageAsAStagedChange(t *testing.T) {
 	require.Equal(t, "image", src.To)
 	require.Equal(t, "services.web.image", src.Path)
 
-	res := f.mustApply("staging", file, applyWithPlanID(pl.PlanID))
+	res := f.mustApply(file, applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 
 	after := f.row(web.ID)
@@ -1287,7 +1341,7 @@ func TestApplySwitchesAGitServiceToAnImageAsAStagedChange(t *testing.T) {
 
 func TestApplyRefusesToTurnAStackIntoAnImage(t *testing.T) {
 	f := newApplyFixture(t)
-	f.mustApply("staging", applyKindsFile)
+	f.mustApply(applyKindsFile)
 	stack := f.svcRow(f.staging, "suite")
 	require.Equal(t, services.SourceCompose, stack.SourceType)
 	before := f.state()
@@ -1308,12 +1362,12 @@ func TestApplyRefusesToTurnAStackIntoAnImage(t *testing.T) {
 func TestApplyGenerationAdvancesOncePerServiceWhateverIsChanged(t *testing.T) {
 	// The generation advances only if something changed, and advances once.
 	f := newApplyFixture(t)
-	web := f.uiService(f.staging, "web", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
+	web := f.uiService(f.staging, "web", services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
 	f.setVar(web.ID, "KEEP", "1", false)
 	before := f.row(web.ID)
 
 	file := applyWebFile(8080, "\n[services.web.variables]\nKEEP = \"2\"\nNEW = \"x\"\n\n[services.web.volumes]\ndata = \"/data\"\n\n[services.web.domains.\"web.example.com\"]\n")
-	res := f.mustApply("staging", file)
+	res := f.mustApply(file)
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	for _, name := range []string{"config:web", "variables:web", "volumes:web", "domains:web"} {
 		require.Equal(t, configsync.StepApplied, applyStepStatus(res, name), name)
@@ -1326,7 +1380,7 @@ func TestApplyGenerationAdvancesOncePerServiceWhateverIsChanged(t *testing.T) {
 
 func TestApplyStalePlanIsRefusedWithoutAnyWrite(t *testing.T) {
 	f := newApplyFixture(t)
-	web := f.uiService(f.staging, "web", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
+	web := f.uiService(f.staging, "web", services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
 	file := applyWebFile(8080, "")
 	pl := f.plan("staging", file)
 	require.Equal(t, configsync.ActionUpdate, applyPlanService(t, pl, "web").Action)
@@ -1352,12 +1406,12 @@ func TestApplyStalePlanIsRefusedWithoutAnyWrite(t *testing.T) {
 	require.Equal(t, before, f.state())
 
 	// The fresh plan applies.
-	res := f.mustApply("staging", file, applyWithPlanID(fresh.PlanID))
+	res := f.mustApply(file, applyWithPlanID(fresh.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status)
 	require.Equal(t, 8080, f.cfgOf(web.ID).Port)
 
 	// Without a plan id the apply plans and applies atomically.
-	res = f.mustApply("staging", applyWebFile(8090, ""))
+	res = f.mustApply(applyWebFile(8090, ""))
 	require.Equal(t, configsync.StatusStaged, res.Status)
 	require.Equal(t, 8090, f.cfgOf(web.ID).Port)
 }
@@ -1640,7 +1694,7 @@ keep = "/keep"
 schedule = "0 7 * * *"
 command = ["echo", "keep"]
 `
-	f.mustApply("staging", v1)
+	f.mustApply(v1)
 	web := f.svcRow(f.staging, "web")
 	require.Contains(t, f.owned(web.ID), "variables.GONE")
 	applies := len(f.audits("action = 'config.apply'"))
@@ -1652,7 +1706,7 @@ command = ["echo", "keep"]
 		"services.web.variables.GONE", "services.web.volumes.gone", `services.web.domains."gone.example.com"`, "services.web.tasks.gone-task",
 	}, ps.Released)
 
-	f.mustApply("staging", v2, applyWithPlanID(pl.PlanID))
+	f.mustApply(v2, applyWithPlanID(pl.PlanID))
 
 	owned := f.owned(web.ID)
 	for _, id := range []string{"variables.GONE", "volumes.gone", "domains.gone.example.com", "tasks.gone-task"} {
@@ -1754,7 +1808,7 @@ keep = "/keep"
 schedule = "0 7 * * *"
 command = ["echo", "keep"]
 `
-	res1 := f.mustApply("staging", v1)
+	res1 := f.mustApply(v1)
 	require.Equal(t, configsync.StatusStaged, res1.Status, applyJSON(res1.Steps))
 	pg, web, aux := f.svcRow(f.staging, "pg"), f.svcRow(f.staging, "web"), f.svcRow(f.staging, "aux")
 	require.Len(t, f.scheduleRows(pg.ID), 2)
@@ -1781,7 +1835,7 @@ command = ["echo", "keep"]
 	require.Equal(t, configsync.ActionNotInFile, applyPlanService(t, pl, "aux").Action, "a service that left the file is listed, never pruned")
 	require.True(t, applyPlanService(t, pl, "aux").Managed)
 
-	res := f.mustApply("staging", v2, applyWithPrune(), applyWithPlanID(pl.PlanID))
+	res := f.mustApply(v2, applyWithPrune(), applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "tasks:web:drop-task"))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "backups:pg:drop"))
@@ -1849,7 +1903,7 @@ APP_NAME = "Acme"
 [environments.staging.variables]
 APP_ENV = "staging"
 `)
-	res := f.mustApply("staging", v1)
+	res := f.mustApply(v1)
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "shared:project"))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "shared:environment"))
@@ -1864,7 +1918,7 @@ APP_ENV = "staging"
 	require.NoError(t, err)
 
 	// Again: nothing to do.
-	again := f.mustApply("staging", v1)
+	again := f.mustApply(v1)
 	require.Equal(t, configsync.StatusNoop, again.Status, applyJSON(again))
 
 	// The environment variable leaves the file: released, then pruned.
@@ -1875,14 +1929,14 @@ SITE = "${{shared.APP_NAME}}"
 [variables]
 APP_NAME = "Acme"
 `)
-	f.mustApply("staging", v2)
+	f.mustApply(v2)
 	require.Equal(t, map[string]string{"project.APP_NAME": applyVarFP("Acme", false)}, f.ownedShared(f.staging))
 	envVars, err := f.q.ListSharedVariablesEnv(context.Background(), &f.staging.ID)
 	require.NoError(t, err)
 	require.Len(t, envVars, 1, "released, not deleted")
 
-	f.mustApply("staging", v1)
-	f.mustApply("staging", v2, applyWithPrune())
+	f.mustApply(v1)
+	f.mustApply(v2, applyWithPrune())
 	envVars, err = f.q.ListSharedVariablesEnv(context.Background(), &f.staging.ID)
 	require.NoError(t, err)
 	require.Empty(t, envVars, "pruned: the file owned it")
@@ -1900,7 +1954,7 @@ func TestApplyPartialWhenAnImmediateStepFailsThenConverges(t *testing.T) {
 	f.scaler.fail.set(errors.New("scale boom"))
 	file := applyWebFile(8080, "\n[services.web.variables]\nGREETING = \"hi\"\n\n[services.web.scale]\nreplicas = 2\n")
 
-	res := f.mustApply("staging", file)
+	res := f.mustApply(file)
 	require.Equal(t, configsync.StatusPartial, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepFailed, applyStepStatus(res, "scale:web"))
 	require.Contains(t, applyStepMessage(res, "scale:web"), "scale boom")
@@ -1922,12 +1976,12 @@ func TestApplyPartialWhenAnImmediateStepFailsThenConverges(t *testing.T) {
 
 	// Healthy again: re-applying converges.
 	f.scaler.fail.set(nil)
-	res = f.mustApply("staging", file, applyWithPlanID(pl.PlanID))
+	res = f.mustApply(file, applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "scale:web"))
 	require.Equal(t, int32(2), f.row(web.ID).Replicas)
 	require.Equal(t, applyFP(2), f.owned(web.ID)["scale.replicas"])
-	res = f.mustApply("staging", file)
+	res = f.mustApply(file)
 	require.Equal(t, configsync.StatusNoop, res.Status, applyJSON(res.Steps))
 }
 
@@ -1936,7 +1990,7 @@ func TestApplyPartialWhenTheTaskStoreFailsThenConverges(t *testing.T) {
 	f.tsk.fail.set(errors.New("tasks down"))
 	file := applyWebFile(8080, "\n[services.web.tasks.digest]\nschedule = \"0 7 * * *\"\ncommand = [\"echo\", \"digest\"]\n")
 
-	res := f.mustApply("staging", file)
+	res := f.mustApply(file)
 	require.Equal(t, configsync.StatusPartial, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepFailed, applyStepStatus(res, "tasks:web:digest"))
 	web := f.svcRow(f.staging, "web")
@@ -1945,11 +1999,11 @@ func TestApplyPartialWhenTheTaskStoreFailsThenConverges(t *testing.T) {
 	require.Contains(t, f.owned(web.ID), "config.port")
 
 	f.tsk.fail.set(nil)
-	res = f.mustApply("staging", file)
+	res = f.mustApply(file)
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	require.Contains(t, f.taskRows(web.ID), "digest")
 	require.Contains(t, f.owned(web.ID), "tasks.digest")
-	require.Equal(t, configsync.StatusNoop, f.mustApply("staging", file).Status)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(file).Status)
 }
 
 const applyDeferFile = `schema = 1
@@ -1973,7 +2027,7 @@ func TestApplyDefersWhatNeedsADeployedServiceAndRunPendingCompletesIt(t *testing
 	f := newApplyFixture(t)
 	f.bkp.fail.set(applyNotDeployed())
 
-	res := f.mustApply("staging", applyDeferFile)
+	res := f.mustApply(applyDeferFile)
 	require.Equal(t, configsync.StepDeferred, applyStepStatus(res, "backups:pg:nightly"), applyJSON(res.Steps))
 	require.Equal(t, configsync.StatusStaged, res.Status, "the service was created")
 	var deferred *configsync.Diagnostic
@@ -2008,7 +2062,7 @@ func TestApplyDefersWhatNeedsADeployedServiceAndRunPendingCompletesIt(t *testing
 	require.Equal(t, []string{"backups.nightly"}, src.Pending)
 
 	// Running a later apply defers again without duplicating the record.
-	res = f.mustApply("staging", applyDeferFile)
+	res = f.mustApply(applyDeferFile)
 	require.Equal(t, configsync.StepDeferred, applyStepStatus(res, "backups:pg:nightly"))
 	require.Len(t, f.pendingOf(pg.ID), 1)
 
@@ -2039,24 +2093,24 @@ func TestApplyDefersWhatNeedsADeployedServiceAndRunPendingCompletesIt(t *testing
 func TestApplyAfterADeferralConvergesWhenTheStoreIsHealthy(t *testing.T) {
 	f := newApplyFixture(t)
 	f.bkp.fail.set(applyNotDeployed())
-	f.mustApply("staging", applyDeferFile)
+	f.mustApply(applyDeferFile)
 	pg := f.svcRow(f.staging, "pg")
 	require.Len(t, f.pendingOf(pg.ID), 1)
 
 	f.bkp.fail.set(nil)
-	res := f.mustApply("staging", applyDeferFile)
+	res := f.mustApply(applyDeferFile)
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "backups:pg:nightly"), applyJSON(res.Steps))
 	require.Equal(t, configsync.StatusStaged, res.Status)
 	require.Len(t, f.scheduleRows(pg.ID), 1)
 	require.Empty(t, f.pendingOf(pg.ID))
 	require.Contains(t, f.owned(pg.ID), "backups.nightly")
-	require.Equal(t, configsync.StatusNoop, f.mustApply("staging", applyDeferFile).Status)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(applyDeferFile).Status)
 }
 
 func TestRunPendingLoopReplaysWhenADeploymentSucceeds(t *testing.T) {
 	f := newApplyFixture(t)
 	f.bkp.fail.set(applyNotDeployed())
-	f.mustApply("staging", applyDeferFile)
+	f.mustApply(applyDeferFile)
 	pg := f.svcRow(f.staging, "pg")
 	f.bkp.fail.set(nil)
 
@@ -2120,7 +2174,7 @@ port = %d
 image = "nginx:1.27"
 port = 8081
 `
-	res := f.mustApply("staging", fmt.Sprintf(two, 8080), applyWithDeploy())
+	res := f.mustApply(fmt.Sprintf(two, 8080), applyWithDeploy())
 	web, other := f.svcRow(f.staging, "web"), f.svcRow(f.staging, "other")
 	require.Equal(t, 1, f.deploy.callCount())
 	call := f.deploy.lastCall()
@@ -2130,21 +2184,21 @@ port = 8081
 	require.Len(t, res.Deployments, 2)
 
 	// Only web changes now: other has staged changes of its own but this apply did not touch it.
-	res = f.mustApply("staging", fmt.Sprintf(two, 8082), applyWithDeploy())
+	res = f.mustApply(fmt.Sprintf(two, 8082), applyWithDeploy())
 	require.Equal(t, 2, f.deploy.callCount())
 	call = f.deploy.lastCall()
 	require.Equal(t, []uuid.UUID{web.ID}, call.IDs)
 	require.Len(t, res.Deployments, 1)
 
 	// Nothing changed: nothing is deployed.
-	res = f.mustApply("staging", fmt.Sprintf(two, 8082), applyWithDeploy())
+	res = f.mustApply(fmt.Sprintf(two, 8082), applyWithDeploy())
 	require.Equal(t, configsync.StatusNoop, res.Status)
 	require.Equal(t, configsync.StepUnchanged, applyStepStatus(res, "deploy"))
 	require.Equal(t, 2, f.deploy.callCount())
 	require.Empty(t, res.Deployments)
 
 	// Without the switch an apply never deploys.
-	f.mustApply("staging", fmt.Sprintf(two, 8083))
+	f.mustApply(fmt.Sprintf(two, 8083))
 	require.Equal(t, 2, f.deploy.callCount())
 }
 
@@ -2186,7 +2240,7 @@ func TestApplyConcurrentAppliesOfOneEnvironmentSerialize(t *testing.T) {
 
 func TestApplyAdoptsAnExistingServiceOwningOnlyTheKeysPresent(t *testing.T) {
 	f := newApplyFixture(t)
-	web := f.uiService(f.staging, "web", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
+	web := f.uiService(f.staging, "web", services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
 	f.setVar(web.ID, "NODE_ENV", "development", false)
 	f.setVar(web.ID, "UNTOUCHED", "1", false)
 	_, err := f.doms.Create(f.admin, web.ID, "old.example.com", 0, domains.RuleInput{})
@@ -2220,7 +2274,7 @@ NEW = "x"
 	}
 	require.Equal(t, map[string]int{"variables": 1}, ps.Unmanaged)
 
-	f.mustApply("staging", file, applyWithPlanID(pl.PlanID))
+	f.mustApply(file, applyWithPlanID(pl.PlanID))
 	require.Equal(t, []string{
 		"config.image", "config.port", "domains.old.example.com", "server", "variables.NEW", "variables.NODE_ENV",
 	}, applyOwnedKeys(f.owned(web.ID)), "owned = the keys present (the file's root server included), in sync or not")
@@ -2240,7 +2294,7 @@ func TestServiceSourceReportsDriftFileChangedAndConflict(t *testing.T) {
 	f := newApplyFixture(t)
 
 	// A service no file manages.
-	web := f.uiService(f.staging, "web", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
+	web := f.uiService(f.staging, "web", services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
 	src, err := f.cfg.ServiceSource(f.admin, web.ID)
 	require.NoError(t, err)
 	require.False(t, src.Managed)
@@ -2251,7 +2305,7 @@ func TestServiceSourceReportsDriftFileChangedAndConflict(t *testing.T) {
 	require.Empty(t, src.State)
 
 	file := applyWebFile(8080, "\n[services.web.variables]\nNODE_ENV = \"production\"\n")
-	f.mustApply("staging", file, applyWithSource(configsync.SourceInfo{Repo: "acme/shop", Branch: "main", Path: "nebula.toml", Commit: "abcdef1234567"}))
+	f.mustApply(file, applyWithSource(configsync.SourceInfo{Repo: "acme/shop", Branch: "main", Path: "nebula.toml", Commit: "abcdef1234567"}))
 	states := func() (configsync.ServiceConfigSource, map[string]string) {
 		s, err := f.cfg.ServiceSource(f.admin, web.ID)
 		require.NoError(t, err)
@@ -2303,7 +2357,7 @@ func TestServiceSourceReportsDriftFileChangedAndConflict(t *testing.T) {
 func TestReleaseFieldsStopsOwningOnlyTheListedFields(t *testing.T) {
 	f := newApplyFixture(t)
 	file := applyWebFile(8080, "\n[services.web.variables]\nA = \"1\"\nB = \"2\"\n")
-	f.mustApply("staging", file)
+	f.mustApply(file)
 	web := f.svcRow(f.staging, "web")
 	before := f.owned(web.ID)
 	require.Contains(t, before, "variables.A")
@@ -2344,7 +2398,7 @@ func TestReleaseFieldsStopsOwningOnlyTheListedFields(t *testing.T) {
 	// Releasing it again is an unknown id now; a service no file manages owns nothing.
 	_, err = f.cfg.ReleaseFields(f.admin, web.ID, []string{"variables.A"})
 	applyRequireError(t, err, 422, configsync.CodeFieldNotOwned)
-	lone := f.uiService(f.staging, "lone", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1.27", Port: 80})
+	lone := f.uiService(f.staging, "lone", services.SourceImage, services.Config{Image: "nginx:1.27", Port: 80})
 	_, err = f.cfg.ReleaseFields(f.admin, lone.ID, []string{"config.port"})
 	applyRequireError(t, err, 422, configsync.CodeFieldNotOwned)
 
@@ -2357,7 +2411,7 @@ func TestReleaseFieldsStopsOwningOnlyTheListedFields(t *testing.T) {
 
 func TestApplyBackupSchedulesAreIdentifiedByTheirKey(t *testing.T) {
 	f := newApplyFixture(t)
-	f.mustApply("staging", applyDeferFile)
+	f.mustApply(applyDeferFile)
 	pg := f.svcRow(f.staging, "pg")
 	rows := f.scheduleRows(pg.ID)
 	require.Len(t, rows, 1)
@@ -2373,7 +2427,7 @@ func TestApplyBackupSchedulesAreIdentifiedByTheirKey(t *testing.T) {
 	require.Equal(t, []string{"backups.nightly"}, applyChangeFields(ps))
 	// Unmanaged counts every live member the file does not mention, a database's own variables and data volume included.
 	require.Equal(t, 1, ps.Unmanaged["backups"], "the schedule made in the dashboard is counted, never touched")
-	f.mustApply("staging", v2, applyWithPlanID(pl.PlanID))
+	f.mustApply(v2, applyWithPlanID(pl.PlanID))
 
 	rows = f.scheduleRows(pg.ID)
 	require.Len(t, rows, 2)
@@ -2394,11 +2448,11 @@ func TestApplyBackupSchedulesAreIdentifiedByTheirKey(t *testing.T) {
 
 func TestApplyUptimeOverlaysTheOwnedKeysOnTheLiveMonitor(t *testing.T) {
 	f := newApplyFixture(t)
-	web := f.uiService(f.staging, "web", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
+	web := f.uiService(f.staging, "web", services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3000})
 	_, err := f.upt.UpdateMonitor(f.admin, web.ID, uptime.MonitorView{Enabled: true, Alerts: false, FailureThreshold: 5, RecoveryThreshold: 4, ReminderMinutes: 10})
 	require.NoError(t, err)
 
-	f.mustApply("staging", applyWebFile(3000, "\n[services.web.uptime]\nreminder_minutes = 60\n"))
+	f.mustApply(applyWebFile(3000, "\n[services.web.uptime]\nreminder_minutes = 60\n"))
 	m := f.monitor(web.ID)
 	require.True(t, m.Enabled)
 	require.False(t, m.Alerts, "alerts is not owned: the dashboard's value stays")
@@ -2411,8 +2465,8 @@ func TestApplyUptimeOverlaysTheOwnedKeysOnTheLiveMonitor(t *testing.T) {
 	require.NotContains(t, owned, "uptime.failureThreshold")
 
 	// A service with no monitor row gets the defaults for what the file leaves out.
-	other := f.uiService(f.staging, "other", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3001})
-	f.mustApply("staging", applyWebFile(3000, "\n[services.web.uptime]\nreminder_minutes = 60\n\n[services.other]\nimage = \"nginx:1.27\"\nport = 3001\n\n[services.other.uptime]\nfailure_threshold = 5\n"))
+	other := f.uiService(f.staging, "other", services.SourceImage, services.Config{Image: "nginx:1.27", Port: 3001})
+	f.mustApply(applyWebFile(3000, "\n[services.web.uptime]\nreminder_minutes = 60\n\n[services.other]\nimage = \"nginx:1.27\"\nport = 3001\n\n[services.other.uptime]\nfailure_threshold = 5\n"))
 	o := f.monitor(other.ID)
 	require.True(t, o.Enabled)
 	require.True(t, o.Alerts)
@@ -2424,7 +2478,7 @@ func TestApplyUptimeOverlaysTheOwnedKeysOnTheLiveMonitor(t *testing.T) {
 func TestApplyGenerateDomainAttachesOneGeneratedHostname(t *testing.T) {
 	f := newApplyFixture(t)
 	file := applyWebFile(8080, "generate_domain = true\n")
-	res := f.mustApply("staging", file)
+	res := f.mustApply(file)
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "domains:web"))
 	web := f.svcRow(f.staging, "web")
@@ -2435,7 +2489,7 @@ func TestApplyGenerateDomainAttachesOneGeneratedHostname(t *testing.T) {
 		require.True(t, strings.HasSuffix(host, ".example.com"), host)
 	}
 	require.Equal(t, applyFP(true), f.owned(web.ID)["generate_domain"])
-	again := f.mustApply("staging", file)
+	again := f.mustApply(file)
 	require.Equal(t, configsync.StatusNoop, again.Status, applyJSON(again.Steps))
 	require.Len(t, f.domainRows(web.ID), 1)
 }
@@ -2458,7 +2512,7 @@ keys = ["STRIPE_SECRET_KEY"]
 	var outputs []string
 	pl := f.plan("staging", file(8080))
 	outputs = append(outputs, applyJSON(pl))
-	res := f.mustApply("staging", file(8080), applyWithPlanID(pl.PlanID))
+	res := f.mustApply(file(8080), applyWithPlanID(pl.PlanID))
 	outputs = append(outputs, applyJSON(res))
 	web := f.svcRow(f.staging, "web")
 
@@ -2472,7 +2526,7 @@ keys = ["STRIPE_SECRET_KEY"]
 	// Plan, apply and read the state again with the secrets in place.
 	pl2 := f.plan("staging", file(9090))
 	outputs = append(outputs, applyJSON(pl2))
-	res2 := f.mustApply("staging", file(9090), applyWithPlanID(pl2.PlanID))
+	res2 := f.mustApply(file(9090), applyWithPlanID(pl2.PlanID))
 	outputs = append(outputs, applyJSON(res2))
 	src, err := f.cfg.ServiceSource(f.admin, web.ID)
 	require.NoError(t, err)
@@ -2503,7 +2557,7 @@ keys = ["STRIPE_SECRET_KEY"]
 func TestApplyAfterServiceDeleteStartsFromScratch(t *testing.T) {
 	f := newApplyFixture(t)
 	file := applyWebFile(8080, "\n[services.web.variables]\nK = \"v\"\n")
-	f.mustApply("staging", file)
+	f.mustApply(file)
 	old := f.svcRow(f.staging, "web")
 	require.True(t, f.hasSource(old.ID))
 
@@ -2512,7 +2566,7 @@ func TestApplyAfterServiceDeleteStartsFromScratch(t *testing.T) {
 
 	pl := f.plan("staging", file)
 	require.Equal(t, configsync.ActionCreate, applyPlanService(t, pl, "web").Action)
-	res := f.mustApply("staging", file)
+	res := f.mustApply(file)
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "service.create:web"))
 	fresh := f.svcRow(f.staging, "web")
 	require.NotEqual(t, old.ID, fresh.ID)
@@ -2576,7 +2630,7 @@ func TestApplyCreatesAServiceWithProcessesDomainsAndScale(t *testing.T) {
 	require.True(t, pl.Valid, applyJSON(pl.Diagnostics))
 	require.Equal(t, 1, pl.Summary.Create)
 
-	res := f.mustApply("staging", applyProcessesFile, applyWithPlanID(pl.PlanID))
+	res := f.mustApply(applyProcessesFile, applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	for _, s := range res.Steps {
 		require.NotEqual(t, configsync.StepFailed, s.Status, applyJSON(s))
@@ -2624,7 +2678,7 @@ func TestApplyCreatesAServiceWithProcessesDomainsAndScale(t *testing.T) {
 	}
 	require.Equal(t, applyFP(2), owned["processes.worker.scale.replicas"], "the scale of a process is an immediate key of its own")
 
-	require.Equal(t, configsync.StatusNoop, f.mustApply("staging", applyProcessesFile).Status, "the applied file plans to nothing")
+	require.Equal(t, configsync.StatusNoop, f.mustApply(applyProcessesFile).Status, "the applied file plans to nothing")
 }
 
 // A service none of whose processes listens on a port is a worker; one process with a port makes an app.
@@ -2648,7 +2702,7 @@ port = 8000
 `
 	pl := f.plan("staging", file)
 	require.True(t, pl.Valid, applyJSON(pl.Diagnostics))
-	f.mustApply("staging", file)
+	f.mustApply(file)
 	require.Equal(t, services.KindWorker, f.svcRow(f.staging, "queue").Kind)
 	require.Equal(t, services.KindApp, f.svcRow(f.staging, "site").Kind)
 	require.Equal(t, []string{"sidekiq"}, applyProcessNames(f.cfgOf(f.svcRow(f.staging, "queue").ID)))
@@ -2663,7 +2717,7 @@ command = ["bundle", "exec", "sidekiq"]
 [services.web.processes.mailer]
 command = ["bin/mailer"]
 `)
-	f.mustApply("staging", base)
+	f.mustApply(base)
 	web := f.svcRow(f.staging, "web")
 	require.Empty(t, f.processScales(web.ID), "a process that was never scaled has no row")
 	require.Empty(t, f.scaler.processCalls())
@@ -2694,7 +2748,7 @@ target_cpu_percent = 60
 		"processes.mailer.scale.autoscaling.targetCpuPercent", "processes.worker.scale.replicas", // min = 1 is the live default: no change
 	}, applyChangeFields(applyPlanService(t, pl, "web")))
 
-	res := f.mustApply("staging", scaled, applyWithPlanID(pl.PlanID))
+	res := f.mustApply(scaled, applyWithPlanID(pl.PlanID))
 	require.NotEqual(t, configsync.StatusPartial, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "scale:web:worker"))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "scale:web:mailer"))
@@ -2714,12 +2768,12 @@ target_cpu_percent = 60
 	owned := f.owned(web.ID)
 	require.Equal(t, applyFP(3), owned["processes.worker.scale.replicas"])
 	require.Equal(t, applyFP(true), owned["processes.mailer.scale.autoscaling.enabled"])
-	require.Equal(t, configsync.StatusNoop, f.mustApply("staging", scaled).Status)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(scaled).Status)
 
 	// A failing step is reported and records no ownership; the next apply converges.
 	f.scaler.procFail.set(errors.New("scale boom"))
 	more := strings.Replace(scaled, "replicas = 3", "replicas = 4", 1)
-	res = f.mustApply("staging", more)
+	res = f.mustApply(more)
 	require.Equal(t, configsync.StatusFailed, res.Status, applyJSON(res.Steps)+" (nothing staged was written, so the apply failed rather than partially applied)")
 	require.Equal(t, configsync.StepFailed, applyStepStatus(res, "scale:web:worker"))
 	require.Contains(t, applyStepMessage(res, "scale:web:worker"), "scale boom")
@@ -2727,11 +2781,11 @@ target_cpu_percent = 60
 	require.Equal(t, applyFP(3), f.owned(web.ID)["processes.worker.scale.replicas"], "a failed step records no ownership")
 
 	f.scaler.procFail.set(nil)
-	res = f.mustApply("staging", more)
+	res = f.mustApply(more)
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "scale:web:worker"))
 	require.EqualValues(t, 4, f.processScales(web.ID)["worker"].Replicas)
 	require.Equal(t, applyFP(4), f.owned(web.ID)["processes.worker.scale.replicas"])
-	require.Equal(t, configsync.StatusNoop, f.mustApply("staging", more).Status)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(more).Status)
 }
 
 func TestApplyPruneDropsOnlyProcessesTheFilePreviouslyOwned(t *testing.T) {
@@ -2753,7 +2807,7 @@ port = 9100
 process = "metrics"
 `)
 	v2 := applyWebFile(8080, worker)
-	res := f.mustApply("staging", v1)
+	res := f.mustApply(v1)
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	web := f.svcRow(f.staging, "web")
 	require.Equal(t, []string{"clock", "metrics", "worker"}, applyProcessNames(f.cfgOf(web.ID)))
@@ -2773,7 +2827,7 @@ process = "metrics"
 	require.Equal(t, 3, pl.Summary.Pruned)
 	require.Equal(t, map[string]int{"processes": 3, "domains": 1}, applyPlanService(t, pl, "web").Unmanaged, "every live process and domain the file does not name is counted, the pruned ones included")
 
-	res = f.mustApply("staging", v2, applyWithPrune(), applyWithPlanID(pl.PlanID))
+	res = f.mustApply(v2, applyWithPrune(), applyWithPlanID(pl.PlanID))
 	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
 	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "processes:web"))
 	require.Equal(t, []string{"adhoc", "worker"}, applyProcessNames(f.cfgOf(web.ID)))
@@ -2784,7 +2838,7 @@ process = "metrics"
 	require.Contains(t, owned, "config.processes.worker")
 	require.Equal(t, commands, f.disp.count(), "pruning a process is a staged change: nothing reaches an agent")
 
-	require.Equal(t, configsync.StatusNoop, f.mustApply("staging", v2, applyWithPrune()).Status)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(v2, applyWithPrune()).Status)
 }
 
 func TestApplyWithoutPruneAProcessThatLeftTheFileStays(t *testing.T) {
@@ -2798,18 +2852,18 @@ command = ["bundle", "exec", "sidekiq"]
 command = ["clockwork"]
 `)
 	v2 := applyWebFile(8080, worker)
-	f.mustApply("staging", v1)
+	f.mustApply(v1)
 	web := f.svcRow(f.staging, "web")
 
 	pl := f.plan("staging", v2)
 	require.Empty(t, applyRemovedFields(pl))
 	require.Equal(t, []string{"services.web.processes.clock"}, applyPlanService(t, pl, "web").Released)
-	f.mustApply("staging", v2)
+	f.mustApply(v2)
 	require.Equal(t, []string{"clock", "worker"}, applyProcessNames(f.cfgOf(web.ID)), "released, not removed")
 	require.NotContains(t, f.owned(web.ID), "config.processes.clock")
 
 	// Ownership is gone, so even a prune never touches it.
 	require.Empty(t, applyRemovedFields(f.plan("staging", v2, applyWithPrune())))
-	require.Equal(t, configsync.StatusNoop, f.mustApply("staging", v2, applyWithPrune()).Status)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(v2, applyWithPrune()).Status)
 	require.Equal(t, []string{"clock", "worker"}, applyProcessNames(f.cfgOf(web.ID)))
 }

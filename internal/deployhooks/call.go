@@ -168,7 +168,7 @@ func decide(sc services.Scope, push *registryPush, tag, digest string) (ref, ign
 		}
 		svc, err := parseImage(cfg.Image)
 		if err != nil {
-			return "", "the service image is not a plain image reference", nil
+			return "", "the service image is not a plain image reference", nil //nolint:nilerr // parseImage fails only with errBadRef; a service image that is no plain reference is the documented ignore reason of a registry push, not a failure of the call
 		}
 		if !sameRepo(svc, push.Image) {
 			return "", fmt.Sprintf("%s:%s is not the image of this service (%s)", push.Image.Repo(), push.Tag, svc.Repo()), nil

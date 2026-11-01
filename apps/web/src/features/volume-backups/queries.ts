@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { invalidateOperations } from "#/api/invalidate";
 
 /** Everything the volume backups UI shows; refetched after any mutation. */
-export const VOLUME_BACKUP_OPERATIONS = [
+const VOLUME_BACKUP_OPERATIONS = [
 	"getVolumeBackupConfig",
 	"listVolumeBackups",
 	"getVolumeBackup",

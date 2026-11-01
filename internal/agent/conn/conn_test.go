@@ -145,7 +145,7 @@ func (s *fakeServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	s.script(ctx, ws, hello)
 }
 
-func newTestClient(t *testing.T, srvURL string) (*Client, *store.Store, *fakeServer, store.Identity) {
+func newTestClient(t *testing.T, srvURL string) (*Client, *store.Store, *fakeServer) {
 	t.Helper()
 	st, err := store.Open(t.TempDir())
 	require.NoError(t, err)
@@ -163,14 +163,14 @@ func newTestClient(t *testing.T, srvURL string) (*Client, *store.Store, *fakeSer
 		Version:           "test",
 		HeartbeatInterval: time.Hour,
 	})
-	return c, st, srv, id
+	return c, st, srv
 }
 
 func TestRevokedCloseCodeEndsRun(t *testing.T) {
 	var srv *fakeServer
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { srv.ServeHTTP(w, r) }))
 	defer ts.Close()
-	c, _, s, _ := newTestClient(t, ts.URL)
+	c, _, s := newTestClient(t, ts.URL)
 	srv = s
 	srv.script = func(_ context.Context, ws *websocket.Conn, _ agentprotocol.Hello) {
 		_ = ws.Close(websocket.StatusCode(agentprotocol.CloseRevoked), "revoked")
@@ -185,7 +185,7 @@ func TestCommandFlowAckResultDedupeAndKindCheck(t *testing.T) {
 	var srv *fakeServer
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { srv.ServeHTTP(w, r) }))
 	defer ts.Close()
-	c, st, s, _ := newTestClient(t, ts.URL)
+	c, st, s := newTestClient(t, ts.URL)
 	srv = s
 
 	runs := make(chan string, 4)
@@ -263,7 +263,7 @@ func TestRunReturnsOnlyAfterRunningHandlersFinish(t *testing.T) {
 	var srv *fakeServer
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { srv.ServeHTTP(w, r) }))
 	defer ts.Close()
-	c, _, s, _ := newTestClient(t, ts.URL)
+	c, _, s := newTestClient(t, ts.URL)
 	srv = s
 
 	started := make(chan struct{})
@@ -290,4 +290,11 @@ func TestRunReturnsOnlyAfterRunningHandlersFinish(t *testing.T) {
 	cancel()
 	require.ErrorIs(t, <-ran, context.Canceled)
 	require.True(t, finished.Load(), "Run returned while a command handler was still running")
+}
+
+// HandlerFunc adapts a function to Handler.
+type HandlerFunc func(ctx context.Context, cmd agentprotocol.Command) agentprotocol.ResultFrame
+
+func (f HandlerFunc) HandleCommand(ctx context.Context, cmd agentprotocol.Command) agentprotocol.ResultFrame {
+	return f(ctx, cmd)
 }

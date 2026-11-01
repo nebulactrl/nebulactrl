@@ -160,7 +160,7 @@ export const HTTP_PRESETS: readonly HttpPreset[] = [
 
 // --- The create / edit draft --------------------------------------------------
 
-export type HeadersMode = "keep" | "replace" | "clear";
+type HeadersMode = "keep" | "replace" | "clear";
 
 export interface Draft {
 	name: string;
@@ -417,7 +417,7 @@ function optionalMap(rows: readonly Row[]): Record<string, string> | undefined {
 }
 
 /** The non-secret settings of the draft's kind. Blank optional fields are left out. */
-export function configBody(draft: Draft): DrainConfigBody {
+function configBody(draft: Draft): DrainConfigBody {
 	switch (draft.kind) {
 		case "loki": {
 			const labels = optionalMap(draft.lokiLabels);
@@ -616,13 +616,12 @@ export interface Presentation {
 	label: string;
 }
 
-export const SERVER_STATE: Record<LogDrainServerStatus["state"], Presentation> =
-	{
-		ok: { kind: "live", label: "Delivering" },
-		retrying: { kind: "degraded", label: "Retrying" },
-		failing: { kind: "failed", label: "Failing" },
-		disabled: { kind: "stopped", label: "Disabled" },
-	};
+const SERVER_STATE: Record<LogDrainServerStatus["state"], Presentation> = {
+	ok: { kind: "live", label: "Delivering" },
+	retrying: { kind: "degraded", label: "Retrying" },
+	failing: { kind: "failed", label: "Failing" },
+	disabled: { kind: "stopped", label: "Disabled" },
+};
 
 /** A drain no server has reported on yet. */
 export const NEVER_REPORTED: Presentation = {

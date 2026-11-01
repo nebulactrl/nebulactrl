@@ -15,7 +15,7 @@ import {
 } from "./quick-actions";
 import { rollbackPrompt } from "./rollback-prompt";
 
-export const ROLLBACK_DISCLAIMER =
+const ROLLBACK_DISCLAIMER =
 	"Application image and configuration only. Databases, volumes and external services are not rolled back.";
 
 /** The commit a pruned git release was built from, from the 409's details. */

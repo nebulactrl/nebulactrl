@@ -19,7 +19,7 @@ import { type AnimatedIconProps, IconSvg, usePlaying } from "./icon-base";
 const TURN_SECONDS = 0.9;
 const SETTLE_SECONDS = 0.45;
 
-export function RefreshCwIcon({
+function RefreshCwIcon({
 	animate: spinning,
 	ref,
 	...props

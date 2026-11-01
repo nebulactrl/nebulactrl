@@ -108,7 +108,7 @@ export interface ViolationGroup {
 }
 
 /** Anything that is not clearly `restricted` is treated as `unsupported`: the stricter reading. */
-export function isRestricted(violation: Pick<StackViolation, "kind">): boolean {
+function isRestricted(violation: Pick<StackViolation, "kind">): boolean {
 	return violation.kind === "restricted";
 }
 
@@ -364,7 +364,7 @@ export function componentRows(input: {
 /** The most component rows a stack's card lists before "+N". */
 export const NODE_COMPONENT_LIMIT = 8;
 
-export interface NodeComponent {
+interface NodeComponent {
 	name: string;
 	state: ComponentState;
 	/** The first public hostname that routes to the component, else its first port (":8080"); null with neither. */
@@ -457,7 +457,7 @@ export function componentCountText(count: number): string {
 // --- per-component series ---------------------------------------------------
 
 /** A component's resource limits as the form holds them: text, empty = none. */
-export interface ResourcesDraft {
+interface ResourcesDraft {
 	memoryMb: string;
 	cpus: string;
 }

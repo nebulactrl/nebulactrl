@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nebulactrl/nebulactrl/internal/systemroute"
+	"github.com/nebulactrl/nebulactrl/internal/systemroute/systemroutetest"
 )
 
 // The dashboard access endpoints end to end: instance admin only, the real
@@ -16,8 +17,8 @@ import (
 func TestDashboardAccessAPI(t *testing.T) {
 	h := newHarness(t)
 	h.setup()
-	systemroute.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"})
-	t.Cleanup(func() { systemroute.Set(systemroute.Config{}) })
+	systemroutetest.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"})
+	t.Cleanup(func() { systemroutetest.Set(systemroute.Config{}) })
 	ctx := context.Background()
 	cp := h.newOnlineServer("cp", 8*gib, 1*gib)
 	_, err := h.app.Pool.Exec(ctx, `UPDATE servers SET is_control_plane = true WHERE id = $1`, uuid.MustParse(cp))

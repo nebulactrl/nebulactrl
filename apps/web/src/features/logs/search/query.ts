@@ -30,7 +30,7 @@ export function isFacetKey(key: string): key is FacetKey {
 	return (FACET_KEYS as readonly string[]).includes(key);
 }
 
-export type TokenKind =
+type TokenKind =
 	| "lparen"
 	| "rparen"
 	| "or"
@@ -43,9 +43,9 @@ export type TokenKind =
 	| "value"
 	| "range";
 
-export type CompareOp = ">" | ">=" | "<" | "<=";
+type CompareOp = ">" | ">=" | "<" | "<=";
 
-export interface RangeToken {
+interface RangeToken {
 	lo: string;
 	hi: string;
 	loInc: boolean;
@@ -374,7 +374,7 @@ export type Node =
 	| (Span & { type: "and" | "or"; children: Node[] })
 	| (Span & { type: "not"; child: Node });
 
-export interface ParseError extends Span {
+interface ParseError extends Span {
 	message: string;
 }
 

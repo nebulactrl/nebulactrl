@@ -428,7 +428,7 @@ func (c *composites) explainFailure(ctx context.Context, p *auth.Principal, out 
 			return err
 		})
 	} else {
-		run.note("logs", "forbidden", "log excerpt skipped: needs logs:read; explained from the timeline and status only")
+		run.forbidden("logs", "log excerpt skipped: needs logs:read; explained from the timeline and status only")
 	}
 
 	var rel *deployments.ReleaseDetailView

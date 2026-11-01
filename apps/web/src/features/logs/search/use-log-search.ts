@@ -6,7 +6,7 @@ import { type ParsedQuery, parseQuery } from "./query";
 import { loadRecent, pushRecent, saveRecent } from "./recent";
 
 /** How long typing rests before the query is applied to the buffer. */
-export const SEARCH_DEBOUNCE_MS = 120;
+const SEARCH_DEBOUNCE_MS = 120;
 const ANNOUNCE_DELAY_MS = 500;
 
 export interface UseLogSearchOptions<L extends BufferLine> {

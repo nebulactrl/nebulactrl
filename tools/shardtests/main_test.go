@@ -77,7 +77,7 @@ func TestFourShardsCoverEveryIntegrationTestExactlyOnce(t *testing.T) {
 	require.Greater(t, len(tests), 40, "the test list was not found")
 	d := realDurations(t)
 
-	shards, loads := Assign(tests, d, 4)
+	shards, loads := assign(tests, d, 4)
 	requirePartition(t, tests, shards)
 	for i, s := range shards {
 		require.NotEmptyf(t, s, "shard %d/4 is empty", i+1)
@@ -104,7 +104,7 @@ func TestEveryShardCountPartitions(t *testing.T) {
 	tests := integrationTests(t)
 	d := realDurations(t)
 	for n := 1; n <= 12; n++ {
-		shards, _ := Assign(tests, d, n)
+		shards, _ := assign(tests, d, n)
 		require.Len(t, shards, n)
 		requirePartition(t, tests, shards)
 	}
@@ -113,7 +113,7 @@ func TestEveryShardCountPartitions(t *testing.T) {
 func TestShardsAreBalanced(t *testing.T) {
 	tests := integrationTests(t)
 	d := realDurations(t)
-	_, loads := Assign(tests, d, 4)
+	_, loads := assign(tests, d, 4)
 	var sum, max, heaviest float64
 	for _, l := range loads {
 		sum += l
@@ -133,10 +133,10 @@ func TestShardsAreBalanced(t *testing.T) {
 func TestSelectionIsDeterministic(t *testing.T) {
 	tests := integrationTests(t)
 	d := realDurations(t)
-	want, _ := Assign(tests, d, 4)
+	want, _ := assign(tests, d, 4)
 	shuffled := append([]string(nil), tests...)
 	rand.New(rand.NewPCG(1, 2)).Shuffle(len(shuffled), func(i, j int) { shuffled[i], shuffled[j] = shuffled[j], shuffled[i] })
-	got, _ := Assign(shuffled, d, 4)
+	got, _ := assign(shuffled, d, 4)
 	require.Equal(t, want, got)
 }
 
@@ -166,14 +166,14 @@ func TestMissingTestsGetTheDefaultWeight(t *testing.T) {
 
 	// TestSlow (100) | TestNewA + TestNewB (50 each); the parallel one (50) joins
 	// the lower shard when the loads tie.
-	shards, loads := Assign([]string{"TestSlow", "TestNewA", "TestNewB", "TestPar"}, d, 2)
+	shards, loads := assign([]string{"TestSlow", "TestNewA", "TestNewB", "TestPar"}, d, 2)
 	require.Equal(t, [][]string{{"TestPar", "TestSlow"}, {"TestNewA", "TestNewB"}}, shards)
 	require.Equal(t, []float64{150, 100}, loads)
 }
 
 func TestAssignDropsDuplicatesAndHandlesMoreShardsThanTests(t *testing.T) {
 	d := Durations{DefaultSeconds: 10, ParallelFactor: 1}
-	shards, _ := Assign([]string{"TestA", "TestA", "TestB"}, d, 3)
+	shards, _ := assign([]string{"TestA", "TestA", "TestB"}, d, 3)
 	requirePartition(t, []string{"TestA", "TestB"}, shards)
 	require.Empty(t, shards[2])
 
@@ -331,4 +331,9 @@ func maxf(a, b float64) float64 {
 		return a
 	}
 	return b
+}
+
+// assign is AssignPreloaded without preload.
+func assign(tests []string, d Durations, n int) (shards [][]string, loads []float64) {
+	return AssignPreloaded(tests, d, n, 0)
 }

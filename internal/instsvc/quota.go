@@ -97,13 +97,6 @@ func (s *Service) Admit(ctx context.Context, teamID uuid.UUID, n int64) (func(),
 	}, nil
 }
 
-// inflightBytes is what the gate holds for a team right now (tests, metrics).
-func (s *Service) inflightBytes(teamID uuid.UUID) int64 {
-	s.gate.mu.Lock()
-	defer s.gate.mu.Unlock()
-	return s.gate.inflight[teamID]
-}
-
 // scheduleUsageRefresh re-reads the team's usage shortly after an upload, so the
 // bytes it added count as used rather than disappearing between the release and
 // the next periodic usage job. One pending read per team: a busy backup does not

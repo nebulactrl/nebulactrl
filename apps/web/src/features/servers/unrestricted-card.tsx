@@ -25,7 +25,7 @@ const ALLOW_LIST = [
 ] as const;
 
 /** The warning the enabling dialog shows, word for word. */
-export const UNRESTRICTED_WARNING =
+const UNRESTRICTED_WARNING =
 	"Stacks and services on this server can use privileged mode, host networking, devices, GPUs, a custom runtime, the host PID namespace, unconfined seccomp or AppArmor, NET_ADMIN, SYS_ADMIN, the Docker socket and host bind mounts. Anyone who can deploy here can take over this server. Only an instance admin can change this; it is recorded in the audit log.";
 
 const plural = (count: number, one: string, many: string): string =>

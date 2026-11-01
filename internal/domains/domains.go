@@ -461,7 +461,7 @@ func (s *Service) writeCreate(ctx context.Context, tx pgx.Tx, p createPlan) (db.
 		}
 	}
 	if p.wwwRule != nil {
-		if _, err := s.insertCompanion(ctx, tx, sc, dom, *p.wwwRule, p.publicIP); err != nil {
+		if err := s.insertCompanion(ctx, tx, sc, dom, *p.wwwRule, p.publicIP); err != nil {
 			return db.Domain{}, err
 		}
 	}

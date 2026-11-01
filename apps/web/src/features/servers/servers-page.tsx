@@ -18,7 +18,7 @@ import { ServerCard } from "./server-card";
 const GRID =
 	"grid grid-cols-[repeat(auto-fill,minmax(min(100%,340px),1fr))] gap-4";
 
-export type ServersView = "servers" | "fleet";
+type ServersView = "servers" | "fleet";
 
 export interface ServersPageProps {
 	/** `?view=fleet` shows capacity per server; the route owns the URL state. */

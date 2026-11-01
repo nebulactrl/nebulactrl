@@ -85,9 +85,9 @@ func (f *fixture) builtin(name, serviceStatus string) uuid.UUID {
 	return id
 }
 
-func (f *fixture) team(loc string, registry *uuid.UUID) {
+func (f *fixture) team(registry *uuid.UUID) {
 	f.t.Helper()
-	_, err := f.q.UpsertTeamBuildSettings(context.Background(), db.UpsertTeamBuildSettingsParams{WorkspaceID: f.ws.ID, BuildLocation: loc, RegistryID: registry})
+	_, err := f.q.UpsertTeamBuildSettings(context.Background(), db.UpsertTeamBuildSettingsParams{WorkspaceID: f.ws.ID, BuildLocation: LocationBuildServer, RegistryID: registry})
 	require.NoError(f.t, err)
 }
 
@@ -123,7 +123,7 @@ func TestDefaultsToTargetWithoutWarnings(t *testing.T) {
 func TestBuildServerChosenAndSticky(t *testing.T) {
 	f := newFixture(t)
 	reg := f.registry("r")
-	f.team(LocationBuildServer, &reg)
+	f.team(&reg)
 	a, b, c := f.server("a", "amd64", true), f.server("b", "amd64", true), f.server("c", "amd64", true)
 
 	p, _ := f.resolve(f.scope(), false)
@@ -162,7 +162,7 @@ func TestBuildServerChosenAndSticky(t *testing.T) {
 func TestPinWinsAndUnusablePinFallsBack(t *testing.T) {
 	f := newFixture(t)
 	reg := f.registry("r")
-	f.team(LocationBuildServer, &reg)
+	f.team(&reg)
 	a := f.server("a", "amd64", true)
 	b := f.server("b", "amd64", true)
 	sc := f.scope()
@@ -193,7 +193,7 @@ func TestPinWinsAndUnusablePinFallsBack(t *testing.T) {
 func TestFallbackReasons(t *testing.T) {
 	f := newFixture(t)
 	reg := f.registry("r")
-	f.team(LocationBuildServer, &reg)
+	f.team(&reg)
 
 	// No build server at all.
 	p, w := f.resolve(f.scope(), false)
@@ -216,7 +216,7 @@ func TestFallbackReasons(t *testing.T) {
 	f.server("ok", "amd64", true)
 	p, _ = f.resolve(f.scope(), false)
 	require.Equal(t, LocationBuildServer, p.Location)
-	f.team(LocationBuildServer, nil)
+	f.team(nil)
 	p, w = f.resolve(f.scope(), false)
 	require.True(t, p.Fallback)
 	require.Contains(t, p.Reason, "no registry is configured")
@@ -232,13 +232,13 @@ func TestRegistryFromAnotherTeamOrUnhealthyFallsBack(t *testing.T) {
 	var foreign uuid.UUID
 	require.NoError(t, f.pool.QueryRow(context.Background(),
 		`INSERT INTO registries (workspace_id, name, kind, host) VALUES ($1, 'x', 'external', 'evil.example.com') RETURNING id`, other.ID).Scan(&foreign))
-	f.team(LocationBuildServer, &foreign)
+	f.team(&foreign)
 	p, _ := f.resolve(f.scope(), false)
 	require.True(t, p.Fallback)
 	require.Contains(t, p.Reason, "no longer exists", "another team's registry is as good as missing")
 
 	down := f.builtin("built-in", "provisioning")
-	f.team(LocationBuildServer, &down)
+	f.team(&down)
 	p, _ = f.resolve(f.scope(), false)
 	require.True(t, p.Fallback)
 	require.Contains(t, p.Reason, "not healthy")
@@ -254,7 +254,7 @@ func TestRegistryFromAnotherTeamOrUnhealthyFallsBack(t *testing.T) {
 func TestBuiltinRegistryNeedsTheTunnelOnTargetAndBuilder(t *testing.T) {
 	f := newFixture(t)
 	reg := f.builtin("built-in", "ready")
-	f.team(LocationBuildServer, &reg)
+	f.team(&reg)
 	b := f.server("b", "amd64", true)
 
 	p, _ := f.resolve(f.scope(), false)
@@ -295,7 +295,7 @@ func TestOverrideOrderServiceProjectTeam(t *testing.T) {
 	f := newFixture(t)
 	teamReg, projReg, svcReg := f.registry("team"), f.registry("project"), f.registry("service")
 	f.server("b", "amd64", true)
-	f.team(LocationBuildServer, &teamReg)
+	f.team(&teamReg)
 
 	p, _ := f.resolve(f.scope(), false)
 	require.Equal(t, teamReg, *p.RegistryID)
@@ -326,7 +326,7 @@ func TestOverrideOrderServiceProjectTeam(t *testing.T) {
 func TestPreviewsNeedAnOptedInBuildServer(t *testing.T) {
 	f := newFixture(t)
 	reg := f.registry("r")
-	f.team(LocationBuildServer, &reg)
+	f.team(&reg)
 	b := f.server("b", "amd64", true)
 
 	p, _ := f.resolve(f.scope(), false)
@@ -347,7 +347,7 @@ func TestPreviewsNeedAnOptedInBuildServer(t *testing.T) {
 func TestEmulation(t *testing.T) {
 	f := newFixture(t)
 	reg := f.registry("r")
-	f.team(LocationBuildServer, &reg)
+	f.team(&reg)
 	arm := f.server("arm", "arm64", true)
 
 	// Emulation is off by default: an arm64 builder cannot build for the amd64 target.
@@ -382,7 +382,7 @@ func TestEmulation(t *testing.T) {
 func TestColdCacheWarningUntilTheProjectBuiltThere(t *testing.T) {
 	f := newFixture(t)
 	reg := f.registry("r")
-	f.team(LocationBuildServer, &reg)
+	f.team(&reg)
 	b := f.server("b", "amd64", true)
 	_, w := f.resolve(f.scope(), false)
 	require.Contains(t, codes(w), WarnColdCache)

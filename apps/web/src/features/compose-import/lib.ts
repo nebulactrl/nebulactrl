@@ -131,7 +131,7 @@ export function basename(path: string): string {
 }
 
 /** `./nginx.conf` for a file that was not matched to anything. */
-export function defaultUploadPath(name: string): string {
+function defaultUploadPath(name: string): string {
 	return `./${basename(name)}`;
 }
 

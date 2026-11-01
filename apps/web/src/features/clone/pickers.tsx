@@ -9,7 +9,7 @@ import {
 import { isSchedulable } from "#/features/fleet/model";
 
 /** Regular environments of a project; a pull-request preview is not a target. */
-export function targetEnvironments(
+function targetEnvironments(
 	environments: readonly Environment[],
 ): Environment[] {
 	return environments.filter((environment) => environment.kind !== "preview");

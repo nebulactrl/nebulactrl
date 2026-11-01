@@ -84,7 +84,7 @@ func TestToolHintsTable(t *testing.T) {
 		switch ti.Kind {
 		case "curated":
 			// Generated tools follow the HTTP method of their operation.
-			e, found := catalog.Lookup(ti.Operation)
+			e, found := catalog.Manifest[ti.Operation]
 			require.True(t, found, ti.Operation)
 			c := e.(catalog.Curated)
 			require.Equal(t, c.Hints.ReadOnly, a.ReadOnlyHint, name)
@@ -283,11 +283,11 @@ func TestInstructionsSnapshot(t *testing.T) {
 
 // ---- in-process dispatch keeps the MCP actor ----
 
-func auditActor(t *testing.T, h *harness, action, resourceID string) (actorType, label string) {
+func auditActor(t *testing.T, h *harness, resourceID string) (actorType, label string) {
 	t.Helper()
 	require.NoError(t, h.app.Pool.QueryRow(context.Background(),
-		`SELECT actor_type, actor_label FROM audit_events WHERE action = $1 AND resource_id = $2 ORDER BY id DESC LIMIT 1`,
-		action, resourceID).Scan(&actorType, &label))
+		`SELECT actor_type, actor_label FROM audit_events WHERE action = 'project.create' AND resource_id = $1 ORDER BY id DESC LIMIT 1`,
+		resourceID).Scan(&actorType, &label))
 	return actorType, label
 }
 
@@ -301,7 +301,7 @@ func TestDispatchPreservesMCPActorInAudit(t *testing.T) {
 	require.NotEmpty(t, id, text(res))
 
 	// The domain service's own audit row names the MCP actor and the client.
-	actor, label := auditActor(t, h, "project.create", id)
+	actor, label := auditActor(t, h, id)
 	require.Equal(t, "mcp", actor)
 	require.Contains(t, label, "via test", "the MCP clientInfo name is recorded")
 
@@ -313,10 +313,10 @@ func TestDispatchPreservesMCPActorInAudit(t *testing.T) {
 	require.Equal(t, "ok", outcome)
 
 	// The same operation over REST with the token is a plain token actor.
-	tok := h.restToken([]string{"projects:write"}, nil)
+	tok := h.restToken([]string{"projects:write"})
 	r := h.restBearer(tok, "POST", "/projects", map[string]any{"name": "Via REST"}, nil)
 	require.Equal(t, http.StatusCreated, r.status, string(r.raw))
-	actor, _ = auditActor(t, h, "project.create", r.json()["id"].(string))
+	actor, _ = auditActor(t, h, r.json()["id"].(string))
 	require.Equal(t, "token", actor)
 }
 
@@ -360,7 +360,7 @@ func (h *harness) restBearer(token, method, path string, body any, headers map[s
 
 func TestNetworkCannotSpoofTheMCPActor(t *testing.T) {
 	h := newHarness(t, true)
-	tok := h.restToken([]string{"projects:write"}, nil)
+	tok := h.restToken([]string{"projects:write"})
 
 	// Every plausible way a client could claim to be the in-process MCP
 	// dispatcher: headers, query parameters, a client-info style name.
@@ -384,7 +384,7 @@ func TestNetworkCannotSpoofTheMCPActor(t *testing.T) {
 	}
 	r := h.restBearer(tok, "POST", "/projects", map[string]any{"name": "Spoofer"}, spoof)
 	require.Equal(t, http.StatusCreated, r.status, string(r.raw))
-	actor, label := auditActor(t, h, "project.create", r.json()["id"].(string))
+	actor, label := auditActor(t, h, r.json()["id"].(string))
 	require.Equal(t, "token", actor, "the marker is a context value; no header sets it")
 	require.NotContains(t, label, "via ")
 
@@ -399,7 +399,7 @@ func TestNetworkCannotSpoofTheMCPActor(t *testing.T) {
 	require.NoError(t, json.NewDecoder(res.Body).Decode(&created))
 	_ = res.Body.Close()
 	require.Equal(t, http.StatusCreated, res.StatusCode)
-	actor, _ = auditActor(t, h, "project.create", created.ID)
+	actor, _ = auditActor(t, h, created.ID)
 	require.Equal(t, "token", actor)
 }
 
@@ -464,7 +464,7 @@ func TestFindOperationListsOnlyAllowedOperations(t *testing.T) {
 		for _, m := range structured(t, res)["matches"].([]any) {
 			op := m.(map[string]any)["operationId"].(string)
 			require.NotContains(t, []string{"createToken", "createEnrollmentToken", "revealDatabaseExport", "listServers"}, op, q)
-			entry, ok := catalog.Lookup(op)
+			entry, ok := catalog.Manifest[op]
 			require.True(t, ok)
 			require.NotEqual(t, catalog.KindDeny, entry.Kind(), op)
 		}
@@ -567,10 +567,10 @@ func TestLogReadingNeedsLogsRead(t *testing.T) {
 	logsPath := "/deployments/" + r.json()["id"].(string) + "/logs"
 
 	// The scope is enforced by the API, not only by the tool list.
-	noLogs := h.restToken([]string{"projects:read", "deployments:write"}, nil)
+	noLogs := h.restToken([]string{"projects:read", "deployments:write"})
 	res := h.restBearer(noLogs, "GET", logsPath, nil, nil)
 	require.Equal(t, http.StatusForbidden, res.status, string(res.raw))
-	withLogs := h.restToken([]string{"projects:read", "logs:read"}, nil)
+	withLogs := h.restToken([]string{"projects:read", "logs:read"})
 	res = h.restBearer(withLogs, "GET", logsPath, nil, nil)
 	require.Equal(t, http.StatusOK, res.status, string(res.raw))
 

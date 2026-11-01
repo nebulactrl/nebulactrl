@@ -37,9 +37,9 @@ func (f *fixture) seedGeo(cities bool) {
 	}}))
 }
 
-func (f *fixture) setServerGeo(sql string, args ...any) {
+func (f *fixture) setServerGeo(sql string) {
 	f.t.Helper()
-	_, err := f.pool.Exec(context.Background(), "UPDATE servers SET "+sql+" WHERE id = $1", append([]any{f.server}, args...)...)
+	_, err := f.pool.Exec(context.Background(), "UPDATE servers SET "+sql+" WHERE id = $1", f.server)
 	require.NoError(f.t, err)
 }
 

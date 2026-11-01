@@ -14,6 +14,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/internal/variables"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
@@ -324,7 +325,7 @@ func TestAddDatabaseDeployStartsOnlyTheDatabase(t *testing.T) {
 func TestAddDatabaseDeployOnProductionSurfacesApprovalAndResumes(t *testing.T) {
 	f, _ := addDatabaseFx(t)
 	prodguard.New(prodguard.Deps{Pool: f.pool, Box: f.box}).Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 	f.service(svcOpts{env: f.prod, slug: "api"})
 	args := map[string]any{"environment": "shop/production", "engine": "postgres", "app": "api", "deploy": true}
 	for i := range 2 {

@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -85,8 +86,11 @@ func TestNoAvoidedWording(t *testing.T) {
 	root := filepath.Join("..", "..")
 	var files []string
 	add := func(dir string, ok func(path string) bool) {
-		_ = filepath.WalkDir(filepath.Join(root, dir), func(p string, d iofs.DirEntry, err error) error {
-			if err != nil || d.IsDir() {
+		err := filepath.WalkDir(filepath.Join(root, dir), func(p string, d iofs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
 				return nil
 			}
 			if ok(p) {
@@ -94,6 +98,9 @@ func TestNoAvoidedWording(t *testing.T) {
 			}
 			return nil
 		})
+		if err != nil {
+			t.Fatalf("scan %s: %v", dir, err)
+		}
 	}
 	all := func(string) bool { return true }
 	add("docs/operations/project-config.md", all)
@@ -134,7 +141,7 @@ func TestNoAvoidedWordingInTests(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	files := append(tests, fixtures...)
+	files := slices.Concat(tests, fixtures)
 	if len(files) < 5 {
 		t.Fatalf("scanned only %d files: the paths moved", len(files))
 	}

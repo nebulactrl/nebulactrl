@@ -2,7 +2,7 @@
 // its own path under `/servers/<id>`; the page used to be one route whose tab
 // lived in the hash. Nothing here touches React, so the map is tested directly.
 
-export const SERVER_TABS = [
+const SERVER_TABS = [
 	"overview",
 	"traffic",
 	"proxy",

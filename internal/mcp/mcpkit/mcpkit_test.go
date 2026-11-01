@@ -78,13 +78,6 @@ func TestParseDetail(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestPageLimit(t *testing.T) {
-	require.Equal(t, DefaultPage, PageLimit(0))
-	require.Equal(t, DefaultPage, PageLimit(-3))
-	require.Equal(t, 7, PageLimit(7))
-	require.Equal(t, MaxPage, PageLimit(10_000))
-}
-
 func TestListFitDropsItemsAndTheCursor(t *testing.T) {
 	items := make([]string, 400)
 	for i := range items {

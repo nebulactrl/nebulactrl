@@ -207,7 +207,7 @@ func (m *Manager) ensure(ctx context.Context, spec agentprotocol.ServiceTailnetS
 		}
 	}
 
-	st := m.waitOnline(ctx, id, spec)
+	st := m.waitOnline(ctx, id)
 	st.Provisioned = provisioned
 	if st.State == agentprotocol.ServiceTailnetOnline && spec.Provider == agentprotocol.TailnetProviderHeadscale && spec.Web && st.FQDN != "" {
 		// Headscale: the Web key must be the node's real DNS name.
@@ -250,7 +250,7 @@ func (m *Manager) ensureImage(ctx context.Context) error {
 
 // waitOnline polls the node until it is online, the container dies or the wait
 // ends, and returns the last state seen.
-func (m *Manager) waitOnline(ctx context.Context, id string, spec agentprotocol.ServiceTailnetSpec) agentprotocol.ServiceTailnetStatus {
+func (m *Manager) waitOnline(ctx context.Context, id string) agentprotocol.ServiceTailnetStatus {
 	deadline := m.now().Add(m.WaitRunning)
 	var last agentprotocol.ServiceTailnetStatus
 	for {
