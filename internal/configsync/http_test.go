@@ -104,6 +104,8 @@ func (b *httpFakeBinding) Clear(_ context.Context, id uuid.UUID) error {
 	return nil
 }
 
+func (b *httpFakeBinding) Refresh(uuid.UUID) {}
+
 func (b *httpFakeBinding) Check(_ context.Context, _ uuid.UUID, sha string) (EnvironmentConfigSource, error) {
 	b.checks++
 	b.checkedSHA = sha

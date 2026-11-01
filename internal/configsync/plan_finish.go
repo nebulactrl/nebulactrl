@@ -237,7 +237,7 @@ func (p *planned) finish() {
 			if f.skipped || !(f.changed || f.remove) {
 				continue
 			}
-			c := p.change(&svcPlan{}, f)
+			c := p.change(f)
 			if f.remove {
 				sum.Pruned++
 			}

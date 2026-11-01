@@ -30,6 +30,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/events"
+	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
 	"github.com/nebulactrl/nebulactrl/internal/networks"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
@@ -226,10 +227,10 @@ func (f *planFixture) gitService(env db.Environment, name string) services.Servi
 }
 
 // database creates a staged postgres 17 database (database "shop", user "shop").
-func (f *planFixture) database(env db.Environment, slug string) services.ServiceView {
+func (f *planFixture) database(env db.Environment) services.ServiceView {
 	f.t.Helper()
 	v, err := f.dbs.Create(f.ctx, databases.CreateInput{
-		EnvironmentID: env.ID, Name: slug, Slug: slug, Engine: "postgres", Version: "17", DatabaseName: "shop", Username: "shop", ServerID: &f.server.ID,
+		EnvironmentID: env.ID, Name: "db", Slug: "db", Engine: "postgres", Version: "17", DatabaseName: "shop", Username: "shop", ServerID: &f.server.ID,
 	})
 	require.NoError(f.t, err)
 	return v
@@ -300,7 +301,7 @@ func (f *planFixture) task(id uuid.UUID, name, schedule string, command ...strin
 }
 
 // backup creates a nightly schedule of a database; key "" leaves the config key unset (made in the dashboard).
-func (f *planFixture) backup(id uuid.UUID, key, cron string) db.BackupSchedule {
+func (f *planFixture) backup(id uuid.UUID, key, cron string) {
 	f.t.Helper()
 	row, err := f.q.InsertBackupSchedule(context.Background(), db.InsertBackupScheduleParams{
 		WorkspaceID: f.ws.ID, ServiceID: id, DestinationID: f.dest.ID, Cron: cron, Timezone: "UTC", Enabled: true, RetentionCount: 7,
@@ -309,7 +310,6 @@ func (f *planFixture) backup(id uuid.UUID, key, cron string) db.BackupSchedule {
 	if key != "" {
 		require.NoError(f.t, f.q.SetBackupScheduleConfigKey(context.Background(), db.SetBackupScheduleConfigKeyParams{ID: row.ID, ConfigKey: &key}))
 	}
-	return row
 }
 
 // recordSource writes the config_sources row of a service the way an apply does.
@@ -628,6 +628,28 @@ watch_paths = ["apps/web/**"]
 	require.Equal(t, `["apps/web/**"]`, wp.To)
 }
 
+// The check of a bound file plans as the read-only system actor. A service linked through a
+// connection resolves its clone URL through the real git providers service, which must not
+// ask for more than projects:read (the check once failed with "you do not have permission").
+func TestPlanDB_ReadOnlySystemActorResolvesConnectionCloneURL(t *testing.T) {
+	f := newPlanFixture(t)
+	f.cfg.CloneURL = gitproviders.NewService(gitproviders.Deps{Pool: f.pool, Box: f.box}).CloneURLFor
+	file := planHeadServer + `
+[services.web]
+port = 8080
+
+[services.web.git]
+connection = "github-acme"
+repo = "acme/shop"
+branch = "main"
+`
+	sys := auth.WithPrincipal(context.Background(), auth.System(f.ws.ID, f.project.ID, "config check", policy.ScopeProjectsRead))
+	p, err := f.cfg.Plan(sys, f.project.ID, f.planReq(f.staging, file))
+	require.NoError(t, err)
+	require.True(t, p.Valid, "a read-only check accepts what validate and plan accept: %v", p.Diagnostics)
+	require.Equal(t, ActionCreate, planSvc(t, p, "web").Action)
+}
+
 func TestPlanDB_CreateDatabase(t *testing.T) {
 	f := newPlanFixture(t)
 	file := planHeadServer + `
@@ -739,7 +761,7 @@ health_path = "/"
 func (f *planFixture) allKinds() {
 	f.image(f.staging, "web", 8080)
 	f.gitService(f.staging, "api")
-	f.database(f.staging, "db")
+	f.database(f.staging)
 	f.route(f.staging, "printer", "192.168.1.20:631")
 	f.stack(f.staging, "shop", 120)
 }
@@ -918,7 +940,7 @@ func planCheckCases(f *planFixture) []struct {
 	store := f.image(f.staging, "store", 8080)
 	_, err = f.svcs.AddVolume(f.ctx, store.ID, "data", "/data")
 	require.NoError(f.t, err)
-	f.database(f.staging, "db")
+	f.database(f.staging)
 	f.route(f.staging, "printer", "192.168.1.20:631")
 
 	return []struct{ name, file, slug, code, pathHas string }{
@@ -1063,7 +1085,7 @@ func TestPlanDB_MovingAServiceToAnotherServerIsAStagedChange(t *testing.T) {
 
 func TestPlanDB_ImmutableFieldsOfExistingServices(t *testing.T) {
 	f := newPlanFixture(t)
-	f.database(f.staging, "db")
+	f.database(f.staging)
 	f.route(f.staging, "printer", "192.168.1.20:631")
 	for name, c := range map[string]struct{ file, path string }{
 		"database engine": {
@@ -1749,7 +1771,7 @@ func TestPlanDB_PruneRemovesOnlyMembersTheFilePreviouslyOwned(t *testing.T) {
 
 func TestPlanDB_PruneNeverRemovesServices(t *testing.T) {
 	f, web := newPlanReleaseFixture(t)
-	f.database(f.staging, "db")
+	f.database(f.staging)
 	f.recordSource(web.ID, f.staging, map[string]string{"config.port": projectconfig.Fingerprint(8080), "variables.A": projectconfig.Fingerprint("x")})
 	// The file no longer mentions any service.
 	req := f.planReq(f.staging, planHead)
@@ -1787,7 +1809,7 @@ func TestPlanDB_UnmanagedMembersAreCountedNeverListed(t *testing.T) {
 
 func TestPlanDB_BackupSchedulesAreMatchedByKey(t *testing.T) {
 	f := newPlanFixture(t)
-	dbSvc := f.database(f.staging, "db")
+	dbSvc := f.database(f.staging)
 	f.backup(dbSvc.ID, "nightly", "0 2 * * *")
 	f.backup(dbSvc.ID, "", "0 3 * * *") // made in the dashboard: its identity is the synthesised key schedule-1
 	head := planHeadServer + "\n[services.db.database]\nengine = \"postgres\"\n"
@@ -2099,7 +2121,7 @@ func TestPlanDB_ReplicasNeedStatelessServices(t *testing.T) {
 
 func TestPlanDB_LiveBlockEgressRefusesSharedNetworks(t *testing.T) {
 	f := newPlanFixture(t)
-	f.database(f.staging, "db") // databases start with outbound traffic blocked
+	f.database(f.staging) // databases start with outbound traffic blocked
 	file := planHeadServer + "\n[services.db]\nnetworks = [\"backplane\"]\n[services.db.database]\nengine = \"postgres\"\n"
 	p := f.plan(f.staging, file)
 	require.False(t, p.Valid)

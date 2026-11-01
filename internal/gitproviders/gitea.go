@@ -235,7 +235,7 @@ func (giteaDriver) currentUser(ctx context.Context, c *apiClient) (string, error
 	var out struct {
 		Login string `json:"login"`
 	}
-	if _, err := c.do(ctx, http.MethodGet, "/user", nil, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/user", nil, nil, &out); err != nil {
 		return "", err
 	}
 	return out.Login, nil
@@ -244,7 +244,7 @@ func (giteaDriver) currentUser(ctx context.Context, c *apiClient) (string, error
 func (giteaDriver) listRepos(ctx context.Context, c *apiClient, _ string, page int) ([]Repo, bool, error) {
 	var out []gtRepo
 	q := url.Values{"limit": {strconv.Itoa(giteaPageSize)}, "page": {strconv.Itoa(page)}}
-	if _, err := c.do(ctx, http.MethodGet, "/user/repos", q, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/user/repos", q, nil, &out); err != nil {
 		return nil, false, err
 	}
 	repos := make([]Repo, 0, len(out))
@@ -256,7 +256,7 @@ func (giteaDriver) listRepos(ctx context.Context, c *apiClient, _ string, page i
 
 func (giteaDriver) getRepo(ctx context.Context, c *apiClient, repo string) (Repo, error) {
 	var out gtRepo
-	if _, err := c.do(ctx, http.MethodGet, "/repos/"+repo, nil, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/repos/"+repo, nil, nil, &out); err != nil {
 		return Repo{}, err
 	}
 	return out.repo(), nil
@@ -269,7 +269,7 @@ func (giteaDriver) listBranches(ctx context.Context, c *apiClient, repo string) 
 			Name string `json:"name"`
 		}
 		q := url.Values{"limit": {strconv.Itoa(giteaPageSize)}, "page": {strconv.Itoa(page)}}
-		if _, err := c.do(ctx, http.MethodGet, "/repos/"+repo+"/branches", q, nil, &out); err != nil {
+		if err := c.do(ctx, http.MethodGet, "/repos/"+repo+"/branches", q, nil, &out); err != nil {
 			return nil, err
 		}
 		for _, b := range out {
@@ -287,7 +287,7 @@ func (giteaDriver) setStatus(ctx context.Context, c *apiClient, repo, sha string
 	if st.TargetURL != "" {
 		body["target_url"] = st.TargetURL
 	}
-	_, err := c.do(ctx, http.MethodPost, "/repos/"+repo+"/statuses/"+sha, nil, body, nil)
+	err := c.do(ctx, http.MethodPost, "/repos/"+repo+"/statuses/"+sha, nil, body, nil)
 	return err
 }
 
@@ -299,12 +299,12 @@ func (giteaDriver) upsertComment(ctx context.Context, c *apiClient, repo string,
 			Body string `json:"body"`
 		}
 		q := url.Values{"limit": {strconv.Itoa(giteaPageSize)}, "page": {strconv.Itoa(page)}}
-		if _, err := c.do(ctx, http.MethodGet, base+"/"+strconv.Itoa(number)+"/comments", q, nil, &out); err != nil {
+		if err := c.do(ctx, http.MethodGet, base+"/"+strconv.Itoa(number)+"/comments", q, nil, &out); err != nil {
 			return err
 		}
 		for _, cm := range out {
 			if strings.Contains(cm.Body, marker) {
-				_, err := c.do(ctx, http.MethodPatch, base+"/comments/"+strconv.FormatInt(cm.ID, 10), nil, map[string]string{"body": body}, nil)
+				err := c.do(ctx, http.MethodPatch, base+"/comments/"+strconv.FormatInt(cm.ID, 10), nil, map[string]string{"body": body}, nil)
 				return err
 			}
 		}
@@ -312,7 +312,7 @@ func (giteaDriver) upsertComment(ctx context.Context, c *apiClient, repo string,
 			break
 		}
 	}
-	_, err := c.do(ctx, http.MethodPost, base+"/"+strconv.Itoa(number)+"/comments", nil, map[string]string{"body": body}, nil)
+	err := c.do(ctx, http.MethodPost, base+"/"+strconv.Itoa(number)+"/comments", nil, map[string]string{"body": body}, nil)
 	return err
 }
 
@@ -328,14 +328,14 @@ func (d giteaDriver) createHook(ctx context.Context, c *apiClient, repo, hookURL
 		"events": []string{"push", "pull_request"},
 		"config": map[string]string{"url": hookURL, "content_type": "json", "secret": secret},
 	}
-	if _, err := c.do(ctx, http.MethodPost, "/repos/"+repo+"/hooks", nil, body, &out); err != nil {
+	if err := c.do(ctx, http.MethodPost, "/repos/"+repo+"/hooks", nil, body, &out); err != nil {
 		return "", err
 	}
 	return strconv.FormatInt(out.ID, 10), nil
 }
 
 func (giteaDriver) deleteHook(ctx context.Context, c *apiClient, repo, id string) error {
-	_, err := c.do(ctx, http.MethodDelete, "/repos/"+repo+"/hooks/"+id, nil, nil, nil)
+	err := c.do(ctx, http.MethodDelete, "/repos/"+repo+"/hooks/"+id, nil, nil, nil)
 	if isNotFound(err) {
 		return nil
 	}
@@ -347,7 +347,7 @@ func (giteaDriver) findHook(ctx context.Context, c *apiClient, repo, hookURL str
 		ID     int64             `json:"id"`
 		Config map[string]string `json:"config"`
 	}
-	if _, err := c.do(ctx, http.MethodGet, "/repos/"+repo+"/hooks", url.Values{"limit": {"50"}}, nil, &out); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/repos/"+repo+"/hooks", url.Values{"limit": {"50"}}, nil, &out); err != nil {
 		return "", err
 	}
 	for _, h := range out {

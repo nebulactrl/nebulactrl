@@ -46,7 +46,7 @@ func TestMigration0007GoesDownAndUpAgainOnAPopulatedDatabase(t *testing.T) {
 	ctx := context.Background()
 
 	// A populated database: a managed service with a keyed backup schedule, ownership rows and shared variables.
-	f.mustApply("staging", applyDeferFile+"\n[variables]\nAPP_NAME = \"x\"\n")
+	f.mustApply(applyDeferFile + "\n[variables]\nAPP_NAME = \"x\"\n")
 	pg := f.svcRow(f.staging, "pg")
 	require.Equal(t, 1, f.count("SELECT count(*) FROM config_sources"))
 	require.Equal(t, 1, f.count("SELECT count(*) FROM environment_config_settings"))

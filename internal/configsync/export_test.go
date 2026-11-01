@@ -239,7 +239,7 @@ func exBase(kind string) (cfg services.Config, rowKind, source string) {
 // A field the exporter forgets fails here.
 func TestExportConfigFieldsRoundTrip(t *testing.T) {
 	seen := 0
-	for _, spec := range projectconfig.Catalog() {
+	for _, spec := range projectconfig.Fields {
 		if !strings.HasPrefix(spec.ID, "config.") {
 			continue
 		}
@@ -378,7 +378,7 @@ func TestExportCoversTheCatalog(t *testing.T) {
 			}
 		}
 	}
-	for _, spec := range projectconfig.Catalog() {
+	for _, spec := range projectconfig.Fields {
 		if strings.HasPrefix(spec.ID, "config.") {
 			continue
 		}

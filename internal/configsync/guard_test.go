@@ -14,6 +14,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/testutil"
 )
@@ -75,7 +76,7 @@ func guardErrCode(t *testing.T, err error) string {
 }
 
 func TestApplyGuardedPassesPrincipalsThatAreNotGuarded(t *testing.T) {
-	prodguard.Uninstall()
+	prodguardtest.Uninstall()
 	f := &guardFake{plan: guardPlan(true, "pl_aaaaaaaaaaaa", uuid.New(), 3)}
 	person := &auth.Principal{Type: auth.TypeUser, UserID: uuid.New(), WorkspaceID: uuid.New(), Role: auth.RoleOwner, Scopes: policy.ScopesForRole(auth.RoleOwner)}
 	res, err := guardedApply(guardCtx(person), f, uuid.New(), ApplyRequest{Deploy: true, PlanRequest: PlanRequest{Prune: true}})
@@ -95,7 +96,7 @@ func TestApplyGuardedPassesPrincipalsThatAreNotGuarded(t *testing.T) {
 }
 
 func TestApplyGuardedRefusesDeployAndPruneForAgents(t *testing.T) {
-	prodguard.Uninstall()
+	prodguardtest.Uninstall()
 	f := &guardFake{plan: guardPlan(false, "pl_aaaaaaaaaaaa", uuid.New(), 3)}
 
 	// An MCP session is refused even when its token may skip production approvals.
@@ -129,7 +130,7 @@ func TestApplyGuardedOnlyAsksWhenSomethingTakesEffectAtOnceInProduction(t *testi
 	// No Guard is installed: any call that reaches prodguard.Check as a guarded
 	// principal in production fails closed with approval_unavailable. So a call
 	// that succeeds here never asked.
-	prodguard.Uninstall()
+	prodguardtest.Uninstall()
 	agent := guardAgent(policy.ScopeProjectsWrite)
 	require.True(t, prodguard.Guarded(agent))
 	svc := uuid.New()
@@ -187,7 +188,7 @@ func TestApplyGuardedOnlyAsksWhenSomethingTakesEffectAtOnceInProduction(t *testi
 }
 
 func TestApplyGuardedStalePlanIsRefusedBeforeApprovalAndScopesBeforeBoth(t *testing.T) {
-	prodguard.Uninstall() // a call that reached prodguard.Check would answer approval_unavailable
+	prodguardtest.Uninstall() // a call that reached prodguard.Check would answer approval_unavailable
 	svc := uuid.New()
 
 	agent := guardAgent(policy.ScopeProjectsWrite)
@@ -285,7 +286,7 @@ func newGuardDB(t *testing.T) *guardDB {
 	require.NoError(t, err)
 	g := prodguard.New(prodguard.Deps{Pool: pool, Box: box, PublicURL: "https://nebula.test"})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 
 	tok := uuid.New()
 	f := &guardDB{
