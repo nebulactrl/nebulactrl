@@ -38,6 +38,7 @@ import { isInFlight } from "#/features/deployments/labels";
 import { useDeploymentActions } from "#/features/deployments/use-deployment-actions";
 import { ServiceConfigChip } from "#/features/project-config";
 import { ScaleDialog } from "#/features/scaling";
+import { serviceCanScale } from "#/features/scaling/model";
 import { openFiles, openShell } from "#/features/terminal";
 import { lastInputWasKeyboard } from "#/lib/input-modality";
 import { openTargets } from "#/lib/service-urls";
@@ -274,7 +275,7 @@ export function InspectorHeader({
 					<DropdownMenuContent align="end">
 						{isRoute || isStack ? null : (
 							<DropdownMenuItem
-								disabled={!service.scaling.eligible}
+								disabled={!serviceCanScale(service)}
 								onClick={() => setScaleOpen(true)}
 							>
 								<GaugeIcon aria-hidden />

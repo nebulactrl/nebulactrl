@@ -239,7 +239,7 @@ func itoa(n int64) string {
 	return string(b)
 }
 
-func TestRenameProcessesMovesScaleAndDomains(t *testing.T) {
+func TestRenameProcessesIsStagedUntilTheDeploy(t *testing.T) {
 	f := newTxFixture(t)
 	rec := f.httpDo(http.MethodPost, "/environments/"+f.staging.ID.String()+"/services", processesBody())
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
@@ -274,21 +274,116 @@ func TestRenameProcessesMovesScaleAndDomains(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "api", scales[0].Process, "the refused write changed nothing")
 
-	// With renameProcesses the process keeps its replicas and its domain.
+	// With renameProcesses the new name gets a copy of the replicas setting and the rename is staged:
+	// the old name keeps its row and its domain, so the running release is unaffected.
 	rec = patch(v.Generation, map[string]any{"renameProcesses": map[string]string{"api": "gateway"}})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	scales, err = f.q.ListProcessScales(ctx, v.ID)
 	require.NoError(t, err)
-	require.Len(t, scales, 1)
-	require.Equal(t, "gateway", scales[0].Process)
+	require.Len(t, scales, 2)
+	require.Equal(t, "api", scales[0].Process)
 	require.EqualValues(t, 3, scales[0].Replicas)
+	require.Equal(t, "gateway", scales[1].Process)
+	require.EqualValues(t, 3, scales[1].Replicas)
 	doms, err := f.q.ListServiceDomains(ctx, v.ID)
 	require.NoError(t, err)
 	require.Len(t, doms, 1)
 	require.Equal(t, dom.ID, doms[0].ID)
-	require.Equal(t, "gateway", doms[0].Component)
+	require.Equal(t, "api", doms[0].Component)
 	require.EqualValues(t, 4000, doms[0].TargetPort)
-	require.NotContains(t, rec.Body.String(), "renameProcesses", "the rename is not stored")
+	require.NotContains(t, rec.Body.String(), "renameProcesses", "the rename is not part of the view")
+	renames, err := services.PendingProcessRenames(ctx, f.q, v.ID)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"api": "gateway"}, renames)
+
+	// Renaming again continues from the name the release has; renaming onto a leftover name overwrites it.
+	cfg["processes"].([]map[string]any)[1]["name"] = "edge"
+	_, err = f.pool.Exec(ctx, "INSERT INTO service_process_scale (service_id, process, replicas) VALUES ($1, 'edge', 7)", v.ID)
+	require.NoError(t, err)
+	rec = patch(decodeView(t, rec).Generation, map[string]any{"renameProcesses": map[string]string{"gateway": "edge"}})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	renames, err = services.PendingProcessRenames(ctx, f.q, v.ID)
+	require.NoError(t, err)
+	require.Equal(t, map[string]string{"api": "edge"}, renames, "the pending rename keeps the name of the running release")
+	scales, err = f.q.ListProcessScales(ctx, v.ID)
+	require.NoError(t, err)
+	require.Len(t, scales, 2)
+	require.Equal(t, "api", scales[0].Process)
+	require.Equal(t, "edge", scales[1].Process)
+	require.EqualValues(t, 3, scales[1].Replicas, "the leftover row was replaced by the copy")
+
+	// Putting the old name back drops the rename.
+	cfg["processes"].([]map[string]any)[1]["name"] = "api"
+	rec = patch(decodeView(t, rec).Generation, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	renames, err = services.PendingProcessRenames(ctx, f.q, v.ID)
+	require.NoError(t, err)
+	require.Empty(t, renames)
+}
+
+func TestRenameProcessesRejectsSwapsAndCycles(t *testing.T) {
+	f := newTxFixture(t)
+	rec := f.httpDo(http.MethodPost, "/environments/"+f.staging.ID.String()+"/services", processesBody())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	v := decodeView(t, rec)
+	ctx := context.Background()
+
+	_, err := f.q.EnsureProcessScale(ctx, db.EnsureProcessScaleParams{ServiceID: v.ID, Process: "api"})
+	require.NoError(t, err)
+	_, err = f.q.ApplyProcessScale(ctx, db.ApplyProcessScaleParams{ServiceID: v.ID, Process: "api", Replicas: 3, ExpectedReplicas: 1, LastScaleEvent: json.RawMessage(`null`)})
+	require.NoError(t, err)
+	before, err := f.q.ListProcessScales(ctx, v.ID)
+	require.NoError(t, err)
+
+	// api -> gateway together with worker -> api.
+	cfg := processesBody()["config"].(map[string]any)
+	procs := cfg["processes"].([]map[string]any)
+	procs[0]["name"] = "api"
+	procs[1]["name"] = "gateway"
+	delete(procs[1], "healthcheck")
+	for _, renames := range []map[string]string{
+		{"api": "gateway", "worker": "api"},
+		{"api": "worker", "worker": "api"},
+	} {
+		rec = f.httpDo(http.MethodPatch, "/services/"+v.ID.String(), map[string]any{"config": cfg, "renameProcesses": renames}, "If-Match", `"`+itoa(v.Generation)+`"`)
+		require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+		require.Equal(t, "rename_conflict", errCode(t, rec))
+	}
+
+	after, err := f.q.ListProcessScales(ctx, v.ID)
+	require.NoError(t, err)
+	require.Equal(t, before, after, "the refused write changed no scale row")
+	renames, err := services.PendingProcessRenames(ctx, f.q, v.ID)
+	require.NoError(t, err)
+	require.Empty(t, renames)
+}
+
+func TestNamedProcessDomainsFollowItsPort(t *testing.T) {
+	f := newTxFixture(t)
+	rec := f.httpDo(http.MethodPost, "/environments/"+f.staging.ID.String()+"/services", processesBody())
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	v := decodeView(t, rec)
+	ctx := context.Background()
+	_, err := f.q.InsertDomain(ctx, db.InsertDomainParams{ServiceID: v.ID, Hostname: "api.example.com", TargetPort: 4000, Component: "api"})
+	require.NoError(t, err)
+
+	body := processesBody()
+	cfg := body["config"].(map[string]any)
+	cfg["processes"].([]map[string]any)[1]["port"] = 4100
+	rec = f.httpDo(http.MethodPatch, "/services/"+v.ID.String(), map[string]any{"config": cfg}, "If-Match", `"`+itoa(v.Generation)+`"`)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	doms, err := f.q.ListServiceDomains(ctx, v.ID)
+	require.NoError(t, err)
+	require.Len(t, doms, 1)
+	require.EqualValues(t, 4100, doms[0].TargetPort, "the domain follows the port of its process")
+
+	// A process without a port cannot serve the domain.
+	api := cfg["processes"].([]map[string]any)[1]
+	delete(api, "port")
+	api["healthcheck"] = map[string]any{"type": "none"}
+	rec = f.httpDo(http.MethodPatch, "/services/"+v.ID.String(), map[string]any{"config": cfg}, "If-Match", `"`+itoa(decodeView(t, rec).Generation)+`"`)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
+	require.Equal(t, "process_in_use", errCode(t, rec))
 }
 
 func TestPortChangeLeavesNamedProcessDomainsAlone(t *testing.T) {

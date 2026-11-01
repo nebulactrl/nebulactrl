@@ -61,6 +61,12 @@ func (s *Service) Metrics(ctx context.Context, id uuid.UUID, rng, process string
 	if err := CheckLogProcess(sc, process); err != nil {
 		return MetricsResult{}, err
 	}
+	// The samples carry the release's process name; a release of one process
+	// has none, so its default process is the service total.
+	process, wholeService, _, err := ResolveServiceProcessFilter(ctx, s.q, sc.Service, process)
+	if err != nil {
+		return MetricsResult{}, err
+	}
 	plan, err := servers.PlanRange(rng)
 	if err != nil {
 		return MetricsResult{}, apierr.Unprocessable("invalid_range", err.Error())
@@ -111,8 +117,9 @@ func (s *Service) Metrics(ctx context.Context, id uuid.UUID, rng, process string
 		out.Points = []ServiceMetricPoint{}
 	}
 	// A replica index counts within its process, so the total of a service with
-	// processes has no meaningful per-replica list.
-	if n := len(out.Points); n > 0 && (process != "" || !sc.Config().HasProcesses()) {
+	// processes has no meaningful per-replica list. The default process of a
+	// release that runs only it is not such a total.
+	if n := len(out.Points); n > 0 && (process != "" || wholeService || !sc.Config().HasProcesses()) {
 		cur, err := s.q.LatestServiceInstantReplicaSamples(ctx, db.LatestServiceInstantReplicaSamplesParams{ServiceID: &id, Process: process, Since: time.Now().Add(-latestReplicaWindow)})
 		if err != nil {
 			return MetricsResult{}, fmt.Errorf("latest replica samples: %w", err)

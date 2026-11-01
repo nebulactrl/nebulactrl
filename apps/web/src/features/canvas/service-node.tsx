@@ -201,6 +201,23 @@ function VolumeStrip({ volumes }: { volumes: Service["volumes"] }) {
 	);
 }
 
+/**
+ * Ready and wanted replicas. A service with processes sums its running ones
+ * (a staged one runs nothing yet); `service.scaling` would pair the ready
+ * count of every process with the default process' wanted count.
+ */
+function replicaTotals(service: Service): { ready: number; replicas: number } {
+	if (!hasProcesses(service)) return service.scaling;
+	let ready = 0;
+	let replicas = 0;
+	for (const process of service.processes) {
+		if (process.pending) continue;
+		ready += process.scaling.ready;
+		replicas += process.scaling.replicas;
+	}
+	return { ready, replicas };
+}
+
 function ServiceCard({
 	service,
 	plugs,
@@ -223,7 +240,7 @@ function ServiceCard({
 		service.server?.status === "offline" ||
 		service.server?.status === "revoked";
 	const deployed = service.observed !== null;
-	const replicas = service.scaling;
+	const replicas = replicaTotals(service);
 	const prefetch = useInspectorPrefetch(service);
 
 	return (

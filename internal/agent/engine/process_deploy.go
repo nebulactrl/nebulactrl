@@ -349,6 +349,8 @@ type processLedger struct {
 	orphans   []docker.ContainerInfo // previous containers no process of the payload owns
 	toRestart []docker.ContainerInfo // containers a recreate stopped; restarted when the deploy fails
 
+	orphansStopped bool // the serving orphans a recreate must not overlap were stopped
+
 	// Routes. ownPrev is the service's own routes in the live table before the
 	// first change to them; a restore puts exactly these back and leaves every
 	// other service's routes as they are now.
@@ -370,12 +372,14 @@ func (led *processLedger) ownedBy(name string) (*procRun, int) {
 	return nil, -1
 }
 
-// processFor finds the process a previous container belongs to: the one it is
-// labelled with, "" being the default process. nil means an orphan.
+// processFor finds the process a previous container belongs to, by the same
+// rule as processOf: a container the default process produced (or one without
+// the label) belongs to the payload's default process whatever it is named
+// now, any other to the process it is labelled with. nil means an orphan.
 func (led *processLedger) processFor(c docker.ContainerInfo) *procRun {
-	label := c.Labels[agentprotocol.LabelProcess]
+	name, isDefault := processOf(c)
 	for _, pr := range led.runs {
-		if (label == "" && pr.spec.Default) || (label != "" && pr.spec.Name == label) {
+		if (isDefault && pr.spec.Default) || (!isDefault && pr.spec.Name == name) {
 			return pr
 		}
 	}
@@ -670,6 +674,10 @@ func (d *deploy) rollProcess(ctx context.Context, env []string, led *processLedg
 		sort.Slice(st.prev, func(i, j int) bool { return st.prev[i].Created.After(st.prev[j].Created) })
 		st.toRestart = []docker.ContainerInfo{st.prev[0]}
 	}
+	if st.recreate && !led.orphansStopped {
+		led.orphansStopped = true
+		d.stopOrphans(ctx, led)
+	}
 	led.toRestart = append(led.toRestart, st.toRestart...)
 	if ctx.Err() != nil {
 		return rollInterrupted, "", "" // canceled while the old container stopped
@@ -851,10 +859,36 @@ func (d *deploy) processRoutePhase(ctx context.Context, led *processLedger, own 
 	}
 }
 
+// stopOrphans stops the serving orphans a recreate would overlap: a singleton
+// of a removed or renamed process, and every orphan when the service has
+// volumes (the replacement mounts the same ones). They are remembered for a
+// restart should the deploy fail; the rest of the orphans wait for retireAll.
+func (d *deploy) stopOrphans(ctx context.Context, led *processLedger) {
+	var serving []docker.ContainerInfo
+	for _, c := range led.orphans {
+		if !c.Running && !c.Restarting {
+			continue
+		}
+		var sl specLabel
+		_ = json.Unmarshal([]byte(c.Labels[agentprotocol.LabelSpec]), &sl)
+		if sl.Singleton || len(d.p.Volumes) > 0 {
+			serving = append(serving, c)
+		}
+	}
+	if len(serving) == 0 {
+		return
+	}
+	d.ctl.setStep(stepStop)
+	led.toRestart = append(led.toRestart, d.stopContainers(ctx, serving, func(c docker.ContainerInfo) time.Duration {
+		return ownGrace(c, d.p.StopGraceSeconds)
+	})...)
+}
+
 // retireAll stops and removes the previous containers of every process and
 // every orphan, in parallel, once the whole new release is live. A rolling
 // process' old replicas get the drain delay first; each container gets the stop
-// grace of the process it belonged to (an orphan: the default process').
+// grace it was started with (its spec label), the grace of the process it
+// belonged to (an orphan: the default process') when it has none.
 func (d *deploy) retireAll(ctx context.Context, led *processLedger) {
 	if len(led.prev) == 0 {
 		return
@@ -882,14 +916,14 @@ func (d *deploy) retireAll(ctx context.Context, led *processLedger) {
 	var targets []target
 	longest := time.Duration(0)
 	for _, pr := range led.runs {
-		g := graceOf(pr.spec.StopGraceSeconds)
-		longest = max(longest, g)
 		for _, c := range pr.st.prev {
+			g := ownGrace(c, pr.spec.StopGraceSeconds)
+			longest = max(longest, g)
 			targets = append(targets, target{c, g})
 		}
 	}
 	for _, c := range led.orphans {
-		g := graceOf(d.p.StopGraceSeconds)
+		g := ownGrace(c, d.p.StopGraceSeconds)
 		longest = max(longest, g)
 		targets = append(targets, target{c, g})
 	}

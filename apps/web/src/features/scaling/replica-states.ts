@@ -224,7 +224,9 @@ export function groupProcessReplicas(input: {
 /**
  * The strip of a service: its wanted replicas against what the agent
  * observed. A service with processes lists every process' replicas, or only
- * `process`' when one is named.
+ * `process`' when one is named. A staged process that is not running yet has
+ * no slots, and one being removed keeps the slots it still runs until the
+ * next deploy stops it.
  */
 export function replicaStrip(
 	service: Service,
@@ -242,11 +244,19 @@ export function replicaStrip(
 	const named = service.processes.some((entry) => entry.name === process);
 	return groupProcessReplicas({
 		processes: service.processes
-			.filter((entry) => !entry.removed && (!named || entry.name === process))
+			.filter(
+				(entry) =>
+					(!named || entry.name === process) &&
+					(entry.removed
+						? entry.observed !== null
+						: !(entry.pending && !entry.observed)),
+			)
 			.map((entry) => ({
 				process: entry.name,
 				isDefault: entry.default,
-				wanted: entry.scaling.replicas,
+				wanted: entry.removed
+					? (entry.observed?.replicasDesired ?? 0)
+					: entry.scaling.replicas,
 				ready: entry.observed?.replicasReady ?? entry.scaling.ready,
 			})),
 		replicas: service.observed?.replicas ?? null,

@@ -158,26 +158,29 @@ export function scalableProcesses(
 }
 
 /**
- * The process a scale dialog opens on: the one asked for when the service has
- * it, else the default process. Undefined for a service without processes.
+ * The process a scale dialog opens on: the one asked for, else the default
+ * process, else the first. Only processes that can scale are considered while
+ * any can. Undefined for a service without processes.
  */
 export function initialScaleProcess(
 	service: Pick<ScalingSource, "processes">,
 	requested?: string,
 ): string | undefined {
-	const options = scalableProcesses(service);
-	if (options.length === 0) return undefined;
+	const rows = scaleRows(service);
+	const scalable = rows.filter((row) => row.eligible);
+	const options = scalable.length > 0 ? scalable : rows;
 	return (
-		options.find((option) => option.name === requested)?.name ??
-		options.find((option) => option.isDefault)?.name ??
-		options[0]?.name
-	);
+		options.find((row) => row.name === requested) ??
+		options.find((row) => row.isDefault) ??
+		options[0]
+	)?.name;
 }
 
 /**
- * The scaling of one process. The default process, a name the service does not
- * have and a service without processes all read the service's own scaling,
- * which is what the legacy endpoint changes.
+ * The scaling of one process, which is what the matching process reports for
+ * itself: the service's own `scaling.ready` counts every process' replicas.
+ * A name the service does not have and a service without processes read the
+ * service's own scaling, which is what the legacy endpoint changes.
  */
 export function scalingOfProcess(
 	service: Pick<ScalingSource, "scaling" | "processes">,
@@ -186,8 +189,20 @@ export function scalingOfProcess(
 	const process = service.processes.find(
 		(candidate) => candidate.name === name,
 	);
-	if (!process || process.default) return service.scaling;
-	return process.scaling;
+	return process ? process.scaling : service.scaling;
+}
+
+/**
+ * Whether anything of the service can scale: some process that is not being
+ * removed, or the service itself when it has no processes.
+ */
+export function serviceCanScale(
+	service: Pick<ScalingSource, "scaling" | "processes">,
+): boolean {
+	if (service.processes.length === 0) return service.scaling.eligible;
+	return service.processes.some(
+		(process) => !process.removed && process.scaling.eligible,
+	);
 }
 
 /** The default process and a service without processes scale through the service's own endpoint; the others through their own. */

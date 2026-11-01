@@ -6,7 +6,12 @@ import type { Service } from "#/api/models";
 import { KpiNumber } from "#/components/common/kpi-number";
 import { serviceMetricsQuery } from "#/features/metrics/queries";
 import { formatBytes } from "#/lib/format";
-import { cpuFigure, memoryFigure, type ResourceFigure } from "./model";
+import {
+	configuredLimits,
+	cpuFigure,
+	memoryFigure,
+	type ResourceFigure,
+} from "./model";
 
 const SPARK_H = 34;
 
@@ -110,10 +115,9 @@ export function ResourcesCard({ service }: { service: Service }) {
 	const memory = memoryFigure(service, newest, formatBytes);
 	const cpuSeries = useMemo(() => points.map((p) => p.cpuPercent), [points]);
 	const memSeries = useMemo(() => points.map((p) => p.memBytes), [points]);
+	const { cpus } = configuredLimits(service);
 	const cpuLimit =
-		service.config.cpus && newest
-			? service.config.cpus * Math.max(1, newest.replicaCount) * 100
-			: 0;
+		cpus && newest ? cpus * Math.max(1, newest.replicaCount) * 100 : 0;
 	const memLimit =
 		newest && newest.memLimitBytes > 0 ? newest.memLimitBytes : 0;
 

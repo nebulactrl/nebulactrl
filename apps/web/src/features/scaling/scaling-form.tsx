@@ -15,6 +15,7 @@ import { Segmented } from "#/components/ui/segmented";
 import { Spinner } from "#/components/ui/spinner";
 import { Stepper } from "#/components/ui/stepper";
 import { toast } from "#/components/ui/toast";
+import { hasProcesses } from "#/features/processes/model";
 import {
 	appliedToast,
 	buildScalingBody,
@@ -39,13 +40,21 @@ const MODES = [
 	{ value: "autoscale", label: "Autoscale" },
 ] as const;
 
-/** What the server said, in words a person can act on. */
-function applyErrorText(error: unknown): string {
+const SERVICE_SINGLE =
+	"Replicas need a stateless service: no volumes and an HTTP port.";
+const PROCESS_SINGLE =
+	"Replicas need a stateless process: no volumes and no files.";
+
+/**
+ * What the server said, in words a person can act on. `reason` is why a
+ * process cannot scale, when the service has processes.
+ */
+function applyErrorText(error: unknown, reason: string | null): string {
 	switch (errorCode(error)) {
 		case "autoscaling_enabled":
 			return "Autoscaling is on, so the replica count is managed for you. Switch to Manual to set it yourself.";
 		case "replicas_require_stateless":
-			return "Replicas need a stateless service: no volumes and an HTTP port.";
+			return reason ?? SERVICE_SINGLE;
 		default:
 			return errorMessage(error);
 	}
@@ -125,6 +134,7 @@ export function ScalingForm({
 		setEdited({ ...state, ...patch });
 	};
 
+	const named = hasProcesses(service);
 	if (!scaling.eligible) {
 		return (
 			<div className={cn("flex flex-col gap-3", className)}>
@@ -132,18 +142,25 @@ export function ScalingForm({
 					<AlertTitle>Runs as a single replica</AlertTitle>
 					<AlertDescription>
 						{scaling.ineligibleReason ??
-							"Replicas need a stateless service: no volumes and an HTTP port."}
+							(named ? PROCESS_SINGLE : SERVICE_SINGLE)}
 					</AlertDescription>
 				</Alert>
-				<p className="type-secondary">
-					Databases and services with volumes always run exactly one replica, so
-					their data is never written from two containers at once.
-				</p>
+				{named ? null : (
+					<p className="type-secondary">
+						Databases and services with volumes always run exactly one replica,
+						so their data is never written from two containers at once.
+					</p>
+				)}
 			</div>
 		);
 	}
 
-	const converging = scaling.ready !== scaling.replicas;
+	// A staged process runs nothing until the next deploy.
+	const entry = service.processes.find(
+		(candidate) => candidate.name === process,
+	);
+	const notStarted = entry?.pending === true && !entry.observed;
+	const converging = !notStarted && scaling.ready !== scaling.replicas;
 	const event = scaling.lastScaleEvent;
 	const autoscale = state.mode === "autoscale";
 	const numberChange =
@@ -176,7 +193,11 @@ export function ScalingForm({
 					</span>
 					<span className="flex items-center gap-2 text-ink-3 text-xs">
 						{converging ? <Spinner className="size-3.5" /> : null}
-						<span>{readinessText(scaling)}</span>
+						<span>
+							{notStarted
+								? "Starts with the next deploy"
+								: readinessText(scaling)}
+						</span>
 						{converging ? <span>· Waiting for replicas</span> : null}
 					</span>
 				</div>
@@ -282,7 +303,12 @@ export function ScalingForm({
 			<div className="flex flex-wrap items-center justify-end gap-3">
 				{apply.isError ? (
 					<Alert variant="destructive" className="mr-auto min-w-0 flex-1">
-						<AlertDescription>{applyErrorText(apply.error)}</AlertDescription>
+						<AlertDescription>
+							{applyErrorText(
+								apply.error,
+								named ? (scaling.ineligibleReason ?? PROCESS_SINGLE) : null,
+							)}
+						</AlertDescription>
 					</Alert>
 				) : null}
 				<Button

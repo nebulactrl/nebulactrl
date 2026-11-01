@@ -413,6 +413,79 @@ func TestAutoscalerNeverScalesASingletonProcessOrOneThatIsNotDeployed(t *testing
 	require.Empty(t, f.scaleCommands())
 }
 
+// stageRename renames the named process api of a deployed service to web2 in the
+// staged config only, as a pending rename.
+func (f *fixture) stageRename(sv db.Service) {
+	f.t.Helper()
+	cfg := services.DecodeConfig(sv.Config)
+	cfg.Processes[0].Name = "web2"
+	raw, err := json.Marshal(cfg)
+	require.NoError(f.t, err)
+	_, err = f.pool.Exec(context.Background(), "UPDATE services SET config = $2::jsonb WHERE id = $1", sv.ID, raw)
+	require.NoError(f.t, err)
+	require.NoError(f.t, f.q.UpsertProcessRename(context.Background(), db.UpsertProcessRenameParams{ServiceID: sv.ID, FromProcess: "api", ToProcess: "web2"}))
+}
+
+func TestAutoscalerScalesTheRunningProcessWhileARenameIsPending(t *testing.T) {
+	f := newFixture(t)
+	sv := f.service("shop", services.KindApp, services.Config{
+		Image: "traefik/whoami:latest", Port: 3000,
+		Processes: []services.ProcessConfig{{Name: "api", StartCommand: []string{"bin/api"}}},
+	})
+	f.deployMulti(sv)
+	f.stageRename(sv)
+	// The scale row was copied to the new name at rename time.
+	f.enableProcessAutoscaling(sv.ID, "web2", services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
+	f.loadProcess(sv.ID, "api", 1, 90, 3*time.Minute)
+
+	require.NoError(t, f.scal.RunAutoscaler(context.Background()))
+
+	row, _ := f.processRow(sv.ID, "web2")
+	require.EqualValues(t, 2, row.Replicas, "the decision is stored on the staged name's row")
+	_, ok := f.processRow(sv.ID, "api")
+	require.False(t, ok, "the old name has no row of its own")
+	cmds := f.scaleCommands()
+	require.Len(t, cmds, 1)
+	p := decodeScale(t, cmds[0].Payload)
+	require.Equal(t, "api", p.Process, "the command addresses the running process")
+	require.Equal(t, 2, p.Replicas)
+	require.Equal(t, 2, processSpec(t, p.Deploy, "api").Replicas)
+
+	var md []byte
+	require.NoError(t, f.pool.QueryRow(context.Background(),
+		"SELECT metadata FROM audit_events WHERE action = 'service.autoscale' AND resource_id = $1", sv.ID.String()).Scan(&md))
+	var meta map[string]any
+	require.NoError(t, json.Unmarshal(md, &meta))
+	require.Equal(t, "web2", meta["process"])
+
+	// The cooldown of the staged row applies to the next pass.
+	require.NoError(t, f.scal.RunAutoscaler(context.Background()))
+	row, _ = f.processRow(sv.ID, "web2")
+	require.EqualValues(t, 2, row.Replicas)
+	require.Len(t, f.scaleCommands(), 1)
+}
+
+func TestAutoscalerFollowsTheStagedRowOfAPendingRename(t *testing.T) {
+	f := newFixture(t)
+	sv := f.service("shop", services.KindApp, services.Config{
+		Image: "traefik/whoami:latest", Port: 3000,
+		Processes: []services.ProcessConfig{{Name: "api", StartCommand: []string{"bin/api"}}},
+	})
+	f.deployMulti(sv)
+	f.stageRename(sv)
+	// Autoscaling is on for the old name only: the staged row (off) wins.
+	f.enableProcessAutoscaling(sv.ID, "api", services.Autoscaling{Enabled: true, Min: 1, Max: 3, TargetCPUPercent: 70})
+	f.loadProcess(sv.ID, "api", 1, 90, 3*time.Minute)
+
+	require.NoError(t, f.scal.RunAutoscaler(context.Background()))
+
+	row, _ := f.processRow(sv.ID, "api")
+	require.EqualValues(t, 1, row.Replicas)
+	_, ok := f.processRow(sv.ID, "web2")
+	require.False(t, ok)
+	require.Empty(t, f.scaleCommands())
+}
+
 func TestBlockedProcessScaleOutNamesTheProcess(t *testing.T) {
 	f := newFixture(t)
 	rec := &notificationstest.Recorder{}

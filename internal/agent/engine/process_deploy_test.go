@@ -541,9 +541,113 @@ func TestProcessDroppedByThePayloadIsRetiredWithItsRoute(t *testing.T) {
 	for _, rt := range r.px.Current() {
 		require.NotEqual(t, oldID, rt.ServiceID, "its route is gone")
 	}
-	require.Equal(t, 5*time.Second, r.dk.stopGrace[prevOld], "an orphan gets the default process' stop grace")
+	require.Equal(t, 5*time.Second, r.dk.stopGrace[prevOld], "an orphan without a spec label gets the default process' stop grace")
 	require.Len(t, ownRoutesNow(r), 1)
 	require.Greater(t, opIndex(r.dk.ops, "stop:"+prevOld), opIndex(r.dk.ops, "start:"+pname(depV2, "scheduler", 0)), "retired after the last process")
+}
+
+// labelProcess gives a seeded previous container the spec label a deploy of
+// that process leaves on it.
+func labelProcess(r *rig, name string, spec agentprotocol.ProcessSpec) {
+	r.t.Helper()
+	p := basePayload()
+	p.Port, p.Healthcheck, p.StopGraceSeconds = spec.Port, spec.Healthcheck, spec.StopGraceSeconds
+	p.Processes = []agentprotocol.ProcessSpec{spec}
+	r.dk.mu.Lock()
+	defer r.dk.mu.Unlock()
+	c := r.dk.find(name)
+	c.Labels[agentprotocol.LabelProcess] = spec.Name
+	c.Labels[agentprotocol.LabelSpec] = specLabelOf(p)
+}
+
+func TestRenamedSingletonIsStoppedBeforeItsReplacementStarts(t *testing.T) {
+	r := newRig(t, nil)
+	r.previousProcesses()
+	old := processPayload().Processes[2]
+	old.StopGraceSeconds = 90
+	labelProcess(r, prevSched, old)
+	var mu sync.Mutex
+	var overlaps []string
+	r.dk.onStart = func(c *docker.ContainerInfo) {
+		if c.Labels[agentprotocol.LabelProcess] != "clock" {
+			return
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		for _, other := range r.dk.containers { // the fake's lock is held
+			if other.ID != c.ID && other.Running && other.Labels[agentprotocol.LabelProcess] == "scheduler" {
+				overlaps = append(overlaps, other.Name)
+			}
+		}
+	}
+	p := processPayload()
+	p.Processes[2].Name = "clock"
+
+	res, dr := r.deploy(p, nil)
+	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
+	require.Empty(t, overlaps, "the old and the renamed singleton ran at once")
+
+	stop, create := opIndex(r.dk.ops, "stop:"+prevSched), opIndex(r.dk.ops, "create:"+pname(depV2, "clock", 0))
+	require.GreaterOrEqual(t, stop, 0)
+	require.Less(t, stop, create, "the old singleton is stopped before its renamed replacement is created")
+	require.Equal(t, 90*time.Second, r.dk.stopGrace[prevSched], "stopped with the grace it was started with")
+	notThere(t, r.dk, prevSched)
+	require.True(t, running(t, r.dk, pname(depV2, "clock", 0)))
+}
+
+func TestRenamedSingletonIsRestartedWhenALaterProcessFails(t *testing.T) {
+	r := newRig(t, healthFailing(pname(depV2, "worker", 0)))
+	r.previousProcesses()
+	labelProcess(r, prevSched, processPayload().Processes[2])
+	p := processPayload()
+	p.Processes[2].Name = "clock"
+	p.Processes = []agentprotocol.ProcessSpec{p.Processes[0], p.Processes[2], p.Processes[1]} // web, clock, worker
+
+	res, dr := r.deploy(p, nil)
+	require.Equal(t, agentprotocol.OutcomeRolledBack, res.Outcome, dr.Message)
+
+	stop, restart := opIndex(r.dk.ops, "stop:"+prevSched), opIndex(r.dk.ops, "start:"+prevSched)
+	require.GreaterOrEqual(t, stop, 0, "the old singleton was stopped for its replacement")
+	require.Greater(t, restart, stop, "and started again when the deploy failed")
+	require.True(t, running(t, r.dk, prevSched))
+	notThere(t, r.dk, pname(depV2, "clock", 0))
+}
+
+func TestRenamedDefaultProcessWithVolumesIsStoppedBeforeItsReplacementStarts(t *testing.T) {
+	r := newRig(t, nil)
+	r.previousProcesses()
+	labelProcess(r, prevWeb, processPayload().Processes[0]) // the default process: its spec label says so
+	p := processPayload()
+	p.Volumes = []agentprotocol.VolumeMount{{Name: "nc-vol-5e5e5e5e-data", MountPath: "/data"}}
+	p.Replicas = 1
+	for i := range p.Processes {
+		p.Processes[i].Replicas = 1
+	}
+	p.Processes[0].Name = "app"
+
+	res, dr := r.deploy(p, nil)
+	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
+	stop, create := opIndex(r.dk.ops, "stop:"+prevWeb), opIndex(r.dk.ops, "create:"+replicaName(depV2, 0))
+	require.GreaterOrEqual(t, stop, 0)
+	require.Less(t, stop, create, "the renamed default process' old container does not share the volume with its replacement")
+	notThere(t, r.dk, prevWeb)
+}
+
+func TestOrphanIsStoppedWithItsOwnGraceAndOnlyAfterTheLastProcess(t *testing.T) {
+	r := newRig(t, nil)
+	r.previousProcesses()
+	const prevOld = "nc-web-d1d1d1d1-legacy-0"
+	r.dk.seed(prevOld, svcID, depV1, true, time.Hour)
+	labelProcess(r, prevOld, agentprotocol.ProcessSpec{
+		Name: "legacy", Replicas: 1, Strategy: agentprotocol.StrategyRolling, StartCommand: []string{"app", "legacy"},
+		Healthcheck: agentprotocol.HealthcheckSpec{Type: "none"}, StopGraceSeconds: 120,
+	})
+
+	res, dr := r.deploy(processPayload(), nil)
+	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
+	notThere(t, r.dk, prevOld)
+	require.Equal(t, 120*time.Second, r.dk.stopGrace[prevOld], "the orphan keeps the grace of its own process")
+	require.Greater(t, opIndex(r.dk.ops, "stop:"+prevOld), opIndex(r.dk.ops, "start:"+pname(depV2, "scheduler", 0)), "a non-singleton orphan without volumes runs until the release is live")
 }
 
 func TestLegacyReleaseIsRetiredByAMultiProcessDeploy(t *testing.T) {
@@ -574,6 +678,20 @@ func TestMultiProcessReleaseIsRetiredByALegacyDeploy(t *testing.T) {
 	for _, rt := range r.px.Current() {
 		require.NotEqual(t, oldProc, rt.ServiceID, "the process route goes with the release")
 	}
+}
+
+func TestLegacyDeployRetiresEachProcessContainerWithItsOwnGrace(t *testing.T) {
+	r := newRig(t, nil)
+	r.previousProcesses()
+	procs := processPayload().Processes
+	labelProcess(r, prevWorker, procs[1]) // grace 7
+	labelProcess(r, prevSched, procs[2])  // grace 11
+
+	res, dr := r.deploy(basePayload(), nil) // grace 5
+	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
+	require.Equal(t, 7*time.Second, r.dk.stopGrace[prevWorker])
+	require.Equal(t, 11*time.Second, r.dk.stopGrace[prevSched])
+	require.Equal(t, 5*time.Second, r.dk.stopGrace[prevWeb], "a container without a spec label gets the payload's grace")
 }
 
 // ---- payload validation ----

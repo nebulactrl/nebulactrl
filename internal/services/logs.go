@@ -72,8 +72,13 @@ func (s *Service) openStream(ctx context.Context, svc db.Service, tail int, foll
 	if err != nil {
 		return nil, nil, fmt.Errorf("redactor: %w", err)
 	}
+	process, processDefault, _, err := ResolveServiceProcessFilter(ctx, s.q, svc, process)
+	if err != nil {
+		return nil, nil, fmt.Errorf("resolve process: %w", err)
+	}
 	frames, cancel, err := s.disp.SubscribeLogs(ctx, serverID, agentprotocol.LogsSubscribe{
-		StreamID: uuid.NewString(), ServiceID: svc.ID.String(), Tail: clampTail(tail), Follow: follow, Component: component, Process: process,
+		StreamID: uuid.NewString(), ServiceID: svc.ID.String(), Tail: clampTail(tail), Follow: follow, Component: component,
+		Process: process, Default: processDefault,
 	})
 	if err != nil {
 		return nil, nil, err

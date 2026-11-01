@@ -84,7 +84,7 @@ Timing defaults: interval 2 s, timeout 3 s, start period 0 s, **deadline 120 s**
 
 ## Stop grace period
 
-`stopGraceSeconds` (default 30, 1–3600): how long Docker waits after SIGTERM before SIGKILL when a container is stopped for retire, restart or stop. Raise it for workloads that drain slowly.
+`stopGraceSeconds` (default 30, 1–3600): how long Docker waits after the stop signal before SIGKILL when a container is stopped for retire, restart or stop. The stop signal is the image's own `STOPSIGNAL`, SIGTERM when the image sets none (serversideup's `fpm-nginx` PHP image sets SIGQUIT). Raise it for workloads that drain slowly: a queue worker needs at least its job timeout.
 
 ## Variables and generations
 

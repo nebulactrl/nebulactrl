@@ -67,8 +67,9 @@ export function ProcessesSection({
 			processErrors(processes, {
 				defaultName: draft.processName,
 				defaultPort: draft.port,
+				domains: service.domains,
 			}),
-		[processes, draft.processName, draft.port],
+		[processes, draft.processName, draft.port, service.domains],
 	);
 	const atLimit = processes.length >= MAX_NAMED_PROCESSES;
 	const command = commandSummary(splitCommand(draft.startCommand));

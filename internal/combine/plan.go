@@ -567,6 +567,15 @@ func (s *Service) ignoredSettings(p *CombinePlan, t, m *member) {
 	if t.cfg.ImageRetention != m.cfg.ImageRetention {
 		add("config.imageRetention", kept)
 	}
+	const inherited = "the source ran without this limit; its process runs with the target's"
+	if m.cfg.MemoryMB == 0 && t.cfg.MemoryMB != 0 {
+		add("config.memoryMb", inherited)
+		p.Warnings = append(p.Warnings, fmt.Sprintf("%s ran without a memory limit; its process runs with the target's %d MB.", m.sc.Service.Slug, t.cfg.MemoryMB))
+	}
+	if m.cfg.CPUs == 0 && t.cfg.CPUs != 0 {
+		add("config.cpus", inherited)
+		p.Warnings = append(p.Warnings, fmt.Sprintf("%s ran without a CPU limit; its process runs with the target's %g CPUs.", m.sc.Service.Slug, t.cfg.CPUs))
+	}
 	if len(m.cfg.PreDeployCommand) > 0 && jsonDiffers(t.cfg.PreDeployCommand, m.cfg.PreDeployCommand) {
 		add("config.preDeployCommand", "the source's command is dropped; the target runs its own once per deployment")
 		p.Warnings = append(p.Warnings, fmt.Sprintf("The pre-deploy command of %s is dropped.", m.sc.Service.Slug))

@@ -224,6 +224,8 @@ func (r *Reconciler) DesiredState(ctx context.Context, serverID uuid.UUID) (agen
 			}
 			if err == nil {
 				snap = services.DecodeSnapshot(rel.Config)
+				// The release runs what a deploy of it runs: one replica unless it is eligible.
+				replicas = services.EffectiveReplicas(sv.Kind, snap.Config, len(snap.Volumes), replicas)
 			}
 		}
 		mem, err := networks.Resolve(ctx, r.q, sv.EnvironmentID, serverID, sv.ID, snap.Config.BlockEgress, snap.Networks)

@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 
+	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/audit"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
@@ -211,8 +212,12 @@ func (s *Service) RunAutoscaler(ctx context.Context) error {
 // scaleSubject is the process one autoscaler pass looks at, with its stored scale.
 type scaleSubject struct {
 	// process is "" for the default process (the service's own columns) and the
-	// name of a named process (its service_process_scale row).
+	// name of a named process (its service_process_scale row, the staged name).
 	process string
+	// running is the name the running release knows a named process by: the
+	// staged name, or the old name while a rename is pending (scale commands
+	// and samples address it). Empty for the default process.
+	running string
 	// label names the process in notices and audit entries: empty unless the
 	// service runs several processes.
 	label string
@@ -227,14 +232,51 @@ type scaleSubject struct {
 	blocked        *string
 }
 
-// subject resolves the process of a service for the autoscaler. ok is false when
-// there is nothing to judge: the process left the configuration, or a named
-// process is not part of the running release yet.
+// runningProcessName is the name of the staged named process stagedName in the
+// running release: the same name, or the old name while a rename to it is
+// pending. ok is false when the release has no such process.
+func (s *Service) runningProcessName(ctx context.Context, serviceID uuid.UUID, deployed services.Config, stagedName string) (name string, ok bool, err error) {
+	if !deployed.HasProcesses() {
+		return "", false, nil
+	}
+	if dp, in := deployed.Process(stagedName); in {
+		return stagedName, !dp.Default, nil
+	}
+	renames, err := services.PendingProcessRenames(ctx, s.q, serviceID)
+	if err != nil {
+		return "", false, err
+	}
+	for from, to := range renames {
+		if dp, in := deployed.Process(from); to == stagedName && in && !dp.Default {
+			return from, true, nil
+		}
+	}
+	return "", false, nil
+}
+
+// subject resolves the process of a service for the autoscaler. process is the
+// staged name, or the name of the running release while a rename to a staged name
+// is pending; a scale decision is stored on the staged name's scale row and
+// applied to the running process. ok is false when there is nothing to judge: the
+// process left the configuration, or a named process is not part of the running
+// release yet.
 func (s *Service) subject(ctx context.Context, sc services.Scope, process string) (sub scaleSubject, ok bool, err error) {
 	cfg := sc.Config()
 	p, found := cfg.Process(process)
 	if !found {
-		return sub, false, nil
+		// The running release may still know the process by the name a staged
+		// rename replaces.
+		renames, err := services.PendingProcessRenames(ctx, s.q, sc.Service.ID)
+		if err != nil {
+			return sub, false, err
+		}
+		to, pending := renames[process]
+		if !pending {
+			return sub, false, nil
+		}
+		if p, found = cfg.Process(to); !found {
+			return sub, false, nil
+		}
 	}
 	deployed := cfg
 	rel, has, err := services.AppliedRelease(ctx, s.q, sc.Service)
@@ -244,7 +286,7 @@ func (s *Service) subject(ctx context.Context, sc services.Scope, process string
 	if has {
 		deployed = services.DecodeSnapshot(rel.Config).Config
 	}
-	sub = scaleSubject{p: p, label: notifyProcess(cfg, process)}
+	sub = scaleSubject{p: p, label: notifyProcess(cfg, p.Name)}
 	if p.Default {
 		sv := sc.Service
 		sub.replicas, sub.auto = int(sv.Replicas), services.DecodeAutoscaling(sv.Autoscaling)
@@ -254,7 +296,11 @@ func (s *Service) subject(ctx context.Context, sc services.Scope, process string
 		}
 		return sub, true, nil
 	}
-	if dp, in := deployed.Process(p.Name); !deployed.HasProcesses() || !in || dp.Default {
+	running, in, err := s.runningProcessName(ctx, sc.Service.ID, deployed, p.Name)
+	if err != nil {
+		return sub, false, err
+	}
+	if !in {
 		return sub, false, nil
 	}
 	rows, err := s.q.ListProcessScales(ctx, sc.Service.ID)
@@ -262,7 +308,10 @@ func (s *Service) subject(ctx context.Context, sc services.Scope, process string
 		return sub, false, fmt.Errorf("list process scales: %w", err)
 	}
 	ps := services.ProcessScalingOf(rows, p.Name)
-	sub.process, sub.samples = p.Name, p.Name
+	if running != p.Name && !ps.Autoscaling.Enabled {
+		return sub, false, nil // the staged row is the authority, and the old row's setting is not
+	}
+	sub.process, sub.running, sub.samples = p.Name, running, running
 	sub.replicas, sub.auto, sub.lastScaleAt, sub.lastScaleEvent, sub.blocked = ps.Replicas, ps.Autoscaling, ps.LastScaleAt, ps.LastScaleEvent, ps.BlockedReason
 	return sub, true, nil
 }
@@ -432,7 +481,9 @@ func (s *Service) setBlocked(ctx context.Context, sc services.Scope, sub scaleSu
 func (s *Service) autoscale(ctx context.Context, sc services.Scope, sub scaleSubject, from, to int, reason string) error {
 	err := db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
-		if sub.process != "" {
+		if sub.process != "" && sub.running != sub.process {
+			err = s.applyRenamedProcessScale(ctx, tx, sc, sub, from, to, reason, services.ActorAutoscaler)
+		} else if sub.process != "" {
 			err = s.applyProcessScale(ctx, tx, sc, sub.process, from, to, reason, services.ActorAutoscaler)
 		} else {
 			err = s.applyScale(ctx, tx, sc, from, to, reason, services.ActorAutoscaler)
@@ -455,4 +506,21 @@ func (s *Service) autoscale(ctx context.Context, sc services.Scope, sub scaleSub
 	s.logger.InfoContext(ctx, "autoscaled service", "service", sc.Service.Slug, "service_id", sc.Service.ID.String(), "process", sub.label, "from", from, "to", to, "reason", reason)
 	services.PublishService(s.bus, services.EventServiceUpdated, sc)
 	return nil
+}
+
+// applyRenamedProcessScale is applyProcessScale for a process with a pending
+// rename: the count is stored on the row of the staged (new) name, and the
+// scale_service command addresses the running release's (old) name.
+func (s *Service) applyRenamedProcessScale(ctx context.Context, tx pgx.Tx, sc services.Scope, sub scaleSubject, from, to int, reason, actor string) error {
+	row, err := db.New(tx).ApplyProcessScale(ctx, db.ApplyProcessScaleParams{
+		ServiceID: sc.Service.ID, Process: sub.process, Replicas: int32(to), ExpectedReplicas: int32(from),
+		LastScaleEvent: services.NewScaleEvent(from, to, reason, actor),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return apierr.Conflict("scale_conflict", "the replica count changed concurrently; retry")
+		}
+		return fmt.Errorf("store replicas of process %s: %w", sub.process, err)
+	}
+	return s.enqueueScale(ctx, tx, sc, sub.running, to, row.LastScaleAt)
 }

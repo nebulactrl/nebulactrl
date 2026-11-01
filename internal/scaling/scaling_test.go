@@ -372,6 +372,20 @@ func TestRouteUpstreamsListEveryReplica(t *testing.T) {
 	require.Equal(t, "/", routes[0].HealthPath, "the default http health check path feeds the proxy health check")
 }
 
+func TestRouteUpstreamsOfASingletonDefaultProcessListOneReplica(t *testing.T) {
+	f := newFixture(t)
+	sv := f.service("clock", services.KindApp, services.Config{Image: "traefik/whoami:latest", Port: 80, Singleton: true})
+	depID := f.deploy(sv)
+	_, err := f.q.InsertDomain(context.Background(), db.InsertDomainParams{ServiceID: sv.ID, Hostname: "clock.localhost", TargetPort: 80})
+	require.NoError(t, err)
+	f.setReplicas(sv.ID, 3)
+
+	routes, err := domains.ServerRoutes(context.Background(), f.q, f.server.ID, uuid.Nil)
+	require.NoError(t, err)
+	require.Len(t, routes, 1)
+	require.Equal(t, []string{"nc-clock-" + agentprotocol.Short(depID.String()) + "-0:80"}, routes[0].Upstreams)
+}
+
 func TestClampReplicasAfterDeployOfIneligibleService(t *testing.T) {
 	f := newFixture(t)
 	sv := f.web("web")
@@ -389,6 +403,45 @@ func TestClampReplicasAfterDeployOfIneligibleService(t *testing.T) {
 	got := f.reload(sv.ID)
 	require.EqualValues(t, 1, got.Replicas)
 	require.False(t, services.DecodeAutoscaling(got.Autoscaling).Enabled)
+}
+
+func TestSetReturnsTheReasonOfASingletonDefaultProcess(t *testing.T) {
+	f := newFixture(t)
+	sv := f.service("shop", services.KindApp, services.Config{
+		Image: "traefik/whoami:latest", Port: 3000, Singleton: true,
+		Processes: []services.ProcessConfig{{Name: "worker", StartCommand: []string{"bin/worker"}}},
+	})
+	_, err := f.scal.Set(f.ctx, sv.ID, scaling.SetInput{Replicas: new(3)})
+	requireAPIError(t, err, 422, "replicas_require_stateless")
+	require.Contains(t, err.Error(), services.SingletonReason)
+	_, err = f.scal.SetProcess(f.ctx, sv.ID, "web", scaling.SetInput{Autoscaling: &scaling.AutoscalingPatch{Enabled: new(true)}})
+	requireAPIError(t, err, 422, "replicas_require_stateless")
+	require.Contains(t, err.Error(), services.SingletonReason)
+}
+
+// The scale command acts on the running release: a portless single-process
+// worker whose staged configuration adds a process is not scalable until that
+// is deployed, and nothing is sent to the agent or recorded as blocked.
+func TestSetChecksTheRunningReleaseBeforeScaling(t *testing.T) {
+	f := newFixture(t)
+	sv := f.service("jobs", services.KindWorker, services.Config{Image: "busybox"})
+	f.deploy(sv)
+	staged := services.Config{Image: "busybox", Processes: []services.ProcessConfig{{Name: "queue", StartCommand: []string{"bin/queue"}}}}.WithDefaults()
+	raw, _ := json.Marshal(staged)
+	_, err := f.pool.Exec(context.Background(), "UPDATE services SET config = $2::jsonb, generation = generation + 1 WHERE id = $1", sv.ID, raw)
+	require.NoError(t, err)
+
+	_, err = f.scal.Set(f.ctx, sv.ID, scaling.SetInput{Replicas: new(3)})
+	requireAPIError(t, err, 422, "replicas_require_stateless")
+	require.Contains(t, err.Error(), "HTTP port")
+	require.Empty(t, f.scaleCommands())
+	got := f.reload(sv.ID)
+	require.EqualValues(t, 1, got.Replicas)
+	require.Nil(t, got.ScaleBlockedReason)
+
+	// One replica is always allowed.
+	_, err = f.scal.Set(f.ctx, sv.ID, scaling.SetInput{Replicas: new(1)})
+	require.NoError(t, err)
 }
 
 func TestServiceMetricsAggregateReplicas(t *testing.T) {

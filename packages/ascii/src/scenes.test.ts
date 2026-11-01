@@ -42,19 +42,15 @@ describe("resolveScene", () => {
 		expect(resolveScene("toString").name).toBe("eclipse");
 	});
 
-	test("the Eclipse spec is pinned", () => {
+	test("the Eclipse spec is pinned: 30 fps, the old panel and quiet masks, no glyphs", () => {
 		const e = SCENES.eclipse;
-		expect(e.fps).toBe(24);
-		expect(e.levels).toBe(12);
-		expect(e.variants).toBe(1);
-		expect(e.extras).toBe("");
-		expect(e.gamma).toBe(0.7);
-		expect(e.cutoff).toBe(0.045);
-		expect(e.dither).toBe(0.75);
-		expect(e.maskMode).toBe("level");
+		expect(e.fps).toBe(30);
 		expect(e.panel).toEqual(PANEL_MASK);
 		expect(e.quiet).toEqual(QUIET_MASK);
 		expect(e.staticTime).toBe(14);
+		expect(e.candidates).toBe("");
+		expect(e.extras).toBe("");
+		expect(e.levels).toBe(1);
 	});
 });
 
@@ -66,8 +62,10 @@ describe("sceneFps", () => {
 		expect(sceneFps(SCENES.band)).toBe(10);
 	});
 
-	test("never above 24 and never under 1", () => {
-		expect(sceneFps(SCENES.eclipse, 60)).toBe(MAX_FPS);
+	test("never above the scene's ceiling (24, the Eclipse 30) and never under 1", () => {
+		expect(sceneFps(SCENES.dome, 60)).toBe(MAX_FPS);
+		expect(sceneFps(SCENES.eclipse, 60)).toBe(30);
+		expect(sceneFps(SCENES.eclipse)).toBe(30);
 		expect(sceneFps(SCENES.eclipse, 0)).toBe(1);
 		expect(sceneFps(SCENES.eclipse, -5)).toBe(1);
 	});
@@ -82,9 +80,9 @@ describe("sceneFps", () => {
 });
 
 describe("scene specs", () => {
-	test("rates sit under the cap", () => {
-		for (const spec of Object.values(SCENES)) {
-			expect(spec.fps).toBeLessThanOrEqual(MAX_FPS);
+	test("glyph scene rates sit under the cap", () => {
+		for (const name of OTHER_SCENES) {
+			expect(SCENES[name].fps).toBeLessThanOrEqual(MAX_FPS);
 		}
 	});
 
@@ -101,12 +99,11 @@ describe("scene specs", () => {
 		}
 	});
 
-	test("candidates are enough to fill every level, and unique outside the Eclipse", () => {
-		for (const spec of Object.values(SCENES)) {
+	test("candidates are enough to fill every level, and unique", () => {
+		for (const name of OTHER_SCENES) {
+			const spec = SCENES[name];
 			const pool = Array.from(new Set(spec.candidates));
-			if (spec.name !== "eclipse") {
-				expect(pool.length).toBe(spec.candidates.length);
-			}
+			expect(pool.length).toBe(spec.candidates.length);
 			expect(pool.length).toBeGreaterThanOrEqual(
 				(spec.levels - 1) * spec.variants,
 			);
@@ -114,7 +111,6 @@ describe("scene specs", () => {
 	});
 
 	test("the atlas holds the ramp then the extras", () => {
-		expect(atlasColumns(SCENES.eclipse)).toBe(12);
 		expect(atlasColumns(SCENES.dome)).toBe(6 + 1);
 		expect(atlasColumns(SCENES.band)).toBe(7 + 1);
 		expect(atlasColumns(SCENES["lost-signal"])).toBe(7 * 3);

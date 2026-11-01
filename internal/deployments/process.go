@@ -67,14 +67,23 @@ type processRouting struct {
 
 // processDomains are the domain rows a process serves: the rows without a
 // component for the default process, the rows naming it for a named one. A
-// process without an HTTP port serves none.
-func processDomains(p services.EffectiveProcess, doms []db.Domain) []db.Domain {
+// process without an HTTP port serves none. A row still naming the old name of a
+// staged rename (renames: old -> new) belongs to the new name, as long as cfg
+// has no process of the old one: the domains only move once the deploy that
+// ships the rename has succeeded.
+func processDomains(cfg services.Config, p services.EffectiveProcess, doms []db.Domain, renames map[string]string) []db.Domain {
 	if p.Port <= 0 {
 		return nil
 	}
 	var out []db.Domain
 	for _, d := range doms {
-		if (p.Default && d.Component == "") || (!p.Default && d.Component == p.Name) {
+		component := d.Component
+		if to, ok := renames[component]; ok {
+			if _, has := cfg.Process(component); !has {
+				component = to
+			}
+		}
+		if (p.Default && component == "") || (!p.Default && component == p.Name) {
 			out = append(out, d)
 		}
 	}
@@ -86,9 +95,13 @@ func processDomains(p services.EffectiveProcess, doms []db.Domain) []db.Domain {
 // single-process deploy applies to the service's (DNS-01 resolver, Cloudflare
 // origin lock, platform access).
 func processRoutings(ctx context.Context, q *db.Queries, serverID, serviceID uuid.UUID, cfg services.Config, doms []db.Domain) (map[string]processRouting, error) {
+	renames, err := services.PendingProcessRenames(ctx, q, serviceID)
+	if err != nil {
+		return nil, err
+	}
 	out := map[string]processRouting{}
 	for _, p := range cfg.EffectiveProcesses() {
-		rows := processDomains(p, doms)
+		rows := processDomains(cfg, p, doms, renames)
 		if len(rows) == 0 {
 			continue
 		}

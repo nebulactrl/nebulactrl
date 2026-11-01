@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"maps"
 	"regexp"
 	"slices"
 	"strings"
@@ -306,33 +307,93 @@ func (c Config) validateProcesses() error {
 	return nil
 }
 
-// CheckProcessesInUse refuses a config that drops a process (or its port) a
-// domain still routes to (422 `process_in_use`). Domains of the default process
-// (empty component) follow the service port and are not checked. Stacks use
-// domains.component for compose components: see CheckComponentsInUse.
+// CheckProcessesInUse refuses a config that drops a process a domain still
+// routes to, leaves it without a port, or turns it into the default process
+// (422 `process_in_use`). A domain naming the old name of a staged rename counts
+// for the new name. Domains of the default process (empty component) follow the
+// service port and are not checked; those of a named process follow its port
+// (FollowProcessPorts). Stacks use domains.component for compose components: see
+// CheckComponentsInUse.
 func CheckProcessesInUse(ctx context.Context, q *db.Queries, serviceID uuid.UUID, cfg Config) error {
 	if cfg.Stack != nil {
 		return nil
 	}
-	doms, err := q.ListServiceDomains(ctx, serviceID)
+	doms, renames, err := processDomainsOf(ctx, q, serviceID, cfg)
 	if err != nil {
-		return fmt.Errorf("list domains: %w", err)
+		return err
 	}
 	for _, d := range doms {
 		if d.Component == "" {
 			continue
 		}
-		p, ok := cfg.Process(d.Component)
+		name := renamedProcess(cfg, renames, d.Component)
+		p, ok := cfg.Process(name)
 		if !ok {
 			return processInUse(d.Component, d.Hostname,
 				fmt.Sprintf("process %q still has the domain %s: remove the domain first", d.Component, d.Hostname))
 		}
-		if p.Port <= 0 || p.Port != int(d.TargetPort) {
+		if p.Default {
 			return processInUse(d.Component, d.Hostname,
-				fmt.Sprintf("the domain %s routes to port %d of process %q, which does not listen there: remove or change the domain first", d.Hostname, d.TargetPort, d.Component))
+				fmt.Sprintf("the domain %s routes to process %q, which is the default process now: remove or change the domain first", d.Hostname, d.Component))
+		}
+		if p.Port <= 0 {
+			return processInUse(d.Component, d.Hostname,
+				fmt.Sprintf("the domain %s routes to process %q, which has no port: remove or change the domain first", d.Hostname, d.Component))
 		}
 	}
 	return nil
+}
+
+// FollowProcessPorts points the domains of each named process at the port the
+// process has in cfg, after CheckProcessesInUse accepted cfg (every such domain
+// has a process with a port).
+func FollowProcessPorts(ctx context.Context, q *db.Queries, serviceID uuid.UUID, cfg Config) error {
+	if cfg.Stack != nil {
+		return nil
+	}
+	doms, renames, err := processDomainsOf(ctx, q, serviceID, cfg)
+	if err != nil {
+		return err
+	}
+	ports := map[string]int32{} // component -> port
+	for _, d := range doms {
+		if d.Component == "" {
+			continue
+		}
+		if p, ok := cfg.Process(renamedProcess(cfg, renames, d.Component)); ok && !p.Default && p.Port > 0 && int32(p.Port) != d.TargetPort {
+			ports[d.Component] = int32(p.Port)
+		}
+	}
+	for _, component := range slices.Sorted(maps.Keys(ports)) {
+		if err := q.SetProcessDomainsPort(ctx, db.SetProcessDomainsPortParams{ServiceID: serviceID, Component: component, TargetPort: ports[component]}); err != nil {
+			return fmt.Errorf("retarget domains of process %s: %w", component, err)
+		}
+	}
+	return nil
+}
+
+// processDomainsOf loads the domains of a service and its staged process renames.
+func processDomainsOf(ctx context.Context, q *db.Queries, serviceID uuid.UUID, cfg Config) ([]db.Domain, map[string]string, error) {
+	doms, err := q.ListServiceDomains(ctx, serviceID)
+	if err != nil {
+		return nil, nil, fmt.Errorf("list domains: %w", err)
+	}
+	renames, err := PendingProcessRenames(ctx, q, serviceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	return doms, renames, nil
+}
+
+// renamedProcess is the name cfg knows a domain's component by: the new name of
+// a staged rename while cfg has no process of the old one.
+func renamedProcess(cfg Config, renames map[string]string, component string) string {
+	if _, ok := cfg.Process(component); !ok {
+		if to, ok := renames[component]; ok {
+			return to
+		}
+	}
+	return component
 }
 
 func processInUse(process, hostname, msg string) error {

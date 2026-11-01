@@ -14,7 +14,10 @@ and health-checks every upstream.
 **Eligible services:** no volumes, an HTTP port, and a kind other than
 `database`. Anything else is fixed at one replica (`422 replicas_require_stateless`).
 A deploy of a service that stopped being eligible (a volume was added, the port
-removed) runs one replica, resets the count to 1 and turns autoscaling off.
+removed) runs one replica, resets the count to 1 and turns autoscaling off. A
+rollback or recovery redeploy of an older release only does so when the staged
+configuration is ineligible too, and it keeps the scale of processes the staged
+configuration still has.
 
 ## Manual scaling
 

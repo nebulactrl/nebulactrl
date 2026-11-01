@@ -1,9 +1,11 @@
 /**
- * The closed set of ASCII scenes and the pure maths that picks and places
- * them. Every scene runs on the one engine; a scene is a spec (this file) plus
- * a field shader (`*.glsl.ts`). No DOM, no GL, so it runs under `bun test`.
+ * The closed set of scenes and the pure maths that picks and places them.
+ * Four are glyph scenes on one engine (`core.ts`): a spec (this file) plus a
+ * field shader (`*.glsl.ts`). The Eclipse is the fifth and is not a glyph
+ * scene: `planet.ts` draws it as a dithered planet and reads only its `fps`,
+ * `panel`, `quiet` and `staticTime` from here, plus its placement.
  *
- * Shared by every scene: the palette (slate ink plus the accent, never a
+ * Shared by every glyph scene: the palette (slate ink plus the accent, never a
  * second hue), the 7.5k-cell budget, the 24 fps ceiling, one still frame for
  * reduced motion, pause when hidden or off screen, context-loss recovery.
  * Glyphs are punctuation and symbols only: a scene never spells a word or a
@@ -31,12 +33,12 @@ export type SceneName = (typeof SCENE_NAMES)[number];
 
 export const DEFAULT_SCENE: SceneName = "eclipse";
 
-/** No scene draws faster than this (fps). */
+/** No glyph scene draws faster than this (fps). */
 export const MAX_FPS = 24;
 
 export interface SceneSpec {
 	readonly name: SceneName;
-	/** Frame cap the scene runs at unless the caller asks for less. Always <= MAX_FPS. */
+	/** Frame cap the scene runs at unless the caller asks for less. Glyph scenes: <= MAX_FPS. The Eclipse: 30. */
 	readonly fps: number;
 	/** Glyphs the ramp is picked from, by measured ink coverage in the loaded font. */
 	readonly candidates: string;
@@ -56,7 +58,7 @@ export interface SceneSpec {
 	readonly dither: number;
 	/**
 	 * How `maskRect` and `quietRects` dim the field. "level" lowers the cell's
-	 * tone (the Eclipse's way). "alpha" keeps the glyph and lowers its opacity,
+	 * tone. "alpha" keeps the glyph and lowers its opacity,
 	 * which is what holds text-safe contrast: tone steps never get that faint.
 	 */
 	readonly maskMode: "level" | "alpha";
@@ -68,7 +70,6 @@ export interface SceneSpec {
 	readonly staticTime: number;
 }
 
-const ECLIPSE_CANDIDATES = ".'`:;,-~+=*ottxXoO%S8#@";
 /** Symbols only: no letters, no digits. */
 const SYMBOLS = ".'`\":;,_-~^+=*<>|/\\()[]{}#";
 
@@ -81,17 +82,18 @@ export const DOME_GAP_ROWS = 2.4;
 const QUIET_ALPHA: MaskKind = { min: 0.05, feather: 90, pad: 24 };
 
 export const SCENES: Readonly<Record<SceneName, SceneSpec>> = {
+	/** Drawn by planet.ts: no glyphs, so the glyph fields are inert and kept neutral. */
 	eclipse: {
 		name: "eclipse",
-		fps: MAX_FPS,
-		candidates: ECLIPSE_CANDIDATES,
-		levels: 12,
+		fps: 30,
+		candidates: "",
+		levels: 1,
 		variants: 1,
 		extras: "",
-		extraTone: 0.45,
-		gamma: 0.7,
-		cutoff: 0.045,
-		dither: 0.75,
+		extraTone: 0,
+		gamma: 1,
+		cutoff: 0,
+		dither: 0,
 		maskMode: "level",
 		panel: PANEL_MASK,
 		quiet: QUIET_MASK,
@@ -170,10 +172,15 @@ export function resolveScene(name: string | undefined): SceneSpec {
 		: SCENES[DEFAULT_SCENE];
 }
 
-/** The frame cap in effect: the caller's (or the scene's), never above 24 and never under 1. */
+/**
+ * The frame cap in effect: the caller's (or the scene's), never above the
+ * scene's own ceiling (24, or its rate when that is higher: the Eclipse's 30)
+ * and never under 1.
+ */
 export function sceneFps(spec: SceneSpec, requested?: number): number {
 	const fps = requested ?? spec.fps;
-	return Math.min(MAX_FPS, Math.max(1, Number.isFinite(fps) ? fps : spec.fps));
+	const ceiling = Math.max(MAX_FPS, spec.fps);
+	return Math.min(ceiling, Math.max(1, Number.isFinite(fps) ? fps : spec.fps));
 }
 
 /** Total atlas columns: every ramp glyph (levels x variants) then the extras. */

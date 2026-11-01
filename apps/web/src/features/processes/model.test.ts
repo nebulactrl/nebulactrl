@@ -15,6 +15,7 @@ import {
 	processRow,
 	processRows,
 	processState,
+	replicasOfProcess,
 	replicasText,
 	resolveProcessFilter,
 	serviceProcesses,
@@ -160,8 +161,94 @@ describe("replicasText", () => {
 		).toBe("1/3");
 	});
 
-	test("a singleton says so instead of a count", () => {
-		expect(replicasText(CLOCK)).toBe("1 · singleton");
+	test("a singleton says so after the count", () => {
+		expect(replicasText(CLOCK)).toBe("1/1 · singleton");
+	});
+
+	test("an exited singleton reads as not running", () => {
+		expect(
+			replicasText(
+				process({
+					name: "clock",
+					singleton: true,
+					scaling: { replicas: 1, ready: 0 },
+					observed: {
+						state: "exited",
+						health: "",
+						replicasReady: 0,
+						replicasDesired: 1,
+					},
+				}),
+			),
+		).toBe("0/1 · singleton");
+	});
+
+	test("a singleton toggled on a process running three still counts them", () => {
+		expect(
+			replicasText(
+				process({
+					name: "w",
+					singleton: true,
+					observed: {
+						state: "running",
+						health: "healthy",
+						replicasReady: 3,
+						replicasDesired: 3,
+					},
+				}),
+			),
+		).toBe("3/3 · singleton");
+	});
+
+	test("a stopped service reads 0/0", () => {
+		expect(
+			replicasText(
+				process({
+					name: "w",
+					observed: {
+						state: "stopped",
+						health: "",
+						replicasReady: 0,
+						replicasDesired: 0,
+					},
+				}),
+			),
+		).toBe("0/0");
+	});
+
+	test("autoscaling is marked", () => {
+		expect(
+			replicasText(
+				process({
+					name: "w",
+					scaling: {
+						replicas: 2,
+						ready: 2,
+						autoscaling: { enabled: true },
+					},
+				}),
+			),
+		).toBe("2/2 · auto");
+		expect(
+			replicasText(
+				process({
+					name: "w",
+					scaling: {
+						replicas: 2,
+						ready: 2,
+						autoscaling: { enabled: false },
+					},
+				}),
+			),
+		).toBe("2/2");
+		expect(
+			processRow(
+				process({
+					name: "w",
+					scaling: { replicas: 2, ready: 2, autoscaling: { enabled: true } },
+				}),
+			).autoscaling,
+		).toBe(true);
 	});
 
 	test("falls back to the scale before the agent has reported", () => {
@@ -174,6 +261,61 @@ describe("replicasText", () => {
 				}),
 			),
 		).toBe("0/3");
+	});
+});
+
+describe("replicasOfProcess", () => {
+	const replica = (processName: string, index: number) => ({
+		process: processName,
+		index,
+	});
+	const rows = processRows({
+		processes: [WEB, WORKER],
+	});
+
+	test("a replica belongs to the row it is labelled with", () => {
+		const replicas = [replica("web", 1), replica("worker", 1)];
+		expect(replicasOfProcess(rows, replicas, "worker")).toEqual([
+			replica("worker", 1),
+		]);
+		expect(replicasOfProcess(rows, replicas, "web")).toEqual([
+			replica("web", 1),
+		]);
+	});
+
+	test("an unlabelled replica belongs to the default process", () => {
+		const replicas = [replica("", 1)];
+		expect(replicasOfProcess(rows, replicas, "web")).toEqual(replicas);
+		expect(replicasOfProcess(rows, replicas, "worker")).toEqual([]);
+	});
+
+	test("a staged rename of the default process keeps its replicas", () => {
+		const renamed = processRows({
+			processes: [
+				process({ name: "app", default: true, pending: true, port: 3000 }),
+				WORKER,
+			],
+		});
+		const replicas = [replica("web", 1), replica("worker", 1)];
+		expect(replicasOfProcess(renamed, replicas, "app")).toEqual([
+			replica("web", 1),
+		]);
+		expect(replicasOfProcess(renamed, replicas, "worker")).toEqual([
+			replica("worker", 1),
+		]);
+	});
+
+	test("a removed row still owns its replicas", () => {
+		const withRemoved = processRows({
+			processes: [
+				WEB,
+				process({ name: "app", default: false, pending: true }),
+				process({ name: "old", removed: true }),
+			],
+		});
+		const replicas = [replica("old", 1)];
+		expect(replicasOfProcess(withRemoved, replicas, "old")).toEqual(replicas);
+		expect(replicasOfProcess(withRemoved, replicas, "web")).toEqual([]);
 	});
 });
 

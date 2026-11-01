@@ -152,6 +152,35 @@ describe("serviceMenu", () => {
 		expect(notes(model)).toEqual(["A service with a volume runs one replica."]);
 	});
 
+	test("a singleton default with a scalable named process still opens Scale", () => {
+		const base = makeService().scaling;
+		const process = (name: string, isDefault: boolean) => ({
+			name,
+			default: isDefault,
+			port: 0,
+			command: [],
+			singleton: isDefault,
+			stopGraceSeconds: 30,
+			scaling: isDefault
+				? {
+						...base,
+						eligible: false,
+						ineligibleReason: "Singleton processes run exactly one instance",
+					}
+				: { ...base, eligible: true },
+			observed: null,
+			pending: false,
+			removed: false,
+		});
+		const multi = makeService({
+			scaling: process("web", true).scaling,
+			processes: [process("web", true), process("worker", false)],
+		});
+		const model = serviceMenu({ service: multi, actions, busy: false });
+		expect(find(model, "scale").disabled).toBe(false);
+		expect(notes(model)).toEqual([]);
+	});
+
 	test("every row carries its service id", () => {
 		const model = serviceMenu({ service, actions, busy: false });
 		for (const item of items(model)) {

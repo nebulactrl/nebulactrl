@@ -49,8 +49,31 @@ func (c *svcCtx) checkDomains() {
 		}
 		c.checkDomain(key, dm, d)
 	}
-	if d.GenerateDomain != nil && *d.GenerateDomain && d.Port != nil && *d.Port == 0 && c.kind != KindStack {
-		c.warn(CodeInvalidValue, rp("generate_domain"), "generate_domain needs a port: a worker has no HTTP service to publish")
+	if d.GenerateDomain != nil && *d.GenerateDomain && (c.kind == KindGit || c.kind == KindImage) {
+		c.checkGenerateDomain()
+	}
+}
+
+// checkGenerateDomain validates generate_domain of an app the way applying it
+// resolves the process the generated hostname routes to: the default process
+// when it has a port, else the only process that has one. Several ports and
+// none named fail the apply; no port at all only leaves the service without a
+// hostname.
+func (c *svcCtx) checkGenerateDomain() {
+	cfg, _, ok := c.toConfig()
+	if !ok {
+		return
+	}
+	_, _, err := cfg.WithDefaults().ResolveDomainProcess("", 0)
+	ae, isAPI := apierr.As(err)
+	switch {
+	case err == nil:
+	case isAPI && ae.Code == "process_required":
+		c.err(CodeInvalidValue, rp("generate_domain"), "generate_domain: %s", err.Error()).Hint = "give the service a `port`, which makes its own process the one the hostname routes to, or write a domain with process = \"<name>\" instead"
+	case isAPI && ae.Code == "no_http_port":
+		c.warn(CodeInvalidValue, rp("generate_domain"), "generate_domain needs a port: no process has an HTTP service to publish")
+	default:
+		c.err(CodeInvalidValue, rp("generate_domain"), "generate_domain: %s", err.Error())
 	}
 }
 

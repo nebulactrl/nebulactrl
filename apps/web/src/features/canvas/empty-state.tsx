@@ -15,8 +15,8 @@ export interface CanvasLoadError {
 
 /**
  * What an empty environment shows in the middle of the canvas, over the
- * Eclipse: the services box, one primary action (the Create menu) and one
- * secondary (a database),
+ * Eclipse (the pixel-dithered ringed planet): the services box, one primary
+ * action (the Create menu) and one secondary (a database),
  * with the shortcuts that do the same. A load failure sits beside the
  * invitation, never in place of the canvas.
  */
@@ -30,8 +30,8 @@ export function CanvasEmptyState({
 	const [eclipse, setEclipse] = useState(false);
 	return (
 		<div className="pointer-events-none absolute inset-0 z-[5] grid place-items-center overflow-hidden p-6">
-			{/* The page's one animated texture: the Eclipse the
-			    sign-in page uses, held inside the canvas and dimmed round the card. */}
+			{/* The page's one animated texture: the Eclipse the sign-in page
+			    uses, held inside the canvas and dimmed round the card. */}
 			<AsciiBackdrop
 				cardRef={cardRef}
 				active={eclipse}
