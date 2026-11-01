@@ -23,7 +23,7 @@ import {
 	TEAM_NAMESPACE,
 } from "./reference-autocomplete";
 
-export type NameSource =
+type NameSource =
 	| "export"
 	| "shared"
 	| "team"
@@ -32,7 +32,7 @@ export type NameSource =
 	| "existing"
 	| "platform";
 
-export type NameServiceKind = "app" | "worker" | "database" | "route" | "stack";
+type NameServiceKind = "app" | "worker" | "database" | "route" | "stack";
 
 export interface NameSuggestion {
 	name: string;
@@ -58,7 +58,7 @@ export interface NameService {
 	exports: readonly { key: string; description?: string; secret: boolean }[];
 }
 
-export interface EnvExampleKey {
+interface EnvExampleKey {
 	key: string;
 	/** The proposed value; used only when the person does not have to supply one. */
 	value?: string;

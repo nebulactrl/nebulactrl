@@ -40,12 +40,9 @@ func removeStackArtifacts(serviceID string) {
 }
 
 // createStack creates a stack service in the stack's environment.
-func (s *Stack) createStack(name, compose string, extraCfg map[string]any) Resp {
+func (s *Stack) createStack(name, compose string) Resp {
 	s.t.Helper()
 	cfg := map[string]any{"stack": map[string]any{"compose": compose, "waitSeconds": 120}, "stopGraceSeconds": 5}
-	for k, v := range extraCfg {
-		cfg[k] = v
-	}
 	return s.Do("POST", "/environments/"+s.EnvID+"/services", map[string]any{
 		"name": name, "kind": "stack", "sourceType": "compose", "serverId": s.ServerID, "config": cfg,
 	})
@@ -121,7 +118,7 @@ volumes:
 	require.Equal(t, []string{"cache", "web"}, componentNames(jsonItems(cj["components"])))
 	require.Empty(t, jsonItems(cj["violations"]), string(chk.Raw))
 
-	r := s.createStack("shop", compose, nil)
+	r := s.createStack("shop", compose)
 	id := s.trackStack(r)
 	require.Equal(t, []string{"cache", "web"}, componentNames(jsonItems(r.JSON().Obj("config").Obj("stack")["components"])))
 	require.Equal(t, "stack", r.JSON().Str("kind"))
@@ -276,12 +273,12 @@ services:
 	require.False(t, chk.JSON().Bool("unrestricted"))
 
 	for name, file := range map[string]string{"privileged": privileged, "socket": socket} {
-		r := s.createStack(name, file, nil)
+		r := s.createStack(name, file)
 		require.Equal(t, http.StatusUnprocessableEntity, r.Status, "%s: %s", name, r.Raw)
 		require.Equal(t, "invalid_compose", r.JSON().Str("code"), string(r.Raw))
 		require.NotEmpty(t, violationKeys(r), string(r.Raw))
 	}
-	r := s.createStack("build", build, nil)
+	r := s.createStack("build", build)
 	require.Equal(t, http.StatusUnprocessableEntity, r.Status, string(r.Raw))
 
 	// The server's Compose card: plugin found, restricted by default.
@@ -304,8 +301,8 @@ services:
 	require.Equal(t, 1, audited)
 
 	// Now the privileged stack is accepted and runs privileged; build: stays unsupported.
-	require.Equal(t, http.StatusUnprocessableEntity, s.createStack("build2", build, nil).Status)
-	id := s.trackStack(s.createStack("priv", privileged, nil))
+	require.Equal(t, http.StatusUnprocessableEntity, s.createStack("build2", build).Status)
+	id := s.trackStack(s.createStack("priv", privileged))
 	s.DeployOK(id)
 	short := agentprotocol.Short(id)
 	priv, err := sh(context.Background(), "", "docker", "inspect", "-f", "{{.HostConfig.Privileged}}", "nc-"+short+"-web")

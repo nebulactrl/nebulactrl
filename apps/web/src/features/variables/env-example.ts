@@ -2,7 +2,7 @@ import type { SuggestedVariable } from "#/api/gen/types.gen";
 import type { VariableWrite } from "./use-variable-mutations";
 
 /** What the user decided for one `.env.example` key. */
-export interface ExampleChoice {
+interface ExampleChoice {
 	/** Stage this key. Every key starts checked. */
 	checked: boolean;
 	/** The value to stage; starts as the proposed one (empty when one is needed). */

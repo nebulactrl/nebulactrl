@@ -1,7 +1,7 @@
 import { ServerMetrics } from "./server-metrics";
 import { ServiceMetrics } from "./service-metrics";
 
-export type MetricsScope = { serviceId: string } | { serverId: string };
+type MetricsScope = { serviceId: string } | { serverId: string };
 
 export interface MetricsPanelProps {
 	scope: MetricsScope;

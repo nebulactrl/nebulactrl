@@ -23,7 +23,7 @@ export interface DeployPhase {
 	skipped: boolean;
 }
 
-export interface CanvasService {
+interface CanvasService {
 	name: string;
 	kind: "app" | "database";
 	source: string;

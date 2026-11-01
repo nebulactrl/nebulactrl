@@ -28,7 +28,7 @@ const FORBIDDEN_REQUEST_HEADERS: Record<string, true> = {
 };
 
 /** Ports the proxy keeps for itself: HTTP, HTTPS, its probe and admin entrypoints. */
-export const RESERVED_LISTEN_PORTS: readonly number[] = [80, 443, 8099, 9000];
+const RESERVED_LISTEN_PORTS: readonly number[] = [80, 443, 8099, 9000];
 
 export const MAX_HEADERS = 30;
 export const MAX_REDIRECTS = 10;
@@ -39,7 +39,7 @@ export function normalizeHostname(value: string): string {
 	return value.trim().toLowerCase().replace(/\.$/, "");
 }
 
-export function validHostname(host: string): boolean {
+function validHostname(host: string): boolean {
 	return HOST_RE.test(host);
 }
 

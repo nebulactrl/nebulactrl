@@ -114,15 +114,10 @@ func (d Durations) Weight(name string) float64 {
 	return t.Seconds
 }
 
-// Assign distributes tests over n shards and returns the sorted test names of
-// every shard (index 0 is shard 1) together with their estimated loads. Every
-// test appears in exactly one shard; duplicates in the input are dropped.
-func Assign(tests []string, d Durations, n int) (shards [][]string, loads []float64) {
-	return AssignPreloaded(tests, d, n, 0)
-}
-
-// AssignPreloaded is Assign with preload seconds of other work already on the
-// first shard.
+// AssignPreloaded distributes tests over n shards and returns the sorted test
+// names of every shard (index 0 is shard 1) together with their estimated loads,
+// with preload seconds of other work already on the first shard. Every test
+// appears in exactly one shard; duplicates in the input are dropped.
 func AssignPreloaded(tests []string, d Durations, n int, preload float64) (shards [][]string, loads []float64) {
 	seen := make(map[string]bool, len(tests))
 	var uniq []string
@@ -359,6 +354,27 @@ func WriteDurations(path string, d Durations) error {
 	return os.WriteFile(path, []byte(b.String()), 0o644)
 }
 
+// openLogs opens every path; closeAll closes the ones opened. On error nothing
+// stays open.
+func openLogs(paths []string) (rs []io.Reader, closeAll func(), err error) {
+	var files []*os.File
+	closeAll = func() {
+		for _, f := range files {
+			_ = f.Close()
+		}
+	}
+	for _, p := range paths {
+		f, err := os.Open(p)
+		if err != nil {
+			closeAll()
+			return nil, func() {}, err
+		}
+		files = append(files, f)
+		rs = append(rs, f)
+	}
+	return rs, closeAll, nil
+}
+
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("shardtests", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -375,16 +391,11 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) error {
 		old, _ := LoadDurations(*durations) // a missing or invalid file starts fresh
 		var d Durations
 		if *packages {
-			var rs []io.Reader
-			for _, p := range strings.Split(*update, ",") {
-				f, err := os.Open(p)
-				if err != nil {
-					return err
-				}
-				defer f.Close()
-				rs = append(rs, f)
+			rs, closeAll, err := openLogs(strings.Split(*update, ","))
+			if err != nil {
+				return err
 			}
-			var err error
+			defer closeAll()
 			if d, err = UpdatePackagesFromLogs(old, rs...); err != nil {
 				return err
 			}

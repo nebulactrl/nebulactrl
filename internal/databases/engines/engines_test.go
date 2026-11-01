@@ -130,7 +130,11 @@ func TestExportsResolveConnectionStrings(t *testing.T) {
 
 func TestPrimaryExportIsAnExport(t *testing.T) {
 	for _, e := range Catalog() {
-		require.Contains(t, ExportKeys(e.ID), PrimaryExport(e.ID), e.ID)
+		var keys []string
+		for _, ex := range ExportList(e.ID) {
+			keys = append(keys, ex.Key)
+		}
+		require.Contains(t, keys, PrimaryExport(e.ID), e.ID)
 	}
 }
 

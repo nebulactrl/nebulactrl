@@ -26,6 +26,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/proxyserver"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/systemroute"
+	"github.com/nebulactrl/nebulactrl/internal/systemroute/systemroutetest"
 	"github.com/nebulactrl/nebulactrl/internal/testutil"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
@@ -108,7 +109,7 @@ func newEnv(t *testing.T, inst config.Installer) *env {
 	inst.DashboardUpstream = "nebulactrl:8080"
 	cfg := &config.Config{PublicURL: "https://" + host, Installer: inst}
 	systemroute.Configure(cfg)
-	t.Cleanup(func() { systemroute.Set(systemroute.Config{}) })
+	t.Cleanup(func() { systemroutetest.Set(systemroute.Config{}) })
 
 	box, err := secretbox.New(bytes.Repeat([]byte{5}, 32))
 	require.NoError(t, err)
@@ -136,14 +137,13 @@ func requireAPIError(t *testing.T, err error, status int, code string) *apierr.E
 // viaRoute is a request that came through the host proxy from client.
 func viaRoute(client string) Peer { return Peer{RemoteAddr: "10.212.0.3:40000", ForwardedFor: client} }
 
-func (e *env) addCloudflareResolver(t *testing.T) dns01.DNSCredential {
+func (e *env) addCloudflareResolver(t *testing.T) {
 	t.Helper()
 	ctx := e.ctx
 	cred, err := e.dns.CreateCredential(ctx, dns01.CredentialInput{Name: "cf", Provider: "cloudflare", Values: map[string]string{"CF_DNS_API_TOKEN": tokenCanary}})
 	require.NoError(t, err)
 	_, err = e.dns.SetResolver(ctx, e.srv.ID, "cloudflare", dns01.ResolverInput{CredentialID: cred.ID})
 	require.NoError(t, err)
-	return cred
 }
 
 // applyDNS makes the server's desired DNS-01 configuration its applied one, as
@@ -217,7 +217,7 @@ func TestGetDefaults(t *testing.T) {
 	require.Equal(t, "198.51.100.20", v.ClientIP)
 
 	// Without a system route there is nothing to restrict.
-	systemroute.Set(systemroute.Config{})
+	systemroutetest.Set(systemroute.Config{})
 	v, err = e.svc.Get(e.ctx, Peer{})
 	require.NoError(t, err)
 	require.False(t, v.Enabled)
@@ -408,7 +408,7 @@ func TestRouteTableCarriesTheSettings(t *testing.T) {
 		routes, err := domains.ServerRoutes(ctx, e.q, e.srv.ID, uuid.Nil)
 		require.NoError(t, err)
 		for _, r := range routes {
-			if systemroute.IsRoute(r.ServiceID) {
+			if r.ServiceID == systemroute.ServiceID {
 				return r
 			}
 		}

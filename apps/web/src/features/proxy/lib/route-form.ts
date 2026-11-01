@@ -12,7 +12,7 @@ import {
 import { checkPort, type L4Protocol } from "./l4";
 import { validateListenPort, validateUpstreamAddress } from "./validate";
 
-export type UpstreamRow =
+type UpstreamRow =
 	| { kind: "address"; address: string }
 	| { kind: "service"; serviceId: string; port: string };
 

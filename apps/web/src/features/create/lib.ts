@@ -95,7 +95,7 @@ export type MenuEntryId =
 	| "port";
 
 /** A database engine's row, keyed `engine:<id>` (ids come from the catalog). */
-export type EngineEntryId = `engine:${string}`;
+type EngineEntryId = `engine:${string}`;
 
 export interface MenuEntry {
 	id: MenuEntryId | EngineEntryId;
@@ -110,7 +110,7 @@ export interface MenuEntry {
 	chip?: string;
 }
 
-export const MENU_ENTRIES: readonly MenuEntry[] = [
+const MENU_ENTRIES: readonly MenuEntry[] = [
 	{
 		id: "git",
 		label: "Git repository",
@@ -250,9 +250,7 @@ const CATEGORY_KEYWORDS: Record<EngineView["category"], readonly string[]> = {
  * The rows under Database: one per engine of the catalog, in the order the
  * catalog UI uses (the default key-value engine, Valkey, first).
  */
-export function engineEntries(
-	engines: readonly EngineView[],
-): readonly MenuEntry[] {
+function engineEntries(engines: readonly EngineView[]): readonly MenuEntry[] {
 	return sortEngines(engines).map((engine) => ({
 		id: `engine:${engine.id}` as const,
 		label: engine.label,

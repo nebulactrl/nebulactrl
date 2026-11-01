@@ -76,7 +76,7 @@ func TestIntBytesUUID(t *testing.T) {
 // TestNoMathRand enforces the repository rule that internal/ code never uses
 // math/rand (Dokploy generates passwords with Math.random(); we do not).
 func TestNoMathRand(t *testing.T) {
-	root := filepath.Join("..")
+	root := ".."
 	fset := token.NewFileSet()
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err == nil && d.IsDir() && d.Name() == "agent" {

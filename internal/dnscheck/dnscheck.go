@@ -18,6 +18,7 @@ import (
 	"io"
 	"net"
 	"net/netip"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -216,7 +217,7 @@ func (r *Resolver) authServers(ctx context.Context, host string) []string {
 				break
 			}
 		}
-		out := append(v4, v6...)
+		out := slices.Concat(v4, v6)
 		if len(out) > maxAuthServers {
 			out = out[:maxAuthServers]
 		}

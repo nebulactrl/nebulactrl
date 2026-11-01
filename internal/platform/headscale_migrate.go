@@ -110,7 +110,7 @@ func (s *Service) migrateOne(ctx context.Context, row db.PlatformService) error 
 			// The configuration was staged but the redeploy never started (the
 			// restart failed after it): the pause must not be lifted while Headscale
 			// still runs the old policy mode.
-			if _, err := s.restart(sys, row, StepDeploy, "Migrating Headscale to the database policy mode", ActionRewire); err != nil {
+			if _, err := s.restart(sys, row, StepDeploy, "Migrating Headscale to the database policy mode"); err != nil {
 				return s.keepPaused(ctx, row, fmt.Sprintf("the redeploy could not be started: %s", shorten(err)))
 			}
 			return nil
@@ -142,7 +142,7 @@ func (s *Service) migrateOne(ctx context.Context, row db.PlatformService) error 
 	if _, err := s.Services.Update(sys, svc.ID, svc.Generation, services.UpdateInput{Config: &cfg}); err != nil {
 		return s.keepPaused(ctx, row, fmt.Sprintf("the new configuration was refused: %s", shorten(err)))
 	}
-	if _, err := s.restart(sys, row, StepDeploy, "Migrating Headscale to the database policy mode", ActionRewire); err != nil {
+	if _, err := s.restart(sys, row, StepDeploy, "Migrating Headscale to the database policy mode"); err != nil {
 		return s.keepPaused(ctx, row, fmt.Sprintf("the redeploy could not be started: %s", shorten(err)))
 	}
 	return nil

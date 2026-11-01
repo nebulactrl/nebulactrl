@@ -140,12 +140,11 @@ func (f *tsFixture) setMode(ctx context.Context, mode string) (mesh.View, error)
 	return f.svc.UpdateSettings(ctx, mesh.SettingsInput{ACLMode: &mode})
 }
 
-func (f *tsFixture) mustSetMode(mode string) mesh.View {
+func (f *tsFixture) mustSetMode(mode string) {
 	f.t.Helper()
 	v, err := f.setMode(f.admin, mode)
 	require.NoError(f.t, err)
 	require.Equal(f.t, mode, v.ACLMode)
-	return v
 }
 
 func (f *tsFixture) settings() db.MeshSetting {
@@ -194,14 +193,16 @@ func std(t *testing.T, doc string) (tagOwners map[string][]string, acls []map[st
 	return p.TagOwners, p.ACLs
 }
 
-func hasRule(acls []map[string]any, src, dst string) bool {
+// hasRule reports whether the policy holds the generated rule: the link's IP
+// reaching the generated destination.
+func hasRule(acls []map[string]any) bool {
 	for _, r := range acls {
 		if r["action"] != "accept" || r["proto"] != nil {
 			continue
 		}
 		s, _ := r["src"].([]any)
 		d, _ := r["dst"].([]any)
-		if len(s) == 1 && len(d) == 1 && s[0] == src && d[0] == dst {
+		if len(s) == 1 && len(d) == 1 && s[0] == linkIP && d[0] == generatedDst {
 			return true
 		}
 	}
@@ -428,7 +429,7 @@ func TestManagedPushPatchesOnlyNebulaCtrlRules(t *testing.T) {
 	require.NotNil(t, proto, "the rule with a proto is the user's")
 	require.Equal(t, []any{"100.64.0.51:22"}, proto["dst"])
 	// What is NebulaCtrl's was replaced.
-	require.True(t, hasRule(acls, linkIP, generatedDst))
+	require.True(t, hasRule(acls))
 	require.NotContains(t, doc, "100.64.0.99", "the outdated NebulaCtrl rule is gone")
 	require.Len(t, acls, 4, "three of the user's rules and the generated one")
 
@@ -469,7 +470,7 @@ func TestManagedPushFollowsTheMeshAndRepairsDrift(t *testing.T) {
 	require.NoError(t, f.svc.ApplyACL(bg, f.ws))
 	doc, _ := f.fake.Policy()
 	_, acls := std(t, doc)
-	require.True(t, hasRule(acls, linkIP, generatedDst))
+	require.True(t, hasRule(acls))
 
 	// Someone deletes the generated rule in the console.
 	deleted := strings.Replace(doc, `"`+linkIP+`"`, `"100.64.0.250"`, 1) // keeps the document valid, breaks the rule
@@ -478,7 +479,7 @@ func TestManagedPushFollowsTheMeshAndRepairsDrift(t *testing.T) {
 	require.NoError(t, f.svc.ApplyACL(bg, f.ws))
 	doc, _ = f.fake.Policy()
 	_, acls = std(t, doc)
-	require.True(t, hasRule(acls, linkIP, generatedDst), "the rule is back")
+	require.True(t, hasRule(acls), "the rule is back")
 	require.Equal(t, mesh.StateApplied, f.settings().AclState)
 
 	// The last grant is released: the rule disappears, the user's rules stay.
@@ -486,7 +487,7 @@ func TestManagedPushFollowsTheMeshAndRepairsDrift(t *testing.T) {
 	require.NoError(t, f.svc.ApplyACL(bg, f.ws))
 	doc, _ = f.fake.Policy()
 	_, acls = std(t, doc)
-	require.False(t, hasRule(acls, linkIP, generatedDst))
+	require.False(t, hasRule(acls))
 	require.True(t, hasRuleAny(acls, []string{"*"}, []string{"tag:prod:443"}))
 	require.Contains(t, doc, "// everybody reaches the wiki")
 	require.Len(t, acls, 3)
@@ -514,7 +515,7 @@ func TestManagedPushNeverOverwritesAConcurrentEdit(t *testing.T) {
 	doc, _ = f.fake.Policy()
 	require.Contains(t, doc, "AND THE HANDBOOK (edited just now)")
 	_, acls := std(t, doc)
-	require.True(t, hasRule(acls, linkIP, generatedDst))
+	require.True(t, hasRule(acls))
 	require.Equal(t, mesh.StateApplied, f.settings().AclState)
 }
 
@@ -566,6 +567,6 @@ func TestSwitchingBackToAdvisoryStopsWritingAndKeepsTheRules(t *testing.T) {
 	require.Len(t, f.fake.PolicyWrites(), writes, "advisory never writes")
 	doc, _ := f.fake.Policy()
 	_, acls := std(t, doc)
-	require.True(t, hasRule(acls, linkIP, generatedDst), "the pushed rule stays until the user removes it")
+	require.True(t, hasRule(acls), "the pushed rule stays until the user removes it")
 	require.Equal(t, mesh.StateApplied, f.settings().AclState, "no rules are needed any more")
 }

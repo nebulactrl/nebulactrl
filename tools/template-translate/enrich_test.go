@@ -108,8 +108,9 @@ func TestOwnerHint(t *testing.T) {
 }
 
 // fakeRegistry serves HEAD manifests and tag lists for one repository.
-func fakeRegistry(t *testing.T, repo string, digests map[string]string) *registry {
+func fakeRegistry(t *testing.T, digests map[string]string) *registry {
 	t.Helper()
+	const repo = "acme/app"
 	var srv *httptest.Server
 	srv = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/token" {
@@ -176,7 +177,7 @@ func rewriteHost(srv *httptest.Server) http.RoundTripper {
 func dg(c string) string { return "sha256:" + strings.Repeat(c, 64) }
 
 func TestRegistryDigestTagsAndPlatforms(t *testing.T) {
-	g := fakeRegistry(t, "acme/app", map[string]string{"latest": dg("a"), "1.2.3": dg("a"), "1.3.0": dg("b"), "1.1.0": dg("c")})
+	g := fakeRegistry(t, map[string]string{"latest": dg("a"), "1.2.3": dg("a"), "1.3.0": dg("b"), "1.1.0": dg("c")})
 	ctx := context.Background()
 	ref := imageRef{Host: "registry.test", Repo: "acme/app", Tag: "1.2.3"}
 	d, err := g.Digest(ctx, ref)
@@ -202,13 +203,13 @@ func TestRegistryDigestTagsAndPlatforms(t *testing.T) {
 		t.Fatalf("chooseFloating = %q %q %v", tag, digest, err)
 	}
 	// Without a matching tag the newest wins.
-	g2 := fakeRegistry(t, "acme/app", map[string]string{"latest": dg("z"), "1.2.3": dg("a"), "1.3.0": dg("b")})
+	g2 := fakeRegistry(t, map[string]string{"latest": dg("z"), "1.2.3": dg("a"), "1.3.0": dg("b")})
 	tag, _, err = chooseFloating(ctx, g2, latest, "")
 	if err != nil || tag != "1.3.0" {
 		t.Fatalf("chooseFloating fallback = %q %v", tag, err)
 	}
 	// A repo with only floating tags cannot be pinned.
-	g3 := fakeRegistry(t, "acme/app", map[string]string{"latest": dg("z"), "nightly": dg("y")})
+	g3 := fakeRegistry(t, map[string]string{"latest": dg("z"), "nightly": dg("y")})
 	if _, _, err := chooseFloating(ctx, g3, latest, ""); err == nil {
 		t.Error("only floating tags must fail")
 	}
@@ -253,7 +254,7 @@ services:
 `
 
 func TestEnrichDraft(t *testing.T) {
-	g := fakeRegistry(t, "acme/app", map[string]string{"latest": dg("a"), "1.2.3": dg("a"), "1.3.0-rc1": dg("b")})
+	g := fakeRegistry(t, map[string]string{"latest": dg("a"), "1.2.3": dg("a"), "1.3.0-rc1": dg("b")})
 	out := t.TempDir()
 	now := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
 	o := enrichOptions{Out: out, Now: now, Reg: g, GH: fakeGH{
@@ -289,7 +290,7 @@ func TestEnrichDraft(t *testing.T) {
 }
 
 func TestEnrichRejects(t *testing.T) {
-	g := fakeRegistry(t, "acme/app", map[string]string{"latest": dg("a"), "1.2.3": dg("a")})
+	g := fakeRegistry(t, map[string]string{"latest": dg("a"), "1.2.3": dg("a")})
 	now := time.Date(2026, 10, 27, 0, 0, 0, 0, time.UTC)
 	for name, info := range map[string]*ghInfo{
 		"archived": {FullName: "acme/demo", Archived: true, SPDX: "MIT", PushedAt: now},
@@ -305,7 +306,7 @@ func TestEnrichRejects(t *testing.T) {
 		}
 	}
 	// No versioned tag at all.
-	g2 := fakeRegistry(t, "acme/app", map[string]string{"latest": dg("a")})
+	g2 := fakeRegistry(t, map[string]string{"latest": dg("a")})
 	o := enrichOptions{Out: t.TempDir(), Now: now, Reg: g2, GH: fakeGH{"acme/demo": {FullName: "acme/demo", SPDX: "MIT", PushedAt: now}}}
 	if res := enrichDraft(context.Background(), o, "demo", []byte(enrichDraftYAML)); res.Reject == "" {
 		t.Errorf("no versioned tag must reject: %+v", res)

@@ -198,7 +198,7 @@ func (c *composites) runSetupDomain(ctx context.Context, p *auth.Principal, in s
 		// Nothing to read: reported below.
 	case !holds(p, policy.ScopeServersRead):
 		serverErr = true
-		pr.note("server", "forbidden", "server details (public IP, base domain, proxy state) need servers:read; DNS guidance comes from the domain's statusMessage")
+		pr.forbidden("server", "server details (public IP, base domain, proxy state) need servers:read; DNS guidance comes from the domain's statusMessage")
 	default:
 		pr.run("server", func(ctx context.Context) error {
 			s, err := c.Servers.Get(ctx, *svc.ServerID)

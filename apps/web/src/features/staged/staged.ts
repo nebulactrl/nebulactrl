@@ -21,7 +21,7 @@ export const FIRST_DEPLOYMENT = "deployment";
 /** A staged switch between a Docker image and a Git repository. */
 const SOURCE_FIELD = "source";
 
-export type DiffSign = "+" | "−" | "~";
+type DiffSign = "+" | "−" | "~";
 
 /** One staged change as a diff line in the review sheet. */
 export interface ReviewLine {

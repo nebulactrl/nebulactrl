@@ -159,7 +159,7 @@ func firstString(ss ...string) string {
 }
 
 // planDatabase maps one Coolify database.
-func (a *analyzer) planDatabase(d *Database, rc CoolifyResourceChoice, env *CoolifyPlanEnvironment) CoolifyPlanResource {
+func (a *analyzer) planDatabase(d *Database, rc CoolifyResourceChoice) CoolifyPlanResource {
 	name := d.Name
 	if rc.Name != nil && strings.TrimSpace(*rc.Name) != "" {
 		name = strings.TrimSpace(*rc.Name)

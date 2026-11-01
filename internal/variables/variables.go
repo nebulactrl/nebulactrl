@@ -332,7 +332,7 @@ type changeEntry struct {
 	FingerprintTo string `json:"fingerprintTo,omitempty"`
 }
 
-func (s *Service) toVariable(row db.ServiceVariable, plain string, computed bool, now time.Time) (Variable, error) {
+func (s *Service) toVariable(row db.ServiceVariable, plain string, computed bool, now time.Time) Variable {
 	v := Variable{
 		Key: row.Key, IsSecret: row.IsSecret, ComputedSecret: row.IsSecret || computed, Set: true, Source: row.Source, Scope: row.Scope,
 		Version: int(row.Version), Comment: row.Comment, References: []VariableReference{}, UpdatedAt: row.UpdatedAt,
@@ -355,7 +355,7 @@ func (s *Service) toVariable(row db.ServiceVariable, plain string, computed bool
 	// References come from the stored text; for generated secrets that text is
 	// the literal secret, which has none unless the template mixed refs in.
 	v.References = references(plain)
-	return v, nil
+	return v
 }
 
 // List returns the service's variables, the platform variables and the exports
@@ -392,10 +392,7 @@ func (s *Service) list(ctx context.Context, q *db.Queries, sc services.Scope) (V
 		if err != nil {
 			return VariableList{}, fmt.Errorf("decrypt variable %s: %w", r.Key, err)
 		}
-		v, err := s.toVariable(r, plain, resolved.Secret[r.Key], now)
-		if err != nil {
-			return VariableList{}, err
-		}
+		v := s.toVariable(r, plain, resolved.Secret[r.Key], now)
 		if msg, ok := probByKey[r.Key]; ok {
 			v.Problem = &msg
 		}
@@ -648,7 +645,7 @@ func (s *Service) putCore(ctx context.Context, tx pgx.Tx, sc services.Scope, in 
 		return nil, nil, nil, err
 	}
 	written := map[string]bool{}
-	changes, warnings, err := s.writeMany(ctx, tx, q, sc, in, services.OpSet, written)
+	changes, warnings, err := s.writeMany(ctx, q, sc, in, services.OpSet, written)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -683,7 +680,7 @@ func (s *Service) publishChange(sc services.Scope, restaged []RestagedServiceRef
 
 // writeMany applies inputs inside the caller's transaction and returns the
 // effective changes (no-op writes are skipped).
-func (s *Service) writeMany(ctx context.Context, tx pgx.Tx, q *db.Queries, sc services.Scope, in []VariableInput, op string, written map[string]bool) ([]changeEntry, []VariableWarning, error) {
+func (s *Service) writeMany(ctx context.Context, q *db.Queries, sc services.Scope, in []VariableInput, op string, written map[string]bool) ([]changeEntry, []VariableWarning, error) {
 	var changes []changeEntry
 	var warnings []VariableWarning
 	for _, v := range in {

@@ -38,7 +38,7 @@ import { fadeMask, scrollTarget, useEdgeFade } from "./tab-strip";
 import { useTabChords } from "./use-tab-chords";
 
 /** `data-screen-label` the panel is found by (initial focus). */
-export const INSPECTOR_SCREEN_LABEL = "service-inspector";
+const INSPECTOR_SCREEN_LABEL = "service-inspector";
 
 /** What the tab strip counts: staged changes under the tab that shows them. */
 function stagedCount(service: Service, tab: InspectorTab): number {

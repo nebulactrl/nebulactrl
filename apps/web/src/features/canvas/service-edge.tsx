@@ -19,7 +19,7 @@ import {
 } from "./lib/cable";
 
 /** How a cable is drawn: variable-referenced, hand-drawn only, or the derived Internet one. */
-export type LinkKind = "reference" | "manual" | "internet";
+type LinkKind = "reference" | "manual" | "internet";
 
 export type LinkEdgeData = {
 	kind: LinkKind;

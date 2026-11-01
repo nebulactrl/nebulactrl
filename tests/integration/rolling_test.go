@@ -15,11 +15,11 @@ import (
 
 // liveV1 deploys the fixture app as v1 behind the test's own hostname (s.Host())
 // and waits until it serves.
-func liveV1(t *testing.T, s *Stack, name string, health map[string]any) (Service, *ProxyClient) {
+func liveV1(t *testing.T, s *Stack, health map[string]any) (Service, *ProxyClient) {
 	t.Helper()
 	app := appFixture(t)
 	svc := s.NewService(SvcSpec{
-		Name: name, Image: app.AppImage, Domain: s.Host(), Health: health,
+		Name: "web", Image: app.AppImage, Domain: s.Host(), Health: health,
 		Vars: map[string]string{"VERSION": "v1"},
 	})
 	s.DeployOK(svc.ID)
@@ -33,7 +33,7 @@ func TestZeroDowntimeRolling(t *testing.T) {
 	requireTier(t, tierSmoke)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, px := liveV1(t, s, "web", nil)
+	svc, px := liveV1(t, s, nil)
 
 	load := StartLoad(px, "/", 20*time.Millisecond)
 	load.WaitMore(t, 60, 30*time.Second) // v1-only baseline
@@ -97,7 +97,7 @@ func TestFailedHealthKeepsOldServing(t *testing.T) {
 	requireTier(t, tierSmoke)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, px := liveV1(t, s, "web", map[string]any{"deadlineSeconds": 6})
+	svc, px := liveV1(t, s, map[string]any{"deadlineSeconds": 6})
 	before := s.RunningContainers(svc.ID)
 	require.Len(t, before, 1)
 
@@ -131,7 +131,7 @@ func TestVerifyFailureRollsBack(t *testing.T) {
 	requireTier(t, tierFull)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, px := liveV1(t, s, "web", nil)
+	svc, px := liveV1(t, s, nil)
 	before := s.RunningContainers(svc.ID)
 	require.Len(t, before, 1)
 
@@ -160,7 +160,7 @@ func TestRollback(t *testing.T) {
 	requireTier(t, tierSmoke)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, px := liveV1(t, s, "web", nil)
+	svc, px := liveV1(t, s, nil)
 	v1 := s.Service(svc.ID).Str("currentDeploymentId")
 
 	s.SetVars(svc.ID, map[string]string{"VERSION": "v2"}, nil)

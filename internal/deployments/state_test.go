@@ -10,16 +10,17 @@ import (
 )
 
 func TestStateMachineRejectsBackwardsAndTerminalTransitions(t *testing.T) {
-	var te *TransitionError
-	require.ErrorAs(t, Transition(Succeeded, Building), &te)
-	require.Equal(t, Succeeded, te.From)
-	require.Equal(t, Building, te.To)
+	// advance returns a *TransitionError when Path finds no route.
+	require.Nil(t, Path(Succeeded, Building))
+	require.Nil(t, Path(Failed, Queued))
+	require.Nil(t, Path(Releasing, Building))
 
-	require.Error(t, Transition(Failed, Queued))
-	require.Error(t, Transition(Releasing, Building))
-	require.Error(t, Transition(Queued, Releasing))
-	require.NoError(t, Transition(Preparing, Releasing)) // image sources skip building
-	require.NoError(t, Transition(Verifying, RolledBack))
+	// An allowed single edge is a one-hop path.
+	require.Equal(t, []Status{Releasing}, Path(Preparing, Releasing)) // image sources skip building
+	require.Equal(t, []Status{RolledBack}, Path(Verifying, RolledBack))
+
+	// A move across several statuses is walked hop by hop, each hop an event.
+	require.Equal(t, []Status{Preparing, Releasing}, Path(Queued, Releasing))
 }
 
 func TestPathWalksIntermediateStatuses(t *testing.T) {

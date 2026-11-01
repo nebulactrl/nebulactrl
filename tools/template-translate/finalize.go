@@ -354,7 +354,7 @@ func (t *translator) finishServices() {
 		for _, e := range st.env {
 			v := e.v
 			if secretKeyRe.MatchString(e.k) && v != "" && !strings.Contains(v, "${") {
-				ref := t.inputRef(e.k, v, true, false)
+				ref := t.inputRef(e.k, v, false)
 				st.setEnv(e.k, ref)
 				t.review(p+".env."+e.k, "credential with a literal value in the source turned into a secret input")
 			}

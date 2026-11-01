@@ -226,7 +226,7 @@ func FromProblem(status int, body []byte) (*ErrApprovalRequired, bool) {
 		} `json:"details"`
 	}
 	if err := json.Unmarshal(body, &p); err != nil || p.Code != CodeApprovalRequired || p.Details.ApprovalID == uuid.Nil {
-		return nil, false
+		return nil, false //nolint:nilerr // a body that is not a well-formed approval_required problem simply is not an approval error; ok=false reports that
 	}
 	return &ErrApprovalRequired{
 		Plan: p.Details.Plan, ApprovalID: p.Details.ApprovalID, ExpiresAt: p.Details.ExpiresAt, URL: p.Details.ApprovalURL,
@@ -264,11 +264,8 @@ var active atomic.Pointer[Guard]
 func Installed() *Guard { return active.Load() }
 
 // Install makes g the Guard Check consults. The control plane installs one at
-// start-up; tests install their own and call Uninstall when done.
+// start-up; tests install their own and reset it with prodguardtest.Uninstall.
 func (g *Guard) Install() { active.Store(g) }
-
-// Uninstall removes the installed Guard. Check then refuses guarded calls.
-func Uninstall() { active.Store(nil) }
 
 func gensEqual(stored []byte, want map[string]int64) bool {
 	var have map[string]int64

@@ -129,7 +129,7 @@ func (f *fixture) web(slug string) db.Service {
 
 // markDeployed gives sv a succeeded deployment on the fixture server whose
 // release snapshots the service's current config.
-func (f *fixture) markDeployed(sv db.Service) uuid.UUID {
+func (f *fixture) markDeployed(sv db.Service) {
 	f.t.Helper()
 	bg := context.Background()
 	cfg := services.DecodeConfig(sv.Config)
@@ -144,7 +144,6 @@ func (f *fixture) markDeployed(sv db.Service) uuid.UUID {
 	_, err = f.pool.Exec(bg, "UPDATE deployments SET status = 'succeeded' WHERE id = $1", dep.ID)
 	require.NoError(f.t, err)
 	require.NoError(f.t, f.q.MarkServiceDeployed(bg, db.MarkServiceDeployedParams{ID: sv.ID, CurrentDeploymentID: &dep.ID, AppliedGeneration: sv.Generation}))
-	return dep.ID
 }
 
 func (f *fixture) reloadService(id uuid.UUID) db.Service {

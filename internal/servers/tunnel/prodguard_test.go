@@ -13,6 +13,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/auth"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
@@ -41,7 +42,7 @@ func (f *fixture) installGuard() *prodguard.Guard {
 	require.NoError(f.t, err)
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: box})
 	g.Install()
-	f.t.Cleanup(prodguard.Uninstall)
+	f.t.Cleanup(prodguardtest.Uninstall)
 	return g
 }
 
@@ -59,7 +60,7 @@ func (f *fixture) requireUntouched(state string, syncs int) {
 	require.Equal(f.t, state, f.row().State, "the tunnel is unchanged")
 	require.Empty(f.t, f.disp.of(agentprotocol.KindRemoveTunnel), "no connector removal was sent")
 	require.Equal(f.t, syncs, f.cf.syncCount(), "DNS was not re-synced")
-	require.Empty(f.t, f.riverArgs("server_tunnel_delete"), "no delete is scheduled")
+	require.Empty(f.t, f.deleteJobArgs(), "no delete is scheduled")
 }
 
 // A REST token cannot turn off the tunnel of a server that hosts a production

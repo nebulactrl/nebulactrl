@@ -91,9 +91,7 @@ function parseBounded(text: string, key: NumericKey): number | null {
 	return Number.isInteger(value) && value >= min && value <= max ? value : null;
 }
 
-export function validateDraft(
-	draft: Draft,
-): Partial<Record<keyof Draft, string>> {
+function validateDraft(draft: Draft): Partial<Record<keyof Draft, string>> {
 	const errors: Partial<Record<keyof Draft, string>> = {};
 	if (draft.name.trim() === "") errors.name = "A server needs a name.";
 	if (draft.buildEnabled) {

@@ -213,11 +213,6 @@ func remoteOf(consumer *uuid.UUID, p *ServiceData) bool {
 	return consumer != nil && p.ServerID != nil && *p.ServerID != *consumer
 }
 
-// NewResolver builds a resolver over the services of one environment.
-func NewResolver(envSlug string, svcs []ServiceData) *Resolver {
-	return NewResolverCtx(ResolverContext{EnvSlug: envSlug, EnvName: envSlug}, svcs)
-}
-
 // NewResolverCtx builds a resolver with full environment context.
 func NewResolverCtx(rc ResolverContext, svcs []ServiceData) *Resolver {
 	m := make(map[string]*ServiceData, len(svcs))

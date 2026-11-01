@@ -48,7 +48,7 @@ function record(
  * (a whole page's root) are not pressed sources: they are armed on their
  * own when a navigation leaves their page.
  */
-export function keyedElementFor(target: Element | null): HTMLElement | null {
+function keyedElementFor(target: Element | null): HTMLElement | null {
 	if (!target) return null;
 	const own = target.closest<HTMLElement>(PRESSABLE_KEY);
 	if (own) return own;

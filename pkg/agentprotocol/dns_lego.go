@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"regexp"
 	"slices"
 	"strings"
 )
@@ -50,44 +49,6 @@ func legoLookup(code string) (legoProvider, bool) {
 		}
 	}
 	return legoProvider{}, false
-}
-
-// LegoProviderCodes lists every lego DNS provider code the catalog knows.
-func LegoProviderCodes() []string {
-	out := make([]string, len(legoCatalog))
-	for i, p := range legoCatalog {
-		out[i] = p.Code
-	}
-	return out
-}
-
-// LegoEnvNames lists the variables the catalog names for a provider code
-// (credentials first), or nil when the code is not a lego provider.
-func LegoEnvNames(code string) []string {
-	p, ok := legoLookup(code)
-	if !ok {
-		return nil
-	}
-	out := make([]string, len(p.Env))
-	for i, e := range p.Env {
-		out[i] = e.Name
-	}
-	return out
-}
-
-// LegoCredentialNames is LegoEnvNames without the optional tuning variables.
-func LegoCredentialNames(code string) []string {
-	p, ok := legoLookup(code)
-	if !ok {
-		return nil
-	}
-	var out []string
-	for _, e := range p.Env {
-		if !e.Optional {
-			out = append(out, e.Name)
-		}
-	}
-	return out
 }
 
 // plainSuffixes end the names of variables that are identifiers or settings,
@@ -147,12 +108,6 @@ func LegoProviders() []DNSProviderSpec {
 	}
 	return out
 }
-
-var legoCodeRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,39}$`)
-
-// ValidDNSProviderCode reports whether code has the shape of a provider code
-// (lowercase letters, digits and hyphens). The catalog decides whether it exists.
-func ValidDNSProviderCode(code string) bool { return legoCodeRe.MatchString(code) }
 
 // NormalizeDNSValue tidies one credential value before it is stored: it trims
 // surrounding space, and puts a Google service account key (GCE_SERVICE_ACCOUNT)

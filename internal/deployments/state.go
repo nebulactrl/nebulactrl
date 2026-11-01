@@ -70,24 +70,6 @@ func (e *TransitionError) Error() string {
 	return fmt.Sprintf("invalid deployment transition %s → %s", e.From, e.To)
 }
 
-// CanTransition reports whether from → to is allowed.
-func CanTransition(from, to Status) bool {
-	for _, t := range transitions[from] {
-		if t == to {
-			return true
-		}
-	}
-	return false
-}
-
-// Transition validates from → to.
-func Transition(from, to Status) error {
-	if !CanTransition(from, to) {
-		return &TransitionError{From: from, To: to}
-	}
-	return nil
-}
-
 // Path returns the shortest chain of statuses from → to (exclusive of from,
 // inclusive of to), used when an agent step skips intermediate statuses (e.g.
 // queued → releasing via preparing). It returns nil if to is unreachable.

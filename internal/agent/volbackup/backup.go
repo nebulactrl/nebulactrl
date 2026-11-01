@@ -319,7 +319,7 @@ func (r *Runner) preflight(ctx context.Context, h *helper, names []string) (stri
 	code, err = h.exec(ctx, argv, nil, &out, io.Discard)
 	if err != nil || code != 0 {
 		// Without numbers the copy is attempted anyway; it is bounded by the budget.
-		return agentprotocol.StageCopy, nil
+		return agentprotocol.StageCopy, nil //nolint:nilerr // without disk numbers the copy is attempted anyway, bounded by the budget (see comment above)
 	}
 	var usedKB, freeKB int64
 	if _, err := fmt.Sscanf(strings.TrimSpace(out.String()), "%d %d", &usedKB, &freeKB); err == nil && usedKB > 0 && freeKB < usedKB+usedKB/10 {

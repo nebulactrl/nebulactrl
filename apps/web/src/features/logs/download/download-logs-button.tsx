@@ -32,7 +32,7 @@ async function problemMessage(res: Response): Promise<string> {
 }
 
 /** Fetches the log file (same-origin session cookie) and hands it to the browser. */
-export async function downloadLogFile(
+async function downloadLogFile(
 	target: DownloadTarget,
 	options: DownloadOptions,
 ): Promise<void> {

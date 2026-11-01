@@ -355,27 +355,26 @@ func (s *Service) ListRuns(ctx context.Context, serviceID uuid.UUID, taskID *uui
 }
 
 // runScope authorizes scope on a run's service.
-func (s *Service) runScope(ctx context.Context, scope string, id uuid.UUID) (db.GetTaskRunViewRow, services.Scope, error) {
+func (s *Service) runScope(ctx context.Context, scope string, id uuid.UUID) (db.GetTaskRunViewRow, error) {
 	if err := policy.Require(ctx, scope, nil); err != nil {
-		return db.GetTaskRunViewRow{}, services.Scope{}, err
+		return db.GetTaskRunViewRow{}, err
 	}
 	row, err := s.q.GetTaskRunView(ctx, db.GetTaskRunViewParams{ID: id, WorkspaceID: policy.WorkspaceID(ctx)})
 	if errors.Is(err, pgx.ErrNoRows) {
-		return row, services.Scope{}, apierr.NotFound("task run")
+		return row, apierr.NotFound("task run")
 	}
 	if err != nil {
-		return row, services.Scope{}, fmt.Errorf("get task run: %w", err)
+		return row, fmt.Errorf("get task run: %w", err)
 	}
-	sc, err := services.LoadScope(ctx, s.q, scope, row.TaskRun.ServiceID)
-	if err != nil {
-		return row, sc, err
+	if _, err := services.LoadScope(ctx, s.q, scope, row.TaskRun.ServiceID); err != nil {
+		return row, err
 	}
-	return row, sc, nil
+	return row, nil
 }
 
 // GetRun returns one run.
 func (s *Service) GetRun(ctx context.Context, id uuid.UUID) (RunView, error) {
-	row, _, err := s.runScope(ctx, policy.ScopeProjectsRead, id)
+	row, err := s.runScope(ctx, policy.ScopeProjectsRead, id)
 	if err != nil {
 		return RunView{}, err
 	}
@@ -384,7 +383,7 @@ func (s *Service) GetRun(ctx context.Context, id uuid.UUID) (RunView, error) {
 
 // RunLogs returns stored output lines after the given line id.
 func (s *Service) RunLogs(ctx context.Context, id uuid.UUID, afterID int64, limit int) ([]LogLineView, error) {
-	if _, _, err := s.runScope(ctx, policy.ScopeLogsRead, id); err != nil {
+	if _, err := s.runScope(ctx, policy.ScopeLogsRead, id); err != nil {
 		return nil, err
 	}
 	return s.readLines(ctx, id, afterID, limit)
@@ -408,7 +407,7 @@ const logPollInterval = 500 * time.Millisecond
 // output until it finishes, then sends `event: end` with the final status. The
 // database is the source of truth: lines are already redacted when stored.
 func (s *Service) FollowLogs(ctx context.Context, id uuid.UUID) (*huma.StreamResponse, error) {
-	if _, _, err := s.runScope(ctx, policy.ScopeLogsRead, id); err != nil {
+	if _, err := s.runScope(ctx, policy.ScopeLogsRead, id); err != nil {
 		return nil, err
 	}
 	return &huma.StreamResponse{Body: func(hctx huma.Context) {
@@ -487,9 +486,12 @@ func cleanLine(s string) string {
 // secret values (fail closed: without a redactor nothing is stored), capped at
 // MaxRunLogLines. Frames of unknown, foreign or finished runs are ignored.
 func (s *Service) HandleTaskLog(ctx context.Context, serverID uuid.UUID, lf agentprotocol.LogFrame) error {
-	runID, err := uuid.Parse(lf.TaskRunID)
-	if err != nil || len(lf.Lines) == 0 {
+	if len(lf.Lines) == 0 {
 		return nil
+	}
+	runID, err := uuid.Parse(lf.TaskRunID)
+	if err != nil {
+		return nil //nolint:nilerr // the run id comes from the agent's log frame; a non-UUID one can never match a run, and an error would only be logged for every frame
 	}
 	run, err := s.q.GetTaskRunInternal(ctx, runID)
 	if errors.Is(err, pgx.ErrNoRows) {

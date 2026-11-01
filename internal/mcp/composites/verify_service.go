@@ -271,7 +271,7 @@ func (c *composites) verifyLive(ctx context.Context, p *auth.Principal, view ser
 			return err
 		})
 	} else {
-		run.note("logs", "forbidden", "runtime log scan skipped: needs logs:read")
+		run.forbidden("logs", "runtime log scan skipped: needs logs:read")
 	}
 	errs := run.wait()
 

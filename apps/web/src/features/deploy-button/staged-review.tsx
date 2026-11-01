@@ -26,7 +26,7 @@ import { GuardedKey, useGuard } from "./guarded-key";
 import type { EnvironmentDeploy } from "./use-environment-deploy";
 
 /** The deploy message limit the control plane accepts. */
-export const MESSAGE_MAX = 200;
+const MESSAGE_MAX = 200;
 
 const SIGN_TONE: Record<ReviewLine["sign"], string> = {
 	"+": "text-ok",

@@ -130,14 +130,10 @@ func (e *e2e) serve(w http.ResponseWriter, r *http.Request) {
 	c.closeWith(int(websocket.StatusNormalClosure), "")
 }
 
-func (e *e2e) maxHeartbeatLatency() (time.Duration, int) {
+func (e *e2e) heartbeatCount() int {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	var m time.Duration
-	for _, d := range e.hbLatency {
-		m = max(m, d)
-	}
-	return m, len(e.hbLatency)
+	return len(e.hbLatency)
 }
 
 // e2eAgent is a real client with a real listener manager on random ports.
@@ -273,7 +269,7 @@ func TestHeartbeatLatencyStaysLowWhileFourStreamsPushBulkData(t *testing.T) {
 	}))
 	a := e.startAgent(agentOptions{caps: tunnelCaps})
 	addr := e.waitListening(a, agentprotocol.TunnelS3)
-	require.Eventually(t, func() bool { _, n := e.maxHeartbeatLatency(); return n >= 3 }, 5*time.Second, 5*time.Millisecond, "heartbeats flow before the load")
+	require.Eventually(t, func() bool { return e.heartbeatCount() >= 3 }, 5*time.Second, 5*time.Millisecond, "heartbeats flow before the load")
 
 	const streams, each = 4, 32 << 20
 	start := time.Now()
@@ -414,7 +410,7 @@ func TestNoEndpointsOfferedMeansNoTunnel(t *testing.T) {
 	var accepted atomic.Int32
 	e.h.SetTunnelAcceptor(funcAcceptor(func(context.Context, TunnelPeer, net.Conn) error { accepted.Add(1); return nil }))
 	a := e.startAgent(agentOptions{caps: tunnelCaps})
-	require.Eventually(t, func() bool { _, n := e.maxHeartbeatLatency(); return n >= 3 }, 5*time.Second, 5*time.Millisecond)
+	require.Eventually(t, func() bool { return e.heartbeatCount() >= 3 }, 5*time.Second, 5*time.Millisecond)
 	for _, svc := range agentprotocol.TunnelServices {
 		require.Empty(t, a.lp.Addr(svc))
 	}
@@ -455,7 +451,7 @@ func TestAgentSideStreamLimitFailsFast(t *testing.T) {
 	for range agentprotocol.TunnelServiceLimit(agentprotocol.TunnelLoki) {
 		c, err := a.c.OpenTunnel(ctx, agentprotocol.TunnelLoki)
 		require.NoError(t, err)
-		defer c.Close()
+		t.Cleanup(func() { _ = c.Close() })
 	}
 	_, err := a.c.OpenTunnel(ctx, agentprotocol.TunnelLoki)
 	require.ErrorIs(t, err, conn.ErrTunnelLimit)

@@ -84,14 +84,14 @@ func (e *autoEnv) sync(d db.Domain, zoneID, status, syncError string) {
 // managed adds a domain whose record a sync wrote in zone z1.
 func (e *autoEnv) managed(host string) db.Domain {
 	e.t.Helper()
-	d := e.domain(host, "", "")
+	d := e.domain(host)
 	e.sync(d, "z1", "managed", "")
 	return d
 }
 
-func (e *autoEnv) domain(host, tls, resolver string) db.Domain {
+func (e *autoEnv) domain(host string) db.Domain {
 	e.t.Helper()
-	d, err := e.q.InsertDomain(context.Background(), db.InsertDomainParams{ServiceID: e.svc.ID, Hostname: host, TargetPort: 80, TlsMode: tls, DnsResolver: resolver})
+	d, err := e.q.InsertDomain(context.Background(), db.InsertDomainParams{ServiceID: e.svc.ID, Hostname: host, TargetPort: 80})
 	require.NoError(e.t, err)
 	return d
 }
@@ -141,7 +141,7 @@ func (e *autoEnv) applyDesired() {
 func TestAutoResolverOnlyForConnectedZones(t *testing.T) {
 	e := newAutoEnv(t)
 	inZone := e.managed("app.example.com")
-	outside := e.domain("app.other.org", "", "")
+	outside := e.domain("app.other.org")
 	e.sync(outside, "", "not_in_zone", "")
 
 	// No connection: nothing changes.
@@ -228,7 +228,7 @@ func TestAutoResolverCredentialTravelsOnlyAsASecret(t *testing.T) {
 // with the connection's token. Nothing else shows the token may edit the zone.
 func TestAutoDNS01NeedsASuccessfulDNSWriteInTheZone(t *testing.T) {
 	e := newAutoEnv(t)
-	d := e.domain("app.example.com", "", "")
+	d := e.domain("app.example.com")
 	e.connect(zone("z1", "example.com"))
 	const forbidden = "cloudflare API answered 403 (code 9109): Unauthorized to access requested resource"
 
@@ -454,7 +454,7 @@ func TestIssuedViaIsObservedPersistedAndExposed(t *testing.T) {
 	require.Empty(t, e.cert(d).IssuedVia)
 
 	// An HTTP-01 name shows its storage too, and the row goes with the domain.
-	plain := e.domain("plain.other.org", "", "")
+	plain := e.domain("plain.other.org")
 	_, err = Observe(ctx, e.q, e.srv.ID, []agentprotocol.AcmeCertStatus{{Kind: agentprotocol.AcmeKindDomain, ID: plain.ID.String(), IssuedVia: agentprotocol.AcmeIssuedHTTP01}})
 	require.NoError(t, err)
 	pc := e.cert(plain)

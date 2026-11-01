@@ -129,8 +129,6 @@ type Agent struct {
 	opt    AgentOptions
 	cancel context.CancelFunc
 	done   chan struct{}
-	mu     sync.Mutex
-	runErr error
 
 	Identity store.Identity
 }
@@ -259,9 +257,6 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	go func() {
 		defer close(a.done)
 		err := client.Run(rctx)
-		a.mu.Lock()
-		a.runErr = err
-		a.mu.Unlock()
 		if errors.Is(err, conn.ErrRevoked) {
 			identity.Revoked = true
 			_ = st.PutIdentity(identity)
@@ -282,13 +277,6 @@ func (a *Agent) Stop() {
 	case <-time.After(60 * time.Second):
 		panic("agent did not stop within 60s")
 	}
-}
-
-// Err is the error client.Run returned (nil after Stop).
-func (a *Agent) Err() error {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	return a.runErr
 }
 
 // Done is closed once the agent has exited (revocation, Stop).

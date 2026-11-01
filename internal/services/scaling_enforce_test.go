@@ -39,10 +39,10 @@ func scaleRow(t *testing.T, f *txFixture, id uuid.UUID, process string) (db.Serv
 	return db.ServiceProcessScale{}, false
 }
 
-func clampProcesses(t *testing.T, f *txFixture, id uuid.UUID, release services.Config, volumes int) {
+func clampProcesses(t *testing.T, f *txFixture, id uuid.UUID, release services.Config) {
 	t.Helper()
 	require.NoError(t, f.inTx(true, func(tx pgx.Tx) error {
-		return services.ClampProcessReplicas(f.ctx, tx, f.scope(tx, id), release, volumes)
+		return services.ClampProcessReplicas(f.ctx, tx, f.scope(tx, id), release, 0)
 	}))
 }
 
@@ -58,7 +58,7 @@ func TestClampProcessReplicasKeepsStagedProcessesOfAnOlderRelease(t *testing.T) 
 		services.Config{Image: "x", Port: 3000}.WithDefaults(),
 		services.Config{Image: "x", Port: 3000, Processes: []services.ProcessConfig{worker("other")}}.WithDefaults(),
 	} {
-		clampProcesses(t, f, svc.ID, release, 0)
+		clampProcesses(t, f, svc.ID, release)
 		row, ok := scaleRow(t, f, svc.ID, "queue")
 		require.True(t, ok, "the staged process keeps its scale row")
 		require.EqualValues(t, 3, row.Replicas)
@@ -75,7 +75,7 @@ func TestClampProcessReplicasPrunesProcessesDroppedEverywhere(t *testing.T) {
 	release := services.Config{Image: "x", Port: 3000, Processes: []services.ProcessConfig{worker("old")}}.WithDefaults()
 	seedProcessScale(t, f, svc.ID, "old")
 
-	clampProcesses(t, f, svc.ID, release, 0)
+	clampProcesses(t, f, svc.ID, release)
 	require.ElementsMatch(t, []string{"queue", "old"}, processesOf(mustScales(t, f.q, svc.ID)),
 		"only the process neither the release nor the staged configuration has is forgotten")
 }
@@ -90,7 +90,7 @@ func TestClampProcessReplicasLeavesProcessesTheStagedConfigMakesEligible(t *test
 	release := services.Config{Image: "x", Port: 3000, Processes: []services.ProcessConfig{
 		worker("clock", func(p *services.ProcessConfig) { p.Singleton = true }),
 	}}.WithDefaults()
-	clampProcesses(t, f, svc.ID, release, 0)
+	clampProcesses(t, f, svc.ID, release)
 	row, _ := scaleRow(t, f, svc.ID, "clock")
 	require.EqualValues(t, 3, row.Replicas)
 	require.True(t, services.DecodeAutoscaling(row.Autoscaling).Enabled)
@@ -101,7 +101,7 @@ func TestClampProcessReplicasLeavesProcessesTheStagedConfigMakesEligible(t *test
 	}}.WithDefaults()
 	other := f.insert(f.prod.ID, "both", both)
 	seedProcessScale(t, f, other.ID, "clock")
-	clampProcesses(t, f, other.ID, both, 0)
+	clampProcesses(t, f, other.ID, both)
 	row, _ = scaleRow(t, f, other.ID, "clock")
 	require.EqualValues(t, 1, row.Replicas)
 	require.False(t, services.DecodeAutoscaling(row.Autoscaling).Enabled)

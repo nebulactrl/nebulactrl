@@ -442,8 +442,11 @@ func (s *Service) runCheck(ctx context.Context, serverID uuid.UUID, p agentproto
 		return agentprotocol.MeshCheckResult{}, fmt.Errorf("enqueue mesh_check: %w", err)
 	}
 	cmd, err := s.awaitCommand(ctx, id, checkTimeout)
-	if err != nil {
+	if errors.Is(err, errCheckNotDelivered) || errors.Is(err, errCheckNoAnswer) {
 		return agentprotocol.MeshCheckResult{Result: agentprotocol.MeshCheckTimeout, Message: err.Error()}, nil
+	}
+	if err != nil {
+		return agentprotocol.MeshCheckResult{}, fmt.Errorf("await mesh_check: %w", err)
 	}
 	var fr agentprotocol.ResultFrame
 	_ = json.Unmarshal(cmd.Result, &fr)
@@ -456,12 +459,19 @@ func (s *Service) runCheck(ctx context.Context, serverID uuid.UUID, p agentproto
 	}
 	var res agentprotocol.MeshCheckResult
 	if err := json.Unmarshal(fr.Data, &res); err != nil {
-		return agentprotocol.MeshCheckResult{Result: agentprotocol.MeshCheckNoPath, Message: "unreadable result"}, nil
+		return agentprotocol.MeshCheckResult{Result: agentprotocol.MeshCheckNoPath, Message: "unreadable result"}, nil //nolint:nilerr // Unmarshal fails here only when the agent's result cannot be decoded, and that is itself the outcome: no path was proven
 	}
 	return res, nil
 }
 
-// awaitCommand polls a command until it finished, expired or was canceled.
+var (
+	errCheckNotDelivered = errors.New("the check was not delivered: the server is offline")
+	errCheckNoAnswer     = errors.New("the agent did not answer in time")
+)
+
+// awaitCommand polls a command until it finished, expired or was canceled. A
+// command that never reached its agent is errCheckNotDelivered, one that got no
+// answer in time errCheckNoAnswer.
 func (s *Service) awaitCommand(ctx context.Context, id uuid.UUID, timeout time.Duration) (db.AgentCommand, error) {
 	deadline := time.NewTimer(timeout)
 	defer deadline.Stop()
@@ -474,7 +484,7 @@ func (s *Service) awaitCommand(ctx context.Context, id uuid.UUID, timeout time.D
 		}
 		if slices.Contains([]string{"succeeded", "failed", "expired", "canceled"}, cmd.Status) {
 			if cmd.Status != "succeeded" && cmd.Status != "failed" {
-				return cmd, fmt.Errorf("the check was not delivered: the server is offline")
+				return cmd, errCheckNotDelivered
 			}
 			return cmd, nil
 		}
@@ -482,7 +492,7 @@ func (s *Service) awaitCommand(ctx context.Context, id uuid.UUID, timeout time.D
 		case <-ctx.Done():
 			return db.AgentCommand{}, ctx.Err()
 		case <-deadline.C:
-			return db.AgentCommand{}, errors.New("the agent did not answer in time")
+			return db.AgentCommand{}, errCheckNoAnswer
 		case <-tick.C:
 		}
 	}

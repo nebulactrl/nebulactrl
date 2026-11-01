@@ -206,7 +206,7 @@ func (s *Service) CreateDestination(ctx context.Context, in DestinationInput) (D
 	if err != nil {
 		return DestinationView{}, fmt.Errorf("create destination: %w", err)
 	}
-	s.publishWorkspace(EventDestinationUpdated, ws, row.ID)
+	s.publishWorkspace(ws, row.ID)
 	return destinationView(row, 0, 0), nil
 }
 
@@ -297,7 +297,7 @@ func (s *Service) UpdateDestination(ctx context.Context, id uuid.UUID, p Destina
 	if err != nil {
 		return DestinationView{}, fmt.Errorf("update destination: %w", err)
 	}
-	s.publishWorkspace(EventDestinationUpdated, ws, id)
+	s.publishWorkspace(ws, id)
 	return s.destinationView(ctx, s.q, ws, id)
 }
 
@@ -343,7 +343,7 @@ func (s *Service) DeleteDestination(ctx context.Context, id uuid.UUID) error {
 		// Backups that only record failed or skipped runs still reference it.
 		return apierr.Conflict("destination_in_use", "backup history still references this destination")
 	}
-	s.publishWorkspace(EventDestinationUpdated, ws, id)
+	s.publishWorkspace(ws, id)
 	return nil
 }
 
@@ -443,6 +443,6 @@ func (s *Service) recordTest(ctx context.Context, destID uuid.UUID, ok bool, msg
 		return
 	}
 	if d, err := s.q.GetBackupDestinationInternal(ctx, destID); err == nil {
-		s.publishWorkspace(EventDestinationUpdated, d.WorkspaceID, destID)
+		s.publishWorkspace(d.WorkspaceID, destID)
 	}
 }

@@ -30,8 +30,8 @@ func plan(want []Target, recs []Existing, adopt bool) Plan {
 	return BuildPlan(PlanInput{OwnerID: testDomain, Host: "app.example.com", Want: want, Records: recs, Adopt: adopt})
 }
 
-func wantA(ip string, proxied bool) []Target {
-	return []Target{{Type: "A", Content: ip, Proxied: proxied}}
+func wantA(proxied bool) []Target {
+	return []Target{{Type: "A", Content: "203.0.113.10", Proxied: proxied}}
 }
 
 func TestMarkerRoundTrip(t *testing.T) {
@@ -85,7 +85,7 @@ func TestMatchZoneLongestSuffix(t *testing.T) {
 }
 
 func TestPlanCreatesWhenNothingExists(t *testing.T) {
-	p := plan(wantA("203.0.113.10", false), nil, false)
+	p := plan(wantA(false), nil, false)
 	require.Equal(t, StatusMissing, p.Current)
 	require.Equal(t, StatusManaged, p.After)
 	require.Len(t, p.Actions, 1)
@@ -99,7 +99,7 @@ func TestPlanCreatesWhenNothingExists(t *testing.T) {
 }
 
 func TestPlanOwnedRecord(t *testing.T) {
-	want := wantA("203.0.113.10", false)
+	want := wantA(false)
 
 	p := plan(want, []Existing{owned(a("r1", "203.0.113.10", false))}, false)
 	require.Equal(t, StatusManaged, p.Current)
@@ -116,7 +116,7 @@ func TestPlanOwnedRecord(t *testing.T) {
 	require.False(t, p.Actions[0].Adopt)
 
 	// Proxy toggled.
-	p = plan(wantA("203.0.113.10", true), []Existing{owned(a("r1", "203.0.113.10", false))}, false)
+	p = plan(wantA(true), []Existing{owned(a("r1", "203.0.113.10", false))}, false)
 	require.Equal(t, StatusWrongTarget, p.Current)
 	require.Len(t, p.Actions, 1)
 	require.True(t, p.Actions[0].Input.Proxied)
@@ -137,7 +137,7 @@ func TestPlanOwnedRecord(t *testing.T) {
 }
 
 func TestPlanNeverTouchesUnmarkedRecords(t *testing.T) {
-	want := wantA("203.0.113.10", false)
+	want := wantA(false)
 
 	// Right target, not ours: present, untouched.
 	p := plan(want, []Existing{foreign(a("f1", "203.0.113.10", true))}, false)
@@ -160,7 +160,7 @@ func TestPlanNeverTouchesUnmarkedRecords(t *testing.T) {
 }
 
 func TestPlanAdopt(t *testing.T) {
-	want := wantA("203.0.113.10", false)
+	want := wantA(false)
 
 	p := plan(want, []Existing{foreign(a("f1", "198.51.100.7", false))}, true)
 	require.Equal(t, StatusManaged, p.After)
@@ -174,7 +174,7 @@ func TestPlanAdopt(t *testing.T) {
 
 	// A record that already points here is adopted too: marked, with the
 	// domain's proxy setting, so the domain becomes managed (and lockable).
-	p = plan(wantA("203.0.113.10", true), []Existing{foreign(a("f1", "203.0.113.10", false))}, true)
+	p = plan(wantA(true), []Existing{foreign(a("f1", "203.0.113.10", false))}, true)
 	require.Equal(t, StatusPresent, p.Current)
 	require.Equal(t, StatusManaged, p.After)
 	require.Len(t, p.Actions, 1)
@@ -204,7 +204,7 @@ func TestPlanAdopt(t *testing.T) {
 }
 
 func TestPlanUnmarkedBlockerNextToOwnedRecord(t *testing.T) {
-	want := wantA("203.0.113.10", false)
+	want := wantA(false)
 	recs := []Existing{owned(a("r1", "203.0.113.10", false)), foreign(cname("f1", "elsewhere.example.net"))}
 	p := plan(want, recs, false)
 	require.Equal(t, StatusConflict, p.Current)
@@ -298,7 +298,7 @@ func TestPlanWithAnAddressRecordPerFamily(t *testing.T) {
 	}
 
 	// The server lost its IPv6 address: that record goes, the other stays.
-	p = plan(wantA("203.0.113.10", false), both, false)
+	p = plan(wantA(false), both, false)
 	require.Equal(t, StatusManaged, p.Current)
 	require.Len(t, p.Actions, 1)
 	require.Equal(t, ActionDelete, p.Actions[0].Kind)

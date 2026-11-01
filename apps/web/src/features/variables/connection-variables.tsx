@@ -20,7 +20,7 @@ import { useExportReveal } from "#/features/databases/use-export-reveal";
 import { useRevealHash } from "#/lib/hooks/use-reveal-hash";
 
 /** The anchor `?tab=variables#connection` scrolls to. */
-export const CONNECTION_ANCHOR = "connection";
+const CONNECTION_ANCHOR = "connection";
 
 // Module level, so the hook's lookup stays stable between renders.
 const findConnection = (hash: string) =>

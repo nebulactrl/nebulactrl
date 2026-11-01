@@ -44,8 +44,8 @@ import { ReleaseTab } from "./release-tab";
 import { buildDebugReport } from "./report";
 import { TimelineTab } from "./timeline-tab";
 
-export const DEBUG_TABS = ["timeline", "log", "release", "commands"] as const;
-export type DebugTab = (typeof DEBUG_TABS)[number];
+const DEBUG_TABS = ["timeline", "log", "release", "commands"] as const;
+type DebugTab = (typeof DEBUG_TABS)[number];
 
 const TAB_LABEL: Record<DebugTab, string> = {
 	timeline: "Timeline",
@@ -55,7 +55,7 @@ const TAB_LABEL: Record<DebugTab, string> = {
 };
 
 /** The panel's width: wider than the inspector it covers, full screen under 760px. */
-export const DEBUG_PANEL_WIDTH = "clamp(720px, 70vw, 1200px)";
+const DEBUG_PANEL_WIDTH = "clamp(720px, 70vw, 1200px)";
 
 /** What the panel keeps showing while it slides out. */
 export interface DebugPanelProps {

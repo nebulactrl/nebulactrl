@@ -67,7 +67,7 @@ export interface Corpus {
 	linkContext(fromFile: string): LinkContext;
 }
 
-export interface PageSource {
+interface PageSource {
 	/** Relative to `docs/`, posix. */
 	fromFile: string;
 	body: string;
@@ -277,7 +277,7 @@ function tagTitle(name: string): string {
 	return `${words.charAt(0).toUpperCase()}${words.slice(1)}`;
 }
 
-export function buildNav(entries: Map<string, CorpusEntry>): NavSection[] {
+function buildNav(entries: Map<string, CorpusEntry>): NavSection[] {
 	const sections: NavSection[] = SECTIONS.map((title) => ({
 		id: title.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
 		title,

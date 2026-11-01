@@ -7,7 +7,7 @@ export const PIP_LIMIT = 16;
 export type ReplicaState = "ready" | "starting" | "failed" | "stopped";
 
 /** The order pips are drawn in, and the legend lists the states that occur. */
-export const REPLICA_STATES: readonly ReplicaState[] = [
+const REPLICA_STATES: readonly ReplicaState[] = [
 	"ready",
 	"starting",
 	"failed",

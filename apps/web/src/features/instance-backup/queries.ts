@@ -16,7 +16,7 @@ export const instanceBackupQuery = () =>
 			query.state.data?.lastRun?.status === "running" ? RUNNING_POLL_MS : false,
 	});
 
-export const INSTANCE_BACKUP_OPERATIONS = [
+const INSTANCE_BACKUP_OPERATIONS = [
 	"getInstanceBackup",
 	"listInstanceBackupRuns",
 ] as const;

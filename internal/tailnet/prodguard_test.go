@@ -11,6 +11,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/auth"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/internal/tailnet/tailnetcfg"
@@ -45,7 +46,7 @@ func (f *fixture) installGuard() *prodguard.Guard {
 	require.NoError(f.t, err)
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: box})
 	g.Install()
-	f.t.Cleanup(prodguard.Uninstall)
+	f.t.Cleanup(prodguardtest.Uninstall)
 	return g
 }
 

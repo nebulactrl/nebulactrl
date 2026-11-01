@@ -12,7 +12,7 @@ import { checkRules, describeRules, type RulesCheck } from "./rules";
  * `surface-well` panel; each row is a number, an icon and words (the icon is
  * never the only cue).
  */
-export function RulesPreview({
+function RulesPreview({
 	allow,
 	deny,
 	allowRequired = false,

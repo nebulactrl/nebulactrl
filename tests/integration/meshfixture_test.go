@@ -103,10 +103,10 @@ func (h dockerHost) containerOf(serviceID string) string {
 }
 
 // waitContainer waits for a running container of the service.
-func (h dockerHost) waitContainer(t testing.TB, serviceID string, timeout time.Duration) string {
+func (h dockerHost) waitContainer(t testing.TB, serviceID string) string {
 	t.Helper()
 	var id string
-	require.Truef(t, eventually(timeout, time.Second, func() bool { id = h.containerOf(serviceID); return id != "" }),
+	require.Truef(t, eventually(time.Minute, time.Second, func() bool { id = h.containerOf(serviceID); return id != "" }),
 		"no running container of service %s on %s", serviceID, h.name)
 	return id
 }
@@ -125,7 +125,7 @@ func (h dockerHost) inspect(t testing.TB, ref, format string) string {
 // psql runs a statement as postgres in the database `app` of a service's container.
 func (h dockerHost) psql(t testing.TB, serviceID, sql string) string {
 	t.Helper()
-	c := h.waitContainer(t, serviceID, 60*time.Second)
+	c := h.waitContainer(t, serviceID)
 	out, err := h.exec(c, "psql", "-U", "postgres", "-d", "app", "-tA", "-v", "ON_ERROR_STOP=1", "-c", sql)
 	require.NoError(t, err, "%s psql %q:\n%s", h.name, sql, out)
 	return strings.TrimSpace(out)
@@ -158,7 +158,7 @@ type headscaleFixture struct {
 // once its API answers. hostIP is the address containers use to reach it.
 func startHeadscale(t testing.TB, root, hostIP string, port int) *headscaleFixture {
 	t.Helper()
-	cfg := filepath.Join(root, "deploy/dev/headscale/config.yaml")
+	cfg := filepath.Join(root, "deploy", "dev", "headscale", "config.yaml")
 	_, err := os.Stat(cfg)
 	require.NoError(t, err)
 	hs := &headscaleFixture{
@@ -168,7 +168,7 @@ func startHeadscale(t testing.TB, root, hostIP string, port int) *headscaleFixtu
 		APIURL:   fmt.Sprintf("http://127.0.0.1:%d", port),
 	}
 	removeHeadscale(hs.Name, hs.volume)
-	mustSh(t, "docker", "run", "-d", "--name", hs.Name, "--label", "nebulactrl.itest=mesh",
+	mustSh(t, "run", "-d", "--name", hs.Name, "--label", "nebulactrl.itest=mesh",
 		"-p", fmt.Sprintf("0.0.0.0:%d:%d", port, port),
 		"-v", cfg+":/etc/headscale/config.yaml:ro",
 		"-v", hs.volume+":/var/lib/headscale",
@@ -184,7 +184,7 @@ func startHeadscale(t testing.TB, root, hostIP string, port int) *headscaleFixtu
 		_ = res.Body.Close()
 		return res.StatusCode == http.StatusOK
 	}), "Headscale did not become healthy:\n%s", mustShLoose("docker", "logs", "--tail", "60", hs.Name))
-	hs.APIKey = strings.TrimSpace(mustSh(t, "docker", "exec", hs.Name, "headscale", "apikeys", "create", "--expiration", "24h"))
+	hs.APIKey = strings.TrimSpace(mustSh(t, "exec", hs.Name, "headscale", "apikeys", "create", "--expiration", "24h"))
 	require.NotEmpty(t, hs.APIKey)
 	return hs
 }
@@ -461,7 +461,7 @@ func startHeadscaleProbe(t testing.TB, port int) (stop func()) {
 	t.Helper()
 	name := meshHeadscaleName + "-probe"
 	_, _ = sh(context.Background(), "", "docker", "rm", "-f", name)
-	mustSh(t, "docker", "run", "-d", "--name", name, "-p", fmt.Sprintf("0.0.0.0:%d:%d", port, port), "alpine:3", "sh", "-c",
+	mustSh(t, "run", "-d", "--name", name, "-p", fmt.Sprintf("0.0.0.0:%d:%d", port, port), "alpine:3", "sh", "-c",
 		fmt.Sprintf(`while true; do printf "HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nok\n" | nc -l -p %d; done`, port))
 	stop = func() { _, _ = sh(context.Background(), "", "docker", "rm", "-f", name) }
 	t.Cleanup(stop)
@@ -611,7 +611,7 @@ func strs(v any) []string {
 }
 
 // waitMeshOnline waits until the server's node is online with a tailnet IP.
-func (m *meshStack) waitMeshOnline(serverID string, timeout time.Duration) J {
+func (m *meshStack) waitMeshOnline(serverID string, timeout time.Duration) {
 	t := m.T
 	var n J
 	ok := eventually(timeout, 2*time.Second, func() bool {
@@ -619,7 +619,6 @@ func (m *meshStack) waitMeshOnline(serverID string, timeout time.Duration) J {
 		return n.Str("state") == agentprotocol.MeshStateOnline && len(strs(n["ips"])) > 0
 	})
 	require.Truef(t, ok, "the mesh node of server %s is not online within %s: %v", serverID, timeout, n)
-	return n
 }
 
 // serverNodeIP is the IPv4 tailnet address of a server's node.
@@ -730,7 +729,8 @@ func (m *meshStack) grantCount(t testing.TB, refID string) int {
 }
 
 // waitPolicy waits for the Headscale policy to satisfy ok.
-func (m *meshStack) waitPolicy(timeout time.Duration, what string, ok func(hsPolicy) bool) hsPolicy {
+func (m *meshStack) waitPolicy(what string, ok func(hsPolicy) bool) hsPolicy {
+	const timeout = 2 * time.Minute
 	t := m.T
 	var p hsPolicy
 	good := eventually(timeout, 2*time.Second, func() bool { p = m.HS.policy(t); return ok(p) })
@@ -771,14 +771,14 @@ func fetchVia(c *ProxyClient, target string) (int, string, error) {
 	return c.Get("/fetch?url=" + url.QueryEscape(target))
 }
 
-// waitFetch polls until /fetch of target answers `ok <status> ...` with the
-// wanted status (and, when contains is not empty, a body containing it).
-func waitFetch(t testing.TB, c *ProxyClient, target string, status int, contains string, timeout time.Duration) string {
+// waitFetch polls until /fetch of target answers `ok 200 ...` (and, when
+// contains is not empty, a body containing it).
+func waitFetch(t testing.TB, c *ProxyClient, target, contains string, timeout time.Duration) string {
 	t.Helper()
 	var code int
 	var body string
 	var err error
-	prefix := fmt.Sprintf("ok %d", status)
+	const prefix = "ok 200"
 	require.Truef(t, eventually(timeout, 2*time.Second, func() bool {
 		code, body, err = fetchVia(c, target)
 		return err == nil && code == http.StatusOK && strings.HasPrefix(body, prefix) && strings.Contains(body, contains)

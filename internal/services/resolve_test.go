@@ -220,3 +220,8 @@ func TestReservedKeys(t *testing.T) {
 	require.True(t, IsReservedSlug("shared"))
 	require.True(t, IsReservedSlug("vault"))
 }
+
+// NewResolver builds a resolver over the services of one environment.
+func NewResolver(envSlug string, svcs []ServiceData) *Resolver {
+	return NewResolverCtx(ResolverContext{EnvSlug: envSlug, EnvName: envSlug}, svcs)
+}

@@ -71,7 +71,7 @@ func (s *Service) failDeployment(ctx context.Context, id uuid.UUID, msg string) 
 	}
 	if changed {
 		if dc, err := s.loadDeploymentInternal(ctx, id); err == nil {
-			s.publish(services.EventDeploymentUpdated, dc)
+			s.publish(dc)
 			s.publishService(dc)
 			s.notifyFinished(ctx, dc, Failed, msg)
 		}

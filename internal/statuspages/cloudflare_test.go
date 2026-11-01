@@ -250,7 +250,7 @@ func TestStartFromProjectNeedsAProjectOfTheWorkspace(t *testing.T) {
 
 func TestDNSCheckOfAProxiedPageExpectsCloudflare(t *testing.T) {
 	f := newFx(t)
-	f.controlPlane("203.0.113.10")
+	f.controlPlane()
 	page := f.createPage("Acme", "status.acme.com")
 	f.exec(`UPDATE status_pages SET cf_zone_id = 'z1', cf_zone_name = 'acme.com', cf_proxied = true WHERE id = $1`, page.ID)
 	check := func(addrs ...string) StatusPageDNSCheck {
@@ -310,7 +310,7 @@ func TestDNSCheckOfAProxiedPageExpectsCloudflare(t *testing.T) {
 
 func TestDNSCheckNeverTellsAManagedPageToCreateRecords(t *testing.T) {
 	f := newFx(t)
-	f.controlPlane("203.0.113.10")
+	f.controlPlane()
 	page := f.createPage("Acme", "status.acme.com")
 	notFound := fakeResolver{err: &net.DNSError{Err: "no such host", IsNotFound: true}}
 
@@ -358,7 +358,7 @@ func TestDNSCheckNeverTellsAManagedPageToCreateRecords(t *testing.T) {
 
 func TestDNSCheckReportsWhenTheNameLastChanged(t *testing.T) {
 	f := newFx(t)
-	f.controlPlane("203.0.113.10")
+	f.controlPlane()
 	page := f.createPage("Acme", "status.acme.com")
 	f.svc.resolver = fakeResolver{addrs: []string{"203.0.113.10"}}
 

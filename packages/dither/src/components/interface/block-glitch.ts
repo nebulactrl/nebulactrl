@@ -24,7 +24,7 @@ export const GLITCH_FRAMES_MAX = 6;
 export const GLITCH_SHIFT_MAX = 4;
 /** Slices per frame, 1 to 3, and runs of dropped or repeated cells per frame, 2 to 4. */
 export const GLITCH_SLICES_MAX = 3;
-export const GLITCH_RUNS_MIN = 2;
+const GLITCH_RUNS_MIN = 2;
 export const GLITCH_RUNS_MAX = 4;
 /** A run is 2 to 4 cells wide. */
 export const GLITCH_RUN_MIN = 2;
@@ -36,14 +36,14 @@ export function nextBurstGap(rand: Rand): number {
 }
 
 /** A band of rows that moves sideways: positive `shift` is right. */
-export interface GlitchSlice {
+interface GlitchSlice {
 	top: number;
 	rows: number;
 	shift: number;
 }
 
 /** A short run of cells that drops out, or repeats on the row below. */
-export interface GlitchRun {
+interface GlitchRun {
 	x: number;
 	y: number;
 	length: number;

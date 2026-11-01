@@ -607,7 +607,7 @@ func (s *Service) providerFor(r db.SecretIntegration) (provider, error) {
 	if err != nil {
 		return nil, fmt.Errorf("decrypt credential of %s: %w", r.Name, err)
 	}
-	p, err := newProvider(r.Kind, cfg, secret, nil)
+	p, err := newProvider(r.Kind, cfg, secret)
 	if err != nil {
 		return nil, fmt.Errorf("integration %s: %w", r.Name, err)
 	}

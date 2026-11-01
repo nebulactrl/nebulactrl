@@ -37,10 +37,10 @@ func t2noField(t *testing.T, r *Resolved, slug, id string) {
 	require.False(t, ok, "service %q must not own %q", slug, id)
 }
 
-// t2idsWithPrefix lists the sorted field ids of a service that start with prefix.
-func t2idsWithPrefix(r *Resolved, slug, prefix string) []string {
+// t2idsWithPrefix lists the sorted field ids of the "web" service that start with prefix.
+func t2idsWithPrefix(r *Resolved, prefix string) []string {
 	var out []string
-	for _, id := range r.Services[slug].FieldIDs() {
+	for _, id := range r.Services["web"].FieldIDs() {
 		if strings.HasPrefix(id, prefix) {
 			out = append(out, id)
 		}
@@ -226,9 +226,9 @@ upstreams = [{ address = "10.9.9.9:1" }]
 			env: "staging",
 			check: func(t *testing.T, r *Resolved) {
 				require.Equal(t, []string{"x"}, t2field(t, r, "web", "config.startCommand").Value)
-				require.Equal(t, []string{"links.db"}, t2idsWithPrefix(r, "web", "links."))
-				require.Equal(t, []string{"networks.n3"}, t2idsWithPrefix(r, "web", "networks."))
-				require.Equal(t, []string{"variables.C_TOKEN#secret"}, t2idsWithPrefix(r, "web", "variables."))
+				require.Equal(t, []string{"links.db"}, t2idsWithPrefix(r, "links."))
+				require.Equal(t, []string{"networks.n3"}, t2idsWithPrefix(r, "networks."))
+				require.Equal(t, []string{"variables.C_TOKEN#secret"}, t2idsWithPrefix(r, "variables."))
 				require.Equal(t, []string{"c/**"}, t2field(t, r, "g", "git.watch_paths").Value)
 				require.Equal(t, []string{"172.16.0.0/12"}, t2field(t, r, "r", "config.route.allowCidrs").Value)
 				require.Equal(t, []UpstreamValue{{Address: "10.9.9.9:1"}}, t2field(t, r, "r", "config.route.upstreams").Value)
@@ -273,7 +273,7 @@ depends_on = []
 			env: "staging",
 			check: func(t *testing.T, r *Resolved) {
 				require.Equal(t, []string{}, t2field(t, r, "web", "config.startCommand").Value, "command = [] clears the start command")
-				require.Empty(t, t2idsWithPrefix(r, "web", "links."))
+				require.Empty(t, t2idsWithPrefix(r, "links."))
 			},
 		},
 		{
@@ -498,9 +498,9 @@ port = 80
 unset = ['domains."shop.acme.com"']
 `)
 		staging := t2resolve(t, text, "staging")
-		require.Equal(t, []string{"domains.other.acme.com"}, t2idsWithPrefix(staging, "web", "domains."))
+		require.Equal(t, []string{"domains.other.acme.com"}, t2idsWithPrefix(staging, "domains."))
 		base := t2resolve(t, text, "")
-		require.Equal(t, []string{"domains.other.acme.com", "domains.shop.acme.com"}, t2idsWithPrefix(base, "web", "domains."))
+		require.Equal(t, []string{"domains.other.acme.com", "domains.shop.acme.com"}, t2idsWithPrefix(base, "domains."))
 	})
 	t.Run("nested path", func(t *testing.T) {
 		r := t2resolve(t, t2doc(`[services.web]
@@ -542,10 +542,10 @@ unset = ["variables.ONLY", "scale", 'files."/etc/a.conf"', "tasks.job"]
 		require.Empty(t, ds, "a valid unset of present keys is silent:\n%s", ds.RenderText(""))
 		staging, rds := f.Resolve("staging", idx)
 		require.Empty(t, rds)
-		require.Empty(t, t2idsWithPrefix(staging, "web", "variables."))
+		require.Empty(t, t2idsWithPrefix(staging, "variables."))
 		t2noField(t, staging, "web", "scale.replicas")
 		t2noField(t, staging, "web", "config.files")
-		require.Empty(t, t2idsWithPrefix(staging, "web", "tasks."))
+		require.Empty(t, t2idsWithPrefix(staging, "tasks."))
 		def := staging.Services["web"].Def
 		require.Nil(t, def.Variables, "unsetting the last member leaves no empty collection")
 		require.Nil(t, def.Scale)
@@ -570,7 +570,7 @@ B = "2"
 [environments.staging.services.web]
 unset = ["variables.A"]
 `), "staging")
-		require.Equal(t, []string{"variables.B"}, t2idsWithPrefix(r, "web", "variables."))
+		require.Equal(t, []string{"variables.B"}, t2idsWithPrefix(r, "variables."))
 	})
 	t.Run("unset applies after the merge of the same block", func(t *testing.T) {
 		r := t2resolve(t, t2doc(`[services.web]
@@ -745,8 +745,8 @@ replicas = 1
 command = ["run", "mailer"]
 `)
 	base := t2resolve(t, text, "")
-	require.Equal(t, []string{"config.processes.clock", "config.processes.worker"}, t2idsWithPrefix(base, "web", "config.processes."))
-	require.Equal(t, []string{"processes.worker.scale.replicas"}, t2idsWithPrefix(base, "web", "processes."))
+	require.Equal(t, []string{"config.processes.clock", "config.processes.worker"}, t2idsWithPrefix(base, "config.processes."))
+	require.Equal(t, []string{"processes.worker.scale.replicas"}, t2idsWithPrefix(base, "processes."))
 	worker := t2field(t, base, "web", "config.processes.worker").Value.(ProcessValue)
 	require.Equal(t, ProcessValue{
 		Name: "worker", Command: []string{"run", "worker"}, Port: 81, StopGraceSeconds: 120,
@@ -755,7 +755,7 @@ command = ["run", "mailer"]
 	require.Equal(t, 2, t2field(t, base, "web", "processes.worker.scale.replicas").Value)
 
 	staging := t2resolve(t, text, "staging")
-	require.Equal(t, []string{"config.processes.clock", "config.processes.mailer", "config.processes.worker"}, t2idsWithPrefix(staging, "web", "config.processes."))
+	require.Equal(t, []string{"config.processes.clock", "config.processes.mailer", "config.processes.worker"}, t2idsWithPrefix(staging, "config.processes."))
 	worker = t2field(t, staging, "web", "config.processes.worker").Value.(ProcessValue)
 	require.Equal(t, ProcessValue{
 		Name: "worker", Command: []string{"run", "worker"}, Port: 81, StopGraceSeconds: 30,
@@ -792,26 +792,26 @@ singleton = true
 	t.Run("a whole process and its scale are gone", func(t *testing.T) {
 		r, ds := resolve(`["processes.clock"]`)
 		require.Empty(t, ds, ds.RenderText(""))
-		require.Equal(t, []string{"config.processes.worker"}, t2idsWithPrefix(r, "web", "config.processes."))
-		require.Equal(t, []string{"processes.worker.scale.replicas"}, t2idsWithPrefix(r, "web", "processes."))
+		require.Equal(t, []string{"config.processes.worker"}, t2idsWithPrefix(r, "config.processes."))
+		require.Equal(t, []string{"processes.worker.scale.replicas"}, t2idsWithPrefix(r, "processes."))
 	})
 	t.Run("a process' scale only", func(t *testing.T) {
 		r, ds := resolve(`["processes.worker.scale"]`)
 		require.Empty(t, ds, ds.RenderText(""))
-		require.Equal(t, []string{"config.processes.clock", "config.processes.worker"}, t2idsWithPrefix(r, "web", "config.processes."))
-		require.Empty(t, t2idsWithPrefix(r, "web", "processes."))
+		require.Equal(t, []string{"config.processes.clock", "config.processes.worker"}, t2idsWithPrefix(r, "config.processes."))
+		require.Empty(t, t2idsWithPrefix(r, "processes."))
 		require.Nil(t, r.Services["web"].Def.Processes["worker"].Scale)
 	})
 	t.Run("a process' scale key", func(t *testing.T) {
 		r, ds := resolve(`["processes.worker.scale.replicas"]`)
 		require.Empty(t, ds, ds.RenderText(""))
-		require.Empty(t, t2idsWithPrefix(r, "web", "processes."))
+		require.Empty(t, t2idsWithPrefix(r, "processes."))
 	})
 	t.Run("the last process leaves no empty collection", func(t *testing.T) {
 		r, ds := resolve(`["processes.worker", "processes.clock"]`)
 		require.Empty(t, ds, ds.RenderText(""))
 		require.Nil(t, r.Services["web"].Def.Processes)
-		require.Empty(t, t2idsWithPrefix(r, "web", "config.processes."))
+		require.Empty(t, t2idsWithPrefix(r, "config.processes."))
 	})
 	t.Run("an unknown process is a warning", func(t *testing.T) {
 		_, ds := resolve(`["processes.ghost"]`)

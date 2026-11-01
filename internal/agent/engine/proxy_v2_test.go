@@ -77,10 +77,10 @@ func extHTTP(id, host, upstream string) agentprotocol.Route {
 	}
 }
 
-func tcpL4(id string, port int) agentprotocol.Route {
+func tcpL4(id string) agentprotocol.Route {
 	return agentprotocol.Route{
 		ServiceID: id, Upstreams: []string{"192.168.1.5:5432"},
-		RouteExt: agentprotocol.RouteExt{Protocol: agentprotocol.ProtoTCP, ListenPort: port},
+		RouteExt: agentprotocol.RouteExt{Protocol: agentprotocol.ProtoTCP, ListenPort: 5432},
 	}
 }
 
@@ -236,7 +236,7 @@ func TestSyncRoutesTCPVerifyDialsEdgeThenLoopback(t *testing.T) {
 	}
 	r.dk.mu.Unlock()
 
-	_, pr := r.command(agentprotocol.KindSyncRoutes, agentprotocol.SyncRoutesPayload{Routes: []agentprotocol.Route{tcpL4(routeSvc, 5432)}, DeploymentID: depV2}, nil)
+	_, pr := r.command(agentprotocol.KindSyncRoutes, agentprotocol.SyncRoutesPayload{Routes: []agentprotocol.Route{tcpL4(routeSvc)}, DeploymentID: depV2}, nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, pr.Outcome, pr.Message)
 	require.Equal(t, []string{"172.18.0.2:5432"}, dialed, "one dial through the proxy's edge address")
 	require.Len(t, r.px.applies, 1, "applied once")
@@ -244,7 +244,7 @@ func TestSyncRoutesTCPVerifyDialsEdgeThenLoopback(t *testing.T) {
 
 func TestSyncRoutesTCPVerifyFailureRollsBack(t *testing.T) {
 	r, _ := newV2Rig(t, func(context.Context, string, string) (net.Conn, error) { return nil, errors.New("connection refused") })
-	table := []agentprotocol.Route{tcpL4(routeSvc, 5432)}
+	table := []agentprotocol.Route{tcpL4(routeSvc)}
 	res, pr := r.command(agentprotocol.KindSyncRoutes, agentprotocol.SyncRoutesPayload{Routes: table, DeploymentID: depV2}, nil)
 	require.Equal(t, agentprotocol.OutcomeRolledBack, res.Outcome)
 	require.Contains(t, pr.Message, "tcp port 5432")
@@ -390,7 +390,7 @@ func TestReconcileAppliesExternalRoutesProxyConfigAndSecrets(t *testing.T) {
 	}
 	err := r.eng.Reconcile(context.Background(), agentprotocol.Reconcile{
 		Services:       []agentprotocol.DesiredService{{ServiceID: svcID, DeploymentID: depV1, Replicas: 1, ContainerNames: []string{oldCtr}, Routes: []agentprotocol.Route{svcRoute}}},
-		ExternalRoutes: []agentprotocol.Route{authRoute(), tcpL4(routeSvc2, 5432)},
+		ExternalRoutes: []agentprotocol.Route{authRoute(), tcpL4(routeSvc2)},
 		Proxy:          cfg,
 		Secrets:        map[string]string{authSecret: "alice:" + authHash, agentprotocol.SecretCertPrefix + "c1": "KEY"},
 	})
@@ -564,7 +564,7 @@ func TestVerifyTargetAndOwnRoutes(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, "plain.example.com", h, "a host without a rule is served with defaults")
 
-	table := []agentprotocol.Route{tcpL4(svcID, 5432), {ServiceID: svcID, Hosts: []string{"h.example.com"}, Upstreams: []string{"x:1"}}}
+	table := []agentprotocol.Route{tcpL4(svcID), {ServiceID: svcID, Hosts: []string{"h.example.com"}, Upstreams: []string{"x:1"}}}
 	require.Len(t, ownRoutes(table, svcID), 1, "L4 routes are never verified through the probe entrypoint")
 }
 

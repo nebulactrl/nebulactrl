@@ -244,7 +244,7 @@ export interface ScaleRow {
 	reason: string | null;
 }
 
-export const SINGLE_INSTANCE = "Runs one instance";
+const SINGLE_INSTANCE = "Runs one instance";
 
 /** The scaling of each process, in service order; none for a single-process service. */
 export function scaleRows(

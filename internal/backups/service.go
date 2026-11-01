@@ -118,16 +118,16 @@ func (s *Service) notify(ctx context.Context, ev Event) {
 	}
 }
 
-func (s *Service) publish(sc services.Scope, typ string, resource uuid.UUID) {
-	services.PublishIn(s.bus, sc.WorkspaceID, typ, sc.ProjectID, sc.EnvironmentID, resource)
+func (s *Service) publish(sc services.Scope, resource uuid.UUID) {
+	services.PublishIn(s.bus, sc.WorkspaceID, EventBackupUpdated, sc.ProjectID, sc.EnvironmentID, resource)
 }
 
 // publishWorkspace announces a change to a team-level resource (destinations).
-func (s *Service) publishWorkspace(typ string, ws, resource uuid.UUID) {
+func (s *Service) publishWorkspace(ws, resource uuid.UUID) {
 	if s.bus == nil {
 		return
 	}
-	s.bus.Publish(events.Event{Type: typ, ResourceID: resource.String(), WorkspaceID: ws.String()})
+	s.bus.Publish(events.Event{Type: EventDestinationUpdated, ResourceID: resource.String(), WorkspaceID: ws.String()})
 }
 
 func (s *Service) workspace(ctx context.Context, scope string) (uuid.UUID, error) {

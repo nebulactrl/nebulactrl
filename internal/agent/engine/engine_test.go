@@ -563,8 +563,8 @@ func TestLogsSubscribeDefaultProcessMatchesWhatTheContainerIsCalled(t *testing.T
 	res, dr := r.deploy(processPayload(), nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	r.dk.mu.Lock()
-	r.dk.logText[replicaName(depV2, 0)] = "serving"
-	r.dk.logText[replicaName(depV2, 1)] = "serving"
+	r.dk.logText[replicaName(0)] = "serving"
+	r.dk.logText[replicaName(1)] = "serving"
 	r.dk.logText[pname(depV2, "worker", 0)] = "job a"
 	r.dk.mu.Unlock()
 	require.Equal(t, agentprotocol.OutcomeSucceeded, subscribe(r, "http", "http", true).Outcome)

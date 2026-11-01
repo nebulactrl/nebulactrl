@@ -103,8 +103,6 @@ func (r imageRef) effectiveTag() string {
 // overrideError is a problem with the requested reference (HTTP 422).
 type overrideError struct{ code, msg string }
 
-func (e *overrideError) Error() string { return e.msg }
-
 // resolveOverride turns the ?tag= and ?digest= parameters into the image
 // reference to deploy. The reference always stays in the service image's
 // repository: a bare tag or digest is appended to it, a full reference is

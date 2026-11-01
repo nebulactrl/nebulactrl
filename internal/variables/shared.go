@@ -795,7 +795,7 @@ func (s *Service) RotateShared(ctx context.Context, kind string, id uuid.UUID, k
 		if err != nil {
 			return err
 		}
-		if plan.Affected, plan.DeployOrder, err = s.finishPlan(ctx, q, t.ownerID, t.infos, affected); err != nil {
+		if plan.Affected, plan.DeployOrder, err = s.finishPlan(ctx, q, t.infos, affected); err != nil {
 			return err
 		}
 		plan.Warnings = append(plan.Warnings, "Existing sessions, tokens or signatures made with the old value become invalid once the change is deployed.")

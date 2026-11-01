@@ -101,8 +101,8 @@ func modprobeFix(id, title, why, risk string, def bool, tests []string, mods ...
 	return Fix{
 		ID: id, Title: title, Why: why, Risk: risk, Tests: tests, Default: def,
 		Check:    chk.String(),
-		Apply:    fmt.Sprintf("nc_state\nnc_mod_block \"%s\" %s\n", file, shqAll(mods)),
-		Rollback: fmt.Sprintf("rm -f \"%s\"\n", file),
+		Apply:    fmt.Sprintf("nc_state\nnc_mod_block %q %s\n", file, shqAll(mods)),
+		Rollback: fmt.Sprintf("rm -f %q\n", file),
 		Manual:   manual,
 	}
 }

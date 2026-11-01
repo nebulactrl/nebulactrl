@@ -106,7 +106,7 @@ def verify(secret, header, raw_body, tolerance=300):
     return hmac.compare_digest(expected, parts.get("v1", ""))
 ```
 
-Go: `notifications.VerifySignature(secret, header, body, now, tolerance)` (`internal/notifications/webhook.go`) implements the same check; the UI shows Go, Node.js and Python snippets.
+Go: `VerifySignature(secret, header, body, now, tolerance)` (`internal/notifications/webhook_test.go`) is a reference implementation of the same check, run against every delivery in the tests; the UI shows Go, Node.js and Python snippets.
 
 The signing secret is shown **once**, on creation (when generated) and when rotated (`POST …/rotate-secret`, **Rotate secret** on the card). After a rotation the old secret stops signing immediately: update the receiver first.
 

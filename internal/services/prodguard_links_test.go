@@ -17,6 +17,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/events"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/internal/testutil"
@@ -100,7 +101,7 @@ func (f *linkGuardFixture) installGuard() *prodguard.Guard {
 	f.t.Helper()
 	g := prodguard.New(prodguard.Deps{Pool: f.pool, Box: f.box})
 	g.Install()
-	f.t.Cleanup(prodguard.Uninstall)
+	f.t.Cleanup(prodguardtest.Uninstall)
 	return g
 }
 

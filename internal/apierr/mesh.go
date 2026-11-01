@@ -60,11 +60,6 @@ func MeshNotExposable(why string) *Error {
 	return Unprocessable(CodeMeshNotExposable, "the service cannot be exposed over the mesh: "+why)
 }
 
-// MeshLinkNotReady is a 409: a link did not come up in time.
-func MeshLinkNotReady() *Error {
-	return Conflict(CodeMeshLinkNotReady, "the mesh link is not ready yet")
-}
-
 // MeshConfirmationRequired is a 409: the action adds tailnet devices and the
 // caller did not accept that.
 func MeshConfirmationRequired(devices int) *Error {

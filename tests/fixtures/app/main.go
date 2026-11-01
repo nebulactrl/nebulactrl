@@ -82,7 +82,7 @@ func worker(tag string) {
 		case <-term:
 			fmt.Printf("process=%s tag=%s stopping\n", proc, tag)
 			time.Sleep(grace)
-			os.Exit(0)
+			return
 		case <-tick.C:
 			fmt.Printf("process=%s tag=%s tick %d %s\n", proc, tag, n, host)
 		}
@@ -199,8 +199,8 @@ func main() {
 			fmt.Println("get failed:", err)
 			os.Exit(1)
 		}
-		defer res.Body.Close()
 		body, _ := io.ReadAll(io.LimitReader(res.Body, 4096))
+		_ = res.Body.Close()
 		fmt.Printf("GET %s -> %d %s\n", os.Args[2], res.StatusCode, strings.TrimSpace(string(body)))
 		if res.StatusCode/100 != 2 {
 			os.Exit(1)

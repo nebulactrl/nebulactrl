@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -151,8 +152,8 @@ func newWebhookSink(t *testing.T, s *Stack) *webhookSink {
 		}
 		h.mu.Lock()
 		secret := h.secret
-		sigErr := notifications.VerifySignature(secret, r.Header.Get(notifications.SignatureHeader), body, time.Now(), 0)
-		h.events = append(h.events, hookEvent{Type: b.Type, Severity: b.Severity, Title: b.Title, ServiceID: b.ServiceID, SignatureOK: sigErr == nil})
+		sigOK := signatureOK(secret, r.Header.Get(notifications.SignatureHeader), body)
+		h.events = append(h.events, hookEvent{Type: b.Type, Severity: b.Severity, Title: b.Title, ServiceID: b.ServiceID, SignatureOK: sigOK})
 		h.mu.Unlock()
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -441,7 +442,7 @@ func TestStatusPagePublicHostServesOnlyThePage(t *testing.T) {
 	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
 	require.True(t, r.JSON().Bool("published"))
 
-	page := waitPage(t, host, "/", 90*time.Second, func(p pageResp) bool { return p.Status == http.StatusOK })
+	page := waitPage(t, host, 90*time.Second, func(p pageResp) bool { return p.Status == http.StatusOK })
 	require.Contains(t, page.Header.Get("Content-Type"), "text/html")
 	require.Contains(t, page.Body, title)
 	require.Contains(t, page.Body, display)
@@ -477,9 +478,18 @@ func TestStatusPagePublicHostServesOnlyThePage(t *testing.T) {
 	r = s.Do("PATCH", "/status-pages/"+pageID, map[string]any{"published": false})
 	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
 	require.False(t, r.JSON().Bool("published"))
-	waitPage(t, host, "/", 90*time.Second, func(p pageResp) bool { return p.Status == http.StatusNotFound })
+	waitPage(t, host, 90*time.Second, func(p pageResp) bool { return p.Status == http.StatusNotFound })
 	js, err = proxyGet(host, "/status.json", false)
 	require.NoError(t, err)
 	require.Equal(t, http.StatusNotFound, js.Status, js.Body)
 	require.NotContains(t, js.Body, display)
+}
+
+// signatureOK reports whether header is the signature the documented scheme
+// gives body under secret: the same bytes Sign produces for the header's own
+// timestamp.
+func signatureOK(secret, header string, body []byte) bool {
+	ts, _, _ := strings.Cut(strings.TrimPrefix(header, "t="), ",")
+	sec, err := strconv.ParseInt(ts, 10, 64)
+	return err == nil && header == notifications.Sign(secret, body, time.Unix(sec, 0))
 }

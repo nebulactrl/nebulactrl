@@ -128,7 +128,10 @@ func deploymentResult(ctx context.Context, e *env, v any) (any, error) {
 		return m, nil
 	}
 	id, err := uuid.Parse(fmt.Sprint(m["id"]))
-	if err != nil || !e.commandAcked(ctx, id) {
+	if err != nil {
+		return m, nil //nolint:nilerr // the id is taken from the server's own deployment view, so a non-UUID cannot occur; the hook only annotates results and must not turn a successful call into an error
+	}
+	if !e.commandAcked(ctx, id) {
 		return m, nil
 	}
 	name, _ := wf["serverName"].(string)

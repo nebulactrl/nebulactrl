@@ -89,7 +89,7 @@ export interface PlanLike {
 		| undefined;
 }
 
-export interface ApplyStepLike {
+interface ApplyStepLike {
 	step: string;
 	status: string;
 	message?: string | undefined;
@@ -144,7 +144,7 @@ const STATE_RANK: Record<string, number> = {
 };
 
 /** A state of an owned field or service (a file that was applied at least once). */
-export function isManagedState(state: string | undefined): boolean {
+function isManagedState(state: string | undefined): boolean {
 	return state !== undefined && Object.hasOwn(STATE_RANK, state);
 }
 
@@ -395,7 +395,7 @@ export function fileUrl(input: FileUrlInput): string | undefined {
 
 // --- The plan as review rows -----------------------------------------------------
 
-export type DiffSign = "+" | "−" | "~";
+type DiffSign = "+" | "−" | "~";
 
 export interface ChangeRow {
 	key: string;

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/notifications"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
@@ -189,7 +190,10 @@ func (s *Service) finish(ctx context.Context, run db.TaskRun, status string, exi
 	}
 	sc, err := services.LoadScopeInternal(ctx, s.q, done.ServiceID)
 	if err != nil {
-		return nil // the service is gone
+		if apierr.IsNotFound(err) {
+			return nil // the service was deleted after the run finished; the result is stored, there is nobody left to notify
+		}
+		return fmt.Errorf("load service: %w", err)
 	}
 	s.publishRun(sc, done.ID)
 	s.notifyFailure(ctx, sc, done)

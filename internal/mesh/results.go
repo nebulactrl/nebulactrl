@@ -54,7 +54,7 @@ func (s *Service) HandleResult(ctx context.Context, serverID, commandID uuid.UUI
 	}
 	var p agentprotocol.SyncMeshPayload
 	if json.Unmarshal(cmd.Payload, &p) != nil {
-		return nil
+		return nil //nolint:nilerr // the stored sync_mesh payload can never decode; an error would make the hub redeliver this result on every agent reconnect, forever
 	}
 	var st agentprotocol.MeshStatus
 	if len(res.Data) > 0 {
@@ -182,7 +182,7 @@ func (s *Service) HandleUndelivered(ctx context.Context, commandID uuid.UUID, ms
 	}
 	var p agentprotocol.SyncMeshPayload
 	if json.Unmarshal(cmd.Payload, &p) != nil {
-		return nil
+		return nil //nolint:nilerr // the stored sync_mesh payload can never decode, so it names no nodes whose keys could be revoked; an error would only be logged again on every retry
 	}
 	for _, sp := range p.Nodes {
 		if !sp.Provision {

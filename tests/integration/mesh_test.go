@@ -196,7 +196,7 @@ func (m *meshStack) phaseReplication(t *testing.T) {
 	require.Equal(t, m.Srv1, rl.Remote)
 	require.Equal(t, agentprotocol.MeshStateOnline, rl.State)
 	require.Equal(t, 1, m.grantCount(t, rep.ID))
-	pol := m.waitPolicy(2*time.Minute, "replication rule", func(p hsPolicy) bool {
+	pol := m.waitPolicy("replication rule", func(p hsPolicy) bool {
 		return strings.Join(p.dsts(rl.ipv4()), ",") == fmt.Sprintf("%s:%d", node1, ex.MeshPort)
 	})
 	require.Empty(t, pol.dsts(node1))
@@ -215,7 +215,7 @@ func (m *meshStack) phaseReplication(t *testing.T) {
 	}
 
 	// The replica has no internet: every network of the container is internal.
-	rc := m.Host2.waitContainer(t, rep.ID, time.Minute)
+	rc := m.Host2.waitContainer(t, rep.ID)
 	for name, internal := range m.hostNetworksInternal(t, m.Host2, rc) {
 		require.Truef(t, internal, "replica on host2 is attached to non-internal network %s", name)
 	}
@@ -302,10 +302,10 @@ func (m *meshStack) phaseGrantRemoved(t *testing.T) {
 	rl := m.replicationLinks(t)
 	require.Len(t, rl, 1, "both replicas of this stack share one replication link")
 	dst := fmt.Sprintf("%s:%d", node1, ex.MeshPort)
-	m.waitPolicy(2*time.Minute, "rule for pgb", func(p hsPolicy) bool { return contains(p.dsts(rl[0].ipv4()), dst) })
+	m.waitPolicy("rule for pgb", func(p hsPolicy) bool { return contains(p.dsts(rl[0].ipv4()), dst) })
 
 	// Control: the connection works while the grant exists.
-	rc := m.Host2.waitContainer(t, rep.ID, time.Minute)
+	rc := m.Host2.waitContainer(t, rep.ID)
 	_, err := m.Host2.exec(rc, "pg_isready", "-h", alias, "-p", fmt.Sprint(ex.MeshPort), "-t", "5")
 	require.NoError(t, err, "pg_isready through the link must succeed while the grant exists")
 
@@ -316,7 +316,7 @@ func (m *meshStack) phaseGrantRemoved(t *testing.T) {
 	require.EqualValues(t, 1, tag.RowsAffected())
 	ap := m.Do("POST", "/mesh/acl/apply", map[string]any{})
 	require.Contains(t, []int{http.StatusOK, http.StatusAccepted}, ap.Status, string(ap.Raw))
-	m.waitPolicy(2*time.Minute, "rule for pgb removed", func(p hsPolicy) bool { return !contains(p.dsts(rl[0].ipv4()), dst) })
+	m.waitPolicy("rule for pgb removed", func(p hsPolicy) bool { return !contains(p.dsts(rl[0].ipv4()), dst) })
 	require.Truef(t, eventually(60*time.Second, 2*time.Second, func() bool {
 		_, err := m.Host2.exec(rc, "pg_isready", "-h", alias, "-p", fmt.Sprint(ex.MeshPort), "-t", "4")
 		return err != nil
@@ -432,7 +432,7 @@ func (m *meshStack) phaseSwitchoverFollow(t *testing.T) {
 	require.Equal(t, "1", m.Host2.psql(t, rep.ID, "SELECT count(*) FROM notes WHERE id = 9102"))
 	// The rule for the new link: agent1's link node -> host2's server node, the new primary's mesh port only.
 	node2 := m.serverNodeIP(t, m.Srv2)
-	m.waitPolicy(2*time.Minute, "rule for the followed link", func(p hsPolicy) bool {
+	m.waitPolicy("rule for the followed link", func(p hsPolicy) bool {
 		for _, d := range p.dsts(follow.ipv4()) {
 			if !strings.HasPrefix(d, node2+":") {
 				return false
@@ -535,7 +535,7 @@ func (m *meshStack) phaseRevoke(t *testing.T) {
 	}), "the nodes of the revoked server are still in the tailnet: %+v", m.HS.nodes(t))
 
 	// The ACL no longer mentions the revoked server's addresses.
-	m.waitPolicy(2*time.Minute, "no rule for the revoked server", func(p hsPolicy) bool {
+	m.waitPolicy("no rule for the revoked server", func(p hsPolicy) bool {
 		for _, rule := range p.ACLs {
 			for _, s := range append(append([]string{}, rule.Src...), rule.Dst...) {
 				for ip := range gone {

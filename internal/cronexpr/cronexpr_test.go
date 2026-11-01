@@ -108,9 +108,6 @@ func TestParseWhitespaceAndCase(t *testing.T) {
 	if got, want := s.Next(utc(2026, 10, 26, 0, 0)), utc(2026, 11, 1, 3, 0); !got.Equal(want) {
 		t.Errorf("got %v want %v", got, want)
 	}
-	if s.String() != "0   3 * * SUN" {
-		t.Errorf("String() = %q", s.String())
-	}
 }
 
 func TestSequenceAcrossDays(t *testing.T) {

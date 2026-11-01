@@ -13,10 +13,10 @@ import type { StatusKind } from "#/components/ui/status-icon";
 export const GIB = 1024 ** 3;
 
 /** The smallest quota the control plane accepts, in GiB. */
-export const MIN_QUOTA_GIB = 1;
+const MIN_QUOTA_GIB = 1;
 
 /** The largest value the field takes: far above any disk, and exact in a JS number. */
-export const MAX_QUOTA_GIB = 1_000_000;
+const MAX_QUOTA_GIB = 1_000_000;
 
 export type ServiceKind = InstanceServiceView["kind"];
 export type ServiceStatus = InstanceServiceView["status"];

@@ -150,7 +150,8 @@ func TestReplPrepareRunsHBAThenSQLAndKeepsThePasswordOutOfEverythingButEnv(t *te
 	require.Len(t, el.calls, 2)
 	hba, sql := el.calls[0], el.calls[1]
 	require.Equal(t, ctr.ID, hba.id)
-	require.Equal(t, []string{"sh", "-c", engines.HBAScript()}, hba.argv)
+	require.Equal(t, []string{"sh", "-c"}, hba.argv[:2])
+	require.Contains(t, hba.argv[2], "pg_hba.conf", "the script manages the pg_hba.conf block")
 	require.Equal(t, "postgres", el.users[0], "the pg_hba.conf script runs as the postgres user")
 	require.Contains(t, hba.env, "NC_HBA_ACTION=add")
 	require.Contains(t, hba.env, "NC_HBA_LINE="+engines.HBALine(replRole))
@@ -246,7 +247,8 @@ rm -f "$PGDATA/standby.signal"
 			name: "reconfigure rewrites the include file, then reloads", action: agentprotocol.DBActionReplReconfigure,
 			repl: &agentprotocol.ReplAdmin{Role: replRole, Slot: replSlot, Host: "mesh-0a1b2c3d", Port: 15432}, wantExecs: 2,
 			check: func(t *testing.T, el *execLog, _ agentprotocol.DBAdminResult) {
-				require.Equal(t, []string{"sh", "-c", engines.ReconfigureScript()}, el.calls[0].argv)
+				require.Equal(t, []string{"sh", "-c"}, el.calls[0].argv[:2])
+				require.Contains(t, el.calls[0].argv[2], "nebula.replica.conf", "the script rewrites the include file")
 				require.Equal(t, "postgres", el.users[0])
 				require.Contains(t, el.calls[0].env, "NC_HOST=mesh-0a1b2c3d")
 				require.Contains(t, el.calls[0].env, "NC_PORT=15432")

@@ -777,8 +777,11 @@ func (s *Service) repoint(ctx context.Context, p db.DatabasePromotion, rsc, psc 
 func (s *Service) repointReplica(ctx context.Context, tx pgx.Tx, o db.DatabaseReplica, newPrimary, oldPrimary services.Scope) error {
 	q := db.New(tx)
 	osc, err := services.LoadScopeInternal(ctx, q, o.ServiceID)
+	if apierr.IsNotFound(err) {
+		return nil // the replica service was deleted meanwhile
+	}
 	if err != nil {
-		return nil
+		return fmt.Errorf("load replica service: %w", err)
 	}
 	if _, err := s.rewriteReferences(ctx, q, osc, oldPrimary.Service.Slug, newPrimary.Service.Slug); err != nil {
 		return err

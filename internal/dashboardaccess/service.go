@@ -427,8 +427,10 @@ func (s *Service) Load(ctx context.Context) error {
 			}
 			changed = true
 			// A fresh install has no team to attribute the entry to yet.
-			if _, err := q.FirstWorkspace(ctx); err != nil {
+			if _, err := q.FirstWorkspace(ctx); errors.Is(err, pgx.ErrNoRows) {
 				return nil
+			} else if err != nil {
+				return fmt.Errorf("find the first team: %w", err)
 			}
 			return audit.Record(ctx, tx, audit.Entry{
 				Action: ActionSeed, ResourceType: resourceType, ResourceID: resourceID,

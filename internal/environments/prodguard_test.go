@@ -14,6 +14,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/events"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/testutil"
 )
@@ -36,7 +37,7 @@ func TestProductionGuardInEnvironmentService(t *testing.T) {
 	require.NoError(t, err)
 	g := prodguard.New(prodguard.Deps{Pool: pool, Box: box})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 	svc := environments.NewService(pool, events.NewBus())
 
 	tok := uuid.New()

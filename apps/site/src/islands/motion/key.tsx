@@ -13,7 +13,7 @@ import type { ComponentProps, ReactNode } from "react";
 const loadFeatures = () => import("./features.ts").then((mod) => mod.default);
 
 /** The app's press spring (apps/web/src/lib/ease.ts, SPRING_PRESS): quick, no bounce on a console. */
-export const SPRING_PRESS = {
+const SPRING_PRESS = {
 	type: "spring",
 	stiffness: 500,
 	damping: 30,
@@ -21,7 +21,7 @@ export const SPRING_PRESS = {
 } as const;
 
 /** A label or an icon trading places inside a key (SPRING_SWAP). */
-export const SPRING_SWAP = {
+const SPRING_SWAP = {
 	type: "spring",
 	stiffness: 460,
 	damping: 30,

@@ -40,7 +40,7 @@ func newUpstream(t *testing.T, handler func(c net.Conn)) *upstream {
 	return u
 }
 
-func (u *upstream) dialer(services ...string) Dialer {
+func (u *upstream) dialer() Dialer {
 	return DialerFunc(func(ctx context.Context, service string) (net.Conn, error) {
 		u.dials.Add(1)
 		return net.Dial("tcp", u.ln.Addr().String())

@@ -145,7 +145,7 @@ func (s *Service) RestoreVolumeBackup(ctx context.Context, backupID uuid.UUID, i
 		}
 		return VolumeRestoreView{}, fmt.Errorf("start volume restore: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	return volumeRestoreView(r), nil
 }
 
@@ -198,7 +198,7 @@ func (s *Service) restoreVolumeInPlace(ctx context.Context, b db.VolumeBackup, s
 		}
 		return VolumeRestoreView{}, fmt.Errorf("start volume restore: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	return volumeRestoreView(r), nil
 }
 
@@ -255,7 +255,7 @@ func (s *Service) afterVolumeRestoreFinished(ctx context.Context, r db.VolumeRes
 	if err != nil {
 		return
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	typ := NotifyRestoreSucceeded
 	if r.Status == RestoreFailed {
 		typ = NotifyRestoreFailed

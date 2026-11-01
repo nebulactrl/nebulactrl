@@ -66,7 +66,7 @@ func TestRollbackToPrunedReleaseUsesCurrentVariables(t *testing.T) {
 	rb, err := f.deps.Rollback(f.ctx, dep1)
 	require.NoError(t, err)
 	require.Contains(t, rb.Disclaimer, releases.PrunedNotice)
-	require.NoError(t, f.deps.runDeploy(ctx, rb.ID, ""))
+	require.NoError(t, f.deps.runDeploy(ctx, rb.ID))
 	var status, msg string
 	require.NoError(t, f.pool.QueryRow(ctx, `SELECT status, status_message FROM deployments WHERE id = $1`, rb.ID).Scan(&status, &msg))
 	require.Equal(t, "failed", status)
@@ -77,7 +77,7 @@ func TestRollbackToPrunedReleaseUsesCurrentVariables(t *testing.T) {
 	f.setSecretVar(web.ID, "API_KEY", "key-five")
 	rb, err = f.deps.Rollback(f.ctx, dep1)
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(ctx, rb.ID, ""))
+	require.NoError(t, f.deps.runDeploy(ctx, rb.ID))
 	require.True(t, f.releaseEnvSet(dep1), "the release records the environment it is deployed with")
 
 	cmd := f.lastCommand(agentprotocol.KindDeploy)

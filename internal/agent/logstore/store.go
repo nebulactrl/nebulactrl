@@ -269,8 +269,8 @@ func (st *Store) service(id string, create bool) (*svc, error) {
 	}
 	st.mu.Lock()
 	defer st.mu.Unlock()
-	if s = st.svcs[id]; s != nil {
-		return s, nil
+	if cur := st.svcs[id]; cur != nil {
+		return cur, nil
 	}
 	s = &svc{id: id, dir: filepath.Join(st.opts.Dir, id), lastFlush: st.opts.Now()}
 	s.nextSeq = st.seedSeq(s)

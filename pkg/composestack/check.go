@@ -87,8 +87,8 @@ func (c *checker) restricted(svc, key, format string, a ...any) {
 	c.add(svc, key, KindRestricted, format, a...)
 }
 
-func (c *checker) unsupported(svc, key, format string, a ...any) {
-	c.add(svc, key, KindUnsupported, format, a...)
+func (c *checker) unsupported(svc, key, msg string) {
+	c.add(svc, key, KindUnsupported, "%s", msg)
 }
 
 // project checks the top-level sections.

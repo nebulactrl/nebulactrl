@@ -16,7 +16,6 @@ const CLASS_BY_KIND = {
 	server: "vt-card",
 	service: "vt-row",
 	nav: "vt-title",
-	tab: "vt-tab",
 } as const;
 
 export type VtKind = keyof typeof CLASS_BY_KIND;
@@ -24,10 +23,6 @@ export type VtKind = keyof typeof CLASS_BY_KIND;
 /** The name of the page area (`#main-content`) that crossfades and lifts. */
 export const PAGE_NAME = "vt-page";
 export const PAGE_CLASS = "vt-page";
-
-/** The name of the body an in-page tab switch crossfades. */
-export const TAB_BODY_NAME = "vt-tab-body";
-export const TAB_BODY_CLASS = "vt-tab-body";
 
 const NAME_PROPERTY = "view-transition-name";
 const CLASS_PROPERTY = "view-transition-class";

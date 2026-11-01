@@ -4,8 +4,6 @@ import {
 } from "@nebulactrl/dither/interface/empty-state";
 import type { EmptyStateIllustration } from "@nebulactrl/dither/interface/illustration";
 
-export type { EmptyStateIllustration };
-
 export interface EmptyStateProps
 	extends Omit<
 		DitherEmptyStateProps,

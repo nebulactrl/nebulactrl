@@ -41,10 +41,10 @@ func pgSpec() Spec { return Spec{Engine: Postgres, Version: "17", Username: "app
 
 func TestReplicationGoldens(t *testing.T) {
 	golden(t, "clone_script", CloneScript())
-	golden(t, "reconfigure_script", ReconfigureScript())
-	golden(t, "hba_script", HBAScript())
+	golden(t, "reconfigure_script", reconfigureScript)
+	golden(t, "hba_script", hbaScript)
 	golden(t, "replica_start_command", strings.Join(ReplicaStartCommand(), "\n")+"\n")
-	golden(t, "hba_block", HBABlock("nebula_r_0a1b2c3d"))
+	golden(t, "hba_block", hbaBlock("nebula_r_0a1b2c3d"))
 	golden(t, "status_sql", ReplStatusSQL)
 	golden(t, "control_data_script", ControlDataScript+"\n")
 
@@ -165,15 +165,15 @@ func TestHBAScriptManagesOneBlockIdempotently(t *testing.T) {
 	}
 
 	run(true, "nebula_r_aaaaaaaa")
-	require.Equal(t, stock+HBABlock("nebula_r_aaaaaaaa"), read())
+	require.Equal(t, stock+hbaBlock("nebula_r_aaaaaaaa"), read())
 	run(true, "nebula_r_aaaaaaaa") // idempotent
-	require.Equal(t, stock+HBABlock("nebula_r_aaaaaaaa"), read())
+	require.Equal(t, stock+hbaBlock("nebula_r_aaaaaaaa"), read())
 	run(true, "nebula_r_bbbbbbbb")
 	require.Equal(t, stock+HBABegin+"\n"+HBALine("nebula_r_aaaaaaaa")+"\n"+HBALine("nebula_r_bbbbbbbb")+"\n"+HBAEnd+"\n", read())
 	run(false, "nebula_r_aaaaaaaa")
-	require.Equal(t, stock+HBABlock("nebula_r_bbbbbbbb"), read())
+	require.Equal(t, stock+hbaBlock("nebula_r_bbbbbbbb"), read())
 	run(false, "nebula_r_aaaaaaaa") // removing an absent line is a no-op
-	require.Equal(t, stock+HBABlock("nebula_r_bbbbbbbb"), read())
+	require.Equal(t, stock+hbaBlock("nebula_r_bbbbbbbb"), read())
 	run(false, "nebula_r_bbbbbbbb")
 	require.Equal(t, stock, read(), "an empty block disappears with its markers")
 
@@ -319,4 +319,10 @@ func TestParseLSN(t *testing.T) {
 	require.Error(t, err)
 	_, err = ParseLSN("nebula:lsn:garbage\n")
 	require.Error(t, err)
+}
+
+// hbaBlock is the managed block holding the line of role alone. A primary with
+// several replicas holds one line per replica between the same markers.
+func hbaBlock(role string) string {
+	return HBABegin + "\n" + HBALine(role) + "\n" + HBAEnd + "\n"
 }

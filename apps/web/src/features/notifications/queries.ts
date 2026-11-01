@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { invalidateOperations } from "#/api/invalidate";
 
 /** Everything the notifications UI shows; refetched after any channel mutation. */
-export const NOTIFICATION_OPERATIONS = [
+const NOTIFICATION_OPERATIONS = [
 	"listNotificationChannels",
 	"getNotificationChannel",
 	"listNotificationDeliveries",

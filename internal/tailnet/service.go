@@ -279,7 +279,13 @@ func (s *Service) Spec(ctx context.Context, q *db.Queries, sc services.Scope, cf
 			return nil, false, nil
 		}
 		var spec agentprotocol.ServiceTailnetSpec
-		if len(row.Applied) == 0 || json.Unmarshal(row.Applied, &spec) != nil || spec.Mode != agentprotocol.TailnetEnsure {
+		if len(row.Applied) == 0 {
+			return nil, false, nil
+		}
+		if json.Unmarshal(row.Applied, &spec) != nil {
+			return nil, false, nil //nolint:nilerr // the applied spec is written by this server; a torn one can never become valid and must not block every redeploy of the service, so it counts as no node to keep
+		}
+		if spec.Mode != agentprotocol.TailnetEnsure {
 			return nil, false, nil
 		}
 		if err := requireAgent(srv); err != nil {
@@ -391,7 +397,10 @@ func (s *Service) RecordDeploy(ctx context.Context, tx pgx.Tx, workspaceID uuid.
 		return fmt.Errorf("get deploy command: %w", err)
 	}
 	var p agentprotocol.DeployPayload
-	if err := json.Unmarshal(cmd.Payload, &p); err != nil || p.Tailnet == nil {
+	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+		return nil //nolint:nilerr // the payload was persisted by this server; a malformed one can never be recorded, and failing here would roll back the deployment for good
+	}
+	if p.Tailnet == nil {
 		return nil
 	}
 	return s.apply(ctx, tx, workspaceID, dep.ServerID, *p.Tailnet, st)
@@ -410,7 +419,7 @@ func (s *Service) apply(ctx context.Context, tx pgx.Tx, ws uuid.UUID, serverID *
 	q := db.New(tx)
 	svcID, err := uuid.Parse(spec.ServiceID)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // the spec comes from a persisted command payload; a non-UUID service id can never match a row, and failing would roll back the deployment for good
 	}
 	if spec.Mode == agentprotocol.TailnetRemove {
 		if !st.Removed {
@@ -488,15 +497,18 @@ func (s *Service) HandleResult(ctx context.Context, serverID, commandID uuid.UUI
 	}
 	var p agentprotocol.SyncTailnetPayload
 	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
-		return nil
+		return nil //nolint:nilerr // the payload was persisted by this server; a malformed one can never be attributed to a service, and returning an error would only log the same result again
 	}
 	svcID, err := uuid.Parse(p.Tailnet.ServiceID)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // the payload was persisted by this server; a non-UUID service id can never be attributed to a service, and returning an error would only log the same result again
 	}
 	sc, err := services.LoadScopeInternal(ctx, s.q, svcID)
 	if err != nil {
-		return nil // service deleted meanwhile
+		if apierr.IsNotFound(err) {
+			return nil // the service was deleted while the command ran
+		}
+		return fmt.Errorf("load service: %w", err)
 	}
 	var st agentprotocol.ServiceTailnetStatus
 	if len(res.Data) > 0 {
@@ -543,7 +555,7 @@ func (s *Service) HandleObserved(ctx context.Context, serverID uuid.UUID, obs ag
 func (s *Service) observeOne(ctx context.Context, serverID uuid.UUID, o agentprotocol.ObservedService) error {
 	svcID, err := uuid.Parse(o.ServiceID)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // the id comes from the agent's observed report; a non-UUID one can never match a service, and failing would reject the whole report every 15 seconds
 	}
 	row, err := s.q.GetServiceTailnet(ctx, svcID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -672,11 +684,11 @@ func (s *Service) HandleUndelivered(ctx context.Context, commandID uuid.UUID, ms
 	}
 	var p agentprotocol.SyncTailnetPayload
 	if json.Unmarshal(cmd.Payload, &p) != nil {
-		return nil
+		return nil //nolint:nilerr // the payload was persisted by this server; a malformed one can never name a service, and an error would make the expiry job retry it forever
 	}
 	svcID, err := uuid.Parse(p.Tailnet.ServiceID)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // the payload was persisted by this server; a non-UUID service id can never name a service, and an error would make the expiry job retry it forever
 	}
 	_, err = s.q.SetServiceTailnetObserved(ctx, db.SetServiceTailnetObservedParams{
 		ServiceID: svcID, ServerID: &cmd.ServerID, State: services.TailnetNeedsAttn, Message: msg, Ips: []string{},

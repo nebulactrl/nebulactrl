@@ -14,7 +14,7 @@ export interface Size {
 }
 
 /** Where a label sits against its marker. */
-export type LabelSide = "right" | "left" | "top" | "bottom";
+type LabelSide = "right" | "left" | "top" | "bottom";
 
 export interface PlacedLabel {
 	key: string;

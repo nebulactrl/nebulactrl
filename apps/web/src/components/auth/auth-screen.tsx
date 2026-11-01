@@ -5,7 +5,7 @@ import { AsciiBackdrop } from "#/components/common/ascii/ascii-backdrop";
 import { PanelCard } from "#/components/ui/panel-card";
 
 /** The wordmark heading every screen outside the console, at 190x59. */
-export function AuthLogo() {
+function AuthLogo() {
 	return <LogoMark wordmark size={59} />;
 }
 
@@ -17,7 +17,7 @@ const VERSION = import.meta.env.VITE_APP_VERSION;
  * planet) sits behind `cardRef`'s panel; the halftone floor is what shows
  * until it paints, and stays when WebGL2 is unavailable.
  */
-export function AuthScreen({
+function AuthScreen({
 	children,
 	className,
 	cardRef,

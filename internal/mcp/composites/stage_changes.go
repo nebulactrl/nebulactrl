@@ -282,7 +282,7 @@ func (c *composites) stage(ctx context.Context, in StageChangesInput) (StageChan
 		}
 		out.Changes = append(out.Changes, changeEntryOf(fc, valClip))
 	}
-	c.stageSummary(&out, staged, len(pl.steps))
+	c.stageSummary(&out, staged)
 	return out, nil
 }
 
@@ -300,7 +300,7 @@ func (pl *stagePlan) touches(field string) bool {
 	return false
 }
 
-func (c *composites) stageSummary(out *StageChangesOutput, staged, unchanged int) {
+func (c *composites) stageSummary(out *StageChangesOutput, staged int) {
 	var sum string
 	switch {
 	case !out.Staged:

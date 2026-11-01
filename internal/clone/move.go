@@ -104,7 +104,8 @@ func (s *Service) MoveService(ctx context.Context, id uuid.UUID, in MoveInput) (
 	res.From, res.To = envRef(from), envRef(target.Env)
 
 	if in.DryRun {
-		return res, s.planMove(ctx, s.q, sc, target, &res)
+		err = s.planMove(ctx, s.q, sc, target, &res)
+		return res, err
 	}
 	if err := s.guardMove(ctx, sc, target); err != nil {
 		return res, err

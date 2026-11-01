@@ -34,7 +34,7 @@ import {
  * that ends in a failure; a finished update reloads the page into the new
  * version, and a finished deletion leaves the team's state behind.
  */
-export function useThresholdView(): ThresholdView | null {
+function useThresholdView(): ThresholdView | null {
 	const queryClient = useQueryClient();
 	const router = useRouter();
 	const update = useQuery(systemUpdateQuery());

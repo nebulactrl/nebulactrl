@@ -205,7 +205,7 @@ func giteaPullRequest(action string, number int, title, sha, branch, cloneURL st
 }
 
 // deliverWebhook posts a signed Gitea delivery to the control plane.
-func (s *Stack) deliverWebhook(connID, secret string, body []byte) int {
+func (s *Stack) deliverWebhook(connID, secret string, body []byte) {
 	s.t.Helper()
 	mac := hmac.New(sha256.New, []byte(secret))
 	mac.Write(body)
@@ -220,7 +220,6 @@ func (s *Stack) deliverWebhook(connID, secret string, body []byte) int {
 	defer res.Body.Close()
 	out, _ := io.ReadAll(res.Body)
 	require.Equal(s.t, http.StatusOK, res.StatusCode, string(out))
-	return res.StatusCode
 }
 
 func (s *Stack) previewList() []J {

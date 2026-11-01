@@ -322,7 +322,8 @@ func (e *extValues) remember(serviceID uuid.UUID, values []string) {
 	if len(e.batches) > 4096 {
 		clear(e.batches)
 	}
-	b := append(e.batches[serviceID], extBatch{at: e.now(), values: append([]string(nil), values...)})
+	b := e.batches[serviceID]
+	b = append(b, extBatch{at: e.now(), values: append([]string(nil), values...)})
 	if len(b) > extKeep {
 		clear(b[:len(b)-extKeep])
 		b = b[len(b)-extKeep:]
@@ -408,11 +409,12 @@ func (e *ExtSecrets) generation() uint64 {
 	return e.vals.generation()
 }
 
-func (e *ExtSecrets) values(serviceID uuid.UUID) ([]string, uint64) {
+func (e *ExtSecrets) values(serviceID uuid.UUID) []string {
 	if e == nil {
-		return nil, 0
+		return nil
 	}
-	return e.vals.values(serviceID)
+	vals, _ := e.vals.values(serviceID)
+	return vals
 }
 
 func (e *ExtSecrets) shouldRetry(serviceID uuid.UUID, now time.Time) bool {

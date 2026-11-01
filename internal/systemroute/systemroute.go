@@ -95,15 +95,6 @@ func SetAccess(allow []string, resolver string) (prevAllow []string, prevResolve
 	}
 }
 
-// Set installs c directly (tests). The zero Config disables the route.
-func Set(c Config) {
-	if c.Host == "" || c.Upstream == "" {
-		current.Store(nil)
-		return
-	}
-	current.Store(&c)
-}
-
 // Current returns the configuration and whether the route is enabled.
 func Current() (Config, bool) {
 	c := current.Load()
@@ -119,9 +110,6 @@ func Reserved(host string) bool {
 	c, ok := Current()
 	return ok && strings.EqualFold(strings.TrimSuffix(host, "."), c.Host)
 }
-
-// IsRoute reports whether the route's service id is ServiceID.
-func IsRoute(serviceID string) bool { return serviceID == ServiceID }
 
 // Route returns the system route for the control-plane server's table.
 func (c Config) Route() agentprotocol.Route {

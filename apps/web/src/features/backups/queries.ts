@@ -2,7 +2,7 @@ import type { QueryClient } from "@tanstack/react-query";
 import { invalidateOperations } from "#/api/invalidate";
 
 /** Everything the backups UI shows; refetched after any backup mutation. */
-export const BACKUP_OPERATIONS = [
+const BACKUP_OPERATIONS = [
 	"listBackupDestinations",
 	"listBackupSchedules",
 	"listBackups",

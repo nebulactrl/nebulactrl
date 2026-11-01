@@ -14,7 +14,7 @@ import { OUTCOME_DAYS } from "./outcomes";
 import { isStatusFilter, STATUS_FILTERS } from "./status";
 
 /** Rows per page of the environment's deployment list. */
-export const PAGE_SIZE = 50;
+const PAGE_SIZE = 50;
 
 export interface DeploymentFilters {
 	/** A deployment status, or undefined for all of them. */

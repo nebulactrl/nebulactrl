@@ -70,12 +70,12 @@ func (in *schemaInliner) walk(v any, depth int, stack []string) any {
 	return v
 }
 
-// stripRequired relaxes an output schema: it removes every `required` list
-// (but not a property named "required") and `additionalProperties: false`.
+// stripRequired relaxes an output schema in place: it removes every `required`
+// list (but not a property named "required") and `additionalProperties: false`.
 // Concise projections drop fields and tools add a few (terminal, note), so a
 // strict schema would make clients that validate structured content reject
 // valid results.
-func stripRequired(v any) any {
+func stripRequired(v any) {
 	switch t := v.(type) {
 	case jsonObj:
 		delete(t, "required")
@@ -98,7 +98,6 @@ func stripRequired(v any) any {
 			stripRequired(e)
 		}
 	}
-	return v
 }
 
 // slim returns a trimmed copy of the schema v for tools/list, where every

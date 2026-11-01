@@ -242,9 +242,10 @@ func (s *sum) visitorsEstimate() int64 {
 
 func (s *sum) quantile(q float64) float64 { return agentprotocol.LatencyQuantile(s.Hist[:], q) }
 
-// ranked returns the dimension's entries sorted by count, descending. Merged
-// "Other" entries stay last.
-func (s *sum) ranked(dim string, limit int) []agentprotocol.TopEntry {
+// ranked returns the dimension's top topListLen entries sorted by count,
+// descending, with the rest folded into "Other". Merged "Other" entries stay
+// last.
+func (s *sum) ranked(dim string) []agentprotocol.TopEntry {
 	m := s.tops[dim]
 	var list []agentprotocol.TopEntry
 	var other agentprotocol.TopEntry
@@ -261,14 +262,14 @@ func (s *sum) ranked(dim string, limit int) []agentprotocol.TopEntry {
 		}
 		return list[i].K < list[j].K
 	})
-	if limit > 0 && len(list) > limit {
-		for _, e := range list[limit:] {
+	if len(list) > topListLen {
+		for _, e := range list[topListLen:] {
 			other.N += e.N
 			other.E += e.E
 			other.B += e.B
 			other.Ms += e.Ms
 		}
-		list = list[:limit]
+		list = list[:topListLen]
 	}
 	if other.N > 0 {
 		other.K = agentprotocol.OtherKey

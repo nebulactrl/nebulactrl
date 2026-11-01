@@ -462,48 +462,47 @@ type normalized struct {
 	bufferByte int64
 }
 
-// normalize validates the drain and returns the row values and the drain as
-// the agent's sink validation sees it.
-func (s *Service) normalize(ctx context.Context, ws uuid.UUID, kind string, cfg DrainConfig, allProjects bool, projects, services []uuid.UUID, q string, bufferMB int, sec secrets) (normalized, agentprotocol.LogDrain, error) {
+// normalize validates the drain and returns the row values.
+func (s *Service) normalize(ctx context.Context, ws uuid.UUID, kind string, cfg DrainConfig, allProjects bool, projects, services []uuid.UUID, q string, bufferMB int, sec secrets) (normalized, error) {
 	var n normalized
 	d := agentprotocol.LogDrain{Name: "x", Kind: kind, Enabled: true}
 	switch kind {
 	case agentprotocol.DrainLoki:
 		if cfg.Loki == nil {
-			return n, d, bad("loki settings are required")
+			return n, bad("loki settings are required")
 		}
 		cfg = DrainConfig{Loki: cfg.Loki}
 		d.Loki = cfg.Loki
 	case agentprotocol.DrainOTLP:
 		if cfg.OTLP == nil {
-			return n, d, bad("otlp settings are required")
+			return n, bad("otlp settings are required")
 		}
 		cfg = DrainConfig{OTLP: cfg.OTLP}
 		d.OTLP = cfg.OTLP
 	case agentprotocol.DrainSyslog:
 		if cfg.Syslog == nil {
-			return n, d, bad("syslog settings are required")
+			return n, bad("syslog settings are required")
 		}
 		cfg = DrainConfig{Syslog: cfg.Syslog}
 		d.Syslog = cfg.Syslog
 		if sec.Token != "" || sec.Username != "" || sec.Password != "" || len(sec.Headers) > 0 {
-			return n, d, bad("syslog drains take no credentials")
+			return n, bad("syslog drains take no credentials")
 		}
 	case agentprotocol.DrainHTTP:
 		if cfg.HTTP == nil {
-			return n, d, bad("http settings are required")
+			return n, bad("http settings are required")
 		}
 		cfg = DrainConfig{HTTP: cfg.HTTP}
 		d.HTTP = cfg.HTTP
 	default:
-		return n, d, bad("kind must be loki, otlp, syslog or http")
+		return n, bad("kind must be loki, otlp, syslog or http")
 	}
 	if err := sinks.Validate(d); err != nil {
-		return n, d, bad(err.Error())
+		return n, bad(err.Error())
 	}
 	raw, err := json.Marshal(cfg)
 	if err != nil {
-		return n, d, err
+		return n, err
 	}
 	n.cfgRaw = raw
 
@@ -515,14 +514,14 @@ func (s *Service) normalize(ctx context.Context, ws uuid.UUID, kind string, cfg 
 		slices.SortFunc(ids, func(a, b uuid.UUID) int { return strings.Compare(a.String(), b.String()) })
 		ids = slices.Compact(ids)
 		if len(ids) == 0 {
-			return n, d, bad("choose at least one project, or ship the whole team")
+			return n, bad("choose at least one project, or ship the whole team")
 		}
 		c, err := s.q.NotifCountProjects(ctx, db.NotifCountProjectsParams{WorkspaceID: ws, Ids: ids})
 		if err != nil {
-			return n, d, fmt.Errorf("check projects: %w", err)
+			return n, fmt.Errorf("check projects: %w", err)
 		}
 		if int(c) != len(ids) {
-			return n, d, bad("a selected project does not exist")
+			return n, bad("a selected project does not exist")
 		}
 		n.projects = ids
 	}
@@ -532,29 +531,29 @@ func (s *Service) normalize(ctx context.Context, ws uuid.UUID, kind string, cfg 
 	if len(svcs) > 0 {
 		c, err := s.q.CountWorkspaceServices(ctx, db.CountWorkspaceServicesParams{WorkspaceID: ws, Column2: svcs})
 		if err != nil {
-			return n, d, fmt.Errorf("check services: %w", err)
+			return n, fmt.Errorf("check services: %w", err)
 		}
 		if int(c) != len(svcs) {
-			return n, d, bad("a selected service does not exist")
+			return n, bad("a selected service does not exist")
 		}
 	}
 	n.services = nonNil(svcs)
 
 	n.query = strings.TrimSpace(q)
 	if len(n.query) > 1000 {
-		return n, d, bad("the query is too long (at most 1000 characters)")
+		return n, bad("the query is too long (at most 1000 characters)")
 	}
 	if _, errs := query.Compile(n.query); len(errs) > 0 {
-		return n, d, bad("query: " + errs[0].Message)
+		return n, bad("query: " + errs[0].Message)
 	}
 	if bufferMB == 0 {
 		bufferMB = DefaultBufferMB
 	}
 	if bufferMB < MinBufferMB || bufferMB > MaxBufferMB {
-		return n, d, bad(fmt.Sprintf("bufferMb must be between %d and %d", MinBufferMB, MaxBufferMB))
+		return n, bad(fmt.Sprintf("bufferMb must be between %d and %d", MinBufferMB, MaxBufferMB))
 	}
 	n.bufferByte = int64(bufferMB) << 20
-	return n, d, nil
+	return n, nil
 }
 
 // CreateDrain adds a drain. Admin only: it stores credentials.
@@ -572,7 +571,7 @@ func (s *Service) CreateDrain(ctx context.Context, in DrainInput) (LogDrainView,
 		return LogDrainView{}, err
 	}
 	allProjects := in.AllProjects == nil || *in.AllProjects
-	n, _, err := s.normalize(ctx, ws, in.Kind, in.Config, allProjects, in.ProjectIDs, in.ServiceIDs, in.Query, in.BufferMB, sec)
+	n, err := s.normalize(ctx, ws, in.Kind, in.Config, allProjects, in.ProjectIDs, in.ServiceIDs, in.Query, in.BufferMB, sec)
 	if err != nil {
 		return LogDrainView{}, err
 	}
@@ -669,7 +668,7 @@ func (s *Service) UpdateDrain(ctx context.Context, id uuid.UUID, p DrainPatch) (
 	if p.BufferMB != nil {
 		bufMB = *p.BufferMB
 	}
-	n, _, err := s.normalize(ctx, ws, cur.Kind, cfg, allProjects, projects, services, q, bufMB, sec)
+	n, err := s.normalize(ctx, ws, cur.Kind, cfg, allProjects, projects, services, q, bufMB, sec)
 	if err != nil {
 		return LogDrainView{}, err
 	}

@@ -331,10 +331,3 @@ var prodExempt = map[string]ProdExemption{
 	"updateService":                   ExemptStaged,
 	"validateVariable":                ExemptProbe,
 }
-
-// ProdExempt returns why an operation needs no production approval, if it is
-// listed as exempt.
-func ProdExempt(op string) (ProdExemption, bool) {
-	r, ok := prodExempt[op]
-	return r, ok
-}

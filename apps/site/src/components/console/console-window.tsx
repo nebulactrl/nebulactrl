@@ -7,7 +7,7 @@ import { TOML_LINES } from "./story.ts";
 import { tokenize } from "./toml.tsx";
 
 /** The deploy phases, in the order the app lights them. */
-export const PHASES = ["Build", "Release", "Verify"] as const;
+const PHASES = ["Build", "Release", "Verify"] as const;
 
 /** The step of the story a part arrives with (`--from`, read against `--t` by `.con-in`). */
 function from(n: number): CSSProperties {

@@ -478,7 +478,7 @@ func TestRollbackAndReconcileApplyTheCapabilityGateAgain(t *testing.T) {
 	require.NoError(t, err)
 	dep, err := f.deps.StartRedeploy(context.Background(), sc, *cur[0].ReleaseID, f.server.ID)
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), dep.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), dep.ID))
 	var status, msg string
 	require.NoError(t, f.pool.QueryRow(context.Background(), "SELECT status, status_message FROM deployments WHERE id = $1", dep.ID).Scan(&status, &msg))
 	require.Equal(t, string(Failed), status)
@@ -488,7 +488,7 @@ func TestRollbackAndReconcileApplyTheCapabilityGateAgain(t *testing.T) {
 	f.allowProcesses(true)
 	dep, err = f.deps.StartRedeploy(context.Background(), sc, *cur[0].ReleaseID, f.server.ID)
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), dep.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), dep.ID))
 	var p agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &p))
 	require.Len(t, p.Processes, 4)
@@ -513,7 +513,7 @@ func TestRollbackRevertsEveryProcessToTheTargetRelease(t *testing.T) {
 	require.NoError(t, err)
 	var rb uuid.UUID
 	require.NoError(t, f.pool.QueryRow(context.Background(), `SELECT id FROM deployments WHERE service_id = $1 AND trigger = 'rollback'`, web.ID).Scan(&rb))
-	require.NoError(t, f.deps.runDeploy(context.Background(), rb, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), rb))
 	var p3 agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &p3))
 	require.Equal(t, []string{"web", "api", "clock", "worker"}, specNames(p3.Processes), "the target release' process set, in one deployment")
@@ -548,7 +548,7 @@ func TestHandleResultWritesOneTimelineEventPerProcessThatDidNotSucceed(t *testin
 	setConfig(t, f, web.ID, configJSON(t, processesConfig()))
 	v, err := f.deps.Deploy(f.ctx, web.ID, "", "")
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID))
 
 	data, _ := json.Marshal(agentprotocol.DeployResult{
 		Outcome: agentprotocol.OutcomeRolledBack, Message: "Process worker failed: the health check did not pass",

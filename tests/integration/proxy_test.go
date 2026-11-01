@@ -18,7 +18,7 @@ import (
 // externalUpstream runs the fixture app as a plain container that is NOT managed
 // by NebulaCtrl and publishes it on a host port. The proxy reaches it through the
 // host gateway (host.docker.internal), exactly like a LAN box or a host service.
-func externalUpstream(t *testing.T, version string) (addr string, port int) {
+func externalUpstream(t *testing.T, version string) (addr string) {
 	t.Helper()
 	appFixture(t)
 	port, err := freePort()
@@ -30,7 +30,7 @@ func externalUpstream(t *testing.T, version string) (addr string, port int) {
 	require.NoError(t, err)
 	t.Cleanup(func() { _, _ = sh(context.Background(), "", "docker", "rm", "-f", name) })
 	require.NoError(t, waitTCP(ctx, net.JoinHostPort("127.0.0.1", fmt.Sprint(port))))
-	return fmt.Sprintf("host.docker.internal:%d", port), port
+	return fmt.Sprintf("host.docker.internal:%d", port)
 }
 
 // getWith issues GET path through the harness proxy with extra request tweaks.
@@ -100,7 +100,7 @@ func (s *Stack) createRoute(body map[string]any) J {
 func TestProxyExternalHTTPRoute(t *testing.T) {
 	requireTier(t, tierFull)
 	s := ExclusiveStack(t)
-	addr, _ := externalUpstream(t, "ext-v1")
+	addr := externalUpstream(t, "ext-v1")
 
 	route := s.createRoute(map[string]any{
 		"name": "homelab", "protocol": "http",
@@ -285,7 +285,7 @@ func TestProxyTCPRoute(t *testing.T) {
 	web.WaitBody(t, "/", "v-tcp", 60*time.Second)
 
 	// An external TCP upstream (a plain container on a host port).
-	extAddr, _ := externalUpstream(t, "ext-tcp")
+	extAddr := externalUpstream(t, "ext-tcp")
 	listen2, err := freePort()
 	require.NoError(t, err)
 	route2 := s.createRoute(map[string]any{

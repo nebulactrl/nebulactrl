@@ -1,6 +1,7 @@
 package acl
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -48,7 +49,7 @@ func TestIsOursOwnershipRule(t *testing.T) {
 		{"member group", Rule{Action: "accept", Src: []string{"autogroup:member"}, Dst: []string{"100.64.0.2:15000"}}, false},
 		{"deny", Rule{Action: "deny", Src: []string{"100.64.0.10"}, Dst: []string{"100.64.0.2:15000"}}, false},
 	} {
-		require.Equal(t, tc.ours, IsOurs(tc.rule, known), tc.name)
+		require.Equal(t, tc.ours, isOurs(rawRule{Action: tc.rule.Action, Src: tc.rule.Src, Dst: tc.rule.Dst, Extra: map[string]json.RawMessage{}}, known), tc.name)
 	}
 }
 

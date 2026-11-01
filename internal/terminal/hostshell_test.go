@@ -186,10 +186,10 @@ func (r *hostRig) mustDial() *websocket.Conn {
 }
 
 // open dials and opens a session; it returns the socket after "opened".
-func (r *hostRig) open(confirm bool) *websocket.Conn {
+func (r *hostRig) open() *websocket.Conn {
 	r.t.Helper()
 	c := r.mustDial()
-	writeJSON(r.t, c, map[string]any{"type": "open", "cols": 100, "rows": 30, "confirmProduction": confirm})
+	writeJSON(r.t, c, map[string]any{"type": "open", "cols": 100, "rows": 30, "confirmProduction": false})
 	nextJSON(r.t, c, "opened")
 	return c
 }
@@ -242,7 +242,7 @@ func TestHostShellIsOffUnlessAnAdminEnablesIt(t *testing.T) {
 	info, err = r.svc.HostShellInfo(r.ctx(), r.server.ID)
 	require.NoError(t, err)
 	require.True(t, info.Available)
-	r.open(false)
+	r.open()
 }
 
 // The control-plane host holds the database and the secret key of every team:
@@ -280,12 +280,12 @@ func TestControlPlaneHostShellIsForTheInstanceAdminOnly(t *testing.T) {
 	require.True(t, info.Available)
 	_, err = r.svc.SetHostShell(r.ctx(), r.server.ID, HostShellSettingsView{Enabled: true})
 	require.NoError(t, err)
-	r.open(false)
+	r.open()
 }
 
 func TestSwitchingItOffEndsOpenSessionsAndRefusesNewOnes(t *testing.T) {
 	r := newHostRig(t)
-	c := r.open(false)
+	c := r.open()
 	_, err := r.svc.SetHostShell(r.ctx(), r.server.ID, HostShellSettingsView{Enabled: false})
 	require.NoError(t, err)
 	require.Equal(t, ReasonHostShellDisabled, nextJSON(t, c, "closed").Reason, "the browser is told why")
@@ -393,7 +393,7 @@ func TestHostShellNeedsTwoFactor(t *testing.T) {
 	r.store.mu.Lock()
 	r.store.twoFA[noTOTP.UserID] = true
 	r.store.mu.Unlock()
-	r.open(false)
+	r.open()
 }
 
 // ---- production ----
@@ -418,7 +418,7 @@ func TestProductionServerNeedsTheConfirmation(t *testing.T) {
 
 	// A server without production services never asks.
 	r.store.set(func(s *hostServer) { s.Production = false })
-	r.open(false)
+	r.open()
 }
 
 // ---- the session ----
@@ -530,7 +530,7 @@ func TestHostShellIdleSessionIsClosedWithAWarning(t *testing.T) {
 	require.Equal(t, 15*time.Minute, r.svc.idle, "the idle timeout is 15 minutes by default")
 	r.svc.idle = 300 * time.Millisecond
 	r.svc.idleWarning = 200 * time.Millisecond
-	c := r.open(false)
+	c := r.open()
 	require.Greater(t, nextJSON(t, c, "idle_warning").SecondsLeft, -1)
 	require.Equal(t, ReasonIdle, nextJSON(t, c, "closed").Reason)
 	eventually(t, func() bool { return len(r.store.actions()) == 2 }, "close audited")
@@ -543,8 +543,8 @@ func TestHostShellSessionLimitIsTwoPerPerson(t *testing.T) {
 	r := newHostRig(t)
 	require.Equal(t, 2, r.svc.maxHostSessions, "at most 2 concurrent host shells per user")
 	p1 := r.who.Load()
-	a := r.open(false)
-	r.open(false)
+	a := r.open()
+	r.open()
 	require.Equal(t, 2, r.svc.activeHostSessions(p1.ID()))
 
 	third := r.mustDial()
@@ -554,18 +554,18 @@ func TestHostShellSessionLimitIsTwoPerPerson(t *testing.T) {
 
 	// Another person has a budget of their own; the container terminal's budget is separate.
 	r.who.Store(r.adminWith2FA(auth.RoleOwner))
-	r.open(false)
+	r.open()
 	r.who.Store(p1)
 
 	writeJSON(t, a, map[string]any{"type": "close"})
 	nextJSON(t, a, "closed")
 	eventually(t, func() bool { return r.svc.activeHostSessions(p1.ID()) == 1 }, "closing frees the slot")
-	r.open(false)
+	r.open()
 }
 
 func TestHostShellEndsWhenTheAgentDisconnects(t *testing.T) {
 	r := newHostRig(t)
-	c := r.open(false)
+	c := r.open()
 	r.agents.stream(0).drop()
 	require.Equal(t, ReasonAgentDisconnected, nextJSON(t, c, "closed").Reason)
 	eventually(t, func() bool { return len(r.store.actions()) == 2 }, "close audited")
@@ -575,7 +575,7 @@ func TestHostShellEndsWhenTheAgentDisconnects(t *testing.T) {
 
 func TestClosingTheBrowserTabKillsTheHostShell(t *testing.T) {
 	r := newHostRig(t)
-	c := r.open(false)
+	c := r.open()
 	_ = c.CloseNow()
 	st := r.agents.stream(0)
 	eventually(t, func() bool { return len(st.sentOf(agentprotocol.TypeExecClose)) == 1 }, "the agent is told to kill the shell (and remove its helper container)")
@@ -584,7 +584,7 @@ func TestClosingTheBrowserTabKillsTheHostShell(t *testing.T) {
 
 func TestHostShellShellExitIsReported(t *testing.T) {
 	r := newHostRig(t)
-	c := r.open(false)
+	c := r.open()
 	st := r.agents.stream(0)
 	st.push(agentprotocol.TypeExecExit, agentprotocol.ExecExit{SessionID: st.id, ExitCode: 3})
 	require.Equal(t, 3, *nextJSON(t, c, "exit").ExitCode)

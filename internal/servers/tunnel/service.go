@@ -402,17 +402,18 @@ func (s *Service) Enable(ctx context.Context, serverID uuid.UUID) (TunnelView, e
 	var row db.ServerTunnel
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		q := db.New(tx)
-		var ierr error
-		if row, ierr = q.InsertServerTunnel(ctx, db.InsertServerTunnelParams{
+		ins, err := q.InsertServerTunnel(ctx, db.InsertServerTunnelParams{
 			ServerID: serverID, WorkspaceID: srv.WorkspaceID, AccountID: account, TunnelID: tun.ID, TunnelName: tun.Name,
-		}); ierr != nil {
-			return ierr
+		})
+		if err != nil {
+			return err
 		}
-		if ierr = q.SetServerTunnelIngress(ctx, db.SetServerTunnelIngressParams{ServerID: serverID, IngressHash: hash, IngressHosts: int32(hosts)}); ierr != nil {
-			return ierr
+		row = ins
+		if err := q.SetServerTunnelIngress(ctx, db.SetServerTunnelIngressParams{ServerID: serverID, IngressHash: hash, IngressHosts: int32(hosts)}); err != nil {
+			return err
 		}
-		if ierr = s.enqueueSync(ctx, tx, serverID, tun.ID, tun.Name); ierr != nil {
-			return ierr
+		if err := s.enqueueSync(ctx, tx, serverID, tun.ID, tun.Name); err != nil {
+			return err
 		}
 		return audit.Record(ctx, tx, audit.Entry{
 			Action: "tunnel.enable", ResourceType: "server", ResourceID: serverID.String(), WorkspaceID: srv.WorkspaceID,
@@ -780,7 +781,8 @@ func (s *Service) HandleResult(ctx context.Context, serverID, commandID uuid.UUI
 		return fmt.Errorf("get command: %w", err)
 	}
 	var p agentprotocol.SyncTunnelPayload
-	if json.Unmarshal(cmd.Payload, &p) != nil {
+	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+		s.log.WarnContext(ctx, "tunnel result ignored: the stored sync_tunnel payload cannot be parsed", "command_id", commandID, "err", err)
 		return nil
 	}
 	var st agentprotocol.TunnelStatus
@@ -808,7 +810,8 @@ func (s *Service) HandleUndelivered(ctx context.Context, commandID uuid.UUID, ms
 		return fmt.Errorf("get command: %w", err)
 	}
 	var p agentprotocol.SyncTunnelPayload
-	if json.Unmarshal(cmd.Payload, &p) != nil {
+	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+		s.log.WarnContext(ctx, "tunnel undelivered ignored: the stored sync_tunnel payload cannot be parsed", "command_id", commandID, "err", err)
 		return nil
 	}
 	return s.observe(ctx, cmd.ServerID, p.Tunnel.TunnelID, agentprotocol.TunnelStatus{State: agentprotocol.TunnelStateNeedsAttn, Message: msg})

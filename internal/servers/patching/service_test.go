@@ -73,12 +73,12 @@ func (e *fakeEmitter) Emit(_ context.Context, ev notifications.Event) {
 	e.evs = append(e.evs, ev)
 }
 
-func (e *fakeEmitter) ofType(t string) []notifications.Event {
+func (e *fakeEmitter) rebootRequired() []notifications.Event {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	var out []notifications.Event
 	for _, ev := range e.evs {
-		if ev.Type == t {
+		if ev.Type == notifications.TypeServerRebootRequired {
 			out = append(out, ev)
 		}
 	}

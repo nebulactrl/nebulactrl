@@ -179,7 +179,7 @@ func TestReconcileRestoresMissingContainer(t *testing.T) {
 	requireTier(t, tierFull)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, px := liveV1(t, s, "web", nil)
+	svc, px := liveV1(t, s, nil)
 	cs := s.RunningContainers(svc.ID)
 	require.Len(t, cs, 1)
 	original := s.Service(svc.ID).Str("currentDeploymentId")

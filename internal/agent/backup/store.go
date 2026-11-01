@@ -124,13 +124,13 @@ func (s *LocalStore) Put(_ context.Context, key string, r io.Reader) (err error)
 	if _, err = io.Copy(tmp, r); err != nil {
 		return err
 	}
-	if err = tmp.Sync(); err != nil {
+	if err := tmp.Sync(); err != nil {
 		return err
 	}
-	if err = tmp.Close(); err != nil {
+	if err := tmp.Close(); err != nil {
 		return err
 	}
-	if err = os.Chmod(tmp.Name(), 0o600); err != nil {
+	if err := os.Chmod(tmp.Name(), 0o600); err != nil {
 		return err
 	}
 	return os.Rename(tmp.Name(), p)
@@ -180,7 +180,7 @@ func (s *LocalStore) Delete(_ context.Context, key string) error {
 			break
 		}
 	}
-	return nil
+	return nil //nolint:nilerr // pruning emptied parent directories is best effort: the object is already deleted, and a directory that is not empty or already gone just ends the walk
 }
 
 // manifestKey is the sidecar key of a dump object.

@@ -12,6 +12,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/integrations/cloudflare"
 	"github.com/nebulactrl/nebulactrl/internal/statusroute"
 	"github.com/nebulactrl/nebulactrl/internal/systemroute"
+	"github.com/nebulactrl/nebulactrl/internal/systemroute/systemroutetest"
 	"github.com/nebulactrl/nebulactrl/internal/testutil"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
@@ -39,7 +40,7 @@ func newStatusEnv(t *testing.T) *statusEnv {
 	statusroute.Set("nebulactrl:8081")
 	t.Cleanup(func() {
 		statusroute.Set("")
-		systemroute.Set(systemroute.Config{})
+		systemroutetest.Set(systemroute.Config{})
 	})
 	return &statusEnv{pool: pool, q: q, ws: ws, cp: cp, other: other}
 }
@@ -120,7 +121,7 @@ func TestStatusRoutesNeedAConfiguredUpstream(t *testing.T) {
 
 func TestStatusRoutesNeverShadowTheDashboardOrAnotherRoute(t *testing.T) {
 	e := newStatusEnv(t)
-	systemroute.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"})
+	systemroutetest.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"})
 	e.page(t, "evil", new("nebula.example.com"), true)
 	e.page(t, "ok", new("status.example.com"), true)
 
@@ -136,7 +137,7 @@ func TestStatusRoutesNeverShadowTheDashboardOrAnotherRoute(t *testing.T) {
 // certificate allowance). The dashboard's own route keeps it.
 func TestStatusRoutesNeverUseTheDashboardsDNS01Resolver(t *testing.T) {
 	e := newStatusEnv(t)
-	systemroute.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080", DNSResolver: "cloudflare"})
+	systemroutetest.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080", DNSResolver: "cloudflare"})
 	e.page(t, "same", new("status.example.com"), true)
 	e.page(t, "sub", new("status.eu.example.com"), true)
 	e.page(t, "foreign", new("status.customer.org"), true)

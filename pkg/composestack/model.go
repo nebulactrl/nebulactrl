@@ -100,9 +100,6 @@ func stringKeys(v any) any {
 // Names returns the service names, sorted.
 func (p *Project) Names() []string { return append([]string(nil), p.names...) }
 
-// Service returns the raw mapping of a service.
-func (p *Project) Service(name string) map[string]any { return p.services[name] }
-
 // Components derives the stack's components: every service, sorted by name,
 // with its image and the container ports it declares. Index is the position in
 // the sorted list.

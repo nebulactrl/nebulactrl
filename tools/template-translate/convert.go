@@ -219,10 +219,10 @@ func (t *translator) resolve(name, op, arg string, st *svcState, ctx ctxKind) st
 		if v, ok := t.coolifyVar(name, st); ok {
 			return v
 		}
-	} else if v, ok := t.dokVar(name, st, ctx); ok {
+	} else if v, ok := t.dokVar(name, st); ok {
 		return v
 	}
-	return t.inputRef(name, def, hasDef, required)
+	return t.inputRef(name, def, required)
 }
 
 var coolifyGenRe = regexp.MustCompile(`^SERVICE_(PASSWORD|USER|BASE64|REALBASE64|HEX)_(?:(\d+)_)?(.+)$`)
@@ -304,10 +304,10 @@ func (t *translator) defineGen(name, envKey, expr string) {
 var dokTokenRe = regexp.MustCompile(`\$\{([^}]*)\}`)
 
 // dokVar resolves a compose variable through config.env / [variables].
-func (t *translator) dokVar(name string, st *svcState, ctx ctxKind) (string, bool) {
+func (t *translator) dokVar(name string, st *svcState) (string, bool) {
 	if raw, ok := t.dokEnv[name]; ok {
 		if !strings.Contains(raw, "${") {
-			return t.inputRef(name, raw, true, false), true
+			return t.inputRef(name, raw, false), true
 		}
 		return t.dokEval(name, raw, st), true
 	}
@@ -331,7 +331,7 @@ func (t *translator) dokEval(name, raw string, st *svcState) string {
 	t.dokBusy[name] = true
 	defer delete(t.dokBusy, name)
 	whole := dokTokenRe.FindStringIndex(raw)
-	single := whole != nil && whole[0] == 0 && whole[1] == len(raw)
+	single := len(whole) > 0 && whole[0] == 0 && whole[1] == len(raw)
 	n := 0
 	out := dokTokenRe.ReplaceAllStringFunc(raw, func(tok string) string {
 		inner := tok[2 : len(tok)-1]
@@ -346,7 +346,7 @@ func (t *translator) dokEval(name, raw string, st *svcState) string {
 		return tok
 	})
 	if single {
-		if m := placeholderRe.FindStringSubmatch(out); m != nil && m[0] == out && m[1] == "G" {
+		if m := placeholderRe.FindStringSubmatch(out); len(m) > 2 && m[0] == out && m[1] == "G" {
 			if g := t.gens[m[2]]; g != nil && !g.renamed && g.envKey == strings.ToUpper(m[2]) && !strings.EqualFold(name, m[2]) && envKeyRe.MatchString(name) {
 				g.envKey, g.renamed = name, true
 			}
@@ -392,9 +392,9 @@ func (t *translator) dokToken(inner, name string, st *svcState) (string, bool) {
 		t.refDomain(id, 0)
 		return placeholder("F", id), true
 	case "email":
-		return t.inputRef("ADMIN_EMAIL", "", false, true), true
+		return t.inputRef("ADMIN_EMAIL", "", true), true
 	case "username":
-		return t.inputRef("ADMIN_USERNAME", "admin", true, false), true
+		return t.inputRef("ADMIN_USERNAME", "admin", false), true
 	case "jwt", "timestamp", "timestamps":
 		t.err = skipf("unsupported Dokploy helper ${%s}", helper)
 		return "", true
@@ -402,7 +402,7 @@ func (t *translator) dokToken(inner, name string, st *svcState) (string, bool) {
 	if arg == "" {
 		if raw, ok := t.dokEnv[helper]; ok || t.src.Dok.Vars[helper] != "" {
 			_ = raw
-			return t.dokVar(helper, st, ctxEnv)
+			return t.dokVar(helper, st)
 		}
 	}
 	return "", false
@@ -440,7 +440,7 @@ func inputLabel(key string) string {
 
 // inputRef returns ${input:KEY} (declaring the input) or the inline default
 // when an input cannot carry the value.
-func (t *translator) inputRef(name, def string, hasDef, required bool) string {
+func (t *translator) inputRef(name, def string, required bool) string {
 	key := inputKey(name)
 	if key == "" || strings.Contains(def, "\x00") || strings.Contains(def, "${{") {
 		return def

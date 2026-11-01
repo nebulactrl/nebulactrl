@@ -14,7 +14,7 @@ import { commandLines, enrollmentExpired } from "./enrollment";
  * "Copied" for 1.5s. Over plain http the clipboard API is missing, so it
  * says "Select and copy" instead of pretending.
  */
-export function CopyKey({ value }: { value: string }) {
+function CopyKey({ value }: { value: string }) {
 	const [state, setState] = useState<"idle" | "copied" | "failed">("idle");
 	const [down, setDown] = useState(false);
 	const [instant, setInstant] = useState(false);

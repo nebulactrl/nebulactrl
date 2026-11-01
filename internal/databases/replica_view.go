@@ -6,7 +6,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"github.com/nebulactrl/nebulactrl/internal/databases/engines"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/services"
@@ -79,17 +78,17 @@ func (s *Service) stateView(r db.DatabaseReplica) ReplicaStateView {
 
 // Replication returns the replica-group panel of a PostgreSQL database.
 func (s *Service) Replication(ctx context.Context, serviceID uuid.UUID) (ReplicationView, error) {
-	sc, spec, _, err := s.managed(ctx, policy.ScopeProjectsRead, serviceID)
+	sc, _, _, err := s.managed(ctx, policy.ScopeProjectsRead, serviceID)
 	if err != nil {
 		return ReplicationView{}, err
 	}
-	return s.replicationView(ctx, s.q, sc, spec)
+	return s.replicationView(ctx, s.q, sc)
 }
 
-func (s *Service) replicationView(ctx context.Context, q *db.Queries, sc services.Scope, spec engines.Spec) (ReplicationView, error) {
+func (s *Service) replicationView(ctx context.Context, q *db.Queries, sc services.Scope) (ReplicationView, error) {
 	v := ReplicationView{Role: RoleStandalone, Replicas: []ReplicaMemberView{}}
 	id := sc.Service.ID
-	if _, fenced := s.fence(ctx, q, id); fenced {
+	if s.hasFence(ctx, q, id) {
 		v.Role, v.Rebuildable = RoleFenced, true
 	}
 	r, isReplica, err := s.replicaRow(ctx, q, id)

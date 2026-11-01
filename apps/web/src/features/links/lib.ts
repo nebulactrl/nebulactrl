@@ -2,7 +2,7 @@ import type { ProposedVariable } from "#/api/gen/types.gen";
 import type { Service, ServiceLink } from "#/api/models";
 
 /** A variable name the environment accepts. */
-export const KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const KEY_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 /** One proposed variable in the review: a checkbox, a name that can be edited, a value that cannot. */
 export interface ProposalRow {

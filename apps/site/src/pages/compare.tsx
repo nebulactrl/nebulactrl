@@ -33,7 +33,7 @@ const MARK_TEXT: Record<Mark, string> = {
 };
 
 /** One cell of the matrix: a mark with its icon, a dagger when the feature was not found in the vendor docs, and an optional note. */
-export function MarkView({ cell }: { cell: Cell }) {
+function MarkView({ cell }: { cell: Cell }) {
 	return (
 		<div className="flex flex-col gap-1">
 			<span
@@ -101,7 +101,7 @@ function CompareGroup({ group }: { group: Group }) {
 }
 
 /** The matrix as one accessible table: a `<tbody>` per section, the capability as a sticky row header. */
-export function CompareTable({ groups = GROUPS }: { groups?: Group[] }) {
+function CompareTable({ groups = GROUPS }: { groups?: Group[] }) {
 	return (
 		<>
 			<p className="m-0 mb-3 text-ink-3 text-sm lg:hidden">
@@ -148,7 +148,7 @@ export function CompareTable({ groups = GROUPS }: { groups?: Group[] }) {
 }
 
 /** The counts per product as dithered bars. The totals come from the matrix, so they cannot drift from the table below. */
-export function CompareSummary({
+function CompareSummary({
 	totals = TOTALS,
 }: {
 	totals?: Record<Product, Totals>;

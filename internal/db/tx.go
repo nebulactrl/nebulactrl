@@ -27,7 +27,7 @@ func InTx(ctx context.Context, pool *pgxpool.Pool, fn func(tx pgx.Tx) error) (er
 			}
 		}
 	}()
-	if err = fn(tx); err != nil {
+	if err := fn(tx); err != nil {
 		return err
 	}
 	if err = tx.Commit(ctx); err != nil {

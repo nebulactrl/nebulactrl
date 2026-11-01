@@ -1,7 +1,7 @@
 import type { LampTone } from "#/components/ui/lamp";
 
 /** Backup run states, as the API reports them. */
-export type BackupStatus =
+type BackupStatus =
 	| "queued"
 	| "running"
 	| "succeeded"
@@ -9,7 +9,7 @@ export type BackupStatus =
 	| "skipped"
 	| "expired";
 
-export type RestoreStatus =
+type RestoreStatus =
 	| "provisioning"
 	| "pre_backup"
 	| "awaiting_upload"
@@ -196,7 +196,7 @@ export function destinationWhere(d: {
 }
 
 /** What the history strip says about one UTC day. */
-export type BackupDayStatus = "up" | "degraded" | "down" | "unknown";
+type BackupDayStatus = "up" | "degraded" | "down" | "unknown";
 
 export interface BackupDay {
 	/** UTC day, `YYYY-MM-DD`. */

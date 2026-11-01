@@ -20,9 +20,9 @@ export const RANGE_PRESETS = [
 	{ id: "7d", label: "Last 7 days", ms: 7 * 24 * 60 * 60_000 },
 ] as const;
 
-export type RangePresetId = (typeof RANGE_PRESETS)[number]["id"];
+type RangePresetId = (typeof RANGE_PRESETS)[number]["id"];
 
-export const DEFAULT_PRESET: RangePresetId = "1h";
+const DEFAULT_PRESET: RangePresetId = "1h";
 
 /** A preset counted back from now, or two instants (either may be open: no `to` is "now"). */
 export type RangeSelection =

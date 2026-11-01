@@ -4,7 +4,7 @@
  */
 
 /** Number of coarseness steps between the first blocks and full detail. */
-export const LADDER_STEPS = 9;
+const LADDER_STEPS = 9;
 
 /**
  * Cell multipliers from `coarsest` down to 1 in even steps on a log scale, so

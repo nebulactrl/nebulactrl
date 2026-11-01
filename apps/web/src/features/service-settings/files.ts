@@ -4,7 +4,7 @@
 
 export const MAX_FILES = 16;
 export const MAX_FILE_BYTES = 64 * 1024;
-export const MAX_FILES_TOTAL_BYTES = 256 * 1024;
+const MAX_FILES_TOTAL_BYTES = 256 * 1024;
 
 export interface FileDraft {
 	path: string;
@@ -29,7 +29,7 @@ export function byteLength(text: string): number {
 }
 
 /** `/etc/app/config.toml`: absolute, no `.`/`..`/empty segments, not `/`. */
-export function isCleanAbsolutePath(path: string): boolean {
+function isCleanAbsolutePath(path: string): boolean {
 	if (!path.startsWith("/") || path === "/" || path.endsWith("/")) return false;
 	return !path
 		.slice(1)

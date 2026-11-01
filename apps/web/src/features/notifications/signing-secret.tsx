@@ -6,7 +6,7 @@ import { Segmented } from "#/components/ui/segmented";
 import { SNIPPET_LABEL, type SnippetLang, VERIFY_SNIPPETS } from "./model";
 
 /** How a receiver verifies a delivery, in three languages. */
-export function VerifySnippets() {
+function VerifySnippets() {
 	const [lang, setLang] = useState<SnippetLang>("node");
 	return (
 		<div className="flex flex-col gap-2">

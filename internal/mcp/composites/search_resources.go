@@ -228,7 +228,7 @@ func (c *composites) search(ctx context.Context, p *auth.Principal, q string, ty
 				return nil
 			})
 		} else {
-			run.note("servers", mcpkit.CodeForbidden, "the token lacks servers:read; servers are not searched")
+			run.forbidden("servers", "the token lacks servers:read; servers are not searched")
 		}
 	}
 	est, err := c.walkEstate(ctx, run, estateSelector{})

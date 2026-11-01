@@ -129,8 +129,8 @@ type envelope struct {
 // do performs one API call. path is relative to the API root ("/zones"). A JSON
 // body is sent when body is non-nil; the envelope's result is decoded into out
 // when out is non-nil. A failed call is an *APIError.
-func (c *Client) do(ctx context.Context, method, path string, query url.Values, body, out any) error {
-	_, err := c.doInfo(ctx, method, path, query, body, out)
+func (c *Client) do(ctx context.Context, method, path string, body, out any) error {
+	_, err := c.doInfo(ctx, method, path, nil, body, out)
 	return err
 }
 
@@ -231,10 +231,10 @@ type TokenStatus struct {
 // tried when accountID is known and the user endpoint does not accept the token.
 func (c *Client) VerifyToken(ctx context.Context, accountID string) (TokenStatus, error) {
 	var st TokenStatus
-	err := c.do(ctx, http.MethodGet, "/user/tokens/verify", nil, nil, &st)
+	err := c.do(ctx, http.MethodGet, "/user/tokens/verify", nil, &st)
 	if err != nil && accountID != "" && errors.Is(err, ErrAuth) {
 		st = TokenStatus{}
-		if err2 := c.do(ctx, http.MethodGet, "/accounts/"+url.PathEscape(accountID)+"/tokens/verify", nil, nil, &st); err2 == nil {
+		if err2 := c.do(ctx, http.MethodGet, "/accounts/"+url.PathEscape(accountID)+"/tokens/verify", nil, &st); err2 == nil {
 			return st, nil
 		}
 	}
@@ -284,7 +284,7 @@ func (c *Client) ZoneSSLMode(ctx context.Context, zoneID string) (string, error)
 	var s struct {
 		Value string `json:"value"`
 	}
-	if err := c.do(ctx, http.MethodGet, "/zones/"+url.PathEscape(zoneID)+"/settings/ssl", nil, nil, &s); err != nil {
+	if err := c.do(ctx, http.MethodGet, "/zones/"+url.PathEscape(zoneID)+"/settings/ssl", nil, &s); err != nil {
 		return "", err
 	}
 	return s.Value, nil
@@ -347,7 +347,7 @@ func (c *Client) ListRecords(ctx context.Context, zoneID, name string) ([]Record
 // GetRecord returns one record (ErrNotFound when it is gone).
 func (c *Client) GetRecord(ctx context.Context, zoneID, recordID string) (Record, error) {
 	var r Record
-	err := c.do(ctx, http.MethodGet, "/zones/"+url.PathEscape(zoneID)+"/dns_records/"+url.PathEscape(recordID), nil, nil, &r)
+	err := c.do(ctx, http.MethodGet, "/zones/"+url.PathEscape(zoneID)+"/dns_records/"+url.PathEscape(recordID), nil, &r)
 	return r, err
 }
 
@@ -364,11 +364,11 @@ func tagsRefused(err error) bool {
 func (c *Client) CreateRecord(ctx context.Context, zoneID string, in RecordInput) (Record, error) {
 	var r Record
 	path := "/zones/" + url.PathEscape(zoneID) + "/dns_records"
-	err := c.do(ctx, http.MethodPost, path, nil, in, &r)
+	err := c.do(ctx, http.MethodPost, path, in, &r)
 	if err != nil && len(in.Tags) > 0 && tagsRefused(err) {
 		in.Tags = nil
 		r = Record{}
-		err = c.do(ctx, http.MethodPost, path, nil, in, &r)
+		err = c.do(ctx, http.MethodPost, path, in, &r)
 	}
 	return r, err
 }
@@ -377,16 +377,16 @@ func (c *Client) CreateRecord(ctx context.Context, zoneID string, in RecordInput
 func (c *Client) UpdateRecord(ctx context.Context, zoneID, recordID string, in RecordInput) (Record, error) {
 	var r Record
 	path := "/zones/" + url.PathEscape(zoneID) + "/dns_records/" + url.PathEscape(recordID)
-	err := c.do(ctx, http.MethodPatch, path, nil, in, &r)
+	err := c.do(ctx, http.MethodPatch, path, in, &r)
 	if err != nil && len(in.Tags) > 0 && tagsRefused(err) {
 		in.Tags = nil
 		r = Record{}
-		err = c.do(ctx, http.MethodPatch, path, nil, in, &r)
+		err = c.do(ctx, http.MethodPatch, path, in, &r)
 	}
 	return r, err
 }
 
 // DeleteRecord deletes a record (ErrNotFound when it is already gone).
 func (c *Client) DeleteRecord(ctx context.Context, zoneID, recordID string) error {
-	return c.do(ctx, http.MethodDelete, "/zones/"+url.PathEscape(zoneID)+"/dns_records/"+url.PathEscape(recordID), nil, nil, nil)
+	return c.do(ctx, http.MethodDelete, "/zones/"+url.PathEscape(zoneID)+"/dns_records/"+url.PathEscape(recordID), nil, nil)
 }

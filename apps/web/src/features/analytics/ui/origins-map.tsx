@@ -72,15 +72,15 @@ import { useMapView } from "./use-map-view";
 const LAND = "--color-line-strong";
 
 /** Pixels from one dot to the next: the card's small map, and the large view's. */
-export const CARD_PITCH = 3;
-export const DIALOG_PITCH = 4;
+const CARD_PITCH = 3;
+const DIALOG_PITCH = 4;
 
 /**
  * The shape (width / height) the large view's box takes beside the lists, and
  * the one it prefers below 900px, where it shrinks to a region's own shape
  * rather than leave bands the grid cannot fill (`fillAspect`).
  */
-export const DIALOG_ASPECT = 1.6;
+const DIALOG_ASPECT = 1.6;
 
 /** A pan or zoom of the map: 300ms on the app's in-out curve (`--ease-pulse`). */
 const MOVE = { duration: 300, easing: "cubic-bezier(0.77, 0, 0.175, 1)" };

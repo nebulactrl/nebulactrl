@@ -61,7 +61,7 @@ func TestTheAPIHasNoSwitchToTurnManagementOff(t *testing.T) {
 	require.Equal(t, http.StatusOK, code)
 	require.Equal(t, true, st["manage"], "manage is read-only and true in a connected zone")
 	require.Equal(t, "managed", st["status"])
-	require.Len(t, e.fake.records("z1", "app.example.com"), 1)
+	require.Len(t, e.fake.records("app.example.com"), 1)
 
 	// The proxy setting stays a choice.
 	code, st = e.call(h, http.MethodPut, "/domains/"+d.ID.String()+"/dns", `{"proxied":false}`)

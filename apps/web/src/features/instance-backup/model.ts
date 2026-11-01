@@ -5,9 +5,6 @@ import type {
 import type { StatusKind } from "#/components/ui/status-icon";
 import { describeCron } from "#/features/backups/model";
 
-/** The default schedule of the control-plane backup: daily at 03:30 UTC. */
-export const DEFAULT_SCHEDULE = "30 3 * * *";
-
 /** Retention bounds the API accepts. */
 export const RETENTION_MIN = 1;
 export const RETENTION_MAX = 365;

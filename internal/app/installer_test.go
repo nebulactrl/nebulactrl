@@ -19,6 +19,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/localserver"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/internal/systemroute"
+	"github.com/nebulactrl/nebulactrl/internal/systemroute/systemroutetest"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
@@ -208,8 +209,8 @@ func TestDashboardSystemRouteOnTheControlPlaneServerOnly(t *testing.T) {
 		c.Installer.LocalEnrollToken = "nct_enroll_ccccccccccccccccccccccccccccccccccccccccccccc"
 	})
 	h.setup()
-	systemroute.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"})
-	t.Cleanup(func() { systemroute.Set(systemroute.Config{}) })
+	systemroutetest.Set(systemroute.Config{Host: "nebula.example.com", Upstream: "nebulactrl:8080"})
+	t.Cleanup(func() { systemroutetest.Set(systemroute.Config{}) })
 	ctx := context.Background()
 
 	cp := h.newOnlineServer("cp", 8*gib, 1*gib)
