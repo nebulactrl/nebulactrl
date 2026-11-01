@@ -3,9 +3,11 @@ package forward
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -39,6 +41,15 @@ func (l *fakeLedger) RecordRegistryPush(_ context.Context, team uuid.UUID, repos
 	defer l.mu.Unlock()
 	l.pushes = append(l.pushes, recordedPush{team, repository, digest, size})
 	return nil
+}
+
+// recorded returns the pushes recorded so far. The forwarder records a push
+// after the registry's response has been written, so a client can see the 201
+// before the row exists.
+func (l *fakeLedger) recorded() []recordedPush {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return slices.Clone(l.pushes)
 }
 
 // A team at its registry quota (or a full disk) cannot push; it can
@@ -95,18 +106,20 @@ func TestRegistryRecordsAcceptedManifestPushes(t *testing.T) {
 	manifest := `{"schemaVersion":2,"config":{"size":10,"digest":"sha256:x"},"layers":[{"size":100},{"size":200}]}`
 
 	require.Equal(t, http.StatusCreated, w.regDo(t, c, http.MethodPut, "/v2/"+repo+"/manifests/v1", manifest, nil).StatusCode)
-	require.Equal(t, []recordedPush{{w.teamA, repo, "sha256:" + strings.Repeat("c", 64), 310}}, l.pushes)
+	want := []recordedPush{{w.teamA, repo, "sha256:" + strings.Repeat("c", 64), 310}}
+	require.Eventually(t, func() bool { return len(l.recorded()) == 1 }, 2*time.Second, 5*time.Millisecond, "the accepted push is recorded")
+	require.Equal(t, want, l.recorded())
 
 	status = http.StatusInternalServerError
 	w.regDo(t, c, http.MethodPut, "/v2/"+repo+"/manifests/v2", manifest, nil)
 	status = http.StatusOK
 	w.regDo(t, c, http.MethodPut, "/v2/"+repo+"/manifests/v3", manifest, nil)
-	require.Len(t, l.pushes, 1, "only a 201 is a push")
+	require.Equal(t, want, l.recorded(), "only a 201 is a push")
 
 	// A blob upload is not a manifest.
 	status = http.StatusCreated
 	w.regDo(t, c, http.MethodPut, "/v2/"+repo+"/blobs/uploads/0f1c2d3e-aaaa-bbbb-cccc-1234567890ab?digest=sha256:"+strings.Repeat("d", 64), "layer", nil)
-	require.Len(t, l.pushes, 1)
+	require.Equal(t, want, l.recorded())
 	require.Equal(t, manifest, w.rg.got()[0].Body, "the manifest reaches the registry unchanged")
 }
 

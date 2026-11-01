@@ -25,8 +25,11 @@ import (
 // DefaultBatch is the number of rows rewritten per transaction.
 const DefaultBatch = 200
 
-// lockID is the advisory lock that keeps two rekey runs apart ("nbrk").
-const lockID int64 = 0x6e62726b
+// lockID is the advisory lock class that keeps two rekey runs apart ("nbrk").
+// The lock is taken per schema (the second key is the hash of
+// current_schema()): a run rewrites the tables of its own schema, so runs in
+// two schemas of one database do not conflict.
+const lockID int32 = 0x6e62726b
 
 // Options configure Run.
 type Options struct {
@@ -137,20 +140,22 @@ func Run(ctx context.Context, pool *pgxpool.Pool, box *secretbox.Box, opts Optio
 	}
 	rep := Report{KeyID: box.KeyID(), DryRun: opts.DryRun}
 
-	// One run at a time: a session advisory lock on a dedicated connection.
+	// One run per schema at a time: a session advisory lock on a dedicated connection.
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
 		return rep, fmt.Errorf("acquire connection: %w", err)
 	}
 	defer conn.Release()
 	var locked bool
-	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, lockID).Scan(&locked); err != nil {
+	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1, hashtext(current_schema()))`, lockID).Scan(&locked); err != nil {
 		return rep, fmt.Errorf("advisory lock: %w", err)
 	}
 	if !locked {
 		return rep, errors.New("another rekey is already running")
 	}
-	defer func() { _, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, lockID) }()
+	defer func() {
+		_, _ = conn.Exec(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1, hashtext(current_schema()))`, lockID)
+	}()
 
 	status, err := Status(ctx, pool, box, opts)
 	if err != nil {
