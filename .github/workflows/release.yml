@@ -75,6 +75,9 @@ jobs:
     name: gate / ci
     if: ${{ github.ref == 'refs/heads/main' && !inputs.dry_run }}
     uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+      id-token: write # ci.yml's go and web jobs upload coverage to Codecov through OIDC
     with:
       smoke: false # the full tier below contains the smoke scenarios
 
