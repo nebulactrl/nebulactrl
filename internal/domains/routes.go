@@ -212,9 +212,16 @@ func serverRoutesWith(ctx context.Context, q *db.Queries, serverID uuid.UUID, ex
 		k := routeKey{r.ServiceID, r.Domain.Component}
 		i, ok := idx[k]
 		if !ok {
+			// The default process runs what a deploy of the release runs: a
+			// singleton or files-bearing service has one replica whatever its setting.
+			n := int(r.Replicas)
+			if len(r.ReleaseConfig) > 0 {
+				snap := services.DecodeSnapshot(r.ReleaseConfig)
+				n = services.EffectiveReplicas(r.ServiceKind, snap.Config, len(snap.Volumes), n)
+			}
 			rt := agentprotocol.Route{
 				ServiceID:  r.ServiceID.String(),
-				Upstreams:  Upstreams(r.ServiceSlug, r.DeploymentID.String(), int(r.Replicas), int(r.Domain.TargetPort)),
+				Upstreams:  Upstreams(r.ServiceSlug, r.DeploymentID.String(), n, int(r.Domain.TargetPort)),
 				HealthPath: healthPath(r.ReleaseConfig),
 				Networks:   services.RouteNetworks(r.EnvironmentID, services.ReleaseBlocksEgress(r.ReleaseConfig)),
 				RouteExt:   agentprotocol.RouteExt{Maintenance: maintenanceFrom(r.MaintenanceEnabled, r.MaintenanceTitle, r.MaintenanceMessage, r.MaintenanceEta)},

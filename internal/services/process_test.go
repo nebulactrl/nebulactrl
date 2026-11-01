@@ -681,9 +681,129 @@ func TestBuildProcessViews(t *testing.T) {
 		}
 	}
 
-	none := services.BuildProcessViews(row, services.Config{Image: "x", Port: 3000}.WithDefaults(), &applied, rows, 0, obs)
+	// Every named process staged away: the running ones stay listed, Removed.
+	for _, v := range services.BuildProcessViews(row, services.Config{Image: "x", Port: 3000}.WithDefaults(), &applied, rows, 0, obs) {
+		require.Equal(t, !v.Default, v.Removed, v.Name)
+	}
+
+	none := services.BuildProcessViews(row, services.Config{Image: "x", Port: 3000}.WithDefaults(), nil, rows, 0, obs)
 	require.NotNil(t, none)
 	require.Empty(t, none, "[] for a service without processes")
+}
+
+func TestBuildProcessViewsAllNamedRemoved(t *testing.T) {
+	staged := services.Config{Image: "x", Port: 3000}.WithDefaults()
+	applied := services.Config{
+		Image: "x", Port: 3000,
+		Processes: []services.ProcessConfig{worker("worker"), worker("clock")},
+	}.WithDefaults()
+	row := db.Service{Kind: services.KindApp, Replicas: 1}
+	obs := &services.ObservedView{
+		State: "running", Health: "healthy", ReplicasReady: 3, ReplicasDesired: 3,
+		Processes: []services.ObservedProcessView{
+			{Name: "web", State: "running", Health: "healthy", ReplicasReady: 1, ReplicasDesired: 1},
+			{Name: "worker", State: "running", Health: "healthy", ReplicasReady: 1, ReplicasDesired: 1},
+			{Name: "clock", State: "running", Health: "healthy", ReplicasReady: 1, ReplicasDesired: 1},
+		},
+	}
+
+	views := services.BuildProcessViews(row, staged, &applied, nil, 0, obs)
+	var names []string
+	for _, v := range views {
+		names = append(names, v.Name)
+	}
+	require.Equal(t, []string{"web", "clock", "worker"}, names, "the running processes stay listed")
+	require.True(t, views[0].Default)
+	require.False(t, views[0].Removed)
+	require.Equal(t, 1, views[0].Scaling.Ready)
+	for _, v := range views[1:] {
+		require.True(t, v.Removed, v.Name)
+		require.NotNil(t, v.Observed, v.Name)
+		require.Equal(t, 1, v.Scaling.Ready, v.Name)
+	}
+}
+
+func TestBuildProcessViewsSingleProcessRelease(t *testing.T) {
+	// A named process was just staged; the running release still has one process.
+	staged := services.Config{Image: "x", Port: 3000, Processes: []services.ProcessConfig{worker("worker")}}.WithDefaults()
+	applied := services.Config{Image: "x", Port: 3000}.WithDefaults()
+	row := db.Service{Kind: services.KindApp, Replicas: 2}
+	obs := &services.ObservedView{
+		State: "running", Health: "healthy", ReplicasReady: 2, ReplicasDesired: 2,
+		Replicas:  []services.ObservedReplicaView{{}, {}},
+		Processes: []services.ObservedProcessView{},
+	}
+
+	views := services.BuildProcessViews(row, staged, &applied, nil, 0, obs)
+	require.Len(t, views, 2)
+	web, wk := views[0], views[1]
+	require.True(t, web.Default)
+	require.NotNil(t, web.Observed)
+	require.Equal(t, "running", web.Observed.State)
+	require.Equal(t, "healthy", web.Observed.Health)
+	require.Equal(t, 2, web.Observed.ReplicasReady)
+	require.Equal(t, 2, web.Observed.ReplicasDesired)
+	require.Equal(t, 2, web.Scaling.Ready)
+	require.True(t, wk.Pending)
+	require.Nil(t, wk.Observed)
+}
+
+func TestBuildProcessViewsIneligibleReportsEffectiveReplicas(t *testing.T) {
+	cfg := services.Config{
+		Image: "x", Port: 3000,
+		Processes: []services.ProcessConfig{worker("clock", func(p *services.ProcessConfig) { p.Singleton = true }), worker("queue")},
+	}.WithDefaults()
+	row := db.Service{Kind: services.KindApp, Replicas: 1}
+	rows := []db.ServiceProcessScale{{Process: "clock", Replicas: 3}, {Process: "queue", Replicas: 3}}
+
+	for _, v := range services.BuildProcessViews(row, cfg, nil, rows, 0, nil) {
+		switch v.Name {
+		case "clock":
+			require.Equal(t, 1, v.Scaling.Replicas, "a singleton runs one instance whatever the stored scale")
+		case "queue":
+			require.Equal(t, 3, v.Scaling.Replicas)
+		}
+	}
+	for _, v := range services.BuildProcessViews(row, cfg, nil, rows, 1, nil) {
+		require.Equal(t, 1, v.Scaling.Replicas, "%s: volumes force one instance", v.Name)
+	}
+}
+
+func TestBuildScalingViewReadyIsDefaultProcess(t *testing.T) {
+	cfg := services.Config{
+		Image: "x", Port: 8080,
+		Processes: []services.ProcessConfig{worker("scheduler"), worker("worker")},
+	}.WithDefaults()
+	raw, err := json.Marshal(cfg)
+	require.NoError(t, err)
+	row := db.Service{Kind: services.KindApp, Replicas: 1, Config: raw}
+	obs := &services.ObservedView{
+		State: "running", Health: "healthy", ReplicasReady: 3, ReplicasDesired: 3,
+		Replicas: []services.ObservedReplicaView{{}, {}, {}},
+		Processes: []services.ObservedProcessView{
+			{Name: "web", State: "running", Health: "healthy", ReplicasReady: 1, ReplicasDesired: 1},
+			{Name: "scheduler", State: "running", Health: "healthy", ReplicasReady: 1, ReplicasDesired: 1},
+			{Name: "worker", State: "running", Health: "healthy", ReplicasReady: 1, ReplicasDesired: 1},
+		},
+	}
+
+	got := services.BuildScalingView(row, 0, obs, &cfg)
+	require.Equal(t, 1, got.Replicas)
+	require.Equal(t, 1, got.Ready, "the default process' ready count, not the sum over processes")
+	require.Equal(t, 3, obs.ReplicasReady, "service-wide totals stay untouched")
+
+	// The default process was renamed in the staged config: it is still observed under the release's name.
+	renamed := cfg
+	renamed.ProcessName = "main"
+	raw, err = json.Marshal(renamed)
+	require.NoError(t, err)
+	row.Config = raw
+	require.Equal(t, 1, services.BuildScalingView(row, 0, obs, &cfg).Ready)
+
+	// A single-process release keeps the service-level count.
+	single := services.Config{Image: "x", Port: 8080}.WithDefaults()
+	single3 := &services.ObservedView{State: "running", Health: "healthy", ReplicasReady: 3, ReplicasDesired: 3, Replicas: []services.ObservedReplicaView{{}, {}, {}}}
+	require.Equal(t, 3, services.BuildScalingView(row, 0, single3, &single).Ready)
 }
 
 func TestDecodeObservedHasNoNullProcesses(t *testing.T) {
@@ -859,13 +979,36 @@ func TestCheckProcessesInUse(t *testing.T) {
 	plain := services.Config{Image: "x", Port: 3000}.WithDefaults()
 	apiErr(t, services.CheckProcessesInUse(bg, f.q, svc.ID, plain), "process_in_use")
 
-	// The process no longer listens on the domain's port.
+	// A process that changes its port keeps its domain; the domain follows the port.
 	moved := services.Config{Image: "x", Port: 3000, Processes: []services.ProcessConfig{
 		worker("api", func(p *services.ProcessConfig) { p.Port = 4001 }), worker("queue"),
 	}}.WithDefaults()
-	apiErr(t, services.CheckProcessesInUse(bg, f.q, svc.ID, moved), "process_in_use")
+	require.NoError(t, services.CheckProcessesInUse(bg, f.q, svc.ID, moved))
+	require.NoError(t, services.FollowProcessPorts(bg, f.q, svc.ID, moved))
+	doms, err := f.q.ListServiceDomains(bg, svc.ID)
+	require.NoError(t, err)
+	ports := map[string]int32{}
+	for _, d := range doms {
+		ports[d.Hostname] = d.TargetPort
+	}
+	require.Equal(t, map[string]int32{"app.example.com": 3000, "api.example.com": 4001}, ports, "only the domain of the process follows its port")
 	noPort := services.Config{Image: "x", Port: 3000, Processes: []services.ProcessConfig{worker("api"), worker("queue")}}.WithDefaults()
 	apiErr(t, services.CheckProcessesInUse(bg, f.q, svc.ID, noPort), "process_in_use")
+
+	// A process that became the default process no longer serves a domain of its own name.
+	nowDefault := services.Config{Image: "x", Port: 3000, ProcessName: "api", Processes: []services.ProcessConfig{worker("queue")}}.WithDefaults()
+	ae = apiErr(t, services.CheckProcessesInUse(bg, f.q, svc.ID, nowDefault), "process_in_use")
+	require.Equal(t, "api", ae.Details["process"])
+
+	// A domain of the old name of a staged rename counts for the new name.
+	renamed := services.Config{Image: "x", Port: 3000, Processes: []services.ProcessConfig{
+		worker("gateway", func(p *services.ProcessConfig) { p.Port = 4001 }), worker("queue"),
+	}}.WithDefaults()
+	apiErr(t, services.CheckProcessesInUse(bg, f.q, svc.ID, renamed), "process_in_use")
+	require.NoError(t, f.q.UpsertProcessRename(bg, db.UpsertProcessRenameParams{ServiceID: svc.ID, FromProcess: "api", ToProcess: "gateway"}))
+	require.NoError(t, services.CheckProcessesInUse(bg, f.q, svc.ID, renamed))
+	renamedNoPort := services.Config{Image: "x", Port: 3000, Processes: []services.ProcessConfig{worker("gateway"), worker("queue")}}.WithDefaults()
+	apiErr(t, services.CheckProcessesInUse(bg, f.q, svc.ID, renamedNoPort), "process_in_use")
 }
 
 func TestDomainViewsSplitComponentAndProcess(t *testing.T) {
@@ -930,11 +1073,12 @@ func TestProcessScaleQueries(t *testing.T) {
 	_, err = q.SetProcessScaleBlocked(bg, db.SetProcessScaleBlockedParams{ServiceID: svc.ID, Process: "queue", Reason: &reason})
 	require.ErrorIs(t, err, pgx.ErrNoRows)
 
-	// Rename keeps the row, prune drops the rest.
-	require.NoError(t, q.RenameProcessScale(bg, db.RenameProcessScaleParams{ServiceID: svc.ID, FromProcess: "queue", ToProcess: "jobs"}))
+	// A copy gives the target the settings of another row and keeps the original; prune drops the rest.
+	require.NoError(t, q.CopyProcessScale(bg, db.CopyProcessScaleParams{ServiceID: svc.ID, FromProcess: "queue", ToProcess: "jobs"}))
 	got := mustScales(t, q, svc.ID)
-	require.Equal(t, []string{"jobs", "mailer"}, processesOf(got))
+	require.Equal(t, []string{"jobs", "mailer", "queue"}, processesOf(got))
 	require.EqualValues(t, 3, got[0].Replicas)
+	require.Equal(t, "queue", got[2].Process, "the original stays")
 	require.NoError(t, q.PruneProcessScales(bg, db.PruneProcessScalesParams{ServiceID: svc.ID, Keep: []string{"jobs"}}))
 	require.Equal(t, []string{"jobs"}, processesOf(mustScales(t, q, svc.ID)))
 	require.NoError(t, q.PruneProcessScales(bg, db.PruneProcessScalesParams{ServiceID: svc.ID, Keep: []string{}}))
@@ -1014,12 +1158,13 @@ func TestClampProcessReplicas(t *testing.T) {
 		require.False(t, services.DecodeAutoscaling(r.Autoscaling).Enabled, r.Process)
 	}
 
-	// Without processes every row goes.
+	// A release without processes (a rollback) keeps the rows of processes the
+	// staged configuration still has.
 	plain := services.Config{Image: "x", Port: 3000}.WithDefaults()
 	require.NoError(t, f.inTx(true, func(tx pgx.Tx) error {
 		return services.ClampProcessReplicas(f.ctx, tx, f.scope(tx, svc.ID), plain, 0)
 	}))
-	require.Empty(t, mustScales(t, q, svc.ID))
+	require.ElementsMatch(t, []string{"queue", "clock"}, processesOf(mustScales(t, q, svc.ID)))
 }
 
 func TestCombineQueries(t *testing.T) {

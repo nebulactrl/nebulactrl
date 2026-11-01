@@ -370,6 +370,47 @@ func TestApplyProcessesTailnetOnlyClearsEveryRoute(t *testing.T) {
 	}
 }
 
+func TestApplyProcessesRoutesADomainOfAStagedRenameToTheNewName(t *testing.T) {
+	f := newRouteFixture(t)
+	f.allowProcesses(true)
+	web := f.web("shop")
+	withQueue := services.Config{
+		Image: "traefik/whoami:latest", Port: 3000,
+		Processes: []services.ProcessConfig{{Name: "queue", StartCommand: []string{"bin/queue"}, Port: 4000}},
+	}.WithDefaults()
+	setConfig(t, f, web.ID, configJSON(t, withQueue))
+	_, err := f.doms.CreateForComponent(f.ctx, web.ID, "queue.example.com", 0, "queue", domains.RuleInput{})
+	require.NoError(t, err)
+
+	// The rename is staged: the config names the process worker, the domain keeps queue.
+	renamed := services.Config{
+		Image: "traefik/whoami:latest", Port: 3000,
+		Processes: []services.ProcessConfig{{Name: "worker", StartCommand: []string{"bin/queue"}, Port: 4000}},
+	}.WithDefaults()
+	setConfig(t, f, web.ID, configJSON(t, renamed))
+	require.NoError(t, f.q.UpsertProcessRename(context.Background(), db.UpsertProcessRenameParams{ServiceID: web.ID, FromProcess: "queue", ToProcess: "worker"}))
+
+	sc, err := services.LoadScopeInternal(context.Background(), f.q, web.ID)
+	require.NoError(t, err)
+	rows, err := f.q.ListServiceDomains(context.Background(), web.ID)
+	require.NoError(t, err)
+	require.Equal(t, "queue", rows[0].Component, "the domain still names the old process")
+
+	var pl agentprotocol.DeployPayload
+	require.NoError(t, f.deps.applyProcesses(context.Background(), f.q, sc, f.server.ID, sc.Config(), 0, rows, false, 1, &pl))
+	worker := specOf(t, pl.Processes, "worker")
+	require.Equal(t, []string{"queue.example.com"}, worker.Hosts)
+	require.Len(t, worker.DomainRules, 1)
+	require.Equal(t, "queue.example.com", worker.DomainRules[0].Host)
+	require.Empty(t, pl.Hosts, "the default process serves nothing")
+
+	// Without the staged rename the domain matches no process of the config.
+	require.NoError(t, f.q.DeleteProcessRename(context.Background(), db.DeleteProcessRenameParams{ServiceID: web.ID, ToProcess: "worker"}))
+	var plain agentprotocol.DeployPayload
+	require.NoError(t, f.deps.applyProcesses(context.Background(), f.q, sc, f.server.ID, sc.Config(), 0, rows, false, 1, &plain))
+	require.Empty(t, specOf(t, plain.Processes, "worker").Hosts)
+}
+
 func TestProcessesNeedACapableAgent(t *testing.T) {
 	f := newRouteFixture(t)
 	web := f.web("shop")

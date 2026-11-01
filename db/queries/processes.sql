@@ -53,10 +53,45 @@ RETURNING *;
 DELETE FROM service_process_scale
 WHERE service_id = sqlc.arg(service_id) AND NOT (process = ANY(sqlc.arg(keep)::text[]));
 
--- name: RenameProcessScale :exec
-UPDATE service_process_scale
-SET process = sqlc.arg(to_process), updated_at = now()
-WHERE service_id = sqlc.arg(service_id) AND process = sqlc.arg(from_process);
+-- name: DeleteProcessScale :exec
+DELETE FROM service_process_scale
+WHERE service_id = sqlc.arg(service_id) AND process = sqlc.arg(process);
+
+-- name: CopyProcessScale :exec
+-- Gives to_process a copy of the settings of from_process (nothing when it has no row). The target
+-- must have no row: delete it first (a leftover of a removed process would hit the primary key).
+INSERT INTO service_process_scale (service_id, process, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason)
+SELECT s.service_id, sqlc.arg(to_process)::text, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason
+FROM service_process_scale s
+WHERE s.service_id = sqlc.arg(service_id) AND s.process = sqlc.arg(from_process);
+
+-- name: ListProcessRenames :many
+-- Staged renames of named processes: the running release still has from_process, the staged config to_process.
+SELECT * FROM service_process_rename
+WHERE service_id = $1
+ORDER BY to_process;
+
+-- name: UpsertProcessRename :exec
+INSERT INTO service_process_rename (service_id, from_process, to_process)
+VALUES (sqlc.arg(service_id), sqlc.arg(from_process), sqlc.arg(to_process))
+ON CONFLICT (service_id, to_process) DO UPDATE SET from_process = EXCLUDED.from_process;
+
+-- name: DeleteProcessRename :exec
+DELETE FROM service_process_rename
+WHERE service_id = sqlc.arg(service_id) AND to_process = sqlc.arg(to_process);
+
+-- name: DeleteStaleProcessRenames :exec
+-- Drops the renames the staged config no longer carries: the new name is gone from `keep` (the named
+-- processes of the config) or the old name is back in it.
+DELETE FROM service_process_rename
+WHERE service_id = sqlc.arg(service_id)
+  AND (NOT (to_process = ANY(sqlc.arg(keep)::text[])) OR from_process = ANY(sqlc.arg(keep)::text[]));
+
+-- name: SetProcessDomainsPort :exec
+-- Follows a change of the port of a named process: the domains that route to it (component = its name).
+UPDATE domains
+SET target_port = sqlc.arg(target_port)
+WHERE service_id = sqlc.arg(service_id) AND component = sqlc.arg(component) AND target_port <> sqlc.arg(target_port);
 
 -- name: ListAutoscalingProcesses :many
 -- Named processes with autoscaling enabled, with their service and the server of its current deployment.

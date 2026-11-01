@@ -775,6 +775,10 @@ type LogsSubscribe struct {
 	// (LabelProcess); "" = every process. Mutually exclusive with Component
 	// (the control plane enforces it).
 	Process string `json:"process,omitempty"`
+	// Default says Process names the service's default process: the agent
+	// matches it as the container that runs the default process (unlabeled, or
+	// labelled as the default), whatever name the container carries.
+	Default bool `json:"default,omitempty"`
 }
 
 // LogsUnsubscribe ends a subscription.

@@ -204,6 +204,11 @@ func (s *Service) ServiceCentralLogs(ctx context.Context, serviceID uuid.UUID, p
 	if err := services.CheckLogProcess(sc, p.Process); err != nil {
 		return CentralLogPage{}, err
 	}
+	// The line prefix is the release's process name, which a staged rename or
+	// a just-staged process leaves different from the requested one.
+	if p.Process, _, _, err = services.ResolveServiceProcessFilter(ctx, s.q, sc.Service, p.Process); err != nil {
+		return CentralLogPage{}, err
+	}
 	if err := p.validate(); err != nil {
 		return CentralLogPage{}, err
 	}

@@ -480,11 +480,16 @@ func (s *Service) finalizeSuccess(ctx context.Context, tx pgx.Tx, dc depCtx, dep
 		if err != nil {
 			return err
 		}
+		// A staged rename of a process takes its scale to the new name now that
+		// the release runs it.
+		if err := services.FinalizeProcessRenames(ctx, tx, sc, snap.Config); err != nil {
+			return err
+		}
 		if _, err := services.ClampReplicas(ctx, tx, sc, snap.Config, int(vols)); err != nil {
 			return err
 		}
 		// Processes that cannot scale run one replica from now on, and the scale of
-		// processes the release dropped is forgotten.
+		// processes neither the release nor the staged configuration has is forgotten.
 		if err := services.ClampProcessReplicas(ctx, tx, sc, snap.Config, int(vols)); err != nil {
 			return err
 		}

@@ -540,6 +540,39 @@ func TestLogsSubscribeStreamsRuntimeLinesThenEnds(t *testing.T) {
 	require.Equal(t, agentprotocol.OutcomeFailed, res.Outcome)
 }
 
+func TestLogsSubscribeDefaultProcessMatchesWhatTheContainerIsCalled(t *testing.T) {
+	subscribe := func(r *rig, stream, process string, isDefault bool) agentprotocol.ResultFrame {
+		raw, err := json.Marshal(agentprotocol.LogsSubscribe{StreamID: stream, ServiceID: svcID, Tail: 10, Process: process, Default: isDefault})
+		require.NoError(t, err)
+		return r.eng.HandleCommand(context.Background(), agentprotocol.Command{ID: "log-" + stream, Kind: agentprotocol.KindLogsSubscribe, Payload: raw})
+	}
+
+	// A single-process release has unlabeled containers: the default process
+	// is one of them, whatever the staged config names it.
+	r := newRig(t, nil)
+	r.dk.seed(oldCtr, svcID, depV1, true, time.Hour)
+	r.dk.logText[oldCtr] = "hello"
+	require.Equal(t, agentprotocol.OutcomeSucceeded, subscribe(r, "d", "web", true).Outcome)
+	require.Eventually(t, func() bool { return r.streamEnded("d") }, 3*time.Second, 10*time.Millisecond)
+	require.Equal(t, []string{"hello"}, r.streamLines("d"))
+	require.Equal(t, agentprotocol.OutcomeFailed, subscribe(r, "n", "web", false).Outcome, "a named process is not the unlabeled container")
+
+	// A release with processes labels the default one by its running name; a
+	// rename that is still staged asks for it by the new name.
+	r = newRig(t, nil)
+	res, dr := r.deploy(processPayload(), nil)
+	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
+	r.dk.mu.Lock()
+	r.dk.logText[replicaName(depV2, 0)] = "serving"
+	r.dk.logText[replicaName(depV2, 1)] = "serving"
+	r.dk.logText[pname(depV2, "worker", 0)] = "job a"
+	r.dk.mu.Unlock()
+	require.Equal(t, agentprotocol.OutcomeSucceeded, subscribe(r, "http", "http", true).Outcome)
+	require.Eventually(t, func() bool { return r.streamEnded("http") }, 3*time.Second, 10*time.Millisecond)
+	require.Equal(t, []string{"[r0] serving", "[r1] serving"}, r.streamLines("http"))
+	require.Equal(t, agentprotocol.OutcomeFailed, subscribe(r, "lit", "http", false).Outcome, "without Default the name is compared literally")
+}
+
 func TestUnknownKindFails(t *testing.T) {
 	r := newRig(t, nil)
 	res := r.eng.HandleCommand(context.Background(), agentprotocol.Command{ID: "x", Kind: "format_disk"})
