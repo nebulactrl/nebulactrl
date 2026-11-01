@@ -28,7 +28,7 @@ import {
 /** A press moves less than this many pixels and it is still a click. */
 const DRAG_THRESHOLD = 4;
 /** The map redraws, and the labels are placed again, this long after the last movement. */
-export const SETTLE_DEBOUNCE_MS = 100;
+const SETTLE_DEBOUNCE_MS = 100;
 /** A pull past the edge settles back over this long, ease-out. */
 const REBOUND_MS = 200;
 /** A frame that took longer than this (a background tab) counts as this. */

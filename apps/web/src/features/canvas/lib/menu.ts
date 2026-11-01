@@ -42,8 +42,8 @@ export type MenuIconName =
 	| `create-${MenuEntryId}`;
 
 /** Every way to add a service, as the Create button lists them. */
-export type CreateSource = MenuEntryId;
-export type InspectorSection = "overview" | "variables" | "settings";
+type CreateSource = MenuEntryId;
+type InspectorSection = "overview" | "variables" | "settings";
 
 /** What choosing a row does. The canvas owns the handlers. */
 export type MenuAction =
@@ -96,7 +96,7 @@ export interface MenuItem {
 	action: MenuAction;
 }
 
-export interface MenuSection {
+interface MenuSection {
 	label?: string;
 	items: MenuItem[];
 	/** A line under the rows: why one is off, or what is not listed. */
@@ -344,7 +344,7 @@ export function internetMenu({
 
 // --- a cable ---------------------------------------------------------------------
 
-export interface EdgeEnd {
+interface EdgeEnd {
 	/** The node the cable ends on: a service, a collapsed group or the Internet. */
 	nodeId: string;
 	name: string;

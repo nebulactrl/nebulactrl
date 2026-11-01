@@ -199,7 +199,7 @@ func (s *Service) afterVolumeBackupFinished(ctx context.Context, b db.VolumeBack
 	if err != nil {
 		return
 	}
-	s.publish(sc, EventBackupUpdated, b.ID)
+	s.publish(sc, b.ID)
 	destName := ""
 	if d, err := s.q.GetBackupDestinationInternal(ctx, b.DestinationID); err == nil {
 		destName = d.Name
@@ -234,14 +234,17 @@ func (s *Service) afterVolumeBackupFinished(ctx context.Context, b db.VolumeBack
 func (s *Service) finishVolumeForget(ctx context.Context, cmd db.AgentCommand, ok bool, data agentprotocol.VolumeForgetResult, msg string) error {
 	var p agentprotocol.VolumeForgetPayload
 	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+		s.log.WarnContext(ctx, "volume forget result ignored: the stored payload cannot be parsed", "command_id", cmd.ID, "err", err)
 		return nil
 	}
 	serviceID, err := uuid.Parse(p.ServiceID)
 	if err != nil {
+		s.log.WarnContext(ctx, "volume forget result ignored: the stored payload has no valid service id", "command_id", cmd.ID, "err", err)
 		return nil
 	}
 	destID, err := uuid.Parse(p.Repo.Destination.ID)
 	if err != nil {
+		s.log.WarnContext(ctx, "volume forget result ignored: the stored payload has no valid destination id", "command_id", cmd.ID, "err", err)
 		return nil
 	}
 	var ids []uuid.UUID
@@ -282,7 +285,7 @@ func (s *Service) finishVolumeForget(ctx context.Context, cmd db.AgentCommand, o
 	}
 	if sc, err := services.LoadScopeInternal(ctx, s.q, serviceID); err == nil {
 		for _, b := range touched {
-			s.publish(sc, EventBackupUpdated, b.ID)
+			s.publish(sc, b.ID)
 		}
 	}
 	return nil
@@ -328,6 +331,7 @@ func (s *Service) finishVolumeRestoreCommand(ctx context.Context, cmd db.AgentCo
 func (s *Service) finishVolumeRemove(ctx context.Context, cmd db.AgentCommand, ok bool, msg string) error {
 	var p agentprotocol.VolumeRemovePayload
 	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+		s.log.WarnContext(ctx, "volume remove result ignored: the stored payload cannot be parsed", "command_id", cmd.ID, "err", err)
 		return nil
 	}
 	if !ok {
@@ -349,7 +353,7 @@ func (s *Service) finishVolumeRemove(ctx context.Context, cmd db.AgentCommand, o
 	if sid, err := uuid.Parse(p.ServiceID); err == nil {
 		if sc, err := services.LoadScopeInternal(ctx, s.q, sid); err == nil {
 			for _, id := range ids {
-				s.publish(sc, EventBackupUpdated, id)
+				s.publish(sc, id)
 			}
 		}
 	}

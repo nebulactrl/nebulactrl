@@ -15,7 +15,7 @@ import (
 var t2allKinds = []string{KindImage, KindGit, KindDatabase, KindRoute, KindStack}
 
 func TestCatalogSanity(t *testing.T) {
-	cat := Catalog()
+	cat := Fields
 	require.NotEmpty(t, cat)
 	seen := map[string]bool{}
 	for _, f := range cat {
@@ -60,12 +60,6 @@ func TestCatalogSanity(t *testing.T) {
 		}
 		require.Equal(t, want, got)
 	})
-	t.Run("the catalog is a copy", func(t *testing.T) {
-		a := Catalog()
-		a[0].ID = "mutated"
-		a[0].Kinds = []string{"mutated"}
-		require.NotEqual(t, "mutated", Catalog()[0].ID)
-	})
 	t.Run("units follow the key name", func(t *testing.T) {
 		for _, f := range cat {
 			switch {
@@ -84,7 +78,7 @@ func TestCatalogSanity(t *testing.T) {
 
 func TestLookupField(t *testing.T) {
 	samples := []string{"web", "NODE_ENV", "shop.acme.com", "shop.acme.com/api", "a.b", "x"}
-	for _, f := range Catalog() {
+	for _, f := range Fields {
 		for _, sample := range samples {
 			id := strings.Replace(f.ID, "*", sample, 1)
 			if !strings.Contains(f.ID, "*") && sample != samples[0] {
@@ -135,7 +129,7 @@ func TestLookupField(t *testing.T) {
 
 func TestDockerCatalogEntries(t *testing.T) {
 	var catalogDocker []string
-	for _, f := range Catalog() {
+	for _, f := range Fields {
 		if rest, ok := strings.CutPrefix(f.ID, "config.docker."); ok {
 			catalogDocker = append(catalogDocker, rest)
 			require.Equal(t, AppliesStaged, f.Applies, f.ID)
@@ -662,7 +656,7 @@ func TestFieldsPerKind(t *testing.T) {
 				hit[spec.ID] = true
 			}
 		}
-		for _, f := range Catalog() {
+		for _, f := range Fields {
 			require.True(t, hit[f.ID], "no service in the kinds document produces %q", f.ID)
 		}
 	})

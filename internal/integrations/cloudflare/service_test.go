@@ -124,7 +124,7 @@ func newEnv(t *testing.T) *env {
 	require.NoError(t, err)
 
 	f := newFake(t)
-	f.addZone("z1", "example.com", "acc1")
+	f.addZone("z1", "example.com")
 	logs := &bytes.Buffer{}
 	jm := jobs.New(pool, nil)
 	svc := NewService(pool, box, jm, slog.New(slog.NewTextHandler(logs, &slog.HandlerOptions{Level: slog.LevelDebug})))
@@ -285,7 +285,7 @@ func TestConnectionLifecycleNeverLeaksTheToken(t *testing.T) {
 	require.Equal(t, "invalid_account", code(t, err))
 
 	// The zone cache refreshes on test.
-	e.fake.addZone("z2", "example.org", "acc1")
+	e.fake.addZone("z2", "example.org")
 	v, err = e.svc.Test(e.admin)
 	require.NoError(t, err)
 	require.Equal(t, 2, v.ZoneCount)
@@ -350,7 +350,7 @@ func TestDomainGetsAMarkedRecordAndFollowsItsServer(t *testing.T) {
 
 	// Create.
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	recs := e.fake.records("z1", "app.example.com")
+	recs := e.fake.records("app.example.com")
 	require.Len(t, recs, 1)
 	rec := recs[0]
 	require.Equal(t, "A", rec.Type)
@@ -379,7 +379,7 @@ func TestDomainGetsAMarkedRecordAndFollowsItsServer(t *testing.T) {
 	// The server's public IP changes: the same record is retargeted in place.
 	e.exec(t, `UPDATE servers SET public_ip = '192.0.2.44' WHERE id = $1`, e.srvA.ID)
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	recs = e.fake.records("z1", "app.example.com")
+	recs = e.fake.records("app.example.com")
 	require.Len(t, recs, 1)
 	require.Equal(t, rec.ID, recs[0].ID)
 	require.Equal(t, "192.0.2.44", recs[0].Content)
@@ -395,7 +395,7 @@ func TestDomainGetsAMarkedRecordAndFollowsItsServer(t *testing.T) {
 	e.inTx(t, func(tx pgx.Tx) error { return e.svc.EnqueueSyncService(bg, tx, e.service.ID) })
 	require.Equal(t, 1, e.count(t, `SELECT count(*) FROM river_job WHERE kind = 'cloudflare_sync_domain' AND state = 'available'`))
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	recs = e.fake.records("z1", "app.example.com")
+	recs = e.fake.records("app.example.com")
 	require.Len(t, recs, 1)
 	require.Equal(t, ipB, recs[0].Content)
 	require.Equal(t, rec.ID, recs[0].ID)
@@ -404,7 +404,7 @@ func TestDomainGetsAMarkedRecordAndFollowsItsServer(t *testing.T) {
 	e.tunnels.set(e.srvB.ID, "t1.cfargotunnel.com")
 	e.fake.resetWrites()
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	recs = e.fake.records("z1", "app.example.com")
+	recs = e.fake.records("app.example.com")
 	require.Len(t, recs, 1)
 	require.Equal(t, "CNAME", recs[0].Type)
 	require.Equal(t, "t1.cfargotunnel.com", recs[0].Content)
@@ -418,7 +418,7 @@ func TestDomainGetsAMarkedRecordAndFollowsItsServer(t *testing.T) {
 	// Without the tunnel it is an address record again.
 	e.tunnels.set(e.srvB.ID, "")
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	recs = e.fake.records("z1", "app.example.com")
+	recs = e.fake.records("app.example.com")
 	require.Len(t, recs, 1)
 	require.Equal(t, "A", recs[0].Type)
 	require.Equal(t, ipB, recs[0].Content)
@@ -432,7 +432,7 @@ func TestIPv6ServerGetsAnAAAARecord(t *testing.T) {
 	e.exec(t, `UPDATE servers SET public_ip = '2001:db8::10' WHERE id = $1`, e.srvA.ID)
 	d := e.domain(t, "v6.example.com", "")
 	require.NoError(t, e.svc.SyncDomain(context.Background(), d.ID))
-	recs := e.fake.records("z1", "v6.example.com")
+	recs := e.fake.records("v6.example.com")
 	require.Len(t, recs, 1)
 	require.Equal(t, "AAAA", recs[0].Type)
 	require.Equal(t, "2001:db8::10", recs[0].Content)
@@ -444,7 +444,7 @@ func TestRecordsStillGetCreatedWhenThePlanHasNoTags(t *testing.T) {
 	e.fake.noTags = true
 	d := e.domain(t, "app.example.com", "")
 	require.NoError(t, e.svc.SyncDomain(context.Background(), d.ID))
-	recs := e.fake.records("z1", "app.example.com")
+	recs := e.fake.records("app.example.com")
 	require.Len(t, recs, 1)
 	require.Equal(t, Marker(d.ID), recs[0].Comment)
 	require.Empty(t, recs[0].Tags)
@@ -455,7 +455,7 @@ func TestUnmarkedRecordsAreNeverModifiedUnlessAdopted(t *testing.T) {
 	e := newEnv(t)
 	bg := context.Background()
 	e.connect(t)
-	foreign := e.fake.put("z1", Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99", Comment: "my own note"})
+	foreign := e.fake.put(Record{Type: "A", Name: "app.example.com", Content: "198.51.100.99", Comment: "my own note"})
 	d := e.domain(t, "app.example.com", "")
 
 	// Sync reports but never writes.
@@ -475,7 +475,7 @@ func TestUnmarkedRecordsAreNeverModifiedUnlessAdopted(t *testing.T) {
 	_, err = e.svc.Fix(e.dev, d.ID, false)
 	require.Equal(t, "adoption_required", code(t, err))
 	require.Empty(t, e.fake.writeLog())
-	got := e.fake.records("z1", "app.example.com")
+	got := e.fake.records("app.example.com")
 	require.Equal(t, "198.51.100.99", got[0].Content)
 	require.Equal(t, "my own note", got[0].Comment)
 
@@ -484,13 +484,13 @@ func TestUnmarkedRecordsAreNeverModifiedUnlessAdopted(t *testing.T) {
 	_, err = e.svc.Fix(e.dev, d.ID, true)
 	require.Equal(t, "forbidden", code(t, err))
 	require.Empty(t, e.fake.writeLog())
-	require.Equal(t, "198.51.100.99", e.fake.records("z1", "app.example.com")[0].Content)
+	require.Equal(t, "198.51.100.99", e.fake.records("app.example.com")[0].Content)
 
 	// Adopting takes over exactly that record.
 	st, err = e.svc.Fix(e.admin, d.ID, true)
 	require.NoError(t, err)
 	require.Equal(t, StatusManaged, st.Status)
-	got = e.fake.records("z1", "app.example.com")
+	got = e.fake.records("app.example.com")
 	require.Len(t, got, 1)
 	require.Equal(t, foreign.ID, got[0].ID, "the existing record is updated, not replaced")
 	require.Equal(t, ipA, got[0].Content)
@@ -500,7 +500,7 @@ func TestUnmarkedRecordsAreNeverModifiedUnlessAdopted(t *testing.T) {
 	require.Contains(t, upd[0].Meta, `"adopted": true`)
 
 	// A record with the right target that NebulaCtrl did not create is left alone ("present").
-	e.fake.put("z1", Record{Type: "A", Name: "ok.example.com", Content: ipA, Proxied: true})
+	e.fake.put(Record{Type: "A", Name: "ok.example.com", Content: ipA, Proxied: true})
 	ok := e.domain(t, "ok.example.com", "")
 	e.fake.resetWrites()
 	require.NoError(t, e.svc.SyncDomain(bg, ok.ID))
@@ -512,7 +512,7 @@ func TestUnmarkedRecordsAreNeverModifiedUnlessAdopted(t *testing.T) {
 	require.False(t, st.NeedsAdopt)
 
 	// A foreign CNAME blocks the address record: it stays until the explicit replace removes it.
-	blocker := e.fake.put("z1", Record{Type: "CNAME", Name: "alias.example.com", Content: "elsewhere.example.net"})
+	blocker := e.fake.put(Record{Type: "CNAME", Name: "alias.example.com", Content: "elsewhere.example.net"})
 	al := e.domain(t, "alias.example.com", "")
 	e.fake.resetWrites()
 	require.NoError(t, e.svc.SyncDomain(bg, al.ID))
@@ -524,14 +524,14 @@ func TestUnmarkedRecordsAreNeverModifiedUnlessAdopted(t *testing.T) {
 	require.Contains(t, st.Message, "elsewhere.example.net")
 	_, err = e.svc.Fix(e.dev, al.ID, false)
 	require.Equal(t, "adoption_required", code(t, err))
-	after := e.fake.records("z1", "alias.example.com")
+	after := e.fake.records("alias.example.com")
 	require.Len(t, after, 1)
 	require.Equal(t, blocker.ID, after[0].ID)
 	require.Equal(t, "elsewhere.example.net", after[0].Content)
 	st, err = e.svc.Fix(e.admin, al.ID, true)
 	require.NoError(t, err)
 	require.Equal(t, StatusManaged, st.Status)
-	after = e.fake.records("z1", "alias.example.com")
+	after = e.fake.records("alias.example.com")
 	require.Len(t, after, 1)
 	require.Equal(t, "A", after[0].Type)
 	require.Equal(t, ipA, after[0].Content)
@@ -546,7 +546,7 @@ func TestUnmarkedRecordsAreNeverModifiedUnlessAdopted(t *testing.T) {
 	e.exec(t, `UPDATE servers SET public_ip = '192.0.2.77' WHERE id = $1`, e.srvA.ID)
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
 	require.Empty(t, e.fake.writeLog(), "an unmarked record is never modified")
-	require.Equal(t, ipA, e.fake.records("z1", "app.example.com")[0].Content)
+	require.Equal(t, ipA, e.fake.records("app.example.com")[0].Content)
 }
 
 func TestRemovingDomainsCollectsOnlyOwnedRecords(t *testing.T) {
@@ -557,7 +557,7 @@ func TestRemovingDomainsCollectsOnlyOwnedRecords(t *testing.T) {
 	b := e.domain(t, "b.example.com", "")
 	require.NoError(t, e.svc.SyncDomain(bg, a.ID))
 	require.NoError(t, e.svc.SyncDomain(bg, b.ID))
-	userRec := e.fake.put("z1", Record{Type: "A", Name: "keep.example.com", Content: "198.51.100.1"})
+	userRec := e.fake.put(Record{Type: "A", Name: "keep.example.com", Content: "198.51.100.1"})
 
 	// Nothing to collect while every hostname is in use.
 	e.fake.resetWrites()
@@ -574,10 +574,10 @@ func TestRemovingDomainsCollectsOnlyOwnedRecords(t *testing.T) {
 	})
 	require.Equal(t, before+1, e.count(t, `SELECT count(*) FROM river_job WHERE kind = 'cloudflare_collect'`))
 	require.NoError(t, e.svc.Collect(bg, e.ws))
-	require.Empty(t, e.fake.records("z1", "a.example.com"), "the record NebulaCtrl created is deleted")
-	require.Len(t, e.fake.records("z1", "b.example.com"), 1)
-	require.Len(t, e.fake.records("z1", "keep.example.com"), 1)
-	require.Equal(t, userRec.ID, e.fake.records("z1", "keep.example.com")[0].ID)
+	require.Empty(t, e.fake.records("a.example.com"), "the record NebulaCtrl created is deleted")
+	require.Len(t, e.fake.records("b.example.com"), 1)
+	require.Len(t, e.fake.records("keep.example.com"), 1)
+	require.Equal(t, userRec.ID, e.fake.records("keep.example.com")[0].ID)
 	require.Len(t, e.audits(t, "dns.record.delete"), 1)
 	left, err := e.q.ListCloudflareRecords(bg, e.ws)
 	require.NoError(t, err)
@@ -589,21 +589,21 @@ func TestRemovingDomainsCollectsOnlyOwnedRecords(t *testing.T) {
 	api2 := e.domain(t, "shared.example.com", "/api")
 	require.NoError(t, e.svc.SyncDomain(bg, api1.ID))
 	require.NoError(t, e.svc.SyncDomain(bg, api2.ID))
-	require.Len(t, e.fake.records("z1", "shared.example.com"), 1)
+	require.Len(t, e.fake.records("shared.example.com"), 1)
 	e.exec(t, `DELETE FROM domains WHERE id = $1`, api1.ID)
 	require.NoError(t, e.svc.Collect(bg, e.ws))
-	require.Len(t, e.fake.records("z1", "shared.example.com"), 1)
+	require.Len(t, e.fake.records("shared.example.com"), 1)
 	e.exec(t, `DELETE FROM domains WHERE id = $1`, api2.ID)
 	require.NoError(t, e.svc.Collect(bg, e.ws))
-	require.Empty(t, e.fake.records("z1", "shared.example.com"))
+	require.Empty(t, e.fake.records("shared.example.com"))
 
 	// A record somebody re-labelled is forgotten, not deleted.
 	require.NoError(t, e.svc.SyncDomain(bg, b.ID))
-	recB := e.fake.records("z1", "b.example.com")[0]
+	recB := e.fake.records("b.example.com")[0]
 	e.fake.setComment("z1", recB.ID, "mine now")
 	e.exec(t, `DELETE FROM domains WHERE id = $1`, b.ID)
 	require.NoError(t, e.svc.Collect(bg, e.ws))
-	require.Len(t, e.fake.records("z1", "b.example.com"), 1)
+	require.Len(t, e.fake.records("b.example.com"), 1)
 	left, err = e.q.ListCloudflareRecords(bg, e.ws)
 	require.NoError(t, err)
 	require.Empty(t, left)
@@ -614,7 +614,7 @@ func TestRemovingDomainsCollectsOnlyOwnedRecords(t *testing.T) {
 	// (the domain row stays: it is hidden by the soft-deleted service)
 	e.exec(t, `UPDATE services SET deleted_at = now() WHERE id = $1`, e.service.ID)
 	require.NoError(t, e.svc.Collect(bg, e.ws))
-	require.Empty(t, e.fake.records("z1", "c.example.com"))
+	require.Empty(t, e.fake.records("c.example.com"))
 }
 
 func TestProxyToggleAndSSLModeWarning(t *testing.T) {
@@ -630,7 +630,7 @@ func TestProxyToggleAndSSLModeWarning(t *testing.T) {
 	require.True(t, st.Proxied)
 	require.True(t, st.EffectiveProxied)
 	require.Equal(t, StatusManaged, st.Status)
-	require.True(t, e.fake.records("z1", "app.example.com")[0].Proxied)
+	require.True(t, e.fake.records("app.example.com")[0].Proxied)
 	require.Empty(t, st.Warnings, "Full SSL with a proxied record is fine")
 	require.Equal(t, "full", st.SSLMode)
 
@@ -650,14 +650,14 @@ func TestProxyToggleAndSSLModeWarning(t *testing.T) {
 	// DNS only never warns.
 	st, err = e.svc.SetSettings(e.dev, d.ID, SettingsInput{Proxied: &off})
 	require.NoError(t, err)
-	require.False(t, e.fake.records("z1", "app.example.com")[0].Proxied)
+	require.False(t, e.fake.records("app.example.com")[0].Proxied)
 	require.Empty(t, st.Warnings)
 	require.Empty(t, st.SSLMode, "the SSL mode is only read for proxied records")
 
 	// There is no switch to stop the management: the setting is not part of the input.
 	e.exec(t, `UPDATE servers SET public_ip = '192.0.2.88' WHERE id = $1`, e.srvA.ID)
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	require.Equal(t, "192.0.2.88", e.fake.records("z1", "app.example.com")[0].Content, "the record follows its server")
+	require.Equal(t, "192.0.2.88", e.fake.records("app.example.com")[0].Content, "the record follows its server")
 	st, err = e.svc.Status(e.dev, d.ID)
 	require.NoError(t, err)
 	require.True(t, st.Manage)
@@ -678,7 +678,7 @@ func TestProxyToggleAndSSLModeWarning(t *testing.T) {
 	require.False(t, st.Proxied)
 	require.True(t, st.EffectiveProxied)
 	require.Equal(t, "CNAME", st.Desired.Type)
-	require.True(t, e.fake.records("z1", "app.example.com")[0].Proxied)
+	require.True(t, e.fake.records("app.example.com")[0].Proxied)
 }
 
 func TestStatusClassification(t *testing.T) {
@@ -723,13 +723,13 @@ func TestStatusClassification(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, StatusNotInZone, st.Status)
 	require.Empty(t, st.ZoneID)
-	require.Empty(t, e.fake.records("z1", "app.elsewhere.dev"))
+	require.Empty(t, e.fake.records("app.elsewhere.dev"))
 	e.fake.resetWrites()
 	require.NoError(t, e.svc.SyncDomain(bg, out.ID))
 	require.Empty(t, e.fake.writeLog())
 
 	// conflict: somebody else's record points elsewhere.
-	e.fake.put("z1", Record{Type: "A", Name: "wrong.example.com", Content: "198.51.100.200"})
+	e.fake.put(Record{Type: "A", Name: "wrong.example.com", Content: "198.51.100.200"})
 	w := e.domain(t, "wrong.example.com", "")
 	st, err = e.svc.Status(e.dev, w.ID)
 	require.NoError(t, err)
@@ -744,16 +744,16 @@ func TestStatusClassification(t *testing.T) {
 	st, err = e.svc.Fix(e.dev, none.ID, false)
 	require.NoError(t, err)
 	require.Equal(t, StatusManaged, st.Status)
-	require.Equal(t, "192.0.2.55", e.fake.records("z1", "app.example.com")[0].Content)
+	require.Equal(t, "192.0.2.55", e.fake.records("app.example.com")[0].Content)
 
 	// Someone deletes our record in the dashboard: missing again, and the next sync restores it.
-	rec := e.fake.records("z1", "app.example.com")[0]
+	rec := e.fake.records("app.example.com")[0]
 	require.NoError(t, e.fake.client().DeleteRecord(bg, "z1", rec.ID))
 	st, err = e.svc.Status(e.dev, none.ID)
 	require.NoError(t, err)
 	require.Equal(t, StatusMissing, st.Status)
 	require.NoError(t, e.svc.SyncDomain(bg, none.ID))
-	require.Len(t, e.fake.records("z1", "app.example.com"), 1)
+	require.Len(t, e.fake.records("app.example.com"), 1)
 
 	// Another team cannot see the domain at all.
 	_, err = e.svc.Status(e.other, none.ID)
@@ -867,12 +867,12 @@ func TestNewDomainsStartProxiedExceptWildcardsAndExistingKeepTheirSetting(t *tes
 	require.Equal(t, "z1", before.CfZoneID)
 	require.True(t, before.CfProxied)
 	require.NoError(t, e.svc.SyncDomain(bg, before.ID))
-	require.True(t, e.fake.records("z1", "before.example.com")[0].Proxied)
+	require.True(t, e.fake.records("before.example.com")[0].Proxied)
 
 	d := e.domain(t, "app.example.com", "")
 	require.True(t, d.CfProxied, "a new domain in a connected zone starts proxied")
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	require.True(t, e.fake.records("z1", "app.example.com")[0].Proxied)
+	require.True(t, e.fake.records("app.example.com")[0].Proxied)
 
 	// A wildcard name starts DNS only, with the reason in the status.
 	w := e.domain(t, "*.example.com", "")
@@ -892,7 +892,7 @@ func TestNewDomainsStartProxiedExceptWildcardsAndExistingKeepTheirSetting(t *tes
 	require.NoError(t, err)
 	require.False(t, e.dom(t, d.ID).CfProxied)
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	require.False(t, e.fake.records("z1", "app.example.com")[0].Proxied)
+	require.False(t, e.fake.records("app.example.com")[0].Proxied)
 
 	// A zone that disappears from the token makes its domains not_in_zone on refresh.
 	e.fake.removeZone("z1")
@@ -912,20 +912,20 @@ func TestDisconnectingCanRemoveOurRecords(t *testing.T) {
 	e.connect(t)
 	d := e.domain(t, "app.example.com", "")
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	userRec := e.fake.put("z1", Record{Type: "A", Name: "user.example.com", Content: "198.51.100.5"})
+	userRec := e.fake.put(Record{Type: "A", Name: "user.example.com", Content: "198.51.100.5"})
 
 	// A gate (tunnels) may refuse.
 	e.svc.SetDeleteGate(func(context.Context, uuid.UUID) error {
 		return apierr.Conflict("integration_in_use", "a tunnel uses it")
 	})
 	require.Equal(t, "integration_in_use", code(t, e.svc.Delete(e.admin, true)))
-	require.Len(t, e.fake.records("z1", "app.example.com"), 1)
+	require.Len(t, e.fake.records("app.example.com"), 1)
 	e.svc.SetDeleteGate(nil)
 
 	require.NoError(t, e.svc.Delete(e.admin, true))
-	require.Empty(t, e.fake.records("z1", "app.example.com"), "our record is removed")
-	require.Len(t, e.fake.records("z1", "user.example.com"), 1, "a record that is not ours stays")
-	require.Equal(t, userRec.ID, e.fake.records("z1", "user.example.com")[0].ID)
+	require.Empty(t, e.fake.records("app.example.com"), "our record is removed")
+	require.Len(t, e.fake.records("user.example.com"), 1, "a record that is not ours stays")
+	require.Equal(t, userRec.ID, e.fake.records("user.example.com")[0].ID)
 	got := e.dom(t, d.ID)
 	require.Empty(t, got.CfZoneID)
 	require.Empty(t, got.CfStatus)
@@ -936,9 +936,9 @@ func TestDisconnectingCanRemoveOurRecords(t *testing.T) {
 	// Reconnect, sync, and disconnect without removing: the record stays in the zone.
 	e.connect(t)
 	require.NoError(t, e.svc.SyncDomain(bg, d.ID))
-	require.Len(t, e.fake.records("z1", "app.example.com"), 1)
+	require.Len(t, e.fake.records("app.example.com"), 1)
 	require.NoError(t, e.svc.Delete(e.admin, false))
-	require.Len(t, e.fake.records("z1", "app.example.com"), 1)
+	require.Len(t, e.fake.records("app.example.com"), 1)
 	_, err = e.svc.Status(e.dev, d.ID)
 	require.NoError(t, err)
 }
@@ -972,7 +972,7 @@ func TestConnectingManagesExistingDomainsAndNeverOverwritesForeignRecords(t *tes
 	free := e.domain(t, "free.example.com", "")
 	taken := e.domain(t, "taken.example.com", "")
 	require.Empty(t, e.dom(t, free.ID).CfZoneID, "no connection yet")
-	foreign := e.fake.put("z1", Record{Type: "CNAME", Name: "taken.example.com", Content: "elsewhere.example.net", Comment: "mine"})
+	foreign := e.fake.put(Record{Type: "CNAME", Name: "taken.example.com", Content: "elsewhere.example.net", Comment: "mine"})
 
 	e.connect(t)
 	for _, d := range []db.Domain{free, taken} {
@@ -986,7 +986,7 @@ func TestConnectingManagesExistingDomainsAndNeverOverwritesForeignRecords(t *tes
 
 	// The free name got its record.
 	require.Equal(t, StatusManaged, e.dom(t, free.ID).CfStatus)
-	require.Equal(t, ipA, e.fake.records("z1", "free.example.com")[0].Content)
+	require.Equal(t, ipA, e.fake.records("free.example.com")[0].Content)
 
 	// The taken name shows what exists and where it points; nothing was written to it.
 	st, err := e.svc.Status(e.dev, taken.ID)
@@ -995,7 +995,7 @@ func TestConnectingManagesExistingDomainsAndNeverOverwritesForeignRecords(t *tes
 	require.True(t, st.NeedsAdopt)
 	require.Contains(t, st.Message, "elsewhere.example.net")
 	require.Equal(t, StatusConflict, e.dom(t, taken.ID).CfStatus)
-	got := e.fake.records("z1", "taken.example.com")
+	got := e.fake.records("taken.example.com")
 	require.Len(t, got, 1)
 	require.Equal(t, foreign.ID, got[0].ID)
 	require.Equal(t, "elsewhere.example.net", got[0].Content)
@@ -1004,14 +1004,14 @@ func TestConnectingManagesExistingDomainsAndNeverOverwritesForeignRecords(t *tes
 	// Syncs, sweeps and status reads leave it alone, however often they run.
 	require.NoError(t, e.svc.Sweep(bg))
 	require.NoError(t, e.svc.SyncDomain(bg, taken.ID))
-	require.Equal(t, "elsewhere.example.net", e.fake.records("z1", "taken.example.com")[0].Content)
+	require.Equal(t, "elsewhere.example.net", e.fake.records("taken.example.com")[0].Content)
 	require.Empty(t, e.audits(t, "dns.record.delete"))
 
 	// The replace is the one action: it is audited with what it removed.
 	st, err = e.svc.Fix(e.admin, taken.ID, true)
 	require.NoError(t, err)
 	require.Equal(t, StatusManaged, st.Status)
-	got = e.fake.records("z1", "taken.example.com")
+	got = e.fake.records("taken.example.com")
 	require.Len(t, got, 1)
 	require.Equal(t, "A", got[0].Type)
 	require.Equal(t, Marker(taken.ID), got[0].Comment)

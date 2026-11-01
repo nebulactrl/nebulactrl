@@ -6,11 +6,9 @@ import type {
 	Geo,
 	Report,
 	SeriesPoint,
-	Summary,
 } from "#/api/gen/types.gen";
 
 export type TrafficReport = Report;
-export type TrafficSummary = Summary;
 export type TrafficPoint = SeriesPoint;
 export type TopItem = GenTopItem;
 /** Where the window's requests came from (null on a report when geolocation is off). */

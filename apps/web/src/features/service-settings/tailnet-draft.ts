@@ -7,7 +7,7 @@ import type { TailnetConfig } from "#/api/gen/types.gen";
 // Headscale) are the section's business.
 
 export const MAX_TCP_FORWARDS = 16;
-export const MAX_EXTRA_TAGS = 10;
+const MAX_EXTRA_TAGS = 10;
 const MAX_LABEL = 63;
 
 const LABEL_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/;

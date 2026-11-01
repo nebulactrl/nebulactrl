@@ -720,7 +720,7 @@ func (s *Stream) Close() error {
 	m.mu.Lock()
 	if s.closedLocal || s.err != nil {
 		m.mu.Unlock()
-		return nil
+		return nil //nolint:nilerr // Close is idempotent: closing a stream that is already closed or has failed is a no-op, the failure was reported to its reader/writer
 	}
 	s.closedLocal = true
 	s.closedAt = time.Now()

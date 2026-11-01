@@ -187,7 +187,11 @@ func TestFactorCaseA(t *testing.T) {
 	if strings.Contains(text, "[environments.production") {
 		t.Errorf("the base environment has no differences and must have no block")
 	}
-	region := text[strings.Index(text, "[environments."):]
+	at := strings.Index(text, "[environments.")
+	if at < 0 {
+		t.Fatalf("no environment block in:\n%s", text)
+	}
+	region := text[at:]
 	for _, s := range []string{"LOG_LEVEL", "image", "name = ", "port", "worker", "printer"} {
 		if strings.Contains(region, s) {
 			t.Errorf("environment blocks restate %q although it does not differ:\n%s", s, region)
@@ -309,7 +313,11 @@ y
 	if !strings.HasSuffix(text, want) {
 		// Table order follows the model: docker before domains before files;
 		// health_check comes first. Show the whole thing on failure.
-		t.Errorf("environment block differs\n--- got ---\n%s\n--- want suffix ---\n%s", text[strings.Index(text, "[environments."):], want)
+		got := text
+		if at := strings.Index(text, "[environments."); at >= 0 {
+			got = text[at:]
+		}
+		t.Errorf("environment block differs\n--- got ---\n%s\n--- want suffix ---\n%s", got, want)
 	}
 }
 
@@ -664,7 +672,7 @@ func ftClone(d *Service) *Service {
 }
 
 // mutate changes one random aspect of d.
-func (g *ftGen) mutate(d *Service, slug string) {
+func (g *ftGen) mutate(d *Service) {
 	switch g.rng.IntN(9) {
 	case 0:
 		d.Port = new(g.num(3000, 8080, 9000))
@@ -718,7 +726,7 @@ func (g *ftGen) environments() map[string]*Resolved {
 			} else {
 				d = ftClone(bases[n])
 				for range 1 + g.rng.IntN(3) {
-					g.mutate(d, n)
+					g.mutate(d)
 				}
 			}
 			svcs[n] = d

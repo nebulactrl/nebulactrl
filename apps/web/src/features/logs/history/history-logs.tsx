@@ -31,7 +31,7 @@ import { RangePicker } from "./range-picker";
 import { useHistoryRange } from "./url";
 import { type HistoryScope, useHistoryLogs } from "./use-history-logs";
 
-export interface HistoryServer {
+interface HistoryServer {
 	id: string;
 	name: string;
 }

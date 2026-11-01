@@ -174,13 +174,3 @@ func EncodeAuth(username, password, serverAddress string) (string, error) {
 	}
 	return base64.URLEncoding.EncodeToString(raw), nil
 }
-
-// DecodeAuth parses an X-Registry-Auth value.
-func DecodeAuth(v string) (agentprotocol.RegistryAuth, bool) {
-	var a agentprotocol.RegistryAuth
-	raw, err := base64.URLEncoding.DecodeString(v)
-	if err != nil || json.Unmarshal(raw, &a) != nil {
-		return a, false
-	}
-	return a, true
-}

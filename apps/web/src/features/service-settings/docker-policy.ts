@@ -9,7 +9,7 @@ import { type DockerPolicy, toDockerPolicy } from "./docker-options";
  * signals. It is the same for everyone and changes only with a release, so it
  * stays fresh for a while.
  */
-export const dockerPolicyQuery = () =>
+const dockerPolicyQuery = () =>
 	queryOptions({
 		...getDockerOptionsPolicyOptions(),
 		staleTime: 300_000,

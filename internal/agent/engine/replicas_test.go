@@ -44,7 +44,7 @@ func (h *healthRecorder) names() []string {
 	return out
 }
 
-func replicaName(dep string, i int) string { return agentprotocol.ContainerName("web", dep, i) }
+func replicaName(i int) string { return agentprotocol.ContainerName("web", depV2, i) }
 
 func (r *rig) scale(p agentprotocol.DeployPayload, replicas int) (agentprotocol.ResultFrame, agentprotocol.DeployResult) {
 	r.t.Helper()
@@ -65,11 +65,11 @@ func (r *rig) scaleAt(p agentprotocol.DeployPayload, replicas int, at time.Time)
 	return res, dr
 }
 
-func upstreamsOf(t *testing.T, px *fakeProxy, serviceID string) []string {
+func upstreamsOf(t *testing.T, px *fakeProxy) []string {
 	t.Helper()
 	var out []string
 	for _, rt := range px.Current() {
-		if rt.ServiceID == serviceID {
+		if rt.ServiceID == svcID {
 			out = append(out, rt.Upstreams...)
 		}
 	}
@@ -92,7 +92,7 @@ func TestRollingDeployStartsAllReplicasAndRoutesTheFullSet(t *testing.T) {
 	res, dr := r.deploy(p, nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	for i := range 3 {
-		require.True(t, running(t, r.dk, replicaName(depV2, i)), "replica %d runs", i)
+		require.True(t, running(t, r.dk, replicaName(i)), "replica %d runs", i)
 	}
 	require.Equal(t, agentprotocol.ContainerNames("web", depV2, 3), h.names(), "every replica is health-checked")
 	_, oldExists := r.dk.state(oldCtr)
@@ -108,7 +108,7 @@ func TestRollingDeployStartsAllReplicasAndRoutesTheFullSet(t *testing.T) {
 	route := r.px.applies[0][1]
 	require.Equal(t, svcID, route.ServiceID)
 	require.Equal(t, []string{
-		replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80", replicaName(depV2, 2) + ":80",
+		replicaName(0) + ":80", replicaName(1) + ":80", replicaName(2) + ":80",
 	}, route.Upstreams)
 	require.Equal(t, "/", route.HealthPath, "http healthcheck becomes the Traefik health check")
 	require.Contains(t, dr.Message, "3 replicas")
@@ -157,7 +157,7 @@ func TestRollingDeploySwitchesOneRouteBeforeRetiringTheOldReplicas(t *testing.T)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 
 	require.Len(t, r.px.applies, 1, "one table replaces the route: no interim table with both releases")
-	newUps := []string{replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80", replicaName(depV2, 2) + ":80"}
+	newUps := []string{replicaName(0) + ":80", replicaName(1) + ":80", replicaName(2) + ":80"}
 	var own []agentprotocol.Route
 	for _, rt := range r.px.applies[0] {
 		if rt.ServiceID == svcID || rt.Stack == svcID {
@@ -175,10 +175,10 @@ func TestRollingDeploySwitchesOneRouteBeforeRetiringTheOldReplicas(t *testing.T)
 }
 
 func TestReplicaHealthFailureRemovesAllNewReplicasAndKeepsOldServing(t *testing.T) {
-	h := &healthRecorder{failName: replicaName(depV2, 1)}
+	h := &healthRecorder{failName: replicaName(1)}
 	r := newRig(t, h.wait)
 	prev := r.previous()
-	r.dk.logText[replicaName(depV2, 1)] = "fatal: cannot connect to database\n"
+	r.dk.logText[replicaName(1)] = "fatal: cannot connect to database\n"
 	p := basePayload()
 	p.Replicas = 3
 
@@ -190,7 +190,7 @@ func TestReplicaHealthFailureRemovesAllNewReplicasAndKeepsOldServing(t *testing.
 	require.Contains(t, dr.Message, "fatal: cannot connect to database", "log tail of the failing replica")
 
 	for i := range 3 {
-		_, exists := r.dk.state(replicaName(depV2, i))
+		_, exists := r.dk.state(replicaName(i))
 		require.False(t, exists, "new replica %d removed", i)
 	}
 	require.True(t, running(t, r.dk, oldCtr), "old container untouched")
@@ -203,7 +203,7 @@ func TestReplicaStartFailureRemovesAlreadyCreatedReplicas(t *testing.T) {
 	r := newRig(t, nil)
 	r.previous()
 	r.dk.startErr = func(name string) error {
-		if name == replicaName(depV2, 2) {
+		if name == replicaName(2) {
 			return fmt.Errorf("driver failed programming external connectivity")
 		}
 		return nil
@@ -212,9 +212,9 @@ func TestReplicaStartFailureRemovesAlreadyCreatedReplicas(t *testing.T) {
 	p.Replicas = 3
 	res, dr := r.deploy(p, nil)
 	require.Equal(t, agentprotocol.OutcomeFailed, res.Outcome, dr.Message)
-	require.Contains(t, dr.Message, "start container "+replicaName(depV2, 2))
+	require.Contains(t, dr.Message, "start container "+replicaName(2))
 	for i := range 3 {
-		_, exists := r.dk.state(replicaName(depV2, i))
+		_, exists := r.dk.state(replicaName(i))
 		require.False(t, exists)
 	}
 	require.True(t, running(t, r.dk, oldCtr))
@@ -231,7 +231,7 @@ func TestVerifyFailureWithReplicasRestoresPreviousRoutes(t *testing.T) {
 	require.Equal(t, agentprotocol.OutcomeRolledBack, res.Outcome, dr.Message)
 	require.Equal(t, prev, r.px.Current())
 	for i := range 2 {
-		_, exists := r.dk.state(replicaName(depV2, i))
+		_, exists := r.dk.state(replicaName(i))
 		require.False(t, exists)
 	}
 	require.True(t, running(t, r.dk, oldCtr))
@@ -248,7 +248,7 @@ func TestRecreateRunsASingleReplica(t *testing.T) {
 	res, dr := r.deploy(p, nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	require.Len(t, r.dk.created, 1)
-	require.Equal(t, replicaName(depV2, 0), r.dk.created[0].Name)
+	require.Equal(t, replicaName(0), r.dk.created[0].Name)
 	require.Len(t, r.px.applies[0][1].Upstreams, 1)
 }
 
@@ -295,18 +295,18 @@ func TestScaleUpAddsTwoHealthCheckedUpstreams(t *testing.T) {
 
 	res, dr = r.scale(p, 3)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
-	require.Equal(t, []string{replicaName(depV2, 1), replicaName(depV2, 2)}, h.names(), "only the new replicas are health-checked")
+	require.Equal(t, []string{replicaName(1), replicaName(2)}, h.names(), "only the new replicas are health-checked")
 	require.Len(t, r.dk.created, createdBefore+2)
 	for i := range 3 {
-		require.True(t, running(t, r.dk, replicaName(depV2, i)))
+		require.True(t, running(t, r.dk, replicaName(i)))
 	}
 	for _, spec := range r.dk.created[createdBefore:] {
 		require.Equal(t, depV2, spec.Labels[agentprotocol.LabelDeployment])
 		require.Equal(t, "sha256:img-traefik/whoami:latest", spec.Image, "same image, no rebuild or pull")
 	}
 	require.Equal(t, []string{
-		replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80", replicaName(depV2, 2) + ":80",
-	}, upstreamsOf(t, r.px, svcID))
+		replicaName(0) + ":80", replicaName(1) + ":80", replicaName(2) + ":80",
+	}, upstreamsOf(t, r.px))
 	require.Equal(t, "/", r.px.Current()[len(r.px.Current())-1].HealthPath, "health path survives the rewrite")
 	require.Len(t, r.dk.pulled, 1, "scale never pulls")
 	require.Len(t, r.snd.events, eventsBefore, "a finished deployment's history is not touched by scaling")
@@ -317,7 +317,7 @@ func TestScaleUpAddsTwoHealthCheckedUpstreams(t *testing.T) {
 }
 
 func TestScaleUpHealthFailureLeavesExistingReplicasUntouched(t *testing.T) {
-	h := &healthRecorder{failName: replicaName(depV2, 2)}
+	h := &healthRecorder{failName: replicaName(2)}
 	r := newRig(t, h.wait)
 	p := basePayload()
 	res, dr := r.deploy(p, nil)
@@ -329,9 +329,9 @@ func TestScaleUpHealthFailureLeavesExistingReplicasUntouched(t *testing.T) {
 	require.Equal(t, agentprotocol.OutcomeFailed, res.Outcome, dr.Message)
 	require.Contains(t, dr.Message, "Replica 2 of 3")
 	require.Contains(t, dr.Message, "No replicas were added")
-	require.True(t, running(t, r.dk, replicaName(depV2, 0)))
+	require.True(t, running(t, r.dk, replicaName(0)))
 	for _, i := range []int{1, 2} {
-		_, exists := r.dk.state(replicaName(depV2, i))
+		_, exists := r.dk.state(replicaName(i))
 		require.False(t, exists, "new replica %d removed", i)
 	}
 	require.Equal(t, routes, r.px.Current())
@@ -351,21 +351,21 @@ func TestScaleDownDropsUpstreamsBeforeStopping(t *testing.T) {
 	routedAtStop := map[string][]string{}
 	r.dk.onStop = func(name string) {
 		mu.Lock()
-		routedAtStop[name] = upstreamsOf(t, r.px, svcID)
+		routedAtStop[name] = upstreamsOf(t, r.px)
 		mu.Unlock()
 	}
 
 	res, dr = r.scale(p, 1)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 
-	require.ElementsMatch(t, []string{replicaName(depV2, 1), replicaName(depV2, 2)}, r.dk.stopped)
+	require.ElementsMatch(t, []string{replicaName(1), replicaName(2)}, r.dk.stopped)
 	for name, ups := range routedAtStop {
-		require.Equal(t, []string{replicaName(depV2, 0) + ":80"}, ups, "%s was still routed when it was stopped", name)
+		require.Equal(t, []string{replicaName(0) + ":80"}, ups, "%s was still routed when it was stopped", name)
 	}
-	require.Equal(t, []string{replicaName(depV2, 0) + ":80"}, upstreamsOf(t, r.px, svcID))
-	require.True(t, running(t, r.dk, replicaName(depV2, 0)))
+	require.Equal(t, []string{replicaName(0) + ":80"}, upstreamsOf(t, r.px))
+	require.True(t, running(t, r.dk, replicaName(0)))
 	for _, i := range []int{1, 2} {
-		_, exists := r.dk.state(replicaName(depV2, i))
+		_, exists := r.dk.state(replicaName(i))
 		require.False(t, exists, "removed replica %d", i)
 	}
 	require.Equal(t, 1, r.eng.local[svcID].Replicas)
@@ -379,7 +379,7 @@ func TestScaleDownKeepsLowestReplicaIndices(t *testing.T) {
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	res, dr = r.scale(p, 2)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
-	require.Equal(t, []string{replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80"}, upstreamsOf(t, r.px, svcID))
+	require.Equal(t, []string{replicaName(0) + ":80", replicaName(1) + ":80"}, upstreamsOf(t, r.px))
 }
 
 func TestScaleVerifyFailureOnScaleDownKeepsEveryReplica(t *testing.T) {
@@ -399,7 +399,7 @@ func TestScaleVerifyFailureOnScaleDownKeepsEveryReplica(t *testing.T) {
 	require.Equal(t, before, r.px.Current(), "previous routes restored")
 	require.Empty(t, r.dk.stopped)
 	for i := range 3 {
-		require.True(t, running(t, r.dk, replicaName(depV2, i)))
+		require.True(t, running(t, r.dk, replicaName(i)))
 	}
 }
 
@@ -521,7 +521,7 @@ func TestReconcileRemovesOldNamedAndExtraReplicasButKeepsDesiredOnes(t *testing.
 	names := agentprotocol.ContainerNames("web", depV2, 2)
 	r.dk.seed(names[0], svcID, depV2, true, time.Hour)
 	r.dk.seed(names[1], svcID, depV2, true, time.Hour)
-	extra := replicaName(depV2, 2) // a replica beyond the desired count
+	extra := replicaName(2) // a replica beyond the desired count
 	r.dk.seed(extra, svcID, depV2, true, time.Hour)
 	legacy := "nc-web-d2d2d2d2" // named without a replica index
 	r.dk.seed(legacy, svcID, depV2, true, time.Hour)
@@ -637,15 +637,15 @@ func TestReconcileAddsMissingReplicasHealthCheckedAndRoutesOnlyLiveOnes(t *testi
 
 	require.Greater(t, len(r.px.applies), applied)
 	first := r.px.applies[applied]
-	require.Equal(t, []string{replicaName(depV2, 0) + ":80"}, first[len(first)-1].Upstreams,
+	require.Equal(t, []string{replicaName(0) + ":80"}, first[len(first)-1].Upstreams,
 		"replicas that do not run yet are not routed")
 	for i := range 3 {
-		require.True(t, running(t, r.dk, replicaName(depV2, i)), "replica %d", i)
+		require.True(t, running(t, r.dk, replicaName(i)), "replica %d", i)
 	}
-	require.Equal(t, []string{replicaName(depV2, 1), replicaName(depV2, 2)}, h.names(), "only the added replicas are checked")
+	require.Equal(t, []string{replicaName(1), replicaName(2)}, h.names(), "only the added replicas are checked")
 	require.Equal(t, []string{
-		replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80", replicaName(depV2, 2) + ":80",
-	}, upstreamsOf(t, r.px, svcID), "added after their health check")
+		replicaName(0) + ":80", replicaName(1) + ":80", replicaName(2) + ":80",
+	}, upstreamsOf(t, r.px), "added after their health check")
 	for i, spec := range r.dk.created[1:] {
 		require.Equal(t, []string{"API_KEY=k-1", fmt.Sprintf("NEBULA_REPLICA_INDEX=%d", i+1), "NEBULA_REPLICA_COUNT=3"}, spec.Env,
 			"environment cloned from a running replica, with its own replica index")
@@ -667,20 +667,20 @@ func TestReconcileRemovesExtraReplicasAfterLeavingTheUpstreams(t *testing.T) {
 	routedAtStop := map[string][]string{}
 	r.dk.onStop = func(name string) {
 		mu.Lock()
-		routedAtStop[name] = upstreamsOf(t, r.px, svcID)
+		routedAtStop[name] = upstreamsOf(t, r.px)
 		mu.Unlock()
 	}
 
 	require.NoError(t, r.eng.Reconcile(context.Background(), desiredFor(p, 1)))
 	r.eng.bg.Wait()
 
-	require.ElementsMatch(t, []string{replicaName(depV2, 1), replicaName(depV2, 2)}, r.dk.stopped)
+	require.ElementsMatch(t, []string{replicaName(1), replicaName(2)}, r.dk.stopped)
 	for name, ups := range routedAtStop {
-		require.Equal(t, []string{replicaName(depV2, 0) + ":80"}, ups, "%s still routed when stopped", name)
+		require.Equal(t, []string{replicaName(0) + ":80"}, ups, "%s still routed when stopped", name)
 	}
-	require.True(t, running(t, r.dk, replicaName(depV2, 0)))
+	require.True(t, running(t, r.dk, replicaName(0)))
 	for _, i := range []int{1, 2} {
-		_, exists := r.dk.state(replicaName(depV2, i))
+		_, exists := r.dk.state(replicaName(i))
 		require.False(t, exists)
 	}
 	require.Equal(t, 1, r.eng.local[svcID].Replicas)
@@ -698,7 +698,7 @@ func TestReconcileLeavesMatchingAndUnlabelledServicesAlone(t *testing.T) {
 
 	// A container without a spec label cannot be cloned: nothing happens.
 	r2 := newRig(t, nil)
-	r2.dk.seed(replicaName(depV2, 0), svcID, depV2, true, time.Hour)
+	r2.dk.seed(replicaName(0), svcID, depV2, true, time.Hour)
 	require.NoError(t, r2.eng.Reconcile(context.Background(), desiredFor(p, 2)))
 	r2.eng.bg.Wait()
 	require.Empty(t, r2.dk.created)
@@ -746,9 +746,9 @@ func TestConvergenceOfAnOlderCountDoesNotUndoAScaleDown(t *testing.T) {
 	r.eng.convergeReplicas(context.Background(), svcID, stale)
 
 	require.Len(t, r.dk.created, created, "the convergence started a replica after the scale-down")
-	require.True(t, running(t, r.dk, replicaName(depV2, 0)))
+	require.True(t, running(t, r.dk, replicaName(0)))
 	for _, i := range []int{1, 2} {
-		_, exists := r.dk.state(replicaName(depV2, i))
+		_, exists := r.dk.state(replicaName(i))
 		require.False(t, exists, "replica %d came back", i)
 	}
 	require.Equal(t, 1, r.eng.local[svcID].Replicas)
@@ -775,13 +775,13 @@ func TestStaleReconcileFrameDoesNotUndoAScale(t *testing.T) {
 
 	require.Len(t, r.dk.created, created, "a stale frame started a replica")
 	for _, i := range []int{1, 2} {
-		_, exists := r.dk.state(replicaName(depV2, i))
+		_, exists := r.dk.state(replicaName(i))
 		require.False(t, exists, "replica %d came back", i)
 	}
 	require.Equal(t, 1, r.eng.local[svcID].Replicas)
 	require.Equal(t, 1, r.eng.desired[svcID].Replicas)
-	for _, u := range upstreamsOf(t, r.px, svcID) {
-		require.Equal(t, replicaName(depV2, 0)+":80", u, "a retired replica is routed again")
+	for _, u := range upstreamsOf(t, r.px) {
+		require.Equal(t, replicaName(0)+":80", u, "a retired replica is routed again")
 	}
 
 	// The control plane's later count does apply: scaled up again while this
@@ -789,7 +789,7 @@ func TestStaleReconcileFrameDoesNotUndoAScale(t *testing.T) {
 	require.NoError(t, r.eng.Reconcile(context.Background(), staleFrame(p, 3, stored1.Add(time.Minute))))
 	r.eng.bg.Wait()
 	for i := range 3 {
-		require.True(t, running(t, r.dk, replicaName(depV2, i)), "replica %d", i)
+		require.True(t, running(t, r.dk, replicaName(i)), "replica %d", i)
 	}
 	require.Equal(t, 3, r.eng.local[svcID].Replicas)
 }

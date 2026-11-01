@@ -24,8 +24,6 @@ import { serverViewQuery } from "../servers/queries";
 import { type TrafficScope, useTrafficReport } from "./queries";
 import { TrafficView } from "./traffic-view";
 
-export type { TrafficScope } from "./queries";
-
 export interface TrafficPanelProps {
 	scope: TrafficScope;
 	/** Called by the "Add a domain" button when a service has no hostname. */

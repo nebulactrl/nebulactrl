@@ -12,15 +12,12 @@ import type {
 } from "./dither.worker";
 
 /** Bitmaps with more pixels than this (about 256k) go to the worker. */
-export const WORKER_PIXEL_THRESHOLD = 256 * 1024;
+const WORKER_PIXEL_THRESHOLD = 256 * 1024;
 
 /** Total bytes of dithered bitmaps the cache keeps before evicting the oldest. */
 const CACHE_BYTE_LIMIT = 48 * 1024 * 1024;
 
-export function shouldUseWorker(
-	pixels: number,
-	workerSupported: boolean,
-): boolean {
+function shouldUseWorker(pixels: number, workerSupported: boolean): boolean {
 	return workerSupported && pixels > WORKER_PIXEL_THRESHOLD;
 }
 
@@ -96,7 +93,7 @@ function runInWorker(
  * Dither a bitmap, picking worker or main thread by size. Falls back to the
  * main thread when the worker cannot be created or errors.
  */
-export async function ditherPixels(
+async function ditherPixels(
 	rgba: Uint8ClampedArray,
 	width: number,
 	height: number,
@@ -145,7 +142,7 @@ function remember(key: string, frame: RasterFrame) {
 }
 
 /** A cached frame, refreshed to most-recently-used. */
-export function cachedFrame(key: string): RasterFrame | undefined {
+function cachedFrame(key: string): RasterFrame | undefined {
 	const hit = cache.get(key);
 	if (hit) {
 		cache.delete(key);

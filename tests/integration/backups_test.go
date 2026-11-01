@@ -176,9 +176,9 @@ func s3Client(endpoint string) *s3.Client {
 	})
 }
 
-func listKeys(ctx context.Context, t *testing.T, c *s3.Client, prefix string) []string {
+func listKeys(ctx context.Context, t *testing.T, c *s3.Client) []string {
 	t.Helper()
-	out, err := c.ListObjectsV2(ctx, &s3.ListObjectsV2Input{Bucket: aws.String(s3Bucket), Prefix: aws.String(prefix)})
+	out, err := c.ListObjectsV2(ctx, &s3.ListObjectsV2Input{Bucket: aws.String(s3Bucket), Prefix: aws.String("nebula/")})
 	require.NoError(t, err)
 	var keys []string
 	for _, o := range out.Contents {
@@ -303,7 +303,7 @@ func TestDatabaseBackupsPostgres(t *testing.T) {
 	r = s.Do("POST", "/backup-destinations/"+s3d.Str("id")+"/test", map[string]any{"serverId": s.ServerID})
 	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
 	require.True(t, r.JSON().Bool("lastTestOk"), "S3 destination test: %s", r.JSON().Str("lastTestMessage"))
-	require.Empty(t, listKeys(ctx, t, cl, "nebula/"), "the probe object is removed again")
+	require.Empty(t, listKeys(ctx, t, cl), "the probe object is removed again")
 
 	b2 := s.backup(src.ID, s3d.Str("id"))
 	require.Equal(t, "succeeded", b2.Str("status"), "S3 backup: %v", b2)
@@ -315,20 +315,20 @@ func TestDatabaseBackupsPostgres(t *testing.T) {
 	require.Equal(t, b2.Int("sizeBytes"), len(body))
 	sum2 := sha256.Sum256(body)
 	require.Equal(t, hex.EncodeToString(sum2[:]), b2.Str("sha256"), "the stored object is the dump that was hashed while streaming")
-	require.Contains(t, listKeys(ctx, t, cl, "nebula/"), b2.Str("objectKey")+".manifest.json")
+	require.Contains(t, listKeys(ctx, t, cl), b2.Str("objectKey")+".manifest.json")
 
 	sib2 := s.restoreNew(b2.Str("id"), "pg-from-s3")
 	waitPostgres(t, s, sib2.ID)
 	require.Equal(t, "500", pgExec(t, s, sib2.ID, "SELECT count(*) FROM notes"), "restore from the S3 object")
 
 	// ---- a failed dump leaves no object (and no manifest) ----------------
-	before := listKeys(ctx, t, cl, "nebula/")
+	before := listKeys(ctx, t, cl)
 	// Rename the database away: pg_dump then exits non-zero ("does not exist").
 	pgExecDB(t, s, src.ID, "postgres", "ALTER DATABASE app RENAME TO app_away")
 	bad := s.backup(src.ID, s3d.Str("id"))
 	require.Equal(t, "failed", bad.Str("status"), "backup: %v", bad)
 	require.Contains(t, bad.Str("error"), "does not exist")
-	require.Equal(t, before, listKeys(ctx, t, cl, "nebula/"), "a failed dump must not leave an object or a manifest in the bucket")
+	require.Equal(t, before, listKeys(ctx, t, cl), "a failed dump must not leave an object or a manifest in the bucket")
 	badLocal := s.backup(src.ID, local.Str("id"))
 	require.Equal(t, "failed", badLocal.Str("status"))
 	left, _ := filepath.Glob(filepath.Join(s.StateDir, "backups", "itest", "*", "*", "*", "*"))
@@ -355,10 +355,10 @@ func TestDatabaseBackupsPostgres(t *testing.T) {
 	r = s.Do("DELETE", "/backups/"+b2.Str("id"), nil)
 	require.Equal(t, http.StatusNoContent, r.Status, string(r.Raw))
 	require.True(t, eventually(60*time.Second, time.Second, func() bool {
-		keys := listKeys(ctx, t, cl, "nebula/")
+		keys := listKeys(ctx, t, cl)
 		return !hasKey(keys, b2.Str("objectKey")) && !hasKey(keys, b2.Str("objectKey")+".manifest.json")
 	}), "the S3 object and its manifest are deleted through the agent")
-	require.Empty(t, listKeys(ctx, t, cl, "nebula/"), "nothing else is left in the bucket")
+	require.Empty(t, listKeys(ctx, t, cl), "nothing else is left in the bucket")
 	require.True(t, eventually(30*time.Second, time.Second, func() bool {
 		return s.Do("GET", "/backups/"+b2.Str("id"), nil).Status == http.StatusNotFound
 	}), "the row disappears once the object is gone")

@@ -153,7 +153,7 @@ func prepareCreateArgs(name string, keys []string) []string {
 func (b *Builder) railpackPrepare(ctx context.Context, name, srcDir, workDir string, vars map[string]string, logf func(string)) (*railpackPlan, error) {
 	lw := &LineWriter{Fn: logf}
 	defer lw.Flush()
-	run := func(env []string, args ...string) error { return b.run(ctx, args, env, lw) }
+	run := func(args ...string) error { return b.run(ctx, args, nil, lw) }
 
 	_ = b.run(ctx, []string{"rm", "-f", name}, nil, io.Discard) // a leftover of a crashed agent
 	vars, defaulted := withRailpackDefaults(srcDir, vars)
@@ -176,22 +176,22 @@ func (b *Builder) railpackPrepare(ctx context.Context, name, srcDir, workDir str
 	}()
 
 	logf("Planning the build with Railpack " + agentprotocol.RailpackVersion)
-	if err := run(nil, prepareCreateArgs(name, keys)...); err != nil {
+	if err := run(prepareCreateArgs(name, keys)...); err != nil {
 		return nil, fmt.Errorf("railpack: create planner container: %w", err)
 	}
-	if err := run(nil, "cp", srcDir+string(filepath.Separator)+".", name+":/app"); err != nil {
+	if err := run("cp", srcDir+string(filepath.Separator)+".", name+":/app"); err != nil {
 		return nil, fmt.Errorf("railpack: copy source: %w", err)
 	}
 	if len(keys) > 0 {
-		if err := run(nil, "cp", envFile, name+":"+envPathInContainer); err != nil {
+		if err := run("cp", envFile, name+":"+envPathInContainer); err != nil {
 			return nil, fmt.Errorf("railpack: copy build variables: %w", err)
 		}
 	}
 	planFile := filepath.Join(workDir, "railpack-plan.json")
 	infoFile := filepath.Join(workDir, "railpack-info.json")
-	startErr := run(nil, "start", "-a", name)
+	startErr := run("start", "-a", name)
 	// The info file is written even when planning fails; it carries the reason.
-	infoErr := run(nil, "cp", name+":"+infoPathInContainer, infoFile)
+	infoErr := run("cp", name+":"+infoPathInContainer, infoFile)
 	var info railpackInfo
 	if infoErr == nil {
 		if raw, err := os.ReadFile(infoFile); err == nil {
@@ -208,7 +208,7 @@ func (b *Builder) railpackPrepare(ctx context.Context, name, srcDir, workDir str
 		}
 		return nil, fmt.Errorf("%s (%w)", msg, startErr)
 	}
-	if err := run(nil, "cp", name+":"+planPathInContainer, planFile); err != nil {
+	if err := run("cp", name+":"+planPathInContainer, planFile); err != nil {
 		return nil, fmt.Errorf("railpack: read plan: %w", err)
 	}
 	out, err := parsePlan(planFile, info)

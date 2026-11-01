@@ -240,7 +240,7 @@ func (githubDriver) currentUser(ctx context.Context, c *apiClient) (string, erro
 	var out struct {
 		Login string `json:"login"`
 	}
-	if _, err := ghClient(c).do(ctx, http.MethodGet, "/user", nil, nil, &out); err != nil {
+	if err := ghClient(c).do(ctx, http.MethodGet, "/user", nil, nil, &out); err != nil {
 		return "", err
 	}
 	return out.Login, nil
@@ -251,7 +251,7 @@ func (githubDriver) listRepos(ctx context.Context, c *apiClient, _ string, page 
 		Repositories []ghRepo `json:"repositories"`
 	}
 	q := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
-	if _, err := ghClient(c).do(ctx, http.MethodGet, "/installation/repositories", q, nil, &out); err != nil {
+	if err := ghClient(c).do(ctx, http.MethodGet, "/installation/repositories", q, nil, &out); err != nil {
 		return nil, false, err
 	}
 	repos := make([]Repo, 0, len(out.Repositories))
@@ -263,7 +263,7 @@ func (githubDriver) listRepos(ctx context.Context, c *apiClient, _ string, page 
 
 func (githubDriver) getRepo(ctx context.Context, c *apiClient, repo string) (Repo, error) {
 	var out ghRepo
-	if _, err := ghClient(c).do(ctx, http.MethodGet, "/repos/"+repo, nil, nil, &out); err != nil {
+	if err := ghClient(c).do(ctx, http.MethodGet, "/repos/"+repo, nil, nil, &out); err != nil {
 		return Repo{}, err
 	}
 	return out.repo(), nil
@@ -277,7 +277,7 @@ func (githubDriver) listBranches(ctx context.Context, c *apiClient, repo string)
 	for page := 1; page <= 5; page++ {
 		out = nil
 		q := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
-		if _, err := ghClient(c).do(ctx, http.MethodGet, "/repos/"+repo+"/branches", q, nil, &out); err != nil {
+		if err := ghClient(c).do(ctx, http.MethodGet, "/repos/"+repo+"/branches", q, nil, &out); err != nil {
 			return nil, err
 		}
 		for _, b := range out {
@@ -296,7 +296,7 @@ func (githubDriver) setStatus(ctx context.Context, c *apiClient, repo, sha strin
 	if st.TargetURL != "" {
 		body["target_url"] = st.TargetURL
 	}
-	_, err := ghClient(c).do(ctx, http.MethodPost, "/repos/"+repo+"/statuses/"+sha, nil, body, nil)
+	err := ghClient(c).do(ctx, http.MethodPost, "/repos/"+repo+"/statuses/"+sha, nil, body, nil)
 	return err
 }
 
@@ -309,12 +309,12 @@ func (githubDriver) upsertComment(ctx context.Context, c *apiClient, repo string
 			Body string `json:"body"`
 		}
 		q := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
-		if _, err := c.do(ctx, http.MethodGet, base+"/"+strconv.Itoa(number)+"/comments", q, nil, &out); err != nil {
+		if err := c.do(ctx, http.MethodGet, base+"/"+strconv.Itoa(number)+"/comments", q, nil, &out); err != nil {
 			return err
 		}
 		for _, cm := range out {
 			if strings.Contains(cm.Body, marker) {
-				_, err := c.do(ctx, http.MethodPatch, base+"/comments/"+strconv.FormatInt(cm.ID, 10), nil, map[string]string{"body": body}, nil)
+				err := c.do(ctx, http.MethodPatch, base+"/comments/"+strconv.FormatInt(cm.ID, 10), nil, map[string]string{"body": body}, nil)
 				return err
 			}
 		}
@@ -322,7 +322,7 @@ func (githubDriver) upsertComment(ctx context.Context, c *apiClient, repo string
 			break
 		}
 	}
-	_, err := c.do(ctx, http.MethodPost, base+"/"+strconv.Itoa(number)+"/comments", nil, map[string]string{"body": body}, nil)
+	err := c.do(ctx, http.MethodPost, base+"/"+strconv.Itoa(number)+"/comments", nil, map[string]string{"body": body}, nil)
 	return err
 }
 

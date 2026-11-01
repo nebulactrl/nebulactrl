@@ -3,7 +3,7 @@ import { shortSHA256 } from "#/lib/format";
 import type { DeployMarker } from "./ui/time-chart";
 
 /** "a1b2c3d" for a commit, "sha256:01234567" for an image, else the id's head. */
-export function releaseLabel(deployment: Deployment): string {
+function releaseLabel(deployment: Deployment): string {
 	const source = deployment.release?.source;
 	if (source?.commitSha) return source.commitSha.slice(0, 7);
 	if (source?.digest) return shortSHA256(source.digest);

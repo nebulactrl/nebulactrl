@@ -8,9 +8,9 @@ import (
 )
 
 // processList is `services processes ls --json`.
-func (e *env) processList(service string) []map[string]any {
+func (e *env) processList() []map[string]any {
 	e.t.Helper()
-	r := e.mustRun("", "--json", "services", "processes", "ls", service)
+	r := e.mustRun("", "--json", "services", "processes", "ls", "acme/production/web")
 	return decode[[]map[string]any](e.t, r.stdout)
 }
 
@@ -42,7 +42,7 @@ func TestProcessesLsShowsTheServiceItselfAsTheDefaultProcess(t *testing.T) {
 	require.Contains(t, r.stdout, "80")
 	require.Contains(t, r.stdout, "0/1", "ready/desired")
 
-	ps := e.processList("acme/production/web")
+	ps := e.processList()
 	require.Len(t, ps, 1)
 	require.Equal(t, "web", ps[0]["name"])
 	require.Equal(t, true, ps[0]["default"])
@@ -70,7 +70,7 @@ func TestProcessesSetAddsChangesAndKeepsTheRest(t *testing.T) {
 	cfg := decode[map[string]any](t, r.stdout)["config"].(map[string]any)
 	require.Len(t, cfg["processes"], 3, "the whole list round-trips through the config PATCH")
 
-	ps := e.processList(web)
+	ps := e.processList()
 	require.Equal(t, []string{"web", "queue", "scheduler", "worker"}, processNamesOfList(ps), "the default first, then by name")
 	worker := processByName(t, ps, "worker")
 	require.Equal(t, []any{"bundle", "exec", "sidekiq"}, worker["command"])
@@ -82,7 +82,7 @@ func TestProcessesSetAddsChangesAndKeepsTheRest(t *testing.T) {
 	// Changing one setting keeps the command and the other settings; the health check follows the port.
 	r = e.mustRun("", "services", "processes", "set", web, "worker", "--port", "9000")
 	require.Contains(t, r.stdout, "Updated process worker")
-	worker = processByName(t, e.processList(web), "worker")
+	worker = processByName(t, e.processList(), "worker")
 	require.EqualValues(t, 9000, worker["port"])
 	require.Equal(t, []any{"bundle", "exec", "sidekiq"}, worker["command"])
 	require.EqualValues(t, 120, worker["stopGraceSeconds"])
@@ -102,11 +102,11 @@ func TestProcessesSetAddsChangesAndKeepsTheRest(t *testing.T) {
 
 	// The default process: by flag or by its own name.
 	e.mustRun("", "services", "processes", "set", web, "--default", "--port", "8080")
-	require.EqualValues(t, 8080, processByName(t, e.processList(web), "web")["port"])
+	require.EqualValues(t, 8080, processByName(t, e.processList(), "web")["port"])
 	e.mustRun("", "services", "processes", "set", web, "web", "--singleton=false")
 	r = e.mustRun("", "--json", "services", "processes", "set", web, "--default", "--name", "app")
 	require.Equal(t, "app", decode[map[string]any](t, r.stdout)["config"].(map[string]any)["processName"])
-	require.Equal(t, []string{"app", "queue", "scheduler", "worker"}, processNamesOfList(e.processList(web)))
+	require.Equal(t, []string{"app", "queue", "scheduler", "worker"}, processNamesOfList(e.processList()))
 
 	for name, args := range map[string][]string{
 		"nothing to change":     {"services", "processes", "set", web, "worker"},
@@ -133,7 +133,7 @@ func TestProcessesRenameAndRemove(t *testing.T) {
 	// Renaming keeps the settings, including the replicas.
 	r := e.mustRun("", "services", "processes", "rename", web, "worker", "jobs")
 	require.Contains(t, r.stdout, "Renamed process worker to jobs")
-	ps := e.processList(web)
+	ps := e.processList()
 	require.Equal(t, []string{"web", "cron", "jobs"}, processNamesOfList(ps))
 	jobs := processByName(t, ps, "jobs")
 	require.Equal(t, []any{"bin/worker"}, jobs["command"])
@@ -141,9 +141,9 @@ func TestProcessesRenameAndRemove(t *testing.T) {
 
 	// The default process is renamed through processName.
 	e.mustRun("", "services", "processes", "rename", web, "web", "app")
-	require.Equal(t, "app", processByName(t, e.processList(web), "app")["name"])
+	require.Equal(t, "app", processByName(t, e.processList(), "app")["name"])
 	e.mustRun("", "services", "processes", "rename", web, "app", "web")
-	require.Equal(t, []string{"web", "cron", "jobs"}, processNamesOfList(e.processList(web)))
+	require.Equal(t, []string{"web", "cron", "jobs"}, processNamesOfList(e.processList()))
 
 	for name, args := range map[string][]string{
 		"unknown old":     {"services", "processes", "rename", web, "nope", "x"},
@@ -158,9 +158,9 @@ func TestProcessesRenameAndRemove(t *testing.T) {
 
 	r = e.mustRun("", "services", "processes", "rm", web, "cron")
 	require.Contains(t, r.stdout, "Removed process cron")
-	require.Equal(t, []string{"web", "jobs"}, processNamesOfList(e.processList(web)))
+	require.Equal(t, []string{"web", "jobs"}, processNamesOfList(e.processList()))
 	e.mustRun("", "services", "processes", "rm", web, "jobs")
-	ps = e.processList(web)
+	ps = e.processList()
 	require.Len(t, ps, 1, "the last named process gone: a plain service again")
 	require.Equal(t, "web", ps[0]["name"])
 }
@@ -175,8 +175,8 @@ func TestProcessesScale(t *testing.T) {
 
 	r := e.mustRun("", "services", "processes", "scale", web, "worker", "3")
 	require.Contains(t, r.stdout, "Process worker: Replicas: 3 desired")
-	require.EqualValues(t, 3, processByName(t, e.processList(web), "worker")["scaling"].(map[string]any)["replicas"])
-	require.EqualValues(t, 1, processByName(t, e.processList(web), "web")["scaling"].(map[string]any)["replicas"], "the default process is untouched")
+	require.EqualValues(t, 3, processByName(t, e.processList(), "worker")["scaling"].(map[string]any)["replicas"])
+	require.EqualValues(t, 1, processByName(t, e.processList(), "web")["scaling"].(map[string]any)["replicas"], "the default process is untouched")
 
 	r = e.mustRun("", "--json", "services", "processes", "scale", web, "worker", "--autoscale", "1:4:60")
 	var viewProcesses []map[string]any
@@ -196,8 +196,8 @@ func TestProcessesScale(t *testing.T) {
 	require.Contains(t, r.stdout, "Process worker: Replicas: 2 desired")
 	r = e.mustRun("", "services", "processes", "scale", web, "web", "2")
 	require.Contains(t, r.stdout, "Process web: Replicas: 2 desired")
-	require.EqualValues(t, 2, processByName(t, e.processList(web), "web")["scaling"].(map[string]any)["replicas"])
-	require.EqualValues(t, 2, processByName(t, e.processList(web), "worker")["scaling"].(map[string]any)["replicas"])
+	require.EqualValues(t, 2, processByName(t, e.processList(), "web")["scaling"].(map[string]any)["replicas"])
+	require.EqualValues(t, 2, processByName(t, e.processList(), "worker")["scaling"].(map[string]any)["replicas"])
 
 	// A singleton runs exactly one instance.
 	r = e.run("", "services", "processes", "scale", web, "cron", "2")

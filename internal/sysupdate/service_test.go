@@ -23,7 +23,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/config"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
-	"github.com/nebulactrl/nebulactrl/internal/releasesign"
+	"github.com/nebulactrl/nebulactrl/internal/releasesign/releasesigntest"
 	"github.com/nebulactrl/nebulactrl/internal/testutil"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
@@ -70,7 +70,7 @@ type feedServer struct {
 	hits   int
 	agent  string
 
-	signer   *releasesign.Signer
+	signer   *releasesigntest.Signer
 	pub      string // the key the installer is signed with
 	unsigned bool   // serve no install.sh.minisig
 	tampered bool   // serve an installer that differs from the signed one
@@ -84,7 +84,7 @@ const testInstaller = "#!/usr/bin/env bash\nNC_INSTALLER_VERSION=1\n"
 func newFeedServer(t *testing.T, version string) *feedServer {
 	t.Helper()
 	f := &feedServer{status: http.StatusOK}
-	f.signer, f.pub = releasesign.NewSigner()
+	f.signer, f.pub = releasesigntest.NewSigner()
 	f.setVersion(version)
 	f.Server = httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		f.mu.Lock()
@@ -395,7 +395,7 @@ func TestStartRefusesAnInstallerThatIsNotSignedByTheReleaseKey(t *testing.T) {
 		"no signature published": func(f *fixture) { f.feed.mu.Lock(); f.feed.unsigned = true; f.feed.mu.Unlock() },
 		"installer was changed":  func(f *fixture) { f.feed.mu.Lock(); f.feed.tampered = true; f.feed.mu.Unlock() },
 		"signed with another key": func(f *fixture) {
-			_, other := releasesign.NewSigner()
+			_, other := releasesigntest.NewSigner()
 			f.svc.pubKey = other
 		},
 	} {

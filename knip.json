@@ -1,0 +1,57 @@
+{
+	"$schema": "https://unpkg.com/knip@6/schema.json",
+	"workspaces": {
+		".": {
+			"entry": ["release.config.mjs"],
+			"project": ["*.mjs"]
+		},
+		"apps/web": {
+			"entry": [
+				"src/routes/**/*.{ts,tsx}",
+				"scripts/*.ts",
+				"e2e/**/*.ts",
+				"src/**/*.test.{ts,tsx}"
+			],
+			"project": [
+				"src/**/*.{ts,tsx,css}",
+				"scripts/**/*.ts",
+				"e2e/**/*.ts",
+				"*.ts"
+			],
+			"ignore": ["src/api/gen/**"]
+		},
+		"apps/site": {
+			"entry": [
+				"src/entry-client.ts",
+				"src/entry-server.tsx",
+				"src/islands/registry.ts",
+				"scripts/*.ts",
+				"src/**/*.test.{ts,tsx}",
+				"scripts/**/*.test.ts"
+			],
+			"project": ["src/**/*.{ts,tsx,css}", "scripts/**/*.ts", "*.ts"],
+			"ignoreBinaries": ["go"]
+		},
+		"packages/ascii": {
+			"entry": [
+				"scripts/*.ts",
+				"preview/*.ts",
+				"src/standalone.ts",
+				"src/**/*.test.ts"
+			],
+			"project": ["src/**/*.ts", "scripts/**/*.ts", "preview/**/*.ts"]
+		},
+		"packages/dither": {
+			"entry": ["scripts/*.ts", "src/**/*.test.{ts,tsx}"],
+			"project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"]
+		},
+		"packages/docs": {
+			"entry": ["src/**/*.test.{ts,tsx}"],
+			"project": ["src/**/*.{ts,tsx}"]
+		},
+		"packages/tokens": {
+			"entry": ["src/**/*.test.ts"],
+			"project": ["src/**/*.ts"]
+		}
+	}
+}

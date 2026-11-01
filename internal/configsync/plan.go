@@ -315,9 +315,7 @@ func (s *Service) plan(ctx context.Context, q *db.Queries, projectID uuid.UUID, 
 	}
 	p.live = live
 	p.pc = &planCtx{ctx: ctx, q: q, box: s.Box, live: live, res: pr.res, env: env, cloneURL: s.CloneURL}
-	if err := s.planServices(p); err != nil {
-		return nil, err
-	}
+	s.planServices(p)
 	p.planShared()
 	p.finish()
 	return p, nil

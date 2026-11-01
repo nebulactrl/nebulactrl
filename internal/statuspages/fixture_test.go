@@ -135,16 +135,12 @@ func (f *fx) as(scopes []string, projects []uuid.UUID) context.Context {
 }
 
 // controlPlane adds the control-plane server with a public address.
-func (f *fx) controlPlane(publicIP string) uuid.UUID {
+func (f *fx) controlPlane() uuid.UUID {
 	f.t.Helper()
 	var id uuid.UUID
-	var ip *string
-	if publicIP != "" {
-		ip = &publicIP
-	}
 	require.NoError(f.t, f.pool.QueryRow(context.Background(),
-		`INSERT INTO servers (workspace_id, name, status, is_control_plane, public_ip) VALUES ($1, 'cp', 'online', true, $2) RETURNING id`,
-		f.ws, ip).Scan(&id))
+		`INSERT INTO servers (workspace_id, name, status, is_control_plane, public_ip) VALUES ($1, 'cp', 'online', true, '203.0.113.10') RETURNING id`,
+		f.ws).Scan(&id))
 	return id
 }
 

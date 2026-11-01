@@ -96,7 +96,7 @@ func TestCombinePlanPreviewThenStartStatusAbort(t *testing.T) {
 	require.Contains(t, r.stdout, "worker=staging")
 	require.Contains(t, r.stdout, "choose with --var APP_ENV=<service>")
 	require.Contains(t, r.all(), "Nothing changed")
-	require.Len(t, e.processList(web), 1, "the preview stages nothing")
+	require.Len(t, e.processList(), 1, "the preview stages nothing")
 
 	r = e.mustRun("", "--json", "services", "combine", worker, "--into", web)
 	plan := decode[map[string]any](t, r.stdout)
@@ -114,7 +114,7 @@ func TestCombinePlanPreviewThenStartStatusAbort(t *testing.T) {
 	r = e.run("", "services", "combine", worker, "--into", web, "--var", "SAME=web", "--yes")
 	require.Equal(t, 2, r.code, r.all())
 	require.Contains(t, r.err, "SAME")
-	require.Len(t, e.processList(web), 1, "a refused start stages nothing")
+	require.Len(t, e.processList(), 1, "a refused start stages nothing")
 
 	// Start: the target gains the worker as a process; nothing is deleted.
 	r = e.mustRun("", "--json", "services", "combine", worker, "--into", web,
@@ -125,7 +125,7 @@ func TestCombinePlanPreviewThenStartStatusAbort(t *testing.T) {
 	require.Equal(t, "staged", started["state"])
 	require.Len(t, started["sourceServiceIds"], 1)
 
-	ps := e.processList(web)
+	ps := e.processList()
 	require.Equal(t, []string{"web", "queue"}, processNamesOfList(ps))
 	queue := processByName(t, ps, "queue")
 	require.Equal(t, []any{"bin/worker"}, queue["command"])
@@ -146,7 +146,7 @@ func TestCombinePlanPreviewThenStartStatusAbort(t *testing.T) {
 	// Abort takes the staged process back.
 	r = e.mustRun("", "services", "combine", "abort", id)
 	require.Contains(t, r.stdout, "aborted")
-	require.Equal(t, []string{"web"}, processNamesOfList(e.processList(web)))
+	require.Equal(t, []string{"web"}, processNamesOfList(e.processList()))
 	r = e.run("", "services", "combine", "retry", id)
 	require.Equal(t, 1, r.code, "only a failed combine can be retried: %s", r.all())
 	require.Contains(t, r.all(), "invalid_state")

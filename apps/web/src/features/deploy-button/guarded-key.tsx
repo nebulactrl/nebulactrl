@@ -15,7 +15,7 @@ import { prefersReducedMotion } from "#/lib/transitions";
 import { canPressKey, GUARD_CLOSED, guardReducer } from "./guard-state";
 
 /** How long a lifted guard stays up before it drops back on its own. */
-export const GUARD_ARMED_MS = 4000;
+const GUARD_ARMED_MS = 4000;
 
 export interface Guard {
 	/** The cover is lifted: the key beneath can be pressed. */

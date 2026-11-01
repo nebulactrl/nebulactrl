@@ -111,10 +111,10 @@ func fold(srcs []db.Traffic1m, width time.Duration) []db.UpsertTraffic1hParams {
 			codes[c] = n
 		}
 		top := agentprotocol.TrafficTop{
-			Paths: s.ranked(dimPaths, agentprotocol.TopN), Pages: s.ranked(dimPages, agentprotocol.TopN),
-			Referrers: s.ranked(dimReferrers, agentprotocol.TopN), Browsers: s.ranked(dimBrowsers, agentprotocol.TopN),
-			OS: s.ranked(dimOS, agentprotocol.TopN), Devices: s.ranked(dimDevices, agentprotocol.TopN),
-			NotFound: s.ranked(dimNotFound, agentprotocol.TopN),
+			Paths: s.ranked(dimPaths), Pages: s.ranked(dimPages),
+			Referrers: s.ranked(dimReferrers), Browsers: s.ranked(dimBrowsers),
+			OS: s.ranked(dimOS), Devices: s.ranked(dimDevices),
+			NotFound: s.ranked(dimNotFound),
 		}
 		codesJSON, _ := json.Marshal(codes)
 		topJSON, _ := json.Marshal(top)

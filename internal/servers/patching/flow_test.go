@@ -135,21 +135,21 @@ func TestSweepChecksOncePerInterval(t *testing.T) {
 func TestRebootRequiredNotifiesOncePerStreak(t *testing.T) {
 	f := newFixture(t)
 	f.check(state(0, 0, false, "b1"))
-	require.Empty(t, f.emit.ofType(notifications.TypeServerRebootRequired))
+	require.Empty(t, f.emit.rebootRequired())
 
 	f.check(state(0, 0, true, "b1"))
-	evs := f.emit.ofType(notifications.TypeServerRebootRequired)
+	evs := f.emit.rebootRequired()
 	require.Len(t, evs, 1)
 	require.Equal(t, notifications.SeverityWarning, evs[0].Severity)
 	require.Contains(t, evs[0].Title, "Agent 1")
 	require.NotNil(t, evs[0].ServerID)
 
 	f.check(state(0, 0, true, "b1"))
-	require.Len(t, f.emit.ofType(notifications.TypeServerRebootRequired), 1, "still required: not announced again")
+	require.Len(t, f.emit.rebootRequired(), 1, "still required: not announced again")
 
 	f.check(state(0, 0, false, "b2"))
 	f.check(state(0, 0, true, "b2"))
-	require.Len(t, f.emit.ofType(notifications.TypeServerRebootRequired), 2, "a new streak is announced")
+	require.Len(t, f.emit.rebootRequired(), 2, "a new streak is announced")
 
 	sums, err := f.q.ListServerPatchSummaries(bg, []uuid.UUID{f.server.ID})
 	require.NoError(t, err)
@@ -234,7 +234,7 @@ func TestApplyFlowSuccessAndFailure(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, v.Updates, "the state is the one after the upgrade")
 	require.True(t, v.RebootRequired)
-	require.Len(t, f.emit.ofType(notifications.TypeServerRebootRequired), 1, "the upgrade started needing a reboot")
+	require.Len(t, f.emit.rebootRequired(), 1, "the upgrade started needing a reboot")
 	require.Equal(t, []string{ActionApply, ActionRun}, f.auditActions())
 
 	// The list view leaves logs out.
@@ -368,7 +368,7 @@ func (f *fixture) reboot() db.ServerPatchRun {
 func TestRebootWaitsForTheAgentOnANewBoot(t *testing.T) {
 	f := newFixture(t)
 	f.check(state(0, 0, true, "boot-1"))
-	require.Len(t, f.emit.ofType(notifications.TypeServerRebootRequired), 1)
+	require.Len(t, f.emit.rebootRequired(), 1)
 
 	_, err := f.svc.Reboot(f.owner, f.server.ID, RebootInput{Confirm: "nope"})
 	require.Equal(t, "confirmation_mismatch", apiCode(t, err))

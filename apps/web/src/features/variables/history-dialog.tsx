@@ -22,7 +22,7 @@ import { useVariableMutations } from "./use-variable-mutations";
 const SECRET_MASK = "••••••";
 
 /** The rows of a history that a person reads: what happened, to which value. */
-export function describeEntry(entry: VariableHistoryEntry): string {
+function describeEntry(entry: VariableHistoryEntry): string {
 	const generated = (entry.generated ?? [])
 		.map((g) => `${g.fn}(${(g.args ?? []).join(", ")})`)
 		.join(" + ");

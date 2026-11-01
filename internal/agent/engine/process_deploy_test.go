@@ -139,13 +139,13 @@ func TestProcessDeployRollsEveryProcessInOrder(t *testing.T) {
 		{Name: "worker", Outcome: "succeeded", Message: "2 replicas"},
 		{Name: "scheduler", Outcome: "succeeded", Message: "1 replica"},
 	}, dr.Processes)
-	require.Equal(t, replicaName(depV2, 0), r.dk.created[1].Name)
+	require.Equal(t, replicaName(0), r.dk.created[1].Name)
 
 	// Pulled once, pre- and post-deploy once; the port process rolls first.
 	require.Len(t, r.dk.pulled, 1)
 	require.Equal(t, []string{
 		preCtr,
-		replicaName(depV2, 0), replicaName(depV2, 1),
+		replicaName(0), replicaName(1),
 		pname(depV2, "worker", 0), pname(depV2, "worker", 1),
 		pname(depV2, "scheduler", 0),
 		postCtr,
@@ -158,8 +158,8 @@ func TestProcessDeployRollsEveryProcessInOrder(t *testing.T) {
 		cmd                  []string
 		grace                int
 	}{
-		{replicaName(depV2, 0), "web", "web", 0, nil, 5},
-		{replicaName(depV2, 1), "web", "web", 1, nil, 5},
+		{replicaName(0), "web", "web", 0, nil, 5},
+		{replicaName(1), "web", "web", 1, nil, 5},
 		{pname(depV2, "worker", 1), "worker", "worker.web", 1, []string{"app", "worker"}, 7},
 		{pname(depV2, "scheduler", 0), "scheduler", "scheduler.web", 0, []string{"app", "scheduler"}, 11},
 	} {
@@ -207,14 +207,14 @@ func TestProcessDeployRollsEveryProcessInOrder(t *testing.T) {
 	own := ownRoutesNow(r)
 	require.Len(t, own, 1)
 	require.Equal(t, svcID, own[0].ServiceID)
-	require.Equal(t, []string{replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80"}, own[0].Upstreams)
+	require.Equal(t, []string{replicaName(0) + ":80", replicaName(1) + ":80"}, own[0].Upstreams)
 	require.Len(t, r.px.Current(), 2, "the other service's route stays")
 
 	// The recorded entry carries every process; the top level mirrors the default.
 	ent := r.eng.local[svcID]
 	require.Len(t, ent.Processes, 3)
 	require.Equal(t, 2, ent.Replicas)
-	require.Equal(t, []string{replicaName(depV2, 0), replicaName(depV2, 1)}, ent.ContainerNames)
+	require.Equal(t, []string{replicaName(0), replicaName(1)}, ent.ContainerNames)
 	require.Equal(t, []string{pname(depV2, "scheduler", 0)}, ent.Processes[2].ContainerNames)
 
 	steps := strings.Join(r.snd.eventSteps(), ",")
@@ -256,7 +256,7 @@ func TestProcessDeployNamedProcessRoutesUnderItsOwnID(t *testing.T) {
 	require.Equal(t, "/up", byID[apiID].HealthPath)
 	require.Equal(t, []string{"api.localhost"}, byID[apiID].Hosts)
 	require.Empty(t, byID[svcID].Stack)
-	require.Equal(t, []string{replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80"}, byID[svcID].Upstreams)
+	require.Equal(t, []string{replicaName(0) + ":80", replicaName(1) + ":80"}, byID[svcID].Upstreams)
 	require.Contains(t, byID, "other")
 }
 
@@ -304,7 +304,7 @@ func TestSingletonIsStoppedBeforeItsReplacementStarts(t *testing.T) {
 	require.GreaterOrEqual(t, stop, 0)
 	require.Less(t, stop, create, "stop(old) strictly before create(new)")
 	require.Equal(t, 11*time.Second, r.dk.stopGrace[prevSched], "the process' own stop grace reaches ContainerStop")
-	require.True(t, running(t, r.dk, replicaName(depV2, 0)))
+	require.True(t, running(t, r.dk, replicaName(0)))
 	require.True(t, running(t, r.dk, newSched))
 }
 
@@ -319,7 +319,7 @@ func healthFailing(names ...string) HealthFunc {
 }
 
 func TestWebHealthFailureStartsNothingElseAndLeavesTheOldReleaseServing(t *testing.T) {
-	r := newRig(t, healthFailing(replicaName(depV2, 0)))
+	r := newRig(t, healthFailing(replicaName(0)))
 	prev := r.previousProcesses()
 
 	res, dr := r.deploy(processPayload(), nil)
@@ -329,7 +329,7 @@ func TestWebHealthFailureStartsNothingElseAndLeavesTheOldReleaseServing(t *testi
 	require.Equal(t, map[string]string{"web": "failed", "worker": "skipped", "scheduler": "skipped"}, outcomesOf(dr.Processes))
 	require.Equal(t, "not started: process web failed", dr.Processes[1].Message)
 
-	for _, n := range []string{replicaName(depV2, 0), replicaName(depV2, 1), pname(depV2, "worker", 0), pname(depV2, "scheduler", 0)} {
+	for _, n := range []string{replicaName(0), replicaName(1), pname(depV2, "worker", 0), pname(depV2, "scheduler", 0)} {
 		notThere(t, r.dk, n)
 	}
 	require.NotContains(t, createdNames(r.dk), pname(depV2, "worker", 0), "later processes never started")
@@ -352,11 +352,11 @@ func TestWorkerFailureAfterWebWasRoutedRestoresTheRoutesAndRemovesEverythingNew(
 	require.Equal(t, map[string]string{"web": "rolled_back", "worker": "failed", "scheduler": "skipped"}, outcomesOf(dr.Processes))
 
 	require.Len(t, r.px.applies, 2, "web's route applied, then the previous own routes restored")
-	require.Equal(t, []string{replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80"}, r.px.applies[0][len(r.px.applies[0])-1].Upstreams)
+	require.Equal(t, []string{replicaName(0) + ":80", replicaName(1) + ":80"}, r.px.applies[0][len(r.px.applies[0])-1].Upstreams)
 	require.Equal(t, []agentprotocol.Route{prev[1]}, ownRoutesNow(r), "the previous own routes are back")
 	require.Contains(t, r.px.Current(), prev[0], "other services' routes are untouched")
 
-	for _, n := range []string{replicaName(depV2, 0), replicaName(depV2, 1), pname(depV2, "worker", 0), pname(depV2, "worker", 1)} {
+	for _, n := range []string{replicaName(0), replicaName(1), pname(depV2, "worker", 0), pname(depV2, "worker", 1)} {
 		notThere(t, r.dk, n)
 	}
 	for _, n := range []string{prevWeb, prevWorker, prevSched} {
@@ -446,7 +446,7 @@ func TestCancelDuringALaterProcessUnwindsEverything(t *testing.T) {
 	require.Equal(t, map[string]string{"web": "rolled_back", "worker": "rolled_back", "scheduler": "skipped"}, outcomesOf(dr.Processes))
 
 	require.Equal(t, []agentprotocol.Route{prev[1]}, ownRoutesNow(r))
-	for _, n := range []string{replicaName(depV2, 0), pname(depV2, "worker", 0), pname(depV2, "worker", 1)} {
+	for _, n := range []string{replicaName(0), pname(depV2, "worker", 0), pname(depV2, "worker", 1)} {
 		notThere(t, r.dk, n)
 	}
 	for _, n := range []string{prevWeb, prevWorker, prevSched} {
@@ -473,7 +473,7 @@ func TestCancelBetweenProcessesTouchesNothingOfTheNextOne(t *testing.T) {
 	require.Equal(t, map[string]string{"web": "rolled_back", "scheduler": "skipped", "worker": "skipped"}, outcomesOf(dr.Processes))
 	require.Empty(t, r.dk.stopped, "the old singleton was not stopped after the cancel")
 	require.Equal(t, []agentprotocol.Route{prev[1]}, ownRoutesNow(r), "web's route is back on the previous release")
-	notThere(t, r.dk, replicaName(depV2, 0))
+	notThere(t, r.dk, replicaName(0))
 	require.NotContains(t, createdNames(r.dk), pname(depV2, "scheduler", 0))
 	for _, n := range []string{prevWeb, prevWorker, prevSched} {
 		require.True(t, running(t, r.dk, n))
@@ -513,7 +513,7 @@ func TestRepeatedDeployCommandContinuesRunningContainersOfEveryProcess(t *testin
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	require.Equal(t, created, createdNames(r.dk), "nothing was created again")
 	log := r.snd.allLogText()
-	for _, n := range []string{pname(depV2, "worker", 1), pname(depV2, "scheduler", 0), replicaName(depV2, 1)} {
+	for _, n := range []string{pname(depV2, "worker", 1), pname(depV2, "scheduler", 0), replicaName(1)} {
 		require.Contains(t, log, "Container "+n+" from an earlier attempt is running; continuing")
 	}
 	for _, n := range created {
@@ -627,7 +627,7 @@ func TestRenamedDefaultProcessWithVolumesIsStoppedBeforeItsReplacementStarts(t *
 
 	res, dr := r.deploy(p, nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
-	stop, create := opIndex(r.dk.ops, "stop:"+prevWeb), opIndex(r.dk.ops, "create:"+replicaName(depV2, 0))
+	stop, create := opIndex(r.dk.ops, "stop:"+prevWeb), opIndex(r.dk.ops, "create:"+replicaName(0))
 	require.GreaterOrEqual(t, stop, 0)
 	require.Less(t, stop, create, "the renamed default process' old container does not share the volume with its replacement")
 	notThere(t, r.dk, prevWeb)
@@ -657,7 +657,7 @@ func TestLegacyReleaseIsRetiredByAMultiProcessDeploy(t *testing.T) {
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	_, exists := r.dk.state(oldCtr)
 	require.False(t, exists, "the unlabelled container belongs to the default process and is retired")
-	require.True(t, running(t, r.dk, replicaName(depV2, 0)))
+	require.True(t, running(t, r.dk, replicaName(0)))
 }
 
 func TestMultiProcessReleaseIsRetiredByALegacyDeploy(t *testing.T) {
@@ -779,16 +779,16 @@ func TestSweepOrphansKeepsEveryProcessContainer(t *testing.T) {
 
 func TestDesiredEntryOwnsTheContainersOfEveryProcess(t *testing.T) {
 	ent := desiredEntry{DeploymentID: depV2, Processes: []desiredProcess{
-		{Name: "web", Default: true, Replicas: 1, ContainerNames: []string{replicaName(depV2, 0)}},
+		{Name: "web", Default: true, Replicas: 1, ContainerNames: []string{replicaName(0)}},
 		{Name: "worker", Replicas: 2, ContainerNames: []string{pname(depV2, "worker", 0), pname(depV2, "worker", 1)}},
 	}}
 	ent.mirrorDefault()
-	require.Equal(t, []string{replicaName(depV2, 0)}, ent.ContainerNames)
-	for _, n := range []string{replicaName(depV2, 0), pname(depV2, "worker", 1)} {
+	require.Equal(t, []string{replicaName(0)}, ent.ContainerNames)
+	for _, n := range []string{replicaName(0), pname(depV2, "worker", 1)} {
 		require.True(t, ent.owns(docker.ContainerInfo{Name: n}), n)
 	}
 	require.False(t, ent.owns(docker.ContainerInfo{Name: pname(depV2, "worker", 2)}))
-	legacy := desiredEntry{DeploymentID: depV2, Replicas: 1, ContainerNames: []string{replicaName(depV2, 0)}}
+	legacy := desiredEntry{DeploymentID: depV2, Replicas: 1, ContainerNames: []string{replicaName(0)}}
 	require.Len(t, legacy.procs(), 1)
 	require.Equal(t, "", legacy.procs()[0].Name)
 }
@@ -853,9 +853,9 @@ func TestReplicaContainerResolvesByProcess(t *testing.T) {
 		replica int
 		want    string
 	}{
-		{"", 0, replicaName(depV2, 0)}, // the default process
-		{"", 1, replicaName(depV2, 1)},
-		{"web", 1, replicaName(depV2, 1)},
+		{"", 0, replicaName(0)}, // the default process
+		{"", 1, replicaName(1)},
+		{"web", 1, replicaName(1)},
 		{"worker", 1, pname(depV2, "worker", 1)},
 		{"scheduler", 0, pname(depV2, "scheduler", 0)},
 	} {
@@ -915,8 +915,8 @@ func TestLogsFilterAndPrefixByProcess(t *testing.T) {
 	res, dr := r.deploy(processPayload(), nil)
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	r.dk.mu.Lock()
-	r.dk.logText[replicaName(depV2, 0)] = "serving"
-	r.dk.logText[replicaName(depV2, 1)] = "serving"
+	r.dk.logText[replicaName(0)] = "serving"
+	r.dk.logText[replicaName(1)] = "serving"
 	r.dk.logText[pname(depV2, "worker", 0)] = "job a"
 	r.dk.logText[pname(depV2, "worker", 1)] = "job b"
 	r.dk.logText[pname(depV2, "scheduler", 0)] = "tick"
@@ -954,11 +954,11 @@ func TestUptimeJudgesEveryProcessAndNamesTheFailingOne(t *testing.T) {
 		c := seedReplica(r, svcID, name, httpCheck, port)
 		edit(r, c, func(c *docker.ContainerInfo) { c.Labels[agentprotocol.LabelProcess] = process })
 	}
-	seed(replicaName(depV2, 0), "web", ok)
+	seed(replicaName(0), "web", ok)
 	seed(pname(depV2, "worker", 0), "worker", bad)
 	r.eng.mu.Lock()
-	r.eng.desired[svcID] = desiredEntry{DeploymentID: depV2, Replicas: 1, ContainerNames: []string{replicaName(depV2, 0)}, Processes: []desiredProcess{
-		{Name: "web", Default: true, Replicas: 1, ContainerNames: []string{replicaName(depV2, 0)}},
+	r.eng.desired[svcID] = desiredEntry{DeploymentID: depV2, Replicas: 1, ContainerNames: []string{replicaName(0)}, Processes: []desiredProcess{
+		{Name: "web", Default: true, Replicas: 1, ContainerNames: []string{replicaName(0)}},
 		{Name: "worker", Replicas: 1, ContainerNames: []string{pname(depV2, "worker", 0)}},
 	}}
 	r.eng.mu.Unlock()
@@ -974,12 +974,12 @@ func TestUptimeJudgesEveryProcessAndNamesTheFailingOne(t *testing.T) {
 func TestRouteSupersedesOnlyByTheProcessThatOwnsIt(t *testing.T) {
 	apiID := agentprotocol.ProcessRouteID(svcID, "api")
 	loc := desiredEntry{DeploymentID: depV2, Processes: []desiredProcess{
-		{Name: "web", Default: true, Replicas: 2, ContainerNames: []string{replicaName(depV2, 0), replicaName(depV2, 1)}},
+		{Name: "web", Default: true, Replicas: 2, ContainerNames: []string{replicaName(0), replicaName(1)}},
 		{Name: "api", Replicas: 1, ContainerNames: []string{pname(depV2, "api", 0)}},
 		{Name: "worker", Replicas: 3, ContainerNames: []string{pname(depV2, "worker", 0), pname(depV2, "worker", 1), pname(depV2, "worker", 2)}},
 	}}
 	loc.mirrorDefault()
-	web := agentprotocol.Route{ServiceID: svcID, Upstreams: []string{replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80"}}
+	web := agentprotocol.Route{ServiceID: svcID, Upstreams: []string{replicaName(0) + ":80", replicaName(1) + ":80"}}
 	api := agentprotocol.Route{ServiceID: apiID, Stack: svcID, Upstreams: []string{pname(depV2, "api", 0) + ":8081"}}
 
 	require.False(t, supersedesTable(loc, web), "web's route names web's replicas, not every container of the service")
@@ -1039,7 +1039,7 @@ func TestScaleActsOnOneProcess(t *testing.T) {
 	require.True(t, running(t, r.dk, pname(depV2, "worker", 0)))
 	notThere(t, r.dk, pname(depV2, "worker", 1))
 	notThere(t, r.dk, pname(depV2, "worker", 2))
-	require.True(t, running(t, r.dk, replicaName(depV2, 1)), "web untouched")
+	require.True(t, running(t, r.dk, replicaName(1)), "web untouched")
 	require.True(t, running(t, r.dk, pname(depV2, "scheduler", 0)), "scheduler untouched")
 
 	// A singleton refuses replicas.
@@ -1052,13 +1052,13 @@ func TestScaleActsOnOneProcess(t *testing.T) {
 	res, dr = r.scaleProcess(p, "web", 3, time.Time{})
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
 	require.Equal(t, []string{
-		replicaName(depV2, 0) + ":80", replicaName(depV2, 1) + ":80", replicaName(depV2, 2) + ":80",
-	}, upstreamsOf(t, r.px, svcID))
+		replicaName(0) + ":80", replicaName(1) + ":80", replicaName(2) + ":80",
+	}, upstreamsOf(t, r.px))
 
 	// The default process may be addressed by an empty name too.
 	res, dr = r.scaleProcess(p, "", 2, time.Time{})
 	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
-	notThere(t, r.dk, replicaName(depV2, 2))
+	notThere(t, r.dk, replicaName(2))
 
 	res, dr = r.scaleProcess(p, "nope", 2, time.Time{})
 	require.Equal(t, agentprotocol.OutcomeFailed, res.Outcome)
@@ -1110,7 +1110,7 @@ func TestReconcileConvergesEachProcessToItsOwnCount(t *testing.T) {
 	worker, _ := ent.proc("worker")
 	require.Equal(t, 3, worker.Replicas)
 	require.Len(t, worker.ContainerNames, 3)
-	for _, n := range []string{replicaName(depV2, 0), replicaName(depV2, 1), pname(depV2, "scheduler", 0)} {
+	for _, n := range []string{replicaName(0), replicaName(1), pname(depV2, "scheduler", 0)} {
 		require.True(t, running(t, r.dk, n), n)
 	}
 
@@ -1141,7 +1141,7 @@ func TestStaleFrameDoesNotUndoAProcessScaleButOtherProcessesStillConverge(t *tes
 	r.eng.bg.Wait()
 
 	notThere(t, r.dk, pname(depV2, "worker", 1))
-	require.True(t, running(t, r.dk, replicaName(depV2, 2)), "web converged to the frame's count")
+	require.True(t, running(t, r.dk, replicaName(2)), "web converged to the frame's count")
 	require.Len(t, r.dk.created, created+1)
 	worker, _ := r.eng.local[svcID].proc("worker")
 	require.Equal(t, 1, worker.Replicas, "the scale is final until a newer frame replaces it")

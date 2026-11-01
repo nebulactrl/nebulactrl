@@ -31,7 +31,7 @@ export type SuggestContext = Pick<FacetStats, "facets" | "attrs"> & {
 	recent: readonly string[];
 };
 
-export const MAX_SUGGESTIONS = 10;
+const MAX_SUGGESTIONS = 10;
 const MAX_RECENT_SHOWN = 5;
 const MAX_ATTRS_AT_START = 3;
 

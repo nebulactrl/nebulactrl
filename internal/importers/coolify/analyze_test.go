@@ -379,7 +379,7 @@ func TestLiteralBracesAreEscaped(t *testing.T) {
 	p := defaultPlan(t)
 	e := envv(t, res(t, p, "shop-web"), "LITERAL_BRACES")
 	require.Equal(t, "price $${{ 5 }} usd", e.value)
-	_, err := validTemplate(e.value)
+	err := validTemplate(e.value)
 	require.NoError(t, err)
 }
 
@@ -392,7 +392,7 @@ func TestEveryRenderedValueIsAValidTemplate(t *testing.T) {
 					if e.Skipped {
 						continue
 					}
-					_, err := validTemplate(e.value)
+					err := validTemplate(e.value)
 					require.NoError(t, err, "%s.%s", r.Name, e.Key)
 				}
 			}
@@ -577,7 +577,7 @@ func TestDatabaseVersions(t *testing.T) {
 	for _, c := range cases {
 		d := &Database{UUID: "u", Name: "db", Type: "standalone-postgresql", Image: c.image, User: "app", DBName: "app", SensitiveVisible: true}
 		a := &analyzer{tg: Target{}}
-		r := a.planDatabase(d, CoolifyResourceChoice{}, nil)
+		r := a.planDatabase(d, CoolifyResourceChoice{})
 		if c.unsupported {
 			require.False(t, r.Include, c.image)
 			require.NotEmpty(t, r.IncludeNote, c.image)
@@ -593,17 +593,17 @@ func TestDatabaseVersions(t *testing.T) {
 func TestSourceAvailableEnginesAreOptIn(t *testing.T) {
 	d := &Database{UUID: "u", Name: "cache", Type: "standalone-redis", Image: "redis:7", SensitiveVisible: true}
 	a := &analyzer{}
-	r := a.planDatabase(d, CoolifyResourceChoice{}, nil)
+	r := a.planDatabase(d, CoolifyResourceChoice{})
 	require.False(t, r.Include)
 	require.Contains(t, r.IncludeNote, "licence")
 	yes := true
-	r = a.planDatabase(d, CoolifyResourceChoice{Include: &yes}, nil)
+	r = a.planDatabase(d, CoolifyResourceChoice{Include: &yes})
 	require.True(t, r.Include)
 }
 
 func TestSQLiteIsNotImported(t *testing.T) {
 	d := &Database{UUID: "u", Name: "lite", Type: "standalone-sqlite"}
-	r := (&analyzer{}).planDatabase(d, CoolifyResourceChoice{}, nil)
+	r := (&analyzer{}).planDatabase(d, CoolifyResourceChoice{})
 	require.False(t, r.Include)
 	require.Contains(t, r.IncludeNote, "files")
 }
@@ -614,7 +614,7 @@ func TestHealthCheckMappings(t *testing.T) {
 			Health: Health{Enabled: true, Type: "http", Path: "ready", Interval: 10, Timeout: 4, Retries: 5, StartPeriod: 20, ReturnCode: 204, Method: "HEAD", Scheme: "https", ResponseText: "ok"}}
 		mod(app)
 		a := &analyzer{}
-		r := a.planApplication(app, CoolifyResourceChoice{}, nil)
+		r := a.planApplication(app, CoolifyResourceChoice{})
 		return &r
 	}
 	r := mk(func(*Application) {})
@@ -652,7 +652,7 @@ func TestBuildPacks(t *testing.T) {
 		if mod != nil {
 			mod(app)
 		}
-		r := (&analyzer{}).planApplication(app, CoolifyResourceChoice{}, nil)
+		r := (&analyzer{}).planApplication(app, CoolifyResourceChoice{})
 		return &r
 	}
 	df := mk("dockerfile", nil)
@@ -686,7 +686,7 @@ func TestBuildPacks(t *testing.T) {
 func TestResourceLimits(t *testing.T) {
 	app := &Application{UUID: "a", Name: "a", BuildPack: "dockerimage", RegistryImage: "x/y", PortsExposes: "80", LimitsMemory: "512m", LimitsCPUs: "1.5",
 		LimitsMemorySwap: "1g", LimitsCPUShares: 512, SensitiveVisible: true}
-	r := (&analyzer{}).planApplication(app, CoolifyResourceChoice{}, nil)
+	r := (&analyzer{}).planApplication(app, CoolifyResourceChoice{})
 	require.Equal(t, 512, r.MemoryMB)
 	require.Equal(t, 1.5, r.CPUs)
 	require.True(t, anyContains(r.Unsupported, "memory swap limit"))
@@ -699,13 +699,13 @@ func TestInlineDockerOptionsNeedAServer(t *testing.T) {
 	// privileged needs an unrestricted server: flagged, never silently dropped
 	app := &Application{UUID: "a", Name: "a", BuildPack: "dockerimage", RegistryImage: "x/y", RegistryTag: "1", PortsExposes: "80", SensitiveVisible: true,
 		CustomDockerRunOptions: "--privileged --cap-add NET_ADMIN --init"}
-	restricted := (&analyzer{tg: Target{Server: &TargetServer{}}}).planApplication(app, CoolifyResourceChoice{}, nil)
+	restricted := (&analyzer{tg: Target{Server: &TargetServer{}}}).planApplication(app, CoolifyResourceChoice{})
 	require.Contains(t, restricted.NeedsUnrestricted, "privileged")
 	require.NotNil(t, restricted.Docker)
 	require.False(t, restricted.Docker.Privileged)
 	require.True(t, restricted.Docker.Init)
 	require.True(t, notesContain(&restricted, "privileged", "unrestricted server"))
-	open := (&analyzer{tg: Target{Server: &TargetServer{Unrestricted: true}}}).planApplication(app, CoolifyResourceChoice{}, nil)
+	open := (&analyzer{tg: Target{Server: &TargetServer{Unrestricted: true}}}).planApplication(app, CoolifyResourceChoice{})
 	require.True(t, open.Docker.Privileged)
 	require.Equal(t, []string{"NET_ADMIN"}, open.Docker.CapAdd)
 }

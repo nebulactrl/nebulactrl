@@ -2,7 +2,7 @@
 // UI reads, and the words for check results, sizes and garbage collection.
 // No DOM, no network, no generated client: `model.test.ts` covers it all.
 
-export type RegistryKind = "external" | "builtin";
+type RegistryKind = "external" | "builtin";
 
 /** One "Test registry" result, from one server's point of view. */
 export interface RegistryCheck {
@@ -166,7 +166,7 @@ export function namespaceError(value: string): string | undefined {
 }
 
 /** Trims the host and the namespace so what is sent is what is checked. */
-export function normalize(draft: RegistryDraft): RegistryDraft {
+function normalize(draft: RegistryDraft): RegistryDraft {
 	return {
 		...draft,
 		name: draft.name.trim(),

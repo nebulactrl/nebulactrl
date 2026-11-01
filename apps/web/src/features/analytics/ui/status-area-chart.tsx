@@ -18,7 +18,7 @@ import {
 } from "#/features/metrics/ui/time-chart";
 import type { SeriesRow } from "../series";
 
-export const STATUS_CLASSES = [
+const STATUS_CLASSES = [
 	{
 		key: "s2xx",
 		label: "2xx",

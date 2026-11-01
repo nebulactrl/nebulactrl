@@ -24,7 +24,7 @@ function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
 
 type RevealPhase = "loading" | "revealing" | "done";
 
-export interface SkeletonRevealProps {
+interface SkeletonRevealProps {
 	/** True while the data is on its way (a query's `isPending`). */
 	loading: boolean;
 	/** What stands in the slot meanwhile: `Skeleton` blocks. */

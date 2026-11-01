@@ -128,12 +128,12 @@ func (v *view) checkVars(vars map[string]Variable, abs func(rel ...string) strin
 			g := s.errorf(CodeSecretHasValue, np, "%q is declared secret in secrets.keys and also has a value in variables; the file never holds a secret's value", name)
 			g.Hint = "remove it from variables, or remove it from secrets.keys"
 		}
-		v.checkRefs(tpl, name, vp, abs, varsKey, secretSet, vars, c)
+		v.checkRefs(tpl, name, vp, secretSet, vars, c)
 	}
 }
 
 // checkRefs validates the references of one variable value.
-func (v *view) checkRefs(tpl *varexpr.Template, name, vp string, abs func(rel ...string) string, varsKey string, secretSet map[string]bool, vars map[string]Variable, c *svcCtx) {
+func (v *view) checkRefs(tpl *varexpr.Template, name, vp string, secretSet map[string]bool, vars map[string]Variable, c *svcCtx) {
 	s := v.s
 	for _, r := range tpl.Refs() {
 		switch {

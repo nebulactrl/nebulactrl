@@ -118,11 +118,22 @@ func scopeMessage(sn *snapshot, write bool) string {
 	return "The OAuth client lacks the policy_file:read scope, so the generated rules cannot be verified in your tailnet policy."
 }
 
+// noPolicyAccess reports whether PolicyAPI failed because the integration has
+// no credential that can manage a policy (not connected, or a Headscale
+// pre-auth key). Any other failure (database, secret decryption) is not a
+// verdict about the credential and must surface.
+func noPolicyAccess(err error) bool {
+	return errors.Is(err, tailscale.ErrNotConfigured) || errors.Is(err, tailscale.ErrPolicyUnsupported)
+}
+
 func (s *Service) applyManagedHeadscale(ctx context.Context, sn *snapshot, pol acl.Policy) error {
 	api, err := s.ts.PolicyAPI(ctx, sn.ws)
-	if err != nil {
+	if noPolicyAccess(err) {
 		s.setACLState(ctx, sn.ws, StateError, "No policy access: "+err.Error(), "", "")
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("policy api: %w", err)
 	}
 	doc, err := pol.Document(s.baseFor(ctx, sn))
 	if err != nil {
@@ -169,9 +180,12 @@ func (s *Service) applyManagedHeadscale(ctx context.Context, sn *snapshot, pol a
 
 func (s *Service) applyManagedTailscale(ctx context.Context, sn *snapshot, pol acl.Policy) error {
 	api, err := s.ts.PolicyAPI(ctx, sn.ws)
-	if err != nil {
+	if noPolicyAccess(err) {
 		s.setACLState(ctx, sn.ws, StateError, "No policy access: "+err.Error(), "", "")
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("policy api: %w", err)
 	}
 	cur, err := api.Get(ctx)
 	if errors.Is(err, tailscale.ErrAuth) {
@@ -222,9 +236,12 @@ func (s *Service) checkAdvisory(ctx context.Context, sn *snapshot, pol acl.Polic
 	}
 	hint := "Add the generated rules to your tailnet policy (Team settings → Server mesh, Preview rules). The connectivity test shows whether they work."
 	api, err := s.ts.PolicyAPI(ctx, sn.ws)
-	if err != nil {
+	if noPolicyAccess(err) {
 		s.setACLState(ctx, sn.ws, StateAdvisory, hint, "", "")
 		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("policy api: %w", err)
 	}
 	cur, err := api.Get(ctx)
 	switch {

@@ -1,7 +1,7 @@
 import { ApiError, reportFailure } from "#/api/client-config";
 
 /** Same-origin URL the dump file of a restore is PUT to. */
-export function dumpUploadUrl(restoreId: string, fileName: string): string {
+function dumpUploadUrl(restoreId: string, fileName: string): string {
 	const q = new URLSearchParams({ fileName });
 	return `/api/v1/dump-restores/${encodeURIComponent(restoreId)}/upload?${q.toString()}`;
 }

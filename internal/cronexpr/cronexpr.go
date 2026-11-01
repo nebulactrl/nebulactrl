@@ -35,7 +35,6 @@ type Schedule struct {
 
 	domStar bool // day-of-month field started with * or ?
 	dowStar bool
-	spec    string
 }
 
 var macros = map[string]string{
@@ -71,7 +70,6 @@ var (
 
 // Parse parses a 5-field cron expression or an @macro.
 func Parse(spec string) (*Schedule, error) {
-	orig := spec
 	spec = strings.TrimSpace(spec)
 	if spec == "" {
 		return nil, fmt.Errorf("cron: empty expression")
@@ -87,7 +85,7 @@ func Parse(spec string) (*Schedule, error) {
 	if len(parts) != 5 {
 		return nil, fmt.Errorf("cron: expected 5 fields (minute hour day-of-month month day-of-week), got %d", len(parts))
 	}
-	s := &Schedule{spec: strings.TrimSpace(orig)}
+	s := &Schedule{}
 	var err error
 	if s.minute, _, err = parseField(parts[0], fMinute); err != nil {
 		return nil, err
@@ -121,9 +119,6 @@ func MustParse(spec string) *Schedule {
 	}
 	return s
 }
-
-// String returns the expression the schedule was parsed from.
-func (s *Schedule) String() string { return s.spec }
 
 func parseField(field string, f fieldSpec) (bits uint64, star bool, err error) {
 	if field == "" {

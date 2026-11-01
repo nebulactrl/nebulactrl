@@ -61,7 +61,7 @@ func robot() *agentprotocol.RegistryAuth {
 }
 
 func TestCheckRegistryNoAuthRegistryAcceptsADummyCredential(t *testing.T) {
-	host, _ := registry(t) // plain registry: /v2/ answers 200 to anyone
+	host := registry(t) // plain registry: /v2/ answers 200 to anyone
 	res := CheckRegistry(context.Background(), nil, RegistryCheck{Host: host, Insecure: true, Auth: robot(), WantPush: true})
 	require.Equal(t, agentprotocol.RegistryCheckResult{Push: true, Pull: true}, res)
 

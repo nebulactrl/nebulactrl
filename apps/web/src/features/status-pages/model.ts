@@ -29,7 +29,6 @@ import { NEW_NAME_NOTE } from "#/lib/dns-new-name";
 export {
 	isNewName,
 	NEW_NAME_NOTE,
-	NEW_NAME_WINDOW_MS,
 } from "#/lib/dns-new-name";
 
 export const MAX_COMPONENTS = 100;
@@ -39,7 +38,7 @@ export const MAX_DESCRIPTION = 500;
 export const MAX_FOOTER = 500;
 export const MAX_DISPLAY_NAME = 60;
 export const MAX_GROUP_NAME = 60;
-export const MAX_URL = 300;
+const MAX_URL = 300;
 export const MAX_INCIDENT_TITLE = 120;
 export const MAX_UPDATE_BODY = 4000;
 export const MAX_WINDOW_DESCRIPTION = 2000;
@@ -101,7 +100,7 @@ export function groupRows(rows: readonly ComponentRow[]): RowGroup[] {
 }
 
 /** The flat, ordered list of `groupRows`. */
-export function normalizeRows(rows: readonly ComponentRow[]): ComponentRow[] {
+function normalizeRows(rows: readonly ComponentRow[]): ComponentRow[] {
 	return groupRows(rows).flatMap((group) => group.rows);
 }
 
@@ -332,13 +331,13 @@ export function validateComponentUrl(value: string): string | null {
 	return null;
 }
 
-export function validateDisplayName(value: string): string | null {
+function validateDisplayName(value: string): string | null {
 	return trimmed(value).length > MAX_DISPLAY_NAME
 		? `A name is at most ${MAX_DISPLAY_NAME} characters.`
 		: null;
 }
 
-export function validateGroupName(value: string): string | null {
+function validateGroupName(value: string): string | null {
 	return trimmed(value).length > MAX_GROUP_NAME
 		? `A group name is at most ${MAX_GROUP_NAME} characters.`
 		: null;
@@ -704,7 +703,7 @@ export function savePageProblem(
 
 // --- The DNS check -------------------------------------------------------------
 
-export type DnsStatus = "ok" | "mismatch" | "missing" | "unknown";
+type DnsStatus = "ok" | "mismatch" | "missing" | "unknown";
 
 /** What the DNS check says: a title, its tone, and the sentence that says what to do. */
 export interface DnsNotice {
@@ -1009,7 +1008,7 @@ export function statusRank(status: IncidentStatus): number {
 }
 
 /** How bad an impact is: none is 0, critical is 3. */
-export function impactRank(impact: IncidentImpact): number {
+function impactRank(impact: IncidentImpact): number {
 	return INCIDENT_IMPACTS.indexOf(impact);
 }
 

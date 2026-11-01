@@ -45,8 +45,8 @@ func tailnetSecrets() map[string]string {
 	return map[string]string{agentprotocol.SecretServiceTailnetKey: tnKey}
 }
 
-func (r *rig) hasEvent(step, status string) bool {
-	return strings.Contains(strings.Join(r.snd.eventSteps(), ","), step+":"+status)
+func (r *rig) hasEvent(status string) bool {
+	return strings.Contains(strings.Join(r.snd.eventSteps(), ","), "tailnet:"+status)
 }
 
 func TestDeployEnsuresTheSidecarAfterTheAppIsLive(t *testing.T) {
@@ -73,8 +73,8 @@ func TestDeployEnsuresTheSidecarAfterTheAppIsLive(t *testing.T) {
 	require.False(t, isReplica)
 	require.Equal(t, agentprotocol.EnvNetwork(envID), side.Networks[0].Network)
 
-	require.True(t, r.hasEvent("tailnet", "started"))
-	require.True(t, r.hasEvent("tailnet", "succeeded"))
+	require.True(t, r.hasEvent("started"))
+	require.True(t, r.hasEvent("succeeded"))
 
 	// The key never reaches logs, events or the result.
 	require.NotContains(t, r.snd.allLogText(), tnKey)
@@ -109,7 +109,7 @@ func TestSidecarFailureNeverFailsTheDeployment(t *testing.T) {
 	require.NotNil(t, dr.Tailnet)
 	require.Equal(t, agentprotocol.ServiceTailnetNeedsAttn, dr.Tailnet.State)
 	require.Contains(t, dr.Message, "Warning: tailnet needs_attention")
-	require.True(t, r.hasEvent("tailnet", "failed"))
+	require.True(t, r.hasEvent("failed"))
 	require.NotContains(t, dr.Message, tnKey)
 }
 
@@ -118,7 +118,7 @@ func TestDeployWithoutATailnetSpecTouchesNoSidecar(t *testing.T) {
 	_, dr := r.deploy(basePayload(), nil)
 	require.Nil(t, dr.Tailnet)
 	require.Len(t, r.dk.created, 1)
-	require.False(t, r.hasEvent("tailnet", "started"))
+	require.False(t, r.hasEvent("started"))
 }
 
 func TestDisablingRemovesTheSidecarWithTheNextDeploy(t *testing.T) {

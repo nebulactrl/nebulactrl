@@ -401,7 +401,7 @@ func (b *Builder) diskPreflight(ctx context.Context, env []string, builder strin
 	}
 	free, err := b.freeBytes(b.StateDir)
 	if err != nil || free >= uint64(min) {
-		return nil // an unreadable filesystem is not a reason to refuse
+		return nil //nolint:nilerr // the preflight is best-effort: if free space cannot be read the build proceeds rather than refusing
 	}
 	logf(fmt.Sprintf("Only %s free on this build server; pruning the build cache of %s", humanBytes(free), builder))
 	lw := &LineWriter{Fn: logf}

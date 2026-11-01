@@ -267,7 +267,7 @@ func newFixture(t *testing.T) *fixture {
 
 // deployed inserts an image service with one domain and a succeeded current
 // deployment on f.server; zone marks the domain as managed in a Cloudflare zone.
-func (f *fixture) deployed(slug, host string, zone bool) db.Domain {
+func (f *fixture) deployed(slug, host string, zone bool) {
 	f.t.Helper()
 	cfg := services.Config{Image: "traefik/whoami:latest", Port: 80}.WithDefaults()
 	raw, err := json.Marshal(cfg)
@@ -293,7 +293,6 @@ func (f *fixture) deployed(slug, host string, zone bool) db.Domain {
 		_, err = f.pool.Exec(bg, "UPDATE domains SET cf_zone_id = 'zone1', cf_zone_name = 'example.com' WHERE id = $1", dom.ID)
 		require.NoError(f.t, err)
 	}
-	return dom
 }
 
 func (f *fixture) row() db.ServerTunnel {
@@ -323,9 +322,10 @@ func apiCode(t *testing.T, err error) string {
 	return ae.Code
 }
 
-func (f *fixture) riverArgs(kind string) []string {
+// deleteJobArgs lists the args of the queued server_tunnel_delete jobs.
+func (f *fixture) deleteJobArgs() []string {
 	f.t.Helper()
-	rows, err := f.pool.Query(bg, `SELECT args::text FROM river_job WHERE kind = $1 ORDER BY id`, kind)
+	rows, err := f.pool.Query(bg, `SELECT args::text FROM river_job WHERE kind = 'server_tunnel_delete' ORDER BY id`)
 	require.NoError(f.t, err)
 	defer rows.Close()
 	var out []string
@@ -530,7 +530,7 @@ func TestDisableFlipsDNSBackAndDeletesTheTunnel(t *testing.T) {
 	require.False(t, pl.Routes[0].Domains[0].Tunnel)
 
 	// The tunnel is deleted at Cloudflare later, by a job.
-	require.Len(t, f.riverArgs("server_tunnel_delete"), 1)
+	require.Len(t, f.deleteJobArgs(), 1)
 	require.False(t, f.api.has("DELETE /accounts/"+account+"/cfd_tunnel/"+tunnelID))
 	require.NoError(t, f.svc.DeleteRemote(bg, f.server.ID))
 	require.True(t, f.api.has("DELETE /accounts/"+account+"/cfd_tunnel/"+tunnelID+"/connections"))
@@ -550,7 +550,7 @@ func TestDisableForceDropsTheRecordWithoutAskingCloudflare(t *testing.T) {
 	require.NoError(t, err)
 	_, err = f.q.GetServerTunnel(bg, f.server.ID)
 	require.ErrorIs(t, err, pgx.ErrNoRows)
-	require.Empty(t, f.riverArgs("server_tunnel_delete"))
+	require.Empty(t, f.deleteJobArgs())
 	require.False(t, f.api.has("DELETE /accounts/"+account+"/cfd_tunnel/"+tunnelID))
 }
 
@@ -588,7 +588,7 @@ func TestServerRevokedTearsTheTunnelDownWithoutAgentCommands(t *testing.T) {
 	f.svc.ServerRevoked(bg, f.ws, f.server.ID)
 	require.Equal(t, "removing", f.row().State)
 	require.Len(t, f.disp.cmds, before, "a revoked agent is not asked to remove the connector")
-	require.Len(t, f.riverArgs("server_tunnel_delete"), 1)
+	require.Len(t, f.deleteJobArgs(), 1)
 	_, ok, _ := f.svc.TunnelTarget(bg, f.server.ID)
 	require.False(t, ok)
 }

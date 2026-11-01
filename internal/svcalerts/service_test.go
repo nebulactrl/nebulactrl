@@ -292,7 +292,9 @@ func TestLongLogLinesAreClipped(t *testing.T) {
 	f.repeat(time.Minute, f.exited)
 	got := f.rec.OfType(notifications.TypeServiceCrashed)
 	require.Len(t, got, 1)
-	line := strings.TrimPrefix(got[0].Body[strings.Index(got[0].Body, "Last output:\n"):], "Last output:\n")
+	at := strings.Index(got[0].Body, "Last output:\n")
+	require.GreaterOrEqual(t, at, 0, "no last output in %q", got[0].Body)
+	line := strings.TrimPrefix(got[0].Body[at:], "Last output:\n")
 	require.Equal(t, maxLogLine, len([]rune(line)))
 	require.True(t, strings.HasSuffix(line, "…"))
 }

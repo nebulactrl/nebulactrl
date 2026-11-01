@@ -100,7 +100,7 @@ func newMigration(t *testing.T) *migFixture {
 	// Provisioned by the fixture's own service: its job manager knows the domain jobs.
 	f.agents.out["headscale users create"] = "User created"
 	f.agents.out["headscale apikeys create"] = migrationKey + "\n"
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	m.id = r.View.ID
 	m.hs = meshtest.NewHeadscale(t, meshtest.WithAPIKey(migrationKey), meshtest.WithUsers(map[string]string{"nebulactrl": "7"}), meshtest.WithPolicyMode(meshtest.PolicyModeFile))
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))

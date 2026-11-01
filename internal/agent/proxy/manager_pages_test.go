@@ -145,8 +145,9 @@ func pagesContent(eng *fleetEngine) string {
 	for _, name := range pagesNames {
 		if _, _, ok := eng.container(name); ok {
 			eng.mu.Lock()
-			defer eng.mu.Unlock()
-			return string(eng.copies[name])
+			content := string(eng.copies[name])
+			eng.mu.Unlock()
+			return content
 		}
 	}
 	return ""

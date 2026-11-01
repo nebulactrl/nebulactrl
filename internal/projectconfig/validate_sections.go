@@ -749,27 +749,25 @@ func (c *svcCtx) checkRoute() {
 	if r.Protocol == nil {
 		return
 	}
-	if cfg, err := c.routeConfig(); err == nil {
-		if verr := cfg.Validate(); verr != nil {
-			key := "protocol"
-			m := verr.Error()
-			switch {
-			case strings.Contains(m, "healthPath"):
-				key = "health_path"
-			case strings.Contains(m, "scheme"):
-				key = "scheme"
-			case strings.Contains(m, "listenPort"), strings.Contains(m, "listen"):
-				key = "listen_port"
-			case strings.Contains(m, "proxyProtocol"):
-				key = "proxy_protocol"
-			case strings.Contains(m, "allowCidrs"), strings.Contains(m, "openToInternet"):
-				key = "open_to_internet"
-			case strings.Contains(m, "upstream"):
-				key = "upstreams"
-			}
-			if !c.hasErrorAt(c.abs("route", key)) {
-				c.err(CodeInvalidValue, rp("route", key), "route: %s", strings.TrimPrefix(m, "invalid service config: "))
-			}
+	if verr := c.routeConfig().Validate(); verr != nil {
+		key := "protocol"
+		m := verr.Error()
+		switch {
+		case strings.Contains(m, "healthPath"):
+			key = "health_path"
+		case strings.Contains(m, "scheme"):
+			key = "scheme"
+		case strings.Contains(m, "listenPort"), strings.Contains(m, "listen"):
+			key = "listen_port"
+		case strings.Contains(m, "proxyProtocol"):
+			key = "proxy_protocol"
+		case strings.Contains(m, "allowCidrs"), strings.Contains(m, "openToInternet"):
+			key = "open_to_internet"
+		case strings.Contains(m, "upstream"):
+			key = "upstreams"
+		}
+		if !c.hasErrorAt(c.abs("route", key)) {
+			c.err(CodeInvalidValue, rp("route", key), "route: %s", strings.TrimPrefix(m, "invalid service config: "))
 		}
 	}
 }
@@ -785,7 +783,7 @@ func (c *svcCtx) hasErrorAt(path string) bool {
 
 // routeConfig converts the route table to the platform's RouteConfig. Managed
 // upstreams get a placeholder service id: only the shape is validated here.
-func (c *svcCtx) routeConfig() (*services.RouteConfig, error) {
+func (c *svcCtx) routeConfig() *services.RouteConfig {
 	r := c.def.Route
 	cfg := &services.RouteConfig{
 		Protocol: derefStr(r.Protocol), Scheme: derefStr(r.Scheme), InsecureSkipVerify: derefBool(r.InsecureSkipVerify),
@@ -802,7 +800,7 @@ func (c *svcCtx) routeConfig() (*services.RouteConfig, error) {
 		up.Address = derefStr(u.Address)
 		cfg.Upstreams = append(cfg.Upstreams, up)
 	}
-	return cfg, nil
+	return cfg
 }
 
 func (c *svcCtx) checkStack() {
@@ -931,7 +929,7 @@ func (c *svcCtx) toConfig() (services.Config, string, bool) {
 		cfg.Database = &spec
 		return cfg, services.SourceImage, true
 	case KindRoute:
-		rc, _ := c.routeConfig()
+		rc := c.routeConfig()
 		cfg.Route = rc
 		return cfg, services.SourceExternal, true
 	case KindStack:

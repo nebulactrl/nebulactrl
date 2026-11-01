@@ -348,7 +348,7 @@ func (s *Service) cutover(ctx context.Context, c db.ServiceCombine) (time.Durati
 	}
 	env := services.EnvScope{WorkspaceID: tsc.WorkspaceID}
 	env.Env.ID, env.Env.ProjectID = tsc.EnvironmentID, tsc.ProjectID
-	s.publish(env, tsc.Service.ID, []uuid.UUID{tsc.Service.ID})
+	s.publish(env, []uuid.UUID{tsc.Service.ID})
 	services.PublishIn(s.Bus, tsc.WorkspaceID, services.EventDomainUpdated, tsc.ProjectID, tsc.EnvironmentID, tsc.Service.ID)
 	return 0, nil
 }

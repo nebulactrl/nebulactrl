@@ -14,7 +14,7 @@ import { toast } from "#/components/ui/toast";
 import { draftToBody, type SettingsDraft } from "./model";
 
 /** Everything the previews UI shows; refetched after any change. */
-export const PREVIEW_OPERATIONS = [
+const PREVIEW_OPERATIONS = [
 	"listPreviews",
 	"getPreviewSettings",
 	"listEnvironments",

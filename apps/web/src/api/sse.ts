@@ -36,9 +36,9 @@ import { StreamHub, type StreamStatus } from "./stream-hub";
 export type SseStatus = StreamStatus;
 
 /** Hard cap on streams one tab holds open: the feed plus one log tail. */
-export const MAX_STREAMS_PER_TAB = 2;
+const MAX_STREAMS_PER_TAB = 2;
 
-export const streamHub = new StreamHub(MAX_STREAMS_PER_TAB);
+const streamHub = new StreamHub(MAX_STREAMS_PER_TAB);
 
 if (typeof document !== "undefined") {
 	streamHub.setHidden(document.hidden);
@@ -47,7 +47,7 @@ if (typeof document !== "undefined") {
 	});
 }
 
-export interface OpenSseOptions<T> {
+interface OpenSseOptions<T> {
 	/** Path template relative to the API base, e.g. `/services/{serviceId}/logs`. */
 	url: string;
 	path?: Record<string, string>;
@@ -90,7 +90,7 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
  * `signal` aborts, the server sends `event: end`, or — without `reconnect` —
  * the server closes it. Resolves when finished; never rejects.
  */
-export async function openSse<T>(options: OpenSseOptions<T>): Promise<void> {
+async function openSse<T>(options: OpenSseOptions<T>): Promise<void> {
 	const { signal } = options;
 	let failures = 0;
 	let ended = false;
@@ -149,7 +149,7 @@ export async function openSse<T>(options: OpenSseOptions<T>): Promise<void> {
 
 // --- The invalidation feed ---------------------------------------------------
 
-export interface ResourceEvent {
+interface ResourceEvent {
 	type: string;
 	projectId?: string;
 	environmentId?: string;
@@ -516,11 +516,7 @@ interface LogFrame {
 	serviceName?: string;
 }
 
-export type LogStreamKind =
-	| "service"
-	| "environment"
-	| "deployment"
-	| "taskRun";
+type LogStreamKind = "service" | "environment" | "deployment" | "taskRun";
 
 export interface UseLogStreamOptions {
 	kind: LogStreamKind;

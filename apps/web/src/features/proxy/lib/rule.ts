@@ -12,7 +12,7 @@ import {
 	validatePathPrefix,
 } from "./validate";
 
-export const REDIRECT_CODES = [301, 302, 307, 308] as const;
+const REDIRECT_CODES = [301, 302, 307, 308] as const;
 export type RedirectCode = (typeof REDIRECT_CODES)[number];
 
 export type RedirectFamily = "permanent" | "temporary";

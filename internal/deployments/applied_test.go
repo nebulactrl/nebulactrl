@@ -65,3 +65,13 @@ func TestGitPushOfProductionServiceDeploysTheAppliedStateOnly(t *testing.T) {
 	require.NoError(t, f.pool.QueryRow(bg, "SELECT config FROM services WHERE id = $1", sv.ID).Scan(&raw))
 	require.Equal(t, 9999, services.DecodeConfig(raw).Port, "and the live configuration is untouched")
 }
+
+// Test entry points of runDeployOpts: runDeploy deploys the pending revision,
+// runDeployRef pins a commit or an override image.
+func (s *Service) runDeploy(ctx context.Context, depID uuid.UUID) error {
+	return s.runDeployRef(ctx, depID, "", "")
+}
+
+func (s *Service) runDeployRef(ctx context.Context, depID uuid.UUID, commitSHA, overrideImage string) error {
+	return s.runDeployOpts(ctx, depID, commitSHA, overrideImage, false)
+}

@@ -4,7 +4,7 @@
  * text is tested.
  */
 
-export type SnippetId = "curl" | "github" | "gitlab" | "dockerhub" | "ghcr";
+type SnippetId = "curl" | "github" | "gitlab" | "dockerhub" | "ghcr";
 
 export interface Snippet {
 	id: SnippetId;

@@ -75,7 +75,6 @@ describe("keys and names", () => {
 		expect(classForKey("server:1")).toBe("vt-card");
 		expect(classForKey("service:1")).toBe("vt-row");
 		expect(classForKey("nav:servers")).toBe("vt-title");
-		expect(classForKey("tab:x")).toBe("vt-tab");
 		expect(classForKey("toString:1")).toBe("vt-item");
 		expect(classForKey("nokind")).toBe("vt-item");
 	});

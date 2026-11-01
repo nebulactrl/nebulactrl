@@ -94,7 +94,7 @@ func vaultCfg(addr string) SecretManagerConfig {
 
 func TestVaultTokenFetch(t *testing.T) {
 	fv := newFakeVault(t)
-	p, err := newProvider(KindVault, vaultCfg(fv.srv.URL), "s.root", nil)
+	p, err := newProvider(KindVault, vaultCfg(fv.srv.URL), "s.root")
 	require.NoError(t, err)
 	ctx := context.Background()
 
@@ -130,7 +130,7 @@ func TestEscapePathSegments(t *testing.T) {
 
 func TestVaultBadToken(t *testing.T) {
 	fv := newFakeVault(t)
-	p, err := newProvider(KindVault, vaultCfg(fv.srv.URL), "s.wrong", nil)
+	p, err := newProvider(KindVault, vaultCfg(fv.srv.URL), "s.wrong")
 	require.NoError(t, err)
 	_, err = p.fetch(context.Background(), ref(t, "vault:bao/apps/shop/db#password"))
 	require.ErrorContains(t, err, "permission denied")
@@ -141,7 +141,7 @@ func TestVaultAppRole(t *testing.T) {
 	fv := newFakeVault(t)
 	cfg := vaultCfg(fv.srv.URL)
 	cfg.AuthMethod, cfg.RoleID, cfg.AppRoleMount = AuthAppRole, "role-1", "approle"
-	p, err := newProvider(KindVault, cfg, "sid-1", nil)
+	p, err := newProvider(KindVault, cfg, "sid-1")
 	require.NoError(t, err)
 	ctx := context.Background()
 	require.NoError(t, p.check(ctx))
@@ -150,7 +150,7 @@ func TestVaultAppRole(t *testing.T) {
 	require.Equal(t, "hunter2-vault", v)
 	require.EqualValues(t, 1, fv.logins.Load(), "one login per session")
 
-	bad, err := newProvider(KindVault, cfg, "wrong-secret-id", nil)
+	bad, err := newProvider(KindVault, cfg, "wrong-secret-id")
 	require.NoError(t, err)
 	err = bad.check(ctx)
 	require.ErrorContains(t, err, "AppRole login failed")
@@ -162,11 +162,11 @@ func TestVaultNamespaceHeader(t *testing.T) {
 	fv := newFakeVault(t)
 	fv.namespace = "team-a"
 	cfg := vaultCfg(fv.srv.URL)
-	p, _ := newProvider(KindVault, cfg, "s.root", nil)
+	p, _ := newProvider(KindVault, cfg, "s.root")
 	_, err := p.fetch(context.Background(), ref(t, "vault:bao/apps/shop/db#password"))
 	require.ErrorContains(t, err, "wrong namespace")
 	cfg.Namespace = "team-a"
-	p, _ = newProvider(KindVault, cfg, "s.root", nil)
+	p, _ = newProvider(KindVault, cfg, "s.root")
 	v, err := p.fetch(context.Background(), ref(t, "vault:bao/apps/shop/db#password"))
 	require.NoError(t, err)
 	require.Equal(t, "hunter2-vault", v)
@@ -176,7 +176,7 @@ func TestVaultUnreachable(t *testing.T) {
 	srv := httptest.NewServer(http.NotFoundHandler())
 	addr := srv.URL
 	srv.Close()
-	p, _ := newProvider(KindVault, vaultCfg(addr), "s.secret-token-value", nil)
+	p, _ := newProvider(KindVault, vaultCfg(addr), "s.secret-token-value")
 	_, err := p.fetch(context.Background(), ref(t, "vault:bao/a#k"))
 	require.ErrorContains(t, err, "cannot reach")
 	require.NotContains(t, err.Error(), "s.secret-token-value")
@@ -189,14 +189,14 @@ func TestVaultPrivateCA(t *testing.T) {
 	defer srv.Close()
 	cfg := vaultCfg(srv.URL)
 	// Without the CA the connection fails.
-	p, _ := newProvider(KindVault, cfg, "s.root", nil)
+	p, _ := newProvider(KindVault, cfg, "s.root")
 	_, err := p.fetch(context.Background(), ref(t, "vault:bao/a#k"))
 	require.ErrorContains(t, err, "cannot reach")
 	// With the server's certificate as CA it works.
 	cfg.CACert = string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: srv.Certificate().Raw}))
 	_, err = normalize(KindVault, cfg)
 	require.NoError(t, err)
-	p, err = newProvider(KindVault, cfg, "s.root", nil)
+	p, err = newProvider(KindVault, cfg, "s.root")
 	require.NoError(t, err)
 	v, err := p.fetch(context.Background(), ref(t, "vault:bao/a#k"))
 	require.NoError(t, err)
@@ -254,7 +254,7 @@ func TestInfisicalFetch(t *testing.T) {
 	var logins atomic.Int32
 	srv := newFakeInfisical(t, &logins)
 	cfg := SecretManagerConfig{SiteURL: srv.URL, ClientID: "cid", ProjectID: "proj-1"}
-	p, err := newProvider(KindInfisical, cfg, "csecret", nil)
+	p, err := newProvider(KindInfisical, cfg, "csecret")
 	require.NoError(t, err)
 	ctx := context.Background()
 	require.NoError(t, p.check(ctx))
@@ -273,7 +273,7 @@ func TestInfisicalFetch(t *testing.T) {
 	require.ErrorContains(t, err, `no secret "NOPE" in environment "prod"`)
 	require.EqualValues(t, 1, logins.Load())
 
-	bad, _ := newProvider(KindInfisical, cfg, "wrong-client-secret", nil)
+	bad, _ := newProvider(KindInfisical, cfg, "wrong-client-secret")
 	err = bad.check(ctx)
 	require.ErrorContains(t, err, "machine identity login failed")
 	require.ErrorContains(t, err, "Invalid credentials")

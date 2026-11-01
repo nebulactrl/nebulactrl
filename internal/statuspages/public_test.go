@@ -34,9 +34,9 @@ func (f *fx) day(service uuid.UUID, date string, checks, up, degraded, down, mai
 }
 
 // minute stores a minute rollup.
-func (f *fx) minute(service uuid.UUID, ts string, checks, up, degraded, down, maintenance int) {
-	f.exec(`INSERT INTO uptime_1m (service_id, bucket, checks, up, degraded, down, maintenance) VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		service, at(f.t, ts), checks, up, degraded, down, maintenance)
+func (f *fx) minute(service uuid.UUID, ts string, checks, up, down, maintenance int) {
+	f.exec(`INSERT INTO uptime_1m (service_id, bucket, checks, up, degraded, down, maintenance) VALUES ($1, $2, $3, $4, 0, $5, $6)`,
+		service, at(f.t, ts), checks, up, down, maintenance)
 }
 
 // at moves the service clock.
@@ -99,10 +99,10 @@ func TestPublicMapsStatesAvailabilityIncidentsAndMaintenance(t *testing.T) {
 	f.day(f.api, "2026-10-25", 100, 60, 0, 0, 40)
 	f.day(f.api, "2026-10-27", 100, 90, 6, 4, 0)
 	f.day(f.api, "2026-10-28", 1, 1, 0, 0, 0) // today, stale: the minute rollups win
-	f.minute(f.api, "2026-10-28T00:00:00Z", 2, 2, 0, 0, 0)
-	f.minute(f.api, "2026-10-28T00:01:00Z", 2, 1, 0, 1, 0)
-	f.minute(f.api, "2026-10-27T23:59:00Z", 5, 0, 0, 5, 0) // yesterday: not part of today's sum
-	f.day(f.web, "2026-10-28", 10, 5, 5, 0, 0)             // today without minute rollups: the day row counts
+	f.minute(f.api, "2026-10-28T00:00:00Z", 2, 2, 0, 0)
+	f.minute(f.api, "2026-10-28T00:01:00Z", 2, 1, 1, 0)
+	f.minute(f.api, "2026-10-27T23:59:00Z", 5, 0, 5, 0) // yesterday: not part of today's sum
+	f.day(f.web, "2026-10-28", 10, 5, 5, 0, 0)          // today without minute rollups: the day row counts
 
 	// Incidents.
 	incident := func(title, impact, status string, pages []uuid.UUID, services ...uuid.UUID) StatusIncidentView {
@@ -447,8 +447,8 @@ func TestPublicTodayCountsOnlyTodaysMinutes(t *testing.T) {
 	f.at("2026-10-28T00:30:00Z")
 
 	// Just before midnight belongs to yesterday (not in the minute sum), just after to today.
-	f.minute(f.api, "2026-10-27T23:59:00Z", 2, 0, 0, 2, 0)
-	f.minute(f.api, "2026-10-28T00:00:00Z", 2, 2, 0, 0, 0)
+	f.minute(f.api, "2026-10-27T23:59:00Z", 2, 0, 2, 0)
+	f.minute(f.api, "2026-10-28T00:00:00Z", 2, 2, 0, 0)
 	got, err := f.svc.Public(context.Background(), "status.acme.com")
 	require.NoError(t, err)
 	c := findComponent(t, got, "API")

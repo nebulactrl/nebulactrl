@@ -6,7 +6,7 @@
 import { type LogLevel, levelFromName, parseLevel } from "../level";
 import type { FacetKey } from "./query";
 
-export type Scalar = string | number | boolean;
+type Scalar = string | number | boolean;
 
 /** What the log API gives for a line, whichever stream it came from. */
 export interface LogInput {

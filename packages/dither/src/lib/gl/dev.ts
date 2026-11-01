@@ -6,7 +6,7 @@
 const seen = new Set<string>();
 
 /** True outside production builds; bundlers replace `process.env.NODE_ENV`. */
-export function isDev(): boolean {
+function isDev(): boolean {
 	try {
 		return process.env.NODE_ENV !== "production";
 	} catch {

@@ -26,13 +26,6 @@ type ResultObserver interface {
 	ResultSent(ctx context.Context, cmd agentprotocol.Command, res agentprotocol.ResultFrame)
 }
 
-// HandlerFunc adapts a function to Handler.
-type HandlerFunc func(ctx context.Context, cmd agentprotocol.Command) agentprotocol.ResultFrame
-
-func (f HandlerFunc) HandleCommand(ctx context.Context, cmd agentprotocol.Command) agentprotocol.ResultFrame {
-	return f(ctx, cmd)
-}
-
 // Reconciler reacts to the control plane's desired-state frame, sent after
 // every hello. It runs serialized (one reconcile at a time).
 type Reconciler interface {

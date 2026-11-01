@@ -79,7 +79,7 @@ export function toMeshPlan(
 export const PRICING_URL = "https://tailscale.com/pricing";
 
 /** A node or link reported longer ago than this reads "unknown", not "online". */
-export const STALE_AFTER_MS = 60_000;
+const STALE_AFTER_MS = 60_000;
 
 export function plural(n: number, one: string, many = `${one}s`): string {
 	return `${n} ${n === 1 ? one : many}`;

@@ -159,11 +159,13 @@ func (s *Service) HandleResult(ctx context.Context, commandID uuid.UUID, res age
 		}
 	case agentprotocol.KindBackupTest:
 		var p agentprotocol.BackupTestPayload
-		if json.Unmarshal(cmd.Payload, &p) != nil {
+		if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+			s.log.WarnContext(ctx, "backup test result ignored: the stored payload cannot be parsed", "command_id", cmd.ID, "err", err)
 			return nil
 		}
 		id, err := uuid.Parse(p.Destination.ID)
 		if err != nil {
+			s.log.WarnContext(ctx, "backup test result ignored: the stored payload has no valid destination id", "command_id", cmd.ID, "err", err)
 			return nil
 		}
 		var data agentprotocol.BackupSimpleResult
@@ -280,7 +282,7 @@ func (s *Service) afterBackupFinished(ctx context.Context, b db.Backup, typ stri
 	if err != nil {
 		return
 	}
-	s.publish(sc, EventBackupUpdated, b.ID)
+	s.publish(sc, b.ID)
 	destName := ""
 	if d, err := s.q.GetBackupDestinationInternal(ctx, b.DestinationID); err == nil {
 		destName = d.Name
@@ -318,6 +320,7 @@ func (s *Service) afterBackupFinished(ctx context.Context, b db.Backup, typ stri
 func (s *Service) finishDeletion(ctx context.Context, cmd db.AgentCommand, ok bool, msg string) error {
 	var p agentprotocol.BackupDeletePayload
 	if err := json.Unmarshal(cmd.Payload, &p); err != nil {
+		s.log.WarnContext(ctx, "backup delete result ignored: the stored payload cannot be parsed", "command_id", cmd.ID, "err", err)
 		return nil
 	}
 	var ids []uuid.UUID
@@ -344,7 +347,7 @@ func (s *Service) finishDeletion(ctx context.Context, cmd db.AgentCommand, ok bo
 	}
 	for _, b := range rows {
 		if sc, err := services.LoadScopeInternal(ctx, s.q, b.ServiceID); err == nil {
-			s.publish(sc, EventBackupUpdated, b.ID)
+			s.publish(sc, b.ID)
 		}
 	}
 	return nil

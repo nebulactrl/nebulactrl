@@ -178,13 +178,13 @@ Notes:
 
 ## Web (`apps/web`)
 
-Method: the `license` field of every `package.json` in the resolved `node_modules` tree, starting from the `dependencies` and `devDependencies` of `apps/web/package.json` and following nested dependencies. 260 packages: 91 reachable from `dependencies` (bundled into the shipped app) and 169 only from `devDependencies` (build and test tools, not shipped).
+Method: the `license` field of every `package.json` in the resolved `node_modules` tree, starting from the `dependencies` and `devDependencies` of `apps/web/package.json` and following nested dependencies. 256 packages: 90 reachable from `dependencies` (bundled into the shipped app) and 166 only from `devDependencies` (build and test tools, not shipped).
 
-| Licence | Shipped (91) | Dev only (169) |
+| Licence | Shipped (90) | Dev only (166) |
 |---|---|---|
-| MIT | 66 | 133 |
+| MIT | 66 | 130 |
 | ISC | 17 | 15 |
-| OFL-1.1 (the three IBM Plex and Space Grotesk font packages) | 3 | – |
+| OFL-1.1 (the two IBM Plex font packages) | 2 | – |
 | BSD-3-Clause | 1 | 3 |
 | BSD-2-Clause | – | 2 |
 | Apache-2.0 | 1 (`class-variance-authority`) | 6 (TypeScript, Playwright, `detect-libc`, `baseline-browser-mapping`) |
@@ -202,7 +202,6 @@ Direct dependencies that ship in the app:
 |---|---|---|
 | `@fontsource-variable/ibm-plex-sans` | 5.3.0 | OFL-1.1 |
 | `@fontsource/ibm-plex-mono` | 5.3.0 | OFL-1.1 |
-| `@fontsource/space-grotesk` | 5.3.0 | OFL-1.1 |
 | `@tanstack/react-query` | 5.103.1 | MIT |
 | `@tanstack/react-router` | 1.170.38 | MIT |
 | `@tanstack/react-virtual` | 3.14.13 | MIT |

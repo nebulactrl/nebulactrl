@@ -229,7 +229,7 @@ type changeScope struct {
 }
 
 func (c *composites) recentChanges(ctx context.Context, p *auth.Principal, q recentQuery) (*getRecentChangesOutput, error) {
-	sc, err := c.resolveChangeScope(ctx, p, q)
+	sc, err := c.resolveChangeScope(ctx, q)
 	if err != nil {
 		return nil, err
 	}
@@ -333,7 +333,7 @@ func (c *composites) recentChanges(ctx context.Context, p *auth.Principal, q rec
 	return out, nil
 }
 
-func (c *composites) resolveChangeScope(ctx context.Context, p *auth.Principal, q recentQuery) (*changeScope, error) {
+func (c *composites) resolveChangeScope(ctx context.Context, q recentQuery) (*changeScope, error) {
 	switch {
 	case q.service != "":
 		v, err := c.Resolver.Service(ctx, q.service)

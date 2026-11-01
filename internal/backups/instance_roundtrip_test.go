@@ -323,7 +323,7 @@ func TestInstanceRestoreFailuresLeaveTargetEmpty(t *testing.T) {
 	bad := bytes.Clone(good)
 	bad[len(bad)/2] ^= 0xff
 	m := putBackup(t, st, "nebulactrl-instance/2026/10/bad.dump", good, time.Now().UTC(), nil)
-	require.NoError(t, os.WriteFile(filepath.Join(flipped, "nebulactrl-instance/2026/10/bad.dump"), bad, 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(flipped, "nebulactrl-instance", "2026", "10", "bad.dump"), bad, 0o600))
 	require.ErrorContains(t, restoreFrom(flipped), "SHA-256")
 	_ = m
 

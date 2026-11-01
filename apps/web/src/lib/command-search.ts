@@ -190,7 +190,7 @@ function scoreToken(token: string, item: SearchableCommand): number | null {
  * word of the query must match somewhere in the label, keywords, hint or
  * group; the label counts most.
  */
-export function scoreCommand(
+function scoreCommand(
 	item: SearchableCommand,
 	query: string,
 	options: SearchOptions = {},

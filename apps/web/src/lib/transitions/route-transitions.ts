@@ -1,4 +1,3 @@
-import { flushSync } from "react-dom";
 import { startInteractionRecorder, takeInteraction } from "./interaction";
 import {
 	classifyNavigation,
@@ -8,14 +7,7 @@ import {
 } from "./nav-plan";
 import { prefersReducedMotion } from "./reduced-motion";
 import { armSources, pairTargets } from "./shared-elements";
-import {
-	keySelector,
-	NameRegistry,
-	PAGE_CLASS,
-	PAGE_NAME,
-	TAB_BODY_CLASS,
-	TAB_BODY_NAME,
-} from "./vt-names";
+import { keySelector, NameRegistry, PAGE_CLASS, PAGE_NAME } from "./vt-names";
 
 // Every route change runs inside `document.startViewTransition`, and the
 // shared elements (a project card growing into its canvas, a sidebar label
@@ -42,7 +34,7 @@ export interface TransitionRouter {
 }
 
 /** Whether this browser can run view transitions at all. */
-export function supportsViewTransitions(): boolean {
+function supportsViewTransitions(): boolean {
 	return (
 		typeof document !== "undefined" &&
 		typeof document.startViewTransition === "function"
@@ -59,7 +51,7 @@ interface Active {
 }
 let active: Active | null = null;
 
-function setRootState(variant: NavVariant, scope: "page" | "root" | "local") {
+function setRootState(variant: NavVariant, scope: "page" | "root") {
 	const root = document.documentElement;
 	root.dataset.vtVariant = variant;
 	root.dataset.vtScope = scope;
@@ -179,63 +171,6 @@ export function installRouteTransitions(router: TransitionRouter): void {
 	installed = true;
 	startInteractionRecorder();
 	router.startViewTransition = (update) => runRouteTransition(router, update);
-}
-
-/**
- * Switches an in-page tab inside a view transition: the tab body
- * cross-fades and the active tab's highlight slides to the new tab. `group`
- * names the tab strip: its tabs carry `data-vt-tab="<group>"` with
- * `aria-current` on the active one, and the body `data-vt-tab-body="<group>"`.
- * `update` must set the state synchronously (it is flushed inside the
- * transition). Without view transitions, or while a held key drives the
- * switch, it just runs.
- */
-export function startTabTransition(group: string, update: () => void): void {
-	const now = performance.now();
-	const taken = takeInteraction(now);
-	const plan = classifyNavigation({
-		supported: supportsViewTransitions(),
-		pathChanged: true,
-		reducedMotion: prefersReducedMotion(),
-		interaction: taken?.interaction ?? null,
-		sinceLastMs: now - lastStartedAt,
-	});
-	const body = document.querySelector<HTMLElement>(
-		`[data-vt-tab-body="${CSS.escape(group)}"]`,
-	);
-	if (plan.variant === "none" || !body) {
-		skipActive();
-		update();
-		return;
-	}
-	const tabSelector = `[data-vt-tab="${CSS.escape(group)}"][aria-current="true"]`;
-	const current = document.querySelector<HTMLElement>(tabSelector);
-
-	const owner = ++nextOwner;
-	lastStartedAt = now;
-	registry.assign(body, TAB_BODY_NAME, TAB_BODY_CLASS, owner);
-	const tabName = `vt-tabstrip-${group.replace(/[^A-Za-z0-9_-]/g, "_")}`;
-	if (current && plan.shared) {
-		registry.assign(current, tabName, "vt-tab", owner);
-	}
-	// Switching tabs is frequent navigation: never slower than the fast variant.
-	setRootState(plan.variant === "page" ? "fast" : plan.variant, "local");
-
-	let transition: ViewTransition;
-	try {
-		transition = document.startViewTransition(() => {
-			flushSync(update);
-			const next = document.querySelector<HTMLElement>(tabSelector);
-			if (next && next !== current && plan.shared) {
-				registry.assign(next, tabName, "vt-tab", owner);
-			}
-		});
-	} catch {
-		finish(owner);
-		update();
-		return;
-	}
-	track(transition, owner);
 }
 
 /**

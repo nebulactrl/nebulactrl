@@ -16,7 +16,7 @@ Code lives in `apps/web/src/lib/transitions/`; the look lives in the `::view-tra
 | Variant | When | Timing |
 |---|---|---|
 | `page` | A card, row or link press with the pointer; back and forward; navigations started from code | Content area 180 ms cross-fade plus an 8 px lift; shared elements 260 ms, ease-out |
-| `fast` | A press inside the sidebar or the command palette; any keyboard activation; in-page tab switches | 150 ms throughout |
+| `fast` | A press inside the sidebar or the command palette; any keyboard activation | 150 ms throughout |
 | `reduced` | `prefers-reduced-motion: reduce` | Plain 120 ms cross-fade, no lift, nothing morphs |
 | none | Browser without `document.startViewTransition`; a change of search or hash only; a held key or an arrow, Home, End or Page key; a navigation within 120 ms of the previous one; the initial load | Instant |
 
@@ -42,7 +42,6 @@ Because only the pressed element is named, duplicates (many rows for one service
 | Server card (`server:<id>`) | Server page header (`server:<id>`, anchor), both ways |
 | Deployment and service table rows (`service:<id>`) | Inspector header (`service:<id>`) |
 | Sidebar label (`nav:<page>`) | Page title (`nav:<page>`) in `PageFrame` |
-| Settings nav item (`data-vt-tab="settings"`) | The active item slides, the section body cross-fades (`startTabTransition`) |
 
 To add one: put `{...vt("kind", id)}` on the source and the same on its destination, and add the kind to `CLASS_BY_KIND` in `vt-names.ts` if it needs its own class.
 

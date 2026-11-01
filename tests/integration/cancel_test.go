@@ -181,7 +181,7 @@ func TestCancelDuringVerifyKeepsTheOldReleaseServing(t *testing.T) {
 	requireTier(t, tierFull)
 	t.Parallel()
 	s := SharedStack(t)
-	svc, px := liveV1(t, s, "web", nil)
+	svc, px := liveV1(t, s, nil)
 	v1 := s.Service(svc.ID).Str("currentDeploymentId")
 	before := s.RunningContainers(svc.ID)
 	require.Len(t, before, 1)

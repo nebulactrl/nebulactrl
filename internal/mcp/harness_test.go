@@ -93,9 +93,9 @@ func (h *harness) token(scopes []string, projectIDs []string) string {
 }
 
 // restToken creates a REST API token: it works on /api/v1 and is refused on /mcp.
-func (h *harness) restToken(scopes []string, projectIDs []string) string {
+func (h *harness) restToken(scopes []string) string {
 	h.t.Helper()
-	return h.tokenOfKind("rest", scopes, projectIDs)
+	return h.tokenOfKind("rest", scopes, nil)
 }
 
 func (h *harness) tokenOfKind(kind string, scopes []string, projectIDs []string) string {

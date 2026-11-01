@@ -12,7 +12,7 @@ import type { UptimeRange } from "./model";
  * change (`uptime.state.changed`) refreshes it at once through the live feed;
  * TanStack pauses the timer in a hidden tab.
  */
-export const UPTIME_REFETCH_MS = 30_000;
+const UPTIME_REFETCH_MS = 30_000;
 
 /** A service's uptime over `range`. Switching range keeps the old strip until the new one lands. */
 export const serviceUptimeQuery = (serviceId: string, range: UptimeRange) =>

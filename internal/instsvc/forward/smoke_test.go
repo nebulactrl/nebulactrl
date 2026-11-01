@@ -30,6 +30,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/instsvc/lokiadmin"
 	"github.com/nebulactrl/nebulactrl/internal/instsvc/s3admin"
 	"github.com/nebulactrl/nebulactrl/internal/registries"
+	"github.com/nebulactrl/nebulactrl/internal/testutil"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
@@ -88,9 +89,9 @@ func startStack(t *testing.T) *smokeStack {
 	require.NoError(t, os.WriteFile(filepath.Join(auth, "jwks.json"), []byte(jwks), 0o644))
 	require.NoError(t, os.MkdirAll(filepath.Join(st.dir, "instance"), 0o755))
 	for _, name := range installdeploy.InstanceConfigs() {
-		require.NoError(t, os.WriteFile(filepath.Join(st.dir, name), []byte(installdeploy.InstanceConfig(name)), 0o644))
+		require.NoError(t, os.WriteFile(filepath.Join(st.dir, name), []byte(testutil.RepoFile(t, "deploy/install/"+name)), 0o644))
 	}
-	require.NoError(t, os.WriteFile(filepath.Join(st.dir, "docker-compose.yml"), []byte(installdeploy.Compose()), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(st.dir, "docker-compose.yml"), []byte(testutil.RepoFile(t, "deploy/install/docker-compose.yml")), 0o644))
 	// Published ports for the test (the real services publish nothing; Docker cannot publish from an internal network, which embed_test asserts the real file has).
 	require.NoError(t, os.WriteFile(filepath.Join(st.dir, "docker-compose.override.yml"), []byte(`
 services:

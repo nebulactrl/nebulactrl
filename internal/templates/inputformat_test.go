@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
-
-	catalogfs "github.com/nebulactrl/nebulactrl/templates"
 )
 
 func TestCheckInputFormat(t *testing.T) {
@@ -37,12 +35,6 @@ func TestCheckInputFormat(t *testing.T) {
 	// An empty value always fits: `required` is the input's own flag.
 	for _, f := range InputFormats {
 		require.Empty(t, CheckInputFormat(f, ""))
-	}
-}
-
-func TestSampleInputValueFitsItsFormat(t *testing.T) {
-	for _, f := range InputFormats {
-		require.Empty(t, CheckInputFormat(f, SampleInputValue(f)), f)
 	}
 }
 
@@ -112,27 +104,4 @@ func TestResolveInputsChecksFormat(t *testing.T) {
 	// An empty optional value stays allowed; an empty required one is missing_input.
 	_, err = ResolveInputs(tpl, map[string]string{"ADMIN_EMAIL": "", "WORKERS": ""}, nil)
 	require.ErrorContains(t, err, "required input")
-}
-
-// TestCatalogInputsAreCollectable: every input of the catalog is something the
-// install form can collect (text, password, select, or one of the typed
-// fields), a required input without a default has a sample value that fits its
-// format, and the sample passes the install's own check.
-func TestCatalogInputsAreCollectable(t *testing.T) {
-	cat, errs := LoadFS(catalogfs.FS, "catalog")
-	require.Empty(t, errs)
-	typed := 0
-	for _, tpl := range cat.Search("", "") {
-		for _, in := range tpl.Inputs {
-			if in.Format != "" {
-				typed++
-			}
-			if in.Required && in.Default == "" && !in.Secret && len(in.Options) == 0 {
-				v := SampleInputValue(in.Format)
-				require.NotEmpty(t, v, "%s.%s", tpl.ID, in.Key)
-				require.Empty(t, CheckInputFormat(in.Format, v), "%s.%s", tpl.ID, in.Key)
-			}
-		}
-	}
-	require.Positive(t, typed, "no input declares a format")
 }

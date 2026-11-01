@@ -11,7 +11,7 @@ export const INSPECTOR_TABS = [
 
 export type InspectorTab = (typeof INSPECTOR_TABS)[number];
 
-export const DEFAULT_TAB: InspectorTab = "overview";
+const DEFAULT_TAB: InspectorTab = "overview";
 
 export const TAB_LABEL: Record<InspectorTab, string> = {
 	overview: "Overview",

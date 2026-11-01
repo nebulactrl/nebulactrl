@@ -217,7 +217,7 @@ loop:
 		}
 		if r, err := p.s.q.GetDumpRestoreInternal(ctx, p.id); err == nil {
 			if sc, err := services.LoadScopeInternal(ctx, p.s.q, r.SourceServiceID); err == nil {
-				p.s.publish(sc, EventBackupUpdated, p.id)
+				p.s.publish(sc, p.id)
 			}
 		}
 		return
@@ -346,11 +346,11 @@ func (s *Service) UploadDump(ctx context.Context, id uuid.UUID, up DumpUpload) (
 		_ = s.q.ReleaseDumpRestoreUpload(ctx, db.ReleaseDumpRestoreUploadParams{ID: r.ID, Error: "could not record the upload"})
 		return DumpRestoreView{}, fmt.Errorf("audit upload: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 
 	release := func(msg string) {
 		_ = s.q.ReleaseDumpRestoreUpload(context.WithoutCancel(ctx), db.ReleaseDumpRestoreUploadParams{ID: r.ID, Error: msg})
-		s.publish(sc, EventBackupUpdated, r.ID)
+		s.publish(sc, r.ID)
 	}
 	rid := uuid.NewString()
 	st, err := s.streams.OpenStream(*tsc.Service.ServerID, rid)
@@ -455,7 +455,7 @@ func (s *Service) UploadDump(ctx context.Context, id uuid.UUID, up DumpUpload) (
 		p.finish(dumpOutcome{msg: "The server went offline during the upload; the transfer was lost. Nothing was switched over: start the restore again."})
 		return DumpRestoreView{}, apierr.Conflict("server_offline", "the server went offline during the upload")
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	cur, err := s.q.GetDumpRestoreInternal(ctx, r.ID)
 	if err != nil {
 		return DumpRestoreView{}, fmt.Errorf("reload restore: %w", err)

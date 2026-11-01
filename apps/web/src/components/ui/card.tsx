@@ -81,19 +81,6 @@ function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
 	);
 }
 
-function CardAction({ className, ...props }: React.ComponentProps<"div">) {
-	return (
-		<div
-			data-slot="card-action"
-			className={cn(
-				"ml-auto flex shrink-0 items-center gap-2 text-xs",
-				className,
-			)}
-			{...props}
-		/>
-	);
-}
-
 function CardContent({ className, ...props }: React.ComponentProps<"div">) {
 	return (
 		<div
@@ -122,7 +109,6 @@ function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
 
 export {
 	Card,
-	CardAction,
 	CardContent,
 	CardDescription,
 	CardFooter,

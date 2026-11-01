@@ -138,14 +138,6 @@ type prepared struct {
 	reuse *db.RegistryImage
 }
 
-func (s *Service) runDeploy(ctx context.Context, depID uuid.UUID, commitSHA string) error {
-	return s.runDeployRef(ctx, depID, commitSHA, "")
-}
-
-func (s *Service) runDeployRef(ctx context.Context, depID uuid.UUID, commitSHA, overrideImage string) error {
-	return s.runDeployOpts(ctx, depID, commitSHA, overrideImage, false)
-}
-
 // runDeployOpts prepares and dispatches a deployment. afterBuild resumes a
 // deployment whose image a build server pushed (see DeployArgs.AfterBuild). A
 // *buildWaitError means the build must wait for a slot: nothing was persisted
@@ -176,7 +168,7 @@ func (s *Service) runDeployOpts(ctx context.Context, depID uuid.UUID, commitSHA,
 		if !moved {
 			return nil // canceled before preparation started
 		}
-		s.publish(services.EventDeploymentUpdated, dc)
+		s.publish(dc)
 	case Preparing, Building:
 		if Status(dc.Dep.Status) == Building && !afterBuild {
 			return nil
@@ -212,7 +204,7 @@ func (s *Service) runDeployOpts(ctx context.Context, depID uuid.UUID, commitSHA,
 		if rerr := s.recordPlacementEvent(ctx, depID, wait.message); rerr != nil {
 			log.WarnContext(ctx, "record placement event", "err", rerr)
 		} else {
-			s.publish(services.EventDeploymentUpdated, dc)
+			s.publish(dc)
 		}
 		return wait
 	}

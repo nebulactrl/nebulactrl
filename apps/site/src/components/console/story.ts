@@ -19,7 +19,7 @@ export const TOML_LINES = [
 
 export type LineIndex = 0 | 1 | 2 | 3 | 4 | 5 | 6;
 export type Phase = 0 | 1 | 2;
-export type PhaseState = "off" | "live" | "done";
+type PhaseState = "off" | "live" | "done";
 
 /**
  * How far the story has got, as the replica's CSS reads it (`data-t` and `--t`
@@ -28,7 +28,7 @@ export type PhaseState = "off" | "live" | "done";
  * 4 approved and deploying, 5 live. Without the attribute the replica is
  * already at 5.
  */
-export type Progress = 0 | 1 | 2 | 3 | 4 | 5;
+type Progress = 0 | 1 | 2 | 3 | 4 | 5;
 
 /**
  * What the story does to the replica, as plain operations. The island binds
@@ -66,13 +66,13 @@ export interface Story {
 
 export const TYPE_MS = 20;
 /** The pause where the caret drops to the next line. */
-export const LINE_MS = 80;
+const LINE_MS = 80;
 /** The agent's calls appear this far apart. */
-export const CALL_MS = 1000;
+const CALL_MS = 1000;
 /** How long Approve waits for the visitor before the ghost cursor takes it. */
-export const WAIT_MS = 3500;
+const WAIT_MS = 3500;
 /** The ghost cursor's glide onto Approve. */
-export const GLIDE_MS = 600;
+const GLIDE_MS = 600;
 /** The press, held. */
 export const PRESS_MS = 150;
 /** One of Build, Release and Verify filling. */

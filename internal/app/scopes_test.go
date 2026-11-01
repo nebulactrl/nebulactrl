@@ -37,7 +37,7 @@ func TestEveryOperationDeclaresScopes(t *testing.T) {
 			}
 			checked++
 			where := method + " " + path + " (" + op.OperationID + ")"
-			public, scoped := api.IsPublic(op), api.IsScoped(op)
+			public, scoped := isPublic(op), api.ScopesOf(op) != nil
 			require.True(t, public || scoped, "%s has neither api.WithScopes nor api.Public", where)
 			require.False(t, public && scoped, "%s is both public and scoped", where)
 
@@ -69,7 +69,7 @@ func TestPublicOperationsAreKnown(t *testing.T) {
 	var public []string
 	for _, item := range a.API.OpenAPI().Paths {
 		for _, op := range pathOperations(item) {
-			if op != nil && api.IsPublic(op) {
+			if op != nil && isPublic(op) {
 				public = append(public, op.OperationID)
 			}
 		}
@@ -98,4 +98,10 @@ var expectedPublicOperations = []string{
 	"setup",
 	"startProviderLogin",
 	"verifySecondFactor",
+}
+
+// isPublic reports whether op was marked with api.Public.
+func isPublic(op *huma.Operation) bool {
+	public, _ := op.Metadata[api.PublicKey].(bool)
+	return public
 }

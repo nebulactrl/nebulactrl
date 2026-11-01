@@ -115,7 +115,7 @@ func (s *Service) mintInstallationToken(ctx context.Context, c db.GitConnection,
 		Token     string    `json:"token"`
 		ExpiresAt time.Time `json:"expires_at"`
 	}
-	if _, err := cl.do(ctx, http.MethodPost, "/app/installations/"+strconv.FormatInt(m.InstallationID, 10)+"/access_tokens", nil, body, &out); err != nil {
+	if err := cl.do(ctx, http.MethodPost, "/app/installations/"+strconv.FormatInt(m.InstallationID, 10)+"/access_tokens", nil, body, &out); err != nil {
 		return "", time.Time{}, fmt.Errorf("mint GitHub installation token: %w", err)
 	}
 	if out.Token == "" {
@@ -311,7 +311,7 @@ func (s *Service) CompleteManifest(ctx context.Context, code, state string) (str
 			Login string `json:"login"`
 		} `json:"owner"`
 	}
-	if _, err := cl.do(ctx, http.MethodPost, "/app-manifests/"+url.PathEscape(code)+"/conversions", nil, nil, &conv); err != nil {
+	if err := cl.do(ctx, http.MethodPost, "/app-manifests/"+url.PathEscape(code)+"/conversions", nil, nil, &conv); err != nil {
 		return "", apierr.Unprocessable("manifest_exchange_failed", "GitHub did not accept the manifest code: "+err.Error())
 	}
 	if conv.ID == 0 || conv.PEM == "" || conv.WebhookSecret == "" {
@@ -418,7 +418,7 @@ func (s *Service) discoverInstallation(ctx context.Context, c db.GitConnection) 
 			Login string `json:"login"`
 		} `json:"account"`
 	}
-	if _, err := cl.do(ctx, http.MethodGet, "/app/installations", url.Values{"per_page": {"100"}}, nil, &out); err != nil {
+	if err := cl.do(ctx, http.MethodGet, "/app/installations", url.Values{"per_page": {"100"}}, nil, &out); err != nil {
 		return 0, apierr.Unprocessable("installation_lookup_failed", "Could not list the App's installations: "+err.Error())
 	}
 	if len(out) == 0 {

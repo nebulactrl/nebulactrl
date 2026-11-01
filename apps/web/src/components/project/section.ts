@@ -3,7 +3,7 @@
  * /p/<project>/<env>/<section>. Anything else (the canvas, a service's
  * own page) opens the canvas of the new place.
  */
-export const ENV_SECTIONS = [
+const ENV_SECTIONS = [
 	"deployments",
 	"observability",
 	"variables",

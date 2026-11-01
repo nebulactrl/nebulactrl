@@ -1,0 +1,41 @@
+# Codecov (https://app.codecov.io/gh/nebulactrl/nebulactrl). ci.yml uploads the
+# coverage of the three Go test shards (flag `go`) and of the web unit tests
+# (flag `web`) through OIDC, no token.
+#
+# Coverage is informational: the status checks report, they never fail a pull
+# request. Generated code is left out so the numbers describe code people write.
+codecov:
+  notify:
+    # Report once every upload of a commit is in: three Go shards and web.
+    after_n_builds: 4
+
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: "condensed_header, diff, flags, condensed_files"
+  require_changes: true # no comment on pull requests that do not change coverage
+
+flag_management:
+  default_rules:
+    # A run that skips a flag (the web job did not run) keeps its last numbers.
+    carryforward: true
+
+# Go reports module paths; map them onto the repository.
+fixes:
+  - "github.com/nebulactrl/nebulactrl/::"
+
+ignore:
+  - "internal/db/*.sql.go"
+  - "internal/db/db.go"
+  - "internal/db/models.go"
+  - "internal/apiclient/**"
+  - "pkg/agentprotocol/dns_lego_catalog.go"
+  - "apps/web/src/api/gen/**"
+  - "apps/web/src/routeTree.gen.ts"

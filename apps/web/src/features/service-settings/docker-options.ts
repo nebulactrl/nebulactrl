@@ -30,36 +30,36 @@ export const MAX_DOCKER_GROUP_ADD = 8;
 export const MAX_DOCKER_SYSCTLS = 16;
 export const MAX_DOCKER_DEVICES = 16;
 export const MAX_DOCKER_GPUS = 16;
-export const MAX_ENTRYPOINT_ARGS = 32;
-export const MAX_ENTRYPOINT_ARG_LENGTH = 4096;
-export const MAX_SIZE_MB = 65536;
-export const MAX_PIDS_LIMIT = 4194304;
-export const MAX_HOST_SYSCTL_VALUE = 2 ** 32;
-export const DEFAULT_TMPFS_SIZE_MB = 64;
+const MAX_ENTRYPOINT_ARGS = 32;
+const MAX_ENTRYPOINT_ARG_LENGTH = 4096;
+const MAX_SIZE_MB = 65536;
+const MAX_PIDS_LIMIT = 4194304;
+const MAX_HOST_SYSCTL_VALUE = 2 ** 32;
+const DEFAULT_TMPFS_SIZE_MB = 64;
 /** What the Hardened preset caps the container's processes and threads at. */
-export const HARDENED_PIDS_LIMIT = 512;
+const HARDENED_PIDS_LIMIT = 512;
 const MAX_ULIMIT = 2 ** 31 - 1;
 const MAX_ID = 2 ** 31 - 1;
 
-export interface UlimitRow {
+interface UlimitRow {
 	name: UlimitName;
 	/** A number, `-1`, or `unlimited`. */
 	soft: string;
 	hard: string;
 }
 
-export interface ExtraHostRow {
+interface ExtraHostRow {
 	name: string;
 	/** An IPv4 or IPv6 address, or `host-gateway`. */
 	address: string;
 }
 
-export interface LabelRow {
+interface LabelRow {
 	key: string;
 	value: string;
 }
 
-export interface TmpfsRow {
+interface TmpfsRow {
 	path: string;
 	/** Empty means the default of 64 MiB. */
 	sizeMb: string;
@@ -68,19 +68,19 @@ export interface TmpfsRow {
 }
 
 /** A container sysctl: its key and the number (or space-separated numbers) it is set to. */
-export interface SysctlRow {
+interface SysctlRow {
 	key: string;
 	value: string;
 }
 
 /** A host kernel parameter the service needs, and the minimum value it needs. */
-export interface HostSysctlRow {
+interface HostSysctlRow {
 	key: string;
 	/** A whole number from 1 to 4294967296. */
 	value: string;
 }
 
-export interface DeviceRow {
+interface DeviceRow {
 	/** A device node below /dev. */
 	hostPath: string;
 	/** Empty means the same path. */
@@ -91,7 +91,7 @@ export interface DeviceRow {
 
 export type GpuMode = "none" | "all" | "count";
 
-export interface GpuForm {
+interface GpuForm {
 	mode: GpuMode;
 	/** The number of GPUs, 1 to 16, for the `count` mode. */
 	count: string;
@@ -140,7 +140,7 @@ export interface DockerForm {
 	apparmorUnconfined: boolean;
 }
 
-export const EMPTY_GPU_FORM: GpuForm = {
+const EMPTY_GPU_FORM: GpuForm = {
 	mode: "none",
 	count: "",
 	capabilities: [],
@@ -359,7 +359,7 @@ const deviceBlank = (row: DeviceRow): boolean =>
 	blank(row.hostPath) && blank(row.containerPath) && blank(row.permissions);
 
 /** Rows that carry nothing are not sent and not validated. */
-export function dropEmptyRows(form: DockerForm): DockerForm {
+function dropEmptyRows(form: DockerForm): DockerForm {
 	return {
 		...form,
 		dns: form.dns.filter((value) => !blank(value)),
@@ -601,7 +601,7 @@ export function unrestrictedFieldLabel(field: string): string {
 }
 
 /** "a, b and c". */
-export function joinWords(items: readonly string[]): string {
+function joinWords(items: readonly string[]): string {
 	if (items.length <= 1) return items[0] ?? "";
 	return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
 }
@@ -1356,7 +1356,7 @@ export function requiredUnrestrictedFields(error: unknown): string[] {
 }
 
 /** The readable form of the options a server's tier refuses, for the form and the plan. */
-export function requiresUnrestrictedMessage(fields: readonly string[]): string {
+function requiresUnrestrictedMessage(fields: readonly string[]): string {
 	const list =
 		fields.length > 0
 			? `: ${joinWords(fields.map(unrestrictedFieldLabel))}`

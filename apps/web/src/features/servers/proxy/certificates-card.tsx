@@ -31,7 +31,7 @@ const TEXT: Record<CertExpiry["tone"], string> = {
 };
 
 /** How much of the validity window is left, as a bar and as words. */
-export function ExpiryBar({
+function ExpiryBar({
 	cert,
 	now,
 }: {

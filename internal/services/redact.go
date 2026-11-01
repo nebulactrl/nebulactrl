@@ -171,7 +171,7 @@ func (s *Service) SecretValues(ctx context.Context, sc Scope) ([]string, error) 
 			out = append(out, r.Leaves...)
 		}
 	}
-	ext, _ := s.ext.values(sc.Service.ID)
+	ext := s.ext.values(sc.Service.ID)
 	out = append(out, ext...)
 	needExt := len(ext) == 0
 	rels, err := s.q.ListRecentServiceReleases(ctx, db.ListRecentServiceReleasesParams{ServiceID: sc.Service.ID, Limit: 3})

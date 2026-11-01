@@ -1,5 +1,5 @@
 /** How long a new name may take to reach every DNS resolver. */
-export const NEW_NAME_WINDOW_MS = 30 * 60 * 1000;
+const NEW_NAME_WINDOW_MS = 30 * 60 * 1000;
 
 /** The heads-up for a name that just changed: a resolver may still remember it as missing. */
 export const NEW_NAME_NOTE =

@@ -20,7 +20,7 @@ const ICONS = {
  * (neutral): always words, with a file icon that is the kind of thing it is
  * about, not a status. The sentence behind it is the tooltip.
  */
-export function ConfigChipView({
+function ConfigChipView({
 	chip,
 	className,
 }: {

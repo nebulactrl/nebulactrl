@@ -58,7 +58,7 @@ export interface ProcessDraft {
 }
 
 /** What the controls of a process row can be told is wrong. */
-export type ProcessField =
+type ProcessField =
 	| "name"
 	| "command"
 	| "port"

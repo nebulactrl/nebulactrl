@@ -32,12 +32,10 @@ type provider interface {
 	check(ctx context.Context) error
 }
 
-func newProvider(kind string, cfg SecretManagerConfig, secret string, hc *http.Client) (provider, error) {
-	if hc == nil {
-		var err error
-		if hc, err = newClient(cfg); err != nil {
-			return nil, err
-		}
+func newProvider(kind string, cfg SecretManagerConfig, secret string) (provider, error) {
+	hc, err := newClient(cfg)
+	if err != nil {
+		return nil, err
 	}
 	switch kind {
 	case KindVault:

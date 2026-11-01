@@ -8,7 +8,7 @@ import type { LampTone } from "#/components/ui/lamp";
 import { formatBytes } from "#/lib/format";
 
 /** At this much WAL behind, a replica counts as lagging (the control plane's own line). */
-export const LAG_LIMIT_BYTES = 64 * 1024 * 1024;
+const LAG_LIMIT_BYTES = 64 * 1024 * 1024;
 
 /** An observation older than this is not shown as a fact. */
 export const STALE_AFTER_MS = 60_000;

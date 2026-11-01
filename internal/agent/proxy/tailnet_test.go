@@ -251,7 +251,7 @@ func TestTailnetNodeFollowsProxyContainerRecreation(t *testing.T) {
 	eng.log = nil
 
 	// A new tcp port recreates Traefik: its netns is gone, so the node is recreated.
-	require.NoError(t, m.Apply(withL4(twoRoutes(), tcpRoute(svcDB, 5432))))
+	require.NoError(t, m.Apply(withL4(twoRoutes(), tcpRoute(5432))))
 	newPX, _, _ := eng.container(agentprotocol.ProxyContainer)
 	require.NotEqual(t, oldPX.ID, newPX.ID)
 	_, spec, ok := eng.container(tsName)
@@ -287,7 +287,7 @@ func TestTailnetNodeIsRestoredWithRestoredProxyContainer(t *testing.T) {
 		}
 		return nil
 	}
-	require.Error(t, m.Apply(withL4(twoRoutes(), tcpRoute(svcDB, 5432))))
+	require.Error(t, m.Apply(withL4(twoRoutes(), tcpRoute(5432))))
 	px, _, ok := eng.container(agentprotocol.ProxyContainer)
 	require.True(t, ok)
 	_, spec, ok := eng.container(tsName)

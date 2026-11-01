@@ -107,7 +107,7 @@ func RequireDNS01Provider(srv db.Server, provider string) error {
 	}
 	var f agentprotocol.Facts
 	if err := json.Unmarshal(srv.Facts, &f); err != nil || f.OS == "" || slices.Contains(f.Capabilities, agentprotocol.CapDNS01Lego) {
-		return nil
+		return nil //nolint:nilerr // facts that cannot be decoded, or carry no OS yet, say nothing about capabilities, so the server is not blocked
 	}
 	return apierr.Unprocessable("agent_too_old", "the agent on "+srv.Name+" is too old for the "+provider+" DNS provider; update the agent first")
 }

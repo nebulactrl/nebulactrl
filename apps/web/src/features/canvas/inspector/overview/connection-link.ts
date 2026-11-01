@@ -1,7 +1,7 @@
 import type { InspectorTab } from "../tab-ids";
 
 /** The id of the Connection variables section at the top of a database's Variables tab. */
-export const CONNECTION_ANCHOR = "connection";
+const CONNECTION_ANCHOR = "connection";
 
 const WAIT_MS = 1_000;
 

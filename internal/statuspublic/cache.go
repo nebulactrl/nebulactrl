@@ -177,10 +177,3 @@ func (c *cache) evict() {
 		delete(c.entries, oldest)
 	}
 }
-
-// size is the number of cached hosts (tests).
-func (c *cache) size() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	return len(c.entries)
-}

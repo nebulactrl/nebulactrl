@@ -368,19 +368,19 @@ func (c *core) confirmingPassword(userID uuid.UUID, fn func() error) error {
 	return err
 }
 
-func (c *core) instanceAdmin(ctx context.Context) (*auth.Principal, error) {
+func (c *core) instanceAdmin(ctx context.Context) error {
 	p, err := c.sessionUser(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	ok, err := c.auth.IsInstanceAdmin(ctx, p.UserID)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if !ok {
-		return nil, apierr.Forbidden()
+		return apierr.Forbidden()
 	}
-	return p, nil
+	return nil
 }
 
 func (c *core) providerView(ctx context.Context, p auth.Provider) providerBody {
@@ -748,7 +748,7 @@ func (c *core) registerAuthAdmin(h huma.API) {
 		Summary: "Configured single-sign-on providers (instance admin)",
 		Errors:  []int{http.StatusUnauthorized, http.StatusForbidden},
 	}, policy.ScopeAdmin), func(ctx context.Context, _ *struct{}) (*adminProvidersOutput, error) {
-		if _, err := c.instanceAdmin(ctx); err != nil {
+		if err := c.instanceAdmin(ctx); err != nil {
 			return nil, err
 		}
 		items, err := c.auth.ListProviders(ctx)
@@ -770,7 +770,7 @@ func (c *core) registerAuthAdmin(h huma.API) {
 		DefaultStatus: http.StatusCreated,
 		Errors:        []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, policy.ScopeAdmin), func(ctx context.Context, in *createProviderInput) (*providerOutput, error) {
-		if _, err := c.instanceAdmin(ctx); err != nil {
+		if err := c.instanceAdmin(ctx); err != nil {
 			return nil, err
 		}
 		var created auth.Provider
@@ -794,7 +794,7 @@ func (c *core) registerAuthAdmin(h huma.API) {
 		Summary: "Replace a single-sign-on provider's settings (instance admin)",
 		Errors:  []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusUnprocessableEntity},
 	}, policy.ScopeAdmin), func(ctx context.Context, in *updateProviderInput) (*providerOutput, error) {
-		if _, err := c.instanceAdmin(ctx); err != nil {
+		if err := c.instanceAdmin(ctx); err != nil {
 			return nil, err
 		}
 		var updated auth.Provider
@@ -818,7 +818,7 @@ func (c *core) registerAuthAdmin(h huma.API) {
 		Summary: "Remove a single-sign-on provider and its linked identities (instance admin)", DefaultStatus: http.StatusNoContent,
 		Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound},
 	}, policy.ScopeAdmin), func(ctx context.Context, in *providerIDInput) (*struct{}, error) {
-		if _, err := c.instanceAdmin(ctx); err != nil {
+		if err := c.instanceAdmin(ctx); err != nil {
 			return nil, err
 		}
 		return nil, c.record(ctx, "auth.provider.delete", "auth_provider", in.ID.String(), nil, func(tx pgx.Tx) error {
@@ -833,7 +833,7 @@ func (c *core) registerAuthAdmin(h huma.API) {
 			"the authorization endpoint, token endpoint and key set. Answers 200 either way: `ok` is false with a specific `code` and `message` when the issuer cannot be used.",
 		Errors: []int{http.StatusUnauthorized, http.StatusForbidden},
 	}, policy.ScopeAdmin), func(ctx context.Context, in *testIssuerInput) (*testIssuerOutput, error) {
-		if _, err := c.instanceAdmin(ctx); err != nil {
+		if err := c.instanceAdmin(ctx); err != nil {
 			return nil, err
 		}
 		res, err := c.auth.TestIssuer(ctx, in.Body.IssuerURL)
@@ -855,7 +855,7 @@ func (c *core) registerAuthAdmin(h huma.API) {
 		Summary: "Instance sign-in settings (instance admin)",
 		Errors:  []int{http.StatusUnauthorized, http.StatusForbidden},
 	}, policy.ScopeAdmin), func(ctx context.Context, _ *struct{}) (*authSettingsOutput, error) {
-		if _, err := c.instanceAdmin(ctx); err != nil {
+		if err := c.instanceAdmin(ctx); err != nil {
 			return nil, err
 		}
 		s, err := c.auth.GetAuthSettings(ctx)
@@ -870,7 +870,7 @@ func (c *core) registerAuthAdmin(h huma.API) {
 		Summary: "Change instance sign-in settings (instance admin)",
 		Errors:  []int{http.StatusUnauthorized, http.StatusForbidden},
 	}, policy.ScopeAdmin), func(ctx context.Context, in *authSettingsInput) (*authSettingsOutput, error) {
-		if _, err := c.instanceAdmin(ctx); err != nil {
+		if err := c.instanceAdmin(ctx); err != nil {
 			return nil, err
 		}
 		var out auth.AuthSettings

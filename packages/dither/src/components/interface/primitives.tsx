@@ -30,7 +30,7 @@ export type ButtonVariant =
 	| "destructive-solid"
 	| "link";
 
-export type ButtonSize =
+type ButtonSize =
 	| "default"
 	| "2xs"
 	| "xs"
@@ -78,7 +78,7 @@ const BUTTON_SIZE: Record<ButtonSize, string> = {
 };
 
 /** Class names of a button. Accent keys carry 2px more padding at the default and `lg` sizes, the danger key at `lg`, so they read as primary. */
-export function buttonClassName(
+function buttonClassName(
 	variant: ButtonVariant,
 	size: ButtonSize,
 	className?: string,

@@ -23,6 +23,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/previews"
 	"github.com/nebulactrl/nebulactrl/internal/prodguard"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard/prodguardtest"
 	"github.com/nebulactrl/nebulactrl/internal/projects"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/services"
@@ -124,7 +125,7 @@ func newRig(t *testing.T) *rig {
 	require.NoError(t, err)
 	g := prodguard.New(prodguard.Deps{Pool: pool, Box: box})
 	g.Install()
-	t.Cleanup(prodguard.Uninstall)
+	t.Cleanup(prodguardtest.Uninstall)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	bus := events.NewBus()

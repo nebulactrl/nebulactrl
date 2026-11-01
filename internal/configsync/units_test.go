@@ -738,7 +738,7 @@ func TestUnitReferenceOnly(t *testing.T) {
 		"":                            false,
 		"x${{db.URL}}":                false,
 		"${{db.URL}}x":                false,
-		" ${{db.URL}}":                false,
+		" ${{db.URL}}":                false, //nolint:gocritic // the leading space is deliberate: leading whitespace makes it not reference-only
 		"${{a.X}}/${{b.Y}}":           false,
 		"${{secret(8)}}":              false,
 		"${{db.URL}":                  false,
@@ -1375,7 +1375,7 @@ func TestUnitConfigFieldsRoundTripEveryCatalogID(t *testing.T) {
 	var noAccessor, noSample []string
 	seen := map[string]bool{}
 
-	for _, spec := range projectconfig.Catalog() {
+	for _, spec := range projectconfig.Fields {
 		if !strings.HasPrefix(spec.ID, "config.") {
 			continue
 		}
@@ -1806,7 +1806,7 @@ func TestUnitOpsForEveryCatalogID(t *testing.T) {
 		"processes.*.scale.autoscaling.min": "processScaleOps", "processes.*.scale.autoscaling.max": "processScaleOps",
 		"processes.*.scale.autoscaling.targetCpuPercent": "processScaleOps",
 	}
-	for _, spec := range projectconfig.Catalog() {
+	for _, spec := range projectconfig.Fields {
 		if strings.HasPrefix(spec.ID, "config.") {
 			concrete := strings.ReplaceAll(spec.ID, "*", "api")
 			require.Equal(t, "configOps", strings.TrimPrefix(fmt.Sprintf("%T", opsFor(concrete)), "configsync."), concrete)
@@ -1825,7 +1825,7 @@ func TestUnitOpsForEveryCatalogID(t *testing.T) {
 	}
 	for id := range want {
 		var found bool
-		for _, spec := range projectconfig.Catalog() {
+		for _, spec := range projectconfig.Fields {
 			found = found || spec.ID == id
 		}
 		require.True(t, found, "the expectation table names %s but the catalog does not", id)
@@ -1927,7 +1927,6 @@ func TestUnitProxyScopeNeeded(t *testing.T) {
 
 func TestUnitChangeRendering(t *testing.T) {
 	p := &planned{}
-	sp := &svcPlan{}
 
 	t.Run("set copies position, ids and fingerprints", func(t *testing.T) {
 		f := &fieldPlan{
@@ -1935,7 +1934,7 @@ func TestUnitChangeRendering(t *testing.T) {
 			desired: fieldView{FP: "sha256:d", Display: "8080"}, live: fieldView{FP: "sha256:l", Display: "3000"},
 			present: true, base: "sha256:b", hasBase: true, state: StateFileChanged, changed: true,
 		}
-		c := p.change(sp, f)
+		c := p.change(f)
 		require.Equal(t, PlanChange{
 			Path: "services.web.port", Line: 14, Field: "config.port", Op: OpSet, Applies: AppliesStaged, Reason: ReasonFileChanged,
 			From: "3000", To: "8080", baseFP: "sha256:b", liveFP: "sha256:l", desiredFP: "sha256:d",
@@ -1946,14 +1945,14 @@ func TestUnitChangeRendering(t *testing.T) {
 		for state, want := range map[string]string{
 			StateNew: ReasonNew, StateAdopt: ReasonAdopt, StateFileChanged: ReasonFileChanged, StateDrift: ReasonDrift, StateConflict: ReasonConflict,
 		} {
-			c := p.change(sp, &fieldPlan{fv: projectconfig.FieldValue{ID: "config.port", Applies: AppliesStaged}, present: true, state: state, changed: true})
+			c := p.change(&fieldPlan{fv: projectconfig.FieldValue{ID: "config.port", Applies: AppliesStaged}, present: true, state: state, changed: true})
 			require.Equal(t, OpSet, c.Op)
 			require.Equal(t, want, c.Reason, state)
 		}
 	})
 
 	t.Run("absent live is an add", func(t *testing.T) {
-		c := p.change(sp, &fieldPlan{
+		c := p.change(&fieldPlan{
 			fv:      projectconfig.FieldValue{ID: "scale.replicas", Applies: AppliesImmediate},
 			desired: fieldView{Display: "2"}, state: StateNew, changed: true,
 		})
@@ -1966,7 +1965,7 @@ func TestUnitChangeRendering(t *testing.T) {
 	})
 
 	t.Run("a removal shows the live value and no desired value", func(t *testing.T) {
-		c := p.change(sp, &fieldPlan{
+		c := p.change(&fieldPlan{
 			fv:      projectconfig.FieldValue{ID: "tasks.old", Path: "services.web.tasks.old", Applies: AppliesImmediate},
 			desired: fieldView{FP: "ignored"}, live: fieldView{FP: "sha256:l", Display: "0 7 * * *"},
 			present: true, base: "sha256:b", hasBase: true, changed: true, remove: true,
@@ -1981,7 +1980,7 @@ func TestUnitChangeRendering(t *testing.T) {
 	})
 
 	t.Run("generated values keep their descriptor, nothing else is shown", func(t *testing.T) {
-		c := p.change(sp, &fieldPlan{
+		c := p.change(&fieldPlan{
 			fv:      projectconfig.FieldValue{ID: "variables.SESSION", Applies: AppliesStaged},
 			desired: fieldView{Display: "generated(secret(48))", Masked: true}, state: StateNew, changed: true,
 		})
@@ -1991,7 +1990,7 @@ func TestUnitChangeRendering(t *testing.T) {
 	})
 
 	t.Run("masked values are replaced by the mask on both sides", func(t *testing.T) {
-		c := p.change(sp, &fieldPlan{
+		c := p.change(&fieldPlan{
 			fv:      projectconfig.FieldValue{ID: "variables.DB_URL", Applies: AppliesStaged},
 			desired: fieldView{Display: "${{db.URL}}", Masked: true}, live: fieldView{Display: "old-text", Masked: true},
 			present: true, state: StateFileChanged, changed: true,
@@ -2004,7 +2003,7 @@ func TestUnitChangeRendering(t *testing.T) {
 	})
 
 	t.Run("a masked live value hides itself next to a plain desired value", func(t *testing.T) {
-		c := p.change(sp, &fieldPlan{
+		c := p.change(&fieldPlan{
 			fv:      projectconfig.FieldValue{ID: "variables.TOKEN", Applies: AppliesStaged},
 			desired: fieldView{Display: "plain"}, live: fieldView{Display: "stored-secret-descriptor", Masked: true},
 			present: true, state: StateDrift, changed: true,
@@ -2015,7 +2014,7 @@ func TestUnitChangeRendering(t *testing.T) {
 	})
 
 	t.Run("a masked removal hides the live value", func(t *testing.T) {
-		c := p.change(sp, &fieldPlan{
+		c := p.change(&fieldPlan{
 			fv:   projectconfig.FieldValue{ID: "variables.OLD", Applies: AppliesStaged},
 			live: fieldView{Display: "stored-secret", Masked: true}, present: true, changed: true, remove: true,
 		})
@@ -2208,9 +2207,9 @@ func TestUnitFinishBlockedAndErroneousPlansAreInvalid(t *testing.T) {
 	})
 }
 
-func unitDomainField(id string, rule projectconfig.DomainRule, changed bool) *fieldPlan {
+func unitDomainField(rule projectconfig.DomainRule, changed bool) *fieldPlan {
 	return &fieldPlan{
-		fv:      projectconfig.FieldValue{ID: id, Path: `services.web.domains."shop.acme.com"`, Value: rule, Applies: AppliesStaged},
+		fv:      projectconfig.FieldValue{ID: "domains.shop.acme.com", Path: `services.web.domains."shop.acme.com"`, Value: rule, Applies: AppliesStaged},
 		changed: changed,
 	}
 }
@@ -2251,7 +2250,7 @@ func TestUnitFinishRequiredScopes(t *testing.T) {
 			"a domain rule with options needs proxy:write",
 			func() *svcPlan {
 				sp := unitUpdate("web", domainChange)
-				sp.fields = []*fieldPlan{unitDomainField("domains.shop.acme.com", projectconfig.DomainRule{Host: "shop.acme.com", Options: opts}, true)}
+				sp.fields = []*fieldPlan{unitDomainField(projectconfig.DomainRule{Host: "shop.acme.com", Options: opts}, true)}
 				return sp
 			},
 			[]string{"projects:write", "proxy:write"},
@@ -2260,7 +2259,7 @@ func TestUnitFinishRequiredScopes(t *testing.T) {
 			"a domain rule with only a target port does not",
 			func() *svcPlan {
 				sp := unitUpdate("web", domainChange)
-				sp.fields = []*fieldPlan{unitDomainField("domains.shop.acme.com", projectconfig.DomainRule{Host: "shop.acme.com", TargetPort: &port}, true)}
+				sp.fields = []*fieldPlan{unitDomainField(projectconfig.DomainRule{Host: "shop.acme.com", TargetPort: &port}, true)}
 				return sp
 			},
 			[]string{"projects:write"},
@@ -2269,7 +2268,7 @@ func TestUnitFinishRequiredScopes(t *testing.T) {
 			"an unchanged rule with options does not",
 			func() *svcPlan {
 				sp := unitUpdate("web")
-				sp.fields = []*fieldPlan{unitDomainField("domains.shop.acme.com", projectconfig.DomainRule{Host: "shop.acme.com", Options: opts}, false)}
+				sp.fields = []*fieldPlan{unitDomainField(projectconfig.DomainRule{Host: "shop.acme.com", Options: opts}, false)}
 				return sp
 			},
 			[]string{"projects:write"},
@@ -2278,7 +2277,7 @@ func TestUnitFinishRequiredScopes(t *testing.T) {
 			"a rule that could not be computed does not",
 			func() *svcPlan {
 				sp := unitUpdate("web")
-				f := unitDomainField("domains.shop.acme.com", projectconfig.DomainRule{Host: "shop.acme.com", Options: opts}, true)
+				f := unitDomainField(projectconfig.DomainRule{Host: "shop.acme.com", Options: opts}, true)
 				f.skipped = true
 				sp.fields = []*fieldPlan{f}
 				return sp
@@ -2345,7 +2344,7 @@ func TestUnitFinishRequiredScopes(t *testing.T) {
 					unitChange("scale.replicas", OpSet, AppliesImmediate),
 					unitChange("config.port", OpSet, AppliesStaged),
 				)
-				sp.fields = []*fieldPlan{unitDomainField("domains.shop.acme.com", projectconfig.DomainRule{Host: "shop.acme.com", Options: opts}, true)}
+				sp.fields = []*fieldPlan{unitDomainField(projectconfig.DomainRule{Host: "shop.acme.com", Options: opts}, true)}
 				return sp
 			},
 			[]string{"projects:write", "deployments:write", "proxy:write", "admin"},

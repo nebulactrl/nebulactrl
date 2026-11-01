@@ -94,8 +94,3 @@ float dFar(vec2 c) {
   return max(max(a, b), max(d, e));
 }
 `;
-
-/** Clamp helper for knob values passed into uniforms. */
-export function clamp(value: number, min: number, max: number): number {
-	return Math.min(max, Math.max(min, value));
-}

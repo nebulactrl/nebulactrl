@@ -180,7 +180,7 @@ func TestReplicaSagaPreparesClonesDeploysAndStreams(t *testing.T) {
 	bg := context.Background()
 	pg := f.primary("pg")
 	api := f.app("api")
-	f.setVar(api.ID, "READ_URL", "${{pg.DATABASE_READ_URL}}", false)
+	f.setVar(api.ID, "READ_URL", "${{pg.DATABASE_READ_URL}}")
 	id := f.addReplica(pg.ID, f.server.ID)
 	short := agentprotocol.Short(id.String())
 	replPW := f.getVar(id, engines.ReplicationPasswordKey)
@@ -272,7 +272,7 @@ func TestReplicaSagaPreparesClonesDeploysAndStreams(t *testing.T) {
 	require.Equal(t, gen+1, f.generation(api.ID))
 
 	// The consumer's read URL now names the replica; the writer stays the primary.
-	f.setVar(api.ID, "WRITE_URL", "${{pg.DATABASE_WRITE_URL}}", false)
+	f.setVar(api.ID, "WRITE_URL", "${{pg.DATABASE_WRITE_URL}}")
 	res := f.resolve("api")
 	pw := f.getVar(pg.ID, "POSTGRES_PASSWORD")
 	rslug := f.reload(id).Slug
@@ -285,7 +285,7 @@ func TestObservationDrivesBrokenLaggingAndRebuildStates(t *testing.T) {
 	bg := context.Background()
 	pg := f.primary("pg")
 	api := f.app("api")
-	f.setVar(api.ID, "READ_URL", "${{pg.DATABASE_READ_URL}}", false)
+	f.setVar(api.ID, "READ_URL", "${{pg.DATABASE_READ_URL}}")
 	id := f.streamingReplica(pg.ID, f.server.ID)
 	short := agentprotocol.Short(id.String())
 	var alerts []databases.ReplicaEvent
@@ -493,9 +493,9 @@ func TestPromoteSwitchoverMovesTheGroup(t *testing.T) {
 	bg := context.Background()
 	pg := f.primary("pg")
 	api := f.app("api")
-	f.setVar(api.ID, "DATABASE_URL", "${{pg.DATABASE_URL}}", false)
-	f.setVar(api.ID, "BOTH", "u=${{urlencode(pg.POSTGRES_USER)}} h=${{pg.NEBULA_PRIVATE_HOST}} x=${{other.X}}", false)
-	f.setVar(api.ID, "UNRELATED", "plain", false)
+	f.setVar(api.ID, "DATABASE_URL", "${{pg.DATABASE_URL}}")
+	f.setVar(api.ID, "BOTH", "u=${{urlencode(pg.POSTGRES_USER)}} h=${{pg.NEBULA_PRIVATE_HOST}} x=${{other.X}}")
+	f.setVar(api.ID, "UNRELATED", "plain")
 	target := f.streamingReplica(pg.ID, f.server.ID)
 	other := f.streamingReplica(pg.ID, f.server.ID)
 	f.addSchedule(pg.ID)
@@ -914,7 +914,7 @@ func TestRemoveReplicaDropsTheSlotReleasesTheLinkAndDeletesTheService(t *testing
 	id := f.streamingReplica(pg.ID, f.server2.ID)
 	short := agentprotocol.Short(id.String())
 	api := f.app("api")
-	f.setVar(api.ID, "READ", "${{pg.DATABASE_READ_URL}}", false)
+	f.setVar(api.ID, "READ", "${{pg.DATABASE_READ_URL}}")
 	gen := f.generation(api.ID)
 
 	r, err := f.dbs.RemoveReplica(f.ctx, id)

@@ -26,7 +26,7 @@ const VARIANT_DEFAULTS: Record<RuleVariant, VariantDefaults> = {
 };
 
 /** Bands in one half of a rule: "ten steps of dither". */
-export const FADE_STEPS = 10;
+const FADE_STEPS = 10;
 
 export interface RuleStopsOptions {
 	/** Share of each half that fades out, 0..1. */

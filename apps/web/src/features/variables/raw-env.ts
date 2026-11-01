@@ -6,7 +6,7 @@ export interface EnvEntry {
 	value: string;
 }
 
-export interface EnvParseError {
+interface EnvParseError {
 	/** 1-based line number in the pasted text. */
 	line: number;
 	message: string;

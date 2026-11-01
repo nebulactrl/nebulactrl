@@ -93,21 +93,21 @@ func authorize(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) load(ctx context.Context, src CoolifySource, serverID *uuid.UUID, choices CoolifyChoices) (*CoolifyPlan, *Inventory, db.Server, error) {
+func (s *Service) load(ctx context.Context, src CoolifySource, serverID *uuid.UUID, choices CoolifyChoices) (*CoolifyPlan, db.Server, error) {
 	var srv db.Server
 	cl, err := NewClient(src.URL, src.Token, s.HTTP)
 	if err != nil {
-		return nil, nil, srv, err
+		return nil, srv, err
 	}
 	inv, err := cl.Fetch(ctx)
 	if err != nil {
-		return nil, nil, srv, err
+		return nil, srv, err
 	}
 	tg, srv, err := s.loadTarget(ctx, serverID)
 	if err != nil {
-		return nil, nil, srv, err
+		return nil, srv, err
 	}
-	return Analyze(inv, choices, tg), inv, srv, nil
+	return Analyze(inv, choices, tg), srv, nil
 }
 
 // loadTarget reads the projects of the workspace and the chosen server.
@@ -164,7 +164,7 @@ func (s *Service) Plan(ctx context.Context, req CoolifyPlanRequest) (CoolifyPlan
 	if err := authorize(ctx); err != nil {
 		return CoolifyPlan{}, err
 	}
-	p, _, _, err := s.load(ctx, req.Source, req.ServerID, req.Choices)
+	p, _, err := s.load(ctx, req.Source, req.ServerID, req.Choices)
 	if err != nil {
 		return CoolifyPlan{}, err
 	}
@@ -184,7 +184,7 @@ func (s *Service) Apply(ctx context.Context, req CoolifyApplyRequest) (CoolifyAp
 		}
 	}
 	sid := req.ServerID
-	plan, _, srv, err := s.load(ctx, req.Source, &sid, req.Choices)
+	plan, srv, err := s.load(ctx, req.Source, &sid, req.Choices)
 	if err != nil {
 		return CoolifyApplyResult{}, err
 	}

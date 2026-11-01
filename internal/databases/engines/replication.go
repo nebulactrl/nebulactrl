@@ -60,12 +60,6 @@ func HBALine(role string) string {
 	return "host replication " + role + " " + HBAAddress + " scram-sha-256"
 }
 
-// HBABlock is the managed block holding the line of role alone. A primary with
-// several replicas holds one line per replica between the same markers.
-func HBABlock(role string) string {
-	return HBABegin + "\n" + HBALine(role) + "\n" + HBAEnd + "\n"
-}
-
 var (
 	replHostRe   = regexp.MustCompile(`^[A-Za-z0-9]([A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$`)
 	replLSNRe    = regexp.MustCompile(`^[0-9A-Fa-f]{1,8}/[0-9A-Fa-f]{1,8}$`)
@@ -278,9 +272,6 @@ tmp="$f.nebula-new"
 mv "$tmp" "$f"
 `
 
-// HBAScript returns the constant pg_hba.conf block script.
-func HBAScript() string { return hbaScript }
-
 // HBAPlan builds the command that adds (add) or removes the pg_hba.conf line of
 // role. Run it before the SQL step so that step's pg_reload_conf applies it.
 func HBAPlan(s Spec, add bool, role string) (ExecPlan, error) {
@@ -348,9 +339,6 @@ f="$PGDATA/nebula.replica.conf"
 ` + replConfRender + ` > "$f.new"
 mv "$f.new" "$f"
 `
-
-// ReconfigureScript returns the constant reconfigure script.
-func ReconfigureScript() string { return reconfigureScript }
 
 // ReconfigurePlan builds the command that re-renders nebula.replica.conf for the
 // new host, port, user and slot. Follow it with ReplPlan(repl_reconfigure), whose

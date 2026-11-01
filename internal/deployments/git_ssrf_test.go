@@ -28,7 +28,7 @@ func TestLsRemoteRefusesInternalAddresses(t *testing.T) {
 	require.NotContains(t, err.Error(), "INTERNAL-ONLY-BODY")
 	require.Zero(t, hits, "the loopback server was never contacted")
 
-	// git:// and SSH remotes are dialed by go-git itself: they are checked first.
+	// go-git dials git and SSH remotes itself, so the guard checks them first.
 	for _, u := range []string{"git://127.0.0.1/x.git", "git://169.254.169.254/x.git", "ssh://git@10.0.0.5/x.git", "git@192.168.1.10:acme/x.git"} {
 		require.ErrorIs(t, guardRemote(context.Background(), u), netguard.ErrBlocked, u)
 	}

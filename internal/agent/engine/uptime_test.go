@@ -500,7 +500,7 @@ func TestUptimeStackOfAnotherDeploymentIsIgnored(t *testing.T) {
 
 func TestUptimeCycleHoldsNetworkAccessWhileProbingAndReleasesAfter(t *testing.T) {
 	r, _ := newUptimeRig(t, func(c *Config) { c.AgentContainer = agentCtr })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 	addNet(r, netEnv, false, time.Hour)
 
 	// While a probe is in flight the network sweeper runs (as it does every
@@ -545,7 +545,7 @@ func TestUptimeCycleHoldsNetworkAccessWhileProbingAndReleasesAfter(t *testing.T)
 
 func TestUptimeCycleJoinsEveryNetworkItProbesThrough(t *testing.T) {
 	r, _ := newUptimeRig(t, func(c *Config) { c.AgentContainer = agentCtr })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 	addNet(r, netEnv, false, time.Hour)
 	addNet(r, netInt, true, time.Hour)
 	ok := statusServer(t, 200)
@@ -571,7 +571,7 @@ func TestUptimeCycleJoinsEveryNetworkItProbesThrough(t *testing.T) {
 
 func TestUptimeCycleNeedsNoNetworkWithoutANetworkProbe(t *testing.T) {
 	r, _ := newUptimeRig(t, func(c *Config) { c.AgentContainer = agentCtr })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 	addNet(r, netEnv, false, time.Hour)
 	seedReplica(r, svcID, upName(0), agentprotocol.HealthcheckSpec{Type: "docker"}, 80)
 	want(r, svcID, upName(0))
@@ -585,7 +585,7 @@ func TestUptimeCycleNeedsNoNetworkWithoutANetworkProbe(t *testing.T) {
 
 func TestUptimeCycleOnABareHostNeverAttachesTheAgent(t *testing.T) {
 	r, _ := newUptimeRig(t, func(c *Config) { c.Hostname = "my-laptop" })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 	addNet(r, netEnv, false, time.Hour)
 	seedReplica(r, svcID, upName(0), httpCheck, statusServer(t, 200))
 	want(r, svcID, upName(0))
@@ -597,7 +597,7 @@ func TestUptimeCycleOnABareHostNeverAttachesTheAgent(t *testing.T) {
 
 func TestUptimeRouteServiceNetworksAreHeldToo(t *testing.T) {
 	r, _ := newUptimeRig(t, func(c *Config) { c.AgentContainer = agentCtr })
-	seedAgent(r, "agent-id")
+	seedAgent(r)
 	addNet(r, netEnv, false, time.Hour)
 	// A route service whose upstream is a managed container on the env network.
 	require.NoError(t, r.px.Apply([]agentprotocol.Route{{

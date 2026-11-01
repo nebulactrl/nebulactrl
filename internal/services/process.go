@@ -318,7 +318,7 @@ func CheckProcessesInUse(ctx context.Context, q *db.Queries, serviceID uuid.UUID
 	if cfg.Stack != nil {
 		return nil
 	}
-	doms, renames, err := processDomainsOf(ctx, q, serviceID, cfg)
+	doms, renames, err := processDomainsOf(ctx, q, serviceID)
 	if err != nil {
 		return err
 	}
@@ -351,7 +351,7 @@ func FollowProcessPorts(ctx context.Context, q *db.Queries, serviceID uuid.UUID,
 	if cfg.Stack != nil {
 		return nil
 	}
-	doms, renames, err := processDomainsOf(ctx, q, serviceID, cfg)
+	doms, renames, err := processDomainsOf(ctx, q, serviceID)
 	if err != nil {
 		return err
 	}
@@ -373,7 +373,7 @@ func FollowProcessPorts(ctx context.Context, q *db.Queries, serviceID uuid.UUID,
 }
 
 // processDomainsOf loads the domains of a service and its staged process renames.
-func processDomainsOf(ctx context.Context, q *db.Queries, serviceID uuid.UUID, cfg Config) ([]db.Domain, map[string]string, error) {
+func processDomainsOf(ctx context.Context, q *db.Queries, serviceID uuid.UUID) ([]db.Domain, map[string]string, error) {
 	doms, err := q.ListServiceDomains(ctx, serviceID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list domains: %w", err)

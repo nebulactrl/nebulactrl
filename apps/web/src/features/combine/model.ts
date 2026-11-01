@@ -230,7 +230,7 @@ export function processNameProblems(
 
 // --- the plan ---------------------------------------------------------------
 
-export interface PlanMember {
+interface PlanMember {
 	serviceId: string;
 	slug: string;
 	name: string;
@@ -395,14 +395,14 @@ export function keptAsIs(plan: PlanLike): Map<string, string[]> {
 	return byService;
 }
 
-export interface ReviewProcess {
+interface ReviewProcess {
 	name: string;
 	/** The service the process comes from. */
 	fromSlug: string;
 	isDefault: boolean;
 }
 
-export interface ReviewDomainMove {
+interface ReviewDomainMove {
 	hostname: string;
 	process: string;
 	fromSlug: string;
@@ -530,21 +530,13 @@ export function combineSteps(
 
 // --- progress ---------------------------------------------------------------
 
-export type CombineState =
-	| "staged"
-	| "deploying"
-	| "cutover"
-	| "done"
-	| "failed"
-	| "aborted";
-
 export interface CombineViewLike {
 	state: string;
 	error?: string | undefined;
 	deploymentId?: string | null | undefined;
 }
 
-export type ProgressStepState = "done" | "current" | "pending" | "failed";
+type ProgressStepState = "done" | "current" | "pending" | "failed";
 
 export interface ProgressStep {
 	id: "staged" | "deploying" | "cutover" | "done";

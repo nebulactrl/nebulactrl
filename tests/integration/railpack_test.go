@@ -41,7 +41,7 @@ func railpackFixtures(t *testing.T) map[string]string {
 	}
 	for _, name := range []string{"node-app", "static-site"} {
 		tree := filepath.Join(work, name)
-		require.NoError(t, os.CopyFS(tree, os.DirFS(filepath.Join(root, "tests/fixtures/railpack", name))))
+		require.NoError(t, os.CopyFS(tree, os.DirFS(filepath.Join(root, "tests", "fixtures", "railpack", name))))
 		for _, args := range [][]string{{"init", "-q"}, {"add", "-A"}, {"commit", "-q", "-m", "fixture " + name}} {
 			git(tree, args...)
 		}

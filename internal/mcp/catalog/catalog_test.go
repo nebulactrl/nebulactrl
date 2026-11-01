@@ -731,9 +731,3 @@ func TestNilProjectionIsIdentity(t *testing.T) {
 		t.Fatal("nil projection changed the value")
 	}
 }
-
-func TestParseDetail(t *testing.T) {
-	if ParseDetail("") != DetailConcise || ParseDetail("full") != DetailFull || ParseDetail("verbose") != DetailConcise {
-		t.Fatal("ParseDetail")
-	}
-}

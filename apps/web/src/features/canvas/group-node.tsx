@@ -20,7 +20,7 @@ export type GroupFlowNode = Node<
 >;
 
 /** The class the frame's header carries: only it drags an expanded group. */
-export const GROUP_DRAG_HANDLE = "nc-group-handle";
+const GROUP_DRAG_HANDLE = "nc-group-handle";
 
 const ROLLUP_ORDER: StatusGroup[] = [
 	"failed",
@@ -33,9 +33,7 @@ const ROLLUP_ORDER: StatusGroup[] = [
 ];
 
 /** The most urgent status among a group's members, for its summary card. */
-export function rollupStatus(
-	members: readonly Service[],
-): NodeStatus | undefined {
+function rollupStatus(members: readonly Service[]): NodeStatus | undefined {
 	let worst: NodeStatus | undefined;
 	for (const member of members) {
 		const status = nodeStatus(member);

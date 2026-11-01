@@ -34,7 +34,7 @@ export function stepWords(step: PlatformStep): string {
 }
 
 /** The four visible stages of a set-up, in order (`done` is the end, not a stage). */
-export const PROVISION_STEPS = [
+const PROVISION_STEPS = [
 	"configure",
 	"deploy",
 	"await",
@@ -110,8 +110,8 @@ export function anyBusy(listing: PlatformListing | undefined): boolean {
 }
 
 /** The follow-up poll is quick while work is in flight, slow otherwise. */
-export const PLATFORM_BUSY_MS = 3_000;
-export const PLATFORM_REFRESH_MS = 15_000;
+const PLATFORM_BUSY_MS = 3_000;
+const PLATFORM_REFRESH_MS = 15_000;
 
 export function pollInterval(busy: boolean): number {
 	return busy ? PLATFORM_BUSY_MS : PLATFORM_REFRESH_MS;
@@ -310,7 +310,7 @@ export function provisionBody(
 
 // --- Failures, in words ------------------------------------------------------
 
-export type CreateFailureAction =
+type CreateFailureAction =
 	/** The person can fix it in the dialog. */
 	| "none"
 	/** Reveal the hostname field as required. */

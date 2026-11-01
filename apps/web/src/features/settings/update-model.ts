@@ -126,7 +126,7 @@ export function pollInterval(
  * proxy in front of it answering 502, 503 or 504. Anything else is a real
  * error, not "restarting".
  */
-export function isRestartStatus(status: number | undefined): boolean {
+function isRestartStatus(status: number | undefined): boolean {
 	return status === 0 || status === 502 || status === 503 || status === 504;
 }
 

@@ -324,15 +324,15 @@ func TestNodeStatesFromTailscale(t *testing.T) {
 	require.Contains(t, st.Nodes[0].Message, "Re-provision")
 	require.Contains(t, st.Nodes[0].Message, "not logged in", "the last log lines explain why")
 
-	require.Equal(t, agentprotocol.MeshStateOnline, ParseStatus([]byte(statusOnline), nil).State)
-	require.Equal(t, agentprotocol.MeshStateNeedsAttn, ParseStatus([]byte(statusLogin), nil).State)
-	require.Equal(t, agentprotocol.MeshStateOffline, ParseStatus([]byte(`{"BackendState":"Stopped"}`), nil).State)
-	require.Equal(t, agentprotocol.MeshStateProvisioning, ParseStatus([]byte(`{"BackendState":"Starting"}`), nil).State)
-	require.Equal(t, agentprotocol.MeshStateProvisioning, ParseStatus([]byte(`not json`), nil).State)
+	require.Equal(t, agentprotocol.MeshStateOnline, parseStatusCapped([]byte(statusOnline), nil).State)
+	require.Equal(t, agentprotocol.MeshStateNeedsAttn, parseStatusCapped([]byte(statusLogin), nil).State)
+	require.Equal(t, agentprotocol.MeshStateOffline, parseStatusCapped([]byte(`{"BackendState":"Stopped"}`), nil).State)
+	require.Equal(t, agentprotocol.MeshStateProvisioning, parseStatusCapped([]byte(`{"BackendState":"Starting"}`), nil).State)
+	require.Equal(t, agentprotocol.MeshStateProvisioning, parseStatusCapped([]byte(`not json`), nil).State)
 
-	all := ParseStatus([]byte(statusOnline), nil)
+	all := parseStatusCapped([]byte(statusOnline), nil)
 	require.Len(t, all.Peers, 2, "no tag filter: every peer")
-	tagged := ParseStatus([]byte(statusOnline), []string{"tag:nebula-mesh"})
+	tagged := parseStatusCapped([]byte(statusOnline), []string{"tag:nebula-mesh"})
 	require.Len(t, tagged.Peers, 1)
 }
 
@@ -448,3 +448,8 @@ func TestContainerNames(t *testing.T) {
 }
 
 var _ = docker.ErrNotFound
+
+// parseStatusCapped is parseStatus with the peer cap the manager uses.
+func parseStatusCapped(raw []byte, tags []string) agentprotocol.MeshNodeStatus {
+	return parseStatus(raw, tags, maxPeers)
+}

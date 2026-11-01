@@ -173,7 +173,7 @@ func TestStackDomainsRoutesDeployAndReleaseComponents(t *testing.T) {
 	v, err := f.deps.Deploy(f.ctx, st.ID, "", "")
 	require.NoError(t, err)
 	require.Equal(t, agentprotocol.StrategyRecreate, v.Strategy)
-	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID))
 	cmd := f.lastCommand(agentprotocol.KindDeploy)
 	var pl agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(cmd.Payload, &pl))
@@ -226,13 +226,13 @@ func TestStackDomainsRoutesDeployAndReleaseComponents(t *testing.T) {
 	// first release's images and reads Unrestricted from the server now.
 	v2, err := f.deps.Deploy(f.ctx, st.ID, "", "")
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), v2.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), v2.ID))
 	data2, _ := json.Marshal(agentprotocol.DeployResult{Outcome: agentprotocol.OutcomeSucceeded, Stack: &agentprotocol.StackResult{Images: map[string]string{"web": "x@sha256:cc", "sidecar": "y@sha256:dd"}}})
 	require.NoError(t, f.deps.HandleResult(context.Background(), f.server.ID, uuid.New(), &v2.ID, agentprotocol.ResultFrame{Outcome: agentprotocol.OutcomeSucceeded, Data: data2}))
 	f.setCompose(true, true)
 	rb, err := f.deps.Rollback(f.ctx, v.ID)
 	require.NoError(t, err)
-	require.NoError(t, f.deps.runDeploy(context.Background(), rb.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), rb.ID))
 	var pl2 agentprotocol.DeployPayload
 	require.NoError(t, json.Unmarshal(f.lastCommand(agentprotocol.KindDeploy).Payload, &pl2))
 	require.Equal(t, images, pl2.Stack.Images)
@@ -274,7 +274,7 @@ func TestStackPrepareBlocksWithoutComposeCapability(t *testing.T) {
 	require.NoError(t, err)
 	// The agent lost the plugin between the request and the preparation.
 	f.setCompose(false, false)
-	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID, ""))
+	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID))
 	dv, err := f.deps.Get(f.ctx, v.ID)
 	require.NoError(t, err)
 	require.Equal(t, string(Failed), dv.Status)

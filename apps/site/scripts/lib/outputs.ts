@@ -81,7 +81,7 @@ export function textOutputs(data: SiteData, config: SiteConfig): Output[] {
 	return out;
 }
 
-export function robots(config: SiteConfig): string {
+function robots(config: SiteConfig): string {
 	return `User-agent: *\nAllow: /\n\nSitemap: ${config.siteUrl}/sitemap.xml\n`;
 }
 

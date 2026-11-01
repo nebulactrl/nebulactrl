@@ -104,10 +104,3 @@ func (l *limiter) gc(now time.Time) {
 		}
 	}
 }
-
-// size is the number of tracked clients (tests).
-func (l *limiter) size() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return len(l.clients)
-}

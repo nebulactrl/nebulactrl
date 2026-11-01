@@ -31,7 +31,7 @@ func TestProbesFramesTravelAndTheAckReachesTheHandler(t *testing.T) {
 	var srv *fakeServer
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { srv.ServeHTTP(w, r) }))
 	defer ts.Close()
-	c, _, s, _ := newTestClient(t, ts.URL)
+	c, _, s := newTestClient(t, ts.URL)
 	srv = s
 
 	acked := make(chan uint64, 4)

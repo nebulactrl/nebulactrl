@@ -184,7 +184,7 @@ func (s *Service) RegenerateRecoveryCodes(ctx context.Context, tx pgx.Tx, userID
 		if u.PasswordHash == "" {
 			return nil, apierr.Unprocessable("invalid_two_factor_code", "enter an unused recovery code")
 		}
-		if err := s.checkPassword(ctx, u, password); err != nil {
+		if err := s.checkPassword(u, password); err != nil {
 			return nil, err
 		}
 	} else if err := s.verifyForAction(ctx, userID, code); err != nil {

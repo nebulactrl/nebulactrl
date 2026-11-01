@@ -6,7 +6,7 @@ import {
 	SelectValue,
 } from "#/components/ui/select";
 
-export interface Option<T extends string> {
+interface Option<T extends string> {
 	value: T;
 	label: string;
 }

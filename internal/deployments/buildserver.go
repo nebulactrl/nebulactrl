@@ -333,7 +333,7 @@ func (s *Service) handleBuildResult(ctx context.Context, serverID uuid.UUID, cmd
 		}
 		if changed {
 			log.InfoContext(ctx, "image built and pushed", "digest", br.Digest)
-			s.publish(services.EventDeploymentUpdated, dc)
+			s.publish(dc)
 			s.publishService(dc)
 		}
 		return nil
@@ -380,7 +380,7 @@ func (s *Service) handleBuildResult(ctx context.Context, serverID uuid.UUID, cmd
 	}
 	if changed {
 		log.InfoContext(ctx, "build finished", "status", string(target), "message", msg)
-		s.publish(services.EventDeploymentUpdated, dc)
+		s.publish(dc)
 		s.publishService(dc)
 		s.notifyFinished(ctx, dc, target, msg)
 	}
@@ -511,7 +511,7 @@ func (s *Service) buildFallbackAfterUndelivered(ctx context.Context, cmd db.Agen
 		return nil
 	})
 	if err == nil && changed {
-		s.publish(services.EventDeploymentUpdated, dc)
+		s.publish(dc)
 	}
 	return err
 }

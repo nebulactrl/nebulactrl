@@ -2,6 +2,7 @@ package registries
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"testing"
 	"time"
@@ -199,4 +200,14 @@ func TestCheckOfTheBuiltinRegistryNeedsItReady(t *testing.T) {
 	f.setBuiltinStatus("failed")
 	_, err = f.svc.Check(f.ctx, reg.ID, f.srv.ID)
 	require.Equal(t, "registry_unavailable", code(err))
+}
+
+// DecodeAuth parses an X-Registry-Auth value.
+func DecodeAuth(v string) (agentprotocol.RegistryAuth, bool) {
+	var a agentprotocol.RegistryAuth
+	raw, err := base64.URLEncoding.DecodeString(v)
+	if err != nil || json.Unmarshal(raw, &a) != nil {
+		return a, false
+	}
+	return a, true
 }

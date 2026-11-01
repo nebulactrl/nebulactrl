@@ -91,9 +91,15 @@ func TestStaticFlagsDNS01Golden(t *testing.T) {
 			env := dnsEnv([]agentprotocol.DNSResolver{r})
 			golden(t, "static_dns01_"+provider+".env.golden.txt", []byte(strings.Join(env, "\n")))
 			require.True(t, sort.StringsAreSorted(env))
+			spec, ok := agentprotocol.DNSProvider(provider)
+			require.True(t, ok, provider)
+			var known []string
+			for _, f := range spec.Fields {
+				known = append(known, f.Env)
+			}
 			for _, kv := range env {
 				name, _, _ := strings.Cut(kv, "=")
-				require.Contains(t, agentprotocol.LegoEnvNames(provider), name, "lego %s reads %s", agentprotocol.LegoVersion, name)
+				require.Contains(t, known, name, "lego %s reads %s", agentprotocol.LegoVersion, name)
 			}
 		})
 	}

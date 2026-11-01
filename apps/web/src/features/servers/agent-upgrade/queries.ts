@@ -4,7 +4,7 @@ import { invalidateOperations } from "#/api/invalidate";
 import { anyRunning } from "./model";
 
 /** Refetch cadence while an agent upgrade runs (the event feed is the primary signal). */
-export const RUNNING_POLL_MS = 4000;
+const RUNNING_POLL_MS = 4000;
 
 /** The control plane's version, the agent skew of every server and the auto-upgrade setting. */
 export const instanceUpgradeQuery = () =>
@@ -15,7 +15,7 @@ export const instanceUpgradeQuery = () =>
 			anyRunning(query.state.data) ? RUNNING_POLL_MS : false,
 	});
 
-export const AGENT_UPGRADE_OPERATIONS = ["getInstanceUpgrade"] as const;
+const AGENT_UPGRADE_OPERATIONS = ["getInstanceUpgrade"] as const;
 
 export function invalidateAgentUpgrade(
 	queryClient: QueryClient,

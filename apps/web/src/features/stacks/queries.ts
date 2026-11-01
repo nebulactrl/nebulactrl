@@ -11,14 +11,14 @@ import { useDebounced } from "#/features/templates/use-debounced";
 import type { StackCheckResult, StackCheckState } from "./model";
 
 /** How long the compose text rests before it is sent for a check. */
-export const CHECK_DEBOUNCE_MS = 400;
+const CHECK_DEBOUNCE_MS = 400;
 
 /**
  * The check is a POST that writes nothing, so it is cached like a query. The
  * text and the server are the key, an older request is aborted through
  * `signal`, and it never polls: the answer only changes with the text.
  */
-export const stackCheckQuery = (
+const stackCheckQuery = (
 	environmentId: string,
 	compose: string,
 	serverId: string,

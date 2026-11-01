@@ -240,7 +240,7 @@ func (a *analyzer) planResources(pe *CoolifyPlanEnvironment, ce *Environment, ta
 			continue
 		}
 		assigned[d.UUID] = true
-		dbItems = append(dbItems, item{d.Name, func() CoolifyPlanResource { return a.planDatabase(d, a.ch.Resources[d.UUID], pe) }})
+		dbItems = append(dbItems, item{d.Name, func() CoolifyPlanResource { return a.planDatabase(d, a.ch.Resources[d.UUID]) }})
 	}
 	for i := range a.inv.Applications {
 		app := &a.inv.Applications[i]
@@ -248,7 +248,7 @@ func (a *analyzer) planResources(pe *CoolifyPlanEnvironment, ce *Environment, ta
 			continue
 		}
 		assigned[app.UUID] = true
-		appItems = append(appItems, item{app.Name, func() CoolifyPlanResource { return a.planApplication(app, a.ch.Resources[app.UUID], pe) }})
+		appItems = append(appItems, item{app.Name, func() CoolifyPlanResource { return a.planApplication(app, a.ch.Resources[app.UUID]) }})
 	}
 	byName := func(s []item) {
 		sort.SliceStable(s, func(i, j int) bool { return strings.ToLower(s[i].name) < strings.ToLower(s[j].name) })

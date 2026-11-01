@@ -6,7 +6,7 @@ import { formatDuration } from "#/lib/format";
 export { splitCommand } from "#/features/service-settings/draft";
 
 /** Task run states, as the API reports them. */
-export type RunStatus = RunView["status"];
+type RunStatus = RunView["status"];
 
 interface Presentation {
 	tone: LampTone;

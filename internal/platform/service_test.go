@@ -230,9 +230,9 @@ func newFixture(t *testing.T) *fixture {
 	return f
 }
 
-func (f *fixture) provision(kind string, mod ...func(*platform.ProvisionInput)) platform.ProvisionResult {
+func (f *fixture) provision(mod ...func(*platform.ProvisionInput)) platform.ProvisionResult {
 	f.t.Helper()
-	in := platform.ProvisionInput{Kind: kind, ServerID: f.server.ID}
+	in := platform.ProvisionInput{Kind: platform.KindHeadscale, ServerID: f.server.ID}
 	for _, m := range mod {
 		m(&in)
 	}
@@ -272,7 +272,7 @@ func (f *fixture) platformService(r platform.ProvisionResult) db.Service {
 
 func TestProvisionStagesTheServiceInAHiddenSystemProject(t *testing.T) {
 	f := newFixture(t)
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	require.Equal(t, platform.StatusProvisioning, r.View.Status)
 	require.Equal(t, platform.StepConfigure, r.View.Step)
 	require.Regexp(t, `^headscale-platform-nebulactrl-platform\.example\.test$`, r.View.Hostname)
@@ -352,7 +352,7 @@ func TestProvisionAuthorizationAndValidation(t *testing.T) {
 	_, err = f.svc.Provision(f.ctx, platform.ProvisionInput{Kind: platform.KindHeadscale, ServerID: f.server.ID})
 	require.Equal(t, "acme_email_required", apiCode(err))
 	// ... but a plain-http URL or a .localhost name is allowed (local testing).
-	r := f.provision(platform.KindHeadscale, func(in *platform.ProvisionInput) { in.Hostname = "hs.localhost" })
+	r := f.provision(func(in *platform.ProvisionInput) { in.Hostname = "hs.localhost" })
 	require.Equal(t, "https://hs.localhost", r.View.PublicURL)
 	// Nothing was written by the refused attempts.
 	var n int
@@ -368,7 +368,7 @@ func (f *fixture) makeReady(id uuid.UUID) {
 func TestJobWaitsForTheDeploymentBeforeWiring(t *testing.T) {
 	f := newFixture(t)
 	f.deployer.status = "building"
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	id := r.View.ID
 
 	// configure and deploy, then wait for the deployment.
@@ -383,7 +383,7 @@ func TestJobWaitsForTheDeploymentBeforeWiring(t *testing.T) {
 func TestFailedDeploymentFailsAndRetryRedeploys(t *testing.T) {
 	f := newFixture(t)
 	f.deployer.status = "failed"
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	_, done := f.run(r.View.ID, 6)
 	require.True(t, done)
 	row := f.row(r.View.ID)
@@ -410,7 +410,7 @@ func TestHeadscaleWiringMintsAKeyThroughExecAndConnectsTheIntegration(t *testing
 	defer srv.Close()
 	f.agents.out["headscale users create"] = "User created"
 	f.agents.out["headscale apikeys create"] = "\x1b[0mhskey-api-abc_def-ghi\n"
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	_, err := f.pool.Exec(context.Background(), `UPDATE platform_services SET public_url = $2 WHERE id = $1`, r.View.ID, srv.URL)
 	require.NoError(t, err)
 
@@ -448,7 +448,7 @@ func TestHeadscaleRefusesToReplaceAnIntegrationUnlessAsked(t *testing.T) {
 	f.tailnet.cur = tailscale.TailscaleIntegration{Configured: true, Provider: "tailscale_oauth"}
 	_, err := f.svc.Provision(f.ctx, platform.ProvisionInput{Kind: platform.KindHeadscale, ServerID: f.server.ID})
 	require.Equal(t, "integration_exists", apiCode(err))
-	r := f.provision(platform.KindHeadscale, func(in *platform.ProvisionInput) { in.Replace = true })
+	r := f.provision(func(in *platform.ProvisionInput) { in.Replace = true })
 	require.Equal(t, platform.StatusProvisioning, r.View.Status)
 }
 
@@ -458,7 +458,7 @@ func TestRemoveUnwiresFirstAndRefusesWhileInUse(t *testing.T) {
 	defer srv.Close()
 	f.agents.out["headscale users create"] = "User created"
 	f.agents.out["headscale apikeys create"] = "hskey-api-x\n"
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	_, err := f.pool.Exec(context.Background(), `UPDATE platform_services SET public_url = $2 WHERE id = $1`, r.View.ID, srv.URL)
 	require.NoError(t, err)
 	f.run(r.View.ID, 8)
@@ -483,7 +483,7 @@ func TestRemoveUnwiresFirstAndRefusesWhileInUse(t *testing.T) {
 	require.NotNil(t, gone.DeletedAt)
 
 	// It can be set up again.
-	_ = f.provision(platform.KindHeadscale, func(in *platform.ProvisionInput) { in.Hostname = "hs-b.example.test"; in.Replace = true })
+	_ = f.provision(func(in *platform.ProvisionInput) { in.Hostname = "hs-b.example.test"; in.Replace = true })
 }
 
 func (f *fixture) platformService2(id uuid.UUID) db.Service {
@@ -499,7 +499,7 @@ func TestRemoveHeadscaleKeepsAForeignIntegration(t *testing.T) {
 	defer srv.Close()
 	f.agents.out["headscale users create"] = "User created"
 	f.agents.out["headscale apikeys create"] = "hskey-api-x\n"
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	_, err := f.pool.Exec(context.Background(), `UPDATE platform_services SET public_url = $2 WHERE id = $1`, r.View.ID, srv.URL)
 	require.NoError(t, err)
 	f.run(r.View.ID, 8)
@@ -511,7 +511,7 @@ func TestRemoveHeadscaleKeepsAForeignIntegration(t *testing.T) {
 	require.False(t, f.tailnet.deleted)
 
 	// Ours is removed.
-	r2 := f.provision(platform.KindHeadscale, func(in *platform.ProvisionInput) { in.Replace = true })
+	r2 := f.provision(func(in *platform.ProvisionInput) { in.Replace = true })
 	_, err = f.pool.Exec(context.Background(), `UPDATE platform_services SET public_url = $2 WHERE id = $1`, r2.View.ID, srv.URL)
 	require.NoError(t, err)
 	f.tailnet.cur = tailscale.TailscaleIntegration{}
@@ -530,7 +530,7 @@ func TestBackupOfDataIsScheduledOnlyToAnExistingExternalDestination(t *testing.T
 	// No destination, or only the built-in one (it lives on the same host): ready,
 	// not backed up, with a hint.
 	f.backups.existing = []backups.DestinationView{{ID: uuid.New(), Name: "Built-in backup storage", Kind: "builtin"}}
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	_, err := f.pool.Exec(context.Background(), `UPDATE platform_services SET public_url = $2 WHERE id = $1`, r.View.ID, srv.URL)
 	require.NoError(t, err)
 	f.run(r.View.ID, 8)
@@ -557,7 +557,7 @@ func TestBackupOfDataIsScheduledOnlyToAnExistingExternalDestination(t *testing.T
 
 func TestASystemServiceDeletedElsewhereIsReported(t *testing.T) {
 	f := newFixture(t)
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	f.makeReady(r.View.ID)
 	_, err := f.pool.Exec(context.Background(), `UPDATE services SET deleted_at = now()`)
 	require.NoError(t, err)
@@ -577,7 +577,7 @@ func TestListShowsTheCatalogWithTheTeamsInstance(t *testing.T) {
 	require.Equal(t, platform.KindHeadscale, l.Kinds[0].Kind)
 	require.Nil(t, l.ProjectID)
 	require.Nil(t, l.Kinds[0].Instance)
-	f.provision(platform.KindHeadscale)
+	f.provision()
 	l, err = f.svc.List(f.ctx)
 	require.NoError(t, err)
 	require.NotNil(t, l.ProjectID)
@@ -610,7 +610,7 @@ func apiStatus(err error) int {
 
 func TestSystemProjectIsInvisibleToNonAdministrators(t *testing.T) {
 	f := newFixture(t)
-	r := f.provision(platform.KindHeadscale)
+	r := f.provision()
 	sys, err := f.q.GetSystemProject(context.Background(), f.ws.ID)
 	require.NoError(t, err)
 	svc := f.platformService(r)

@@ -11,7 +11,7 @@ import (
 )
 
 func TestParseDownloadFormat(t *testing.T) {
-	for in, want := range map[string]string{"": DownloadText, "txt": DownloadText, "TXT": DownloadText, " ndjson ": DownloadNDJSON} {
+	for in, want := range map[string]string{"": DownloadText, "txt": DownloadText, "TXT": DownloadText, " ndjson ": DownloadNDJSON} { //nolint:gocritic // the padded key deliberately checks that ParseDownloadFormat trims whitespace
 		got, err := ParseDownloadFormat(in)
 		require.NoError(t, err, in)
 		require.Equal(t, want, got, in)

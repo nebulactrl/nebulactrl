@@ -38,9 +38,9 @@ export interface PlayEnv {
 	reduced(): boolean;
 }
 
-export const IN_VIEW = 0.5;
+const IN_VIEW = 0.5;
 
-export function browserEnv(): PlayEnv {
+function browserEnv(): PlayEnv {
 	const query = matchMedia("(prefers-reduced-motion: reduce)");
 	return {
 		setTimeout: (run, ms) => setTimeout(run, ms),

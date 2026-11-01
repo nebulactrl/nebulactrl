@@ -6,7 +6,7 @@ import { REFERENCE_OPEN } from "./reference-autocomplete";
 const DEBOUNCE_MS = 400;
 
 /** A template needs the server when it has an expression to parse or resolve. */
-export function needsValidation(value: string): boolean {
+function needsValidation(value: string): boolean {
 	return value.includes(REFERENCE_OPEN);
 }
 

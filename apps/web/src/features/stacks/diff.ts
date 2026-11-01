@@ -1,7 +1,7 @@
 // A small line diff for compose files: the staged change `config.stack.compose`
 // carries both full texts, and the review shows what changed line by line.
 
-export type DiffKind = "same" | "add" | "remove";
+type DiffKind = "same" | "add" | "remove";
 
 export interface DiffLine {
 	kind: DiffKind;

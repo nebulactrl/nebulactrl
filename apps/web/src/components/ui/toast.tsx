@@ -7,12 +7,12 @@ import {
 	type ToastKind,
 } from "#/components/motion/animated-toast-stack";
 
-export interface ToastActionProps {
+interface ToastActionProps {
 	children: ReactNode;
 	onClick: () => void;
 }
 
-export interface ToastOptions {
+interface ToastOptions {
 	id?: string;
 	title: ReactNode;
 	description?: ReactNode;

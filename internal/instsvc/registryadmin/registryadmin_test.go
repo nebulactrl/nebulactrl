@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
-	installdeploy "github.com/nebulactrl/nebulactrl/deploy/install"
 	"github.com/nebulactrl/nebulactrl/internal/agents"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/instsvc"
@@ -170,7 +169,7 @@ func TestInstallerConfigMatchesTheSigner(t *testing.T) {
 			} `yaml:"token"`
 		} `yaml:"auth"`
 	}
-	require.NoError(t, yaml.Unmarshal([]byte(installdeploy.InstanceConfig("instance/registry.yaml")), &reg))
+	require.NoError(t, yaml.Unmarshal([]byte(testutil.RepoFile(t, "deploy/install/instance/registry.yaml")), &reg))
 	require.Equal(t, registries.BuiltinService, reg.Auth.Token.Service)
 	require.Equal(t, registries.ManagedIssuer, reg.Auth.Token.Issuer)
 	require.Equal(t, []string{registries.SigningAlgorithm}, reg.Auth.Token.SigningAlgorithms)
@@ -180,7 +179,7 @@ func TestInstallerConfigMatchesTheSigner(t *testing.T) {
 			ContainerName string `yaml:"container_name"`
 		} `yaml:"services"`
 	}
-	require.NoError(t, yaml.Unmarshal([]byte(installdeploy.Compose()), &compose))
+	require.NoError(t, yaml.Unmarshal([]byte(testutil.RepoFile(t, "deploy/install/docker-compose.yml")), &compose))
 	require.Equal(t, agentprotocol.RegistryContainerName, compose.Services["registry"].ContainerName,
 		"the agent runs garbage collection in the container the compose file names")
 }

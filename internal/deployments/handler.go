@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/nebulactrl/nebulactrl/internal/agents"
+	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/audit"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
@@ -247,7 +248,7 @@ func statusRank(s Status) int {
 func (s *Service) HandleEvent(ctx context.Context, serverID uuid.UUID, ev agentprotocol.EventFrame) error {
 	depID, err := uuid.Parse(ev.DeploymentID)
 	if err != nil {
-		return nil
+		return fmt.Errorf("event deployment id %q: %w", ev.DeploymentID, err) // from the agent: logged by the hub, never retried
 	}
 	dc, err := s.loadDeploymentInternal(ctx, depID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -296,7 +297,7 @@ func (s *Service) HandleEvent(ctx context.Context, serverID uuid.UUID, ev agentp
 		return fmt.Errorf("handle event: %w", err)
 	}
 	if changed {
-		s.publish(services.EventDeploymentUpdated, dc)
+		s.publish(dc)
 		s.publishService(dc)
 		if ev.Step == agentprotocol.StepPostdeploy && ev.Status == agentprotocol.StepWarning {
 			s.notifyPostDeployWarning(ctx, dc, ev.Message)
@@ -411,7 +412,7 @@ func (s *Service) HandleResult(ctx context.Context, serverID uuid.UUID, commandI
 				log.WarnContext(ctx, "resync after egress change", "server_id", resyncServer.String(), "err", err)
 			}
 		}
-		s.publish(services.EventDeploymentUpdated, dc)
+		s.publish(dc)
 		s.publishService(dc)
 		if target.IsTerminal() {
 			s.notifyFinished(ctx, dc, target, msg)
@@ -427,7 +428,10 @@ func (s *Service) finalizeSuccess(ctx context.Context, tx pgx.Tx, dc depCtx, dep
 	q := db.New(tx)
 	sc, err := services.LoadScopeInternal(ctx, q, dep.ServiceID)
 	if err != nil {
-		return nil // service deleted while deploying
+		if apierr.IsNotFound(err) {
+			return nil // service deleted while deploying
+		}
+		return err
 	}
 	prev := sc.Service.CurrentDeploymentID
 	if err := q.MarkServiceDeployed(ctx, db.MarkServiceDeployedParams{ID: sc.Service.ID, CurrentDeploymentID: &dep.ID, AppliedGeneration: dep.Generation}); err != nil {

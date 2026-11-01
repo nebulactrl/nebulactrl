@@ -83,7 +83,7 @@ func (b *Backend) EnsureSlice(ctx context.Context, s instsvc.Slice, quotaBytes i
 		return fmt.Errorf("open slice key: %w", err)
 	}
 	// 1. The bucket (admin identity).
-	if _, err := b.c.s3(ctx, http.MethodPut, "/"+s.Ref, "", nil); err != nil && !hasCode(err, "BucketAlreadyOwnedByYou") {
+	if _, err := b.c.s3(ctx, http.MethodPut, "/"+s.Ref, ""); err != nil && !hasCode(err, "BucketAlreadyOwnedByYou") {
 		return fmt.Errorf("create bucket: %w", err)
 	}
 	// 2. The user.
@@ -178,7 +178,7 @@ func (b *Backend) SetQuota(ctx context.Context, bucket string, quotaBytes int64)
 
 // Quota reads the bucket's native quota in bytes (0: none or disabled).
 func (b *Backend) Quota(ctx context.Context, bucket string) (int64, error) {
-	data, err := b.c.s3(ctx, http.MethodGet, "/"+bucket, "seaweedfs-quota", nil)
+	data, err := b.c.s3(ctx, http.MethodGet, "/"+bucket, "seaweedfs-quota")
 	if err != nil {
 		return 0, fmt.Errorf("get bucket quota: %w", err)
 	}
@@ -210,7 +210,7 @@ func (b *Backend) list(ctx context.Context, bucket, token string) (listResult, e
 	if token != "" {
 		q.Set("continuation-token", token)
 	}
-	data, err := b.c.s3(ctx, http.MethodGet, "/"+bucket, q.Encode(), nil)
+	data, err := b.c.s3(ctx, http.MethodGet, "/"+bucket, q.Encode())
 	if err != nil {
 		return listResult{}, err
 	}
@@ -290,7 +290,7 @@ func (b *Backend) pendingUploadBytes(ctx context.Context, bucket string) (int64,
 		if idMarker != "" {
 			q.Set("upload-id-marker", idMarker)
 		}
-		data, err := b.c.s3(ctx, http.MethodGet, "/"+bucket, q.Encode(), nil)
+		data, err := b.c.s3(ctx, http.MethodGet, "/"+bucket, q.Encode())
 		if err != nil {
 			return 0, fmt.Errorf("list multipart uploads: %w", err)
 		}
@@ -331,7 +331,7 @@ func (b *Backend) uploadPartBytes(ctx context.Context, bucket, key, uploadID str
 		if marker > 0 {
 			q.Set("part-number-marker", strconv.Itoa(marker))
 		}
-		data, err := b.c.s3(ctx, http.MethodGet, "/"+bucket+"/"+key, q.Encode(), nil)
+		data, err := b.c.s3(ctx, http.MethodGet, "/"+bucket+"/"+key, q.Encode())
 		switch {
 		case hasCode(err, "NoSuchUpload"):
 			return total, nil // completed or aborted since the listing
@@ -355,7 +355,7 @@ func (b *Backend) uploadPartBytes(ctx context.Context, bucket, key, uploadID str
 }
 
 func (b *Backend) abortUpload(ctx context.Context, bucket, key, uploadID string) error {
-	_, err := b.c.s3(ctx, http.MethodDelete, "/"+bucket+"/"+key, url.Values{"uploadId": {uploadID}}.Encode(), nil)
+	_, err := b.c.s3(ctx, http.MethodDelete, "/"+bucket+"/"+key, url.Values{"uploadId": {uploadID}}.Encode())
 	if err != nil && !hasCode(err, "NoSuchUpload") {
 		return fmt.Errorf("abort multipart upload: %w", err)
 	}
@@ -400,7 +400,7 @@ func (b *Backend) Purge(ctx context.Context, s instsvc.Slice) error {
 // deleteBucket empties and deletes a bucket. A bucket that does not exist is done.
 func (b *Backend) deleteBucket(ctx context.Context, bucket string) error {
 	for {
-		_, err := b.c.s3(ctx, http.MethodDelete, "/"+bucket, "", nil)
+		_, err := b.c.s3(ctx, http.MethodDelete, "/"+bucket, "")
 		switch {
 		case err == nil, hasCode(err, "NoSuchBucket"):
 			return nil

@@ -21,7 +21,7 @@ export function isInternalSlug(slug: string): boolean {
 let cached: SearchIndex | null = null;
 let pending: Promise<SearchIndex> | null = null;
 
-export function loadSearchIndex(): Promise<SearchIndex> {
+function loadSearchIndex(): Promise<SearchIndex> {
 	if (cached) return Promise.resolve(cached);
 	pending ??= import("virtual:docs-search").then((module) => {
 		cached = createIndex(unpackSearch(module.default));

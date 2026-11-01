@@ -288,11 +288,9 @@ func (f *fixture) ids(ss ...db.Service) []uuid.UUID {
 	return out
 }
 
-func (f *fixture) plan(ss ...db.Service) CombinePlan {
+func (f *fixture) plan() CombinePlan {
 	f.t.Helper()
-	if len(ss) == 0 {
-		ss = []db.Service{f.shop, f.worker, f.api}
-	}
+	ss := []db.Service{f.shop, f.worker, f.api}
 	target := f.shop.ID
 	p, err := f.svc.Plan(f.ctx, f.env.ID, CombinePlanRequest{ServiceIDs: f.ids(ss...), TargetServiceID: &target})
 	require.NoError(f.t, err)
@@ -910,10 +908,10 @@ func TestStartIsGuardedInProduction(t *testing.T) {
 
 // ── deploy and decide (S2, S3) ──────────────────────────────────────────────
 
-func (f *fixture) started() (CombineView, CombineRequest) {
+func (f *fixture) started() CombineView {
 	f.t.Helper()
 	req := f.request(f.plan())
-	return f.start(req), req
+	return f.start(req)
 }
 
 func (f *fixture) advance(id uuid.UUID) {
@@ -924,7 +922,7 @@ func (f *fixture) advance(id uuid.UUID) {
 
 func TestTheJobStartsOneDeploymentOfTheTarget(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 
 	c := f.combine(v.ID)
@@ -947,7 +945,7 @@ func TestAFailedDeploymentLeavesTheSourcesUntouched(t *testing.T) {
 	for _, status := range []string{"failed", "rolled_back", "rollback_failed", "canceled"} {
 		t.Run(status, func(t *testing.T) {
 			f := newFixture(t)
-			v, _ := f.started()
+			v := f.started()
 			f.advance(v.ID)
 			c := f.combine(v.ID)
 			f.setStatus(*c.DeploymentID, status, "worker: health check failed")
@@ -1000,7 +998,7 @@ func TestSourcesStoppedFirstStartAgainWhenTheDeploymentFails(t *testing.T) {
 func TestADeploymentThatCannotStartFailsTheCombine(t *testing.T) {
 	f := newFixture(t)
 	f.dep.err = apierr.Unprocessable("no_server", "the service has no server")
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 	c := f.combine(v.ID)
 	require.Equal(t, StateFailed, c.State)
@@ -1010,7 +1008,7 @@ func TestADeploymentThatCannotStartFailsTheCombine(t *testing.T) {
 
 func TestACrashedStepAdoptsTheRunningDeployment(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	// The deployment exists, but the combine never learned about it.
 	dep := f.release(f.shop.ID, "building")
 	f.dep.err = apierr.Conflict("deployment_in_progress", "a deployment is already in progress for this service")
@@ -1037,7 +1035,7 @@ func (f *fixture) succeed(id uuid.UUID) {
 
 func TestCutoverMovesDomainsAndTasksAndDeletesTheSources(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 	f.succeed(v.ID)
 	f.ag.reset()
@@ -1106,7 +1104,7 @@ func TestCutoverMovesDomainsAndTasksAndDeletesTheSources(t *testing.T) {
 
 func TestCutoverIsOneTransaction(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 	f.succeed(v.ID)
 
@@ -1146,7 +1144,7 @@ func (f *fixture) domainOwner(id uuid.UUID) uuid.UUID {
 
 func TestCutoverWaitsForABusyMember(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 	f.succeed(v.ID)
 	f.release(f.worker.ID, "building") // someone deployed a source meanwhile
@@ -1161,7 +1159,7 @@ func TestCutoverWaitsForABusyMember(t *testing.T) {
 
 func TestCutoverNeedsTheReleaseToRunEveryProcess(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 	// The deployment "succeeded", but the current release is an older one
 	// without the processes (the deployment was superseded).
@@ -1176,7 +1174,7 @@ func TestCutoverNeedsTheReleaseToRunEveryProcess(t *testing.T) {
 
 func TestARetryAfterAFailedCutoverSkipsTheDeployment(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 	f.succeed(v.ID)
 
@@ -1207,7 +1205,7 @@ func TestARetryAfterAFailedCutoverSkipsTheDeployment(t *testing.T) {
 
 func TestRetryDeploysTheSameStagedConfigurationAgain(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 	f.setStatus(*f.combine(v.ID).DeploymentID, "failed", "worker never became healthy")
 	f.advance(v.ID)
@@ -1298,7 +1296,7 @@ func (f *fixture) discard(ctx context.Context, id uuid.UUID, fields []string) er
 
 func TestAbortIsRefusedWhileDeployingAndAfterDone(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.advance(v.ID)
 	_, err := f.svc.Abort(f.ctx, v.ID)
 	ae := requireAPIError(t, err, 409, CodeInvalidState)
@@ -1314,7 +1312,7 @@ func TestAbortIsRefusedWhileDeployingAndAfterDone(t *testing.T) {
 
 func TestAbortBeforeTheJobRunsStopsTheDeployment(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	f.dep.real = func(ctx context.Context, id uuid.UUID, fields []string) error { return f.discard(ctx, id, fields) }
 	_, err := f.svc.Abort(f.ctx, v.ID)
 	require.NoError(t, err)
@@ -1328,7 +1326,7 @@ func TestAbortBeforeTheJobRunsStopsTheDeployment(t *testing.T) {
 
 func TestGetCombineIsScopedToTheTeam(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	got, err := f.svc.Get(f.ctx, v.ID)
 	require.NoError(t, err)
 	require.Equal(t, v.ID, got.ID)
@@ -1357,7 +1355,7 @@ func TestGetCombineIsScopedToTheTeam(t *testing.T) {
 
 func TestAServiceInAnActiveCombineTakesNoDeploymentOfItsOwn(t *testing.T) {
 	f := newFixture(t)
-	v, _ := f.started()
+	v := f.started()
 	for _, s := range []db.Service{f.shop, f.worker, f.api} {
 		n, err := f.q.CountActiveCombinesForService(context.Background(), s.ID)
 		require.NoError(t, err)

@@ -351,12 +351,12 @@ func loadLive(ctx context.Context, q *db.Queries, box *secretbox.Box, env servic
 		}
 	}
 
-	if le.SharedProject, err = loadShared(ctx, q, box, func() ([]db.SharedVariable, error) {
+	if le.SharedProject, err = loadShared(box, func() ([]db.SharedVariable, error) {
 		return q.ListSharedVariablesProject(ctx, env.Env.ProjectID)
 	}); err != nil {
 		return nil, err
 	}
-	if le.SharedEnv, err = loadShared(ctx, q, box, func() ([]db.SharedVariable, error) {
+	if le.SharedEnv, err = loadShared(box, func() ([]db.SharedVariable, error) {
 		return q.ListSharedVariablesEnv(ctx, &env.Env.ID)
 	}); err != nil {
 		return nil, err
@@ -375,7 +375,7 @@ func loadLive(ctx context.Context, q *db.Queries, box *secretbox.Box, env servic
 	return le, nil
 }
 
-func loadShared(ctx context.Context, q *db.Queries, box *secretbox.Box, list func() ([]db.SharedVariable, error)) (map[string]liveVar, error) {
+func loadShared(box *secretbox.Box, list func() ([]db.SharedVariable, error)) (map[string]liveVar, error) {
 	rows, err := list()
 	if err != nil {
 		return nil, fmt.Errorf("list shared variables: %w", err)

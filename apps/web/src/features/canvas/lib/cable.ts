@@ -56,7 +56,7 @@ export interface Box {
 	h: number;
 }
 
-export type JackSide = "left" | "right";
+type JackSide = "left" | "right";
 
 export interface Sides {
 	source: JackSide;
@@ -64,7 +64,7 @@ export interface Sides {
 }
 
 /** Free space between two cards that lets a cable run straight across it. */
-export const SIDE_CLEARANCE = 24;
+const SIDE_CLEARANCE = 24;
 
 /**
  * Which jacks a cable joins, from where its two cards stand. A target to the

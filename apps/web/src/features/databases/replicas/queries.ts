@@ -4,10 +4,10 @@ import { invalidateOperations, invalidateServices } from "#/api/invalidate";
 import { replicationPollInterval } from "./model";
 
 /** How often the panel refetches while a replica is being made or a promote runs. */
-export const REPLICATION_POLL_MS = 3_000;
+const REPLICATION_POLL_MS = 3_000;
 
 /** Otherwise: lag moves, but nothing is waiting on it. */
-export const REPLICATION_IDLE_MS = 15_000;
+const REPLICATION_IDLE_MS = 15_000;
 
 /**
  * The replication block of a managed Postgres service. Shared by the panel,

@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nebulactrl/nebulactrl/internal/agents"
+	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/services"
@@ -138,11 +139,14 @@ func (s *Service) HandleUndelivered(ctx context.Context, commandID uuid.UUID, ms
 func (s *Service) applyInfoResult(ctx context.Context, serviceID string, commandID uuid.UUID, res agentprotocol.ResultFrame) error {
 	id, err := uuid.Parse(serviceID)
 	if err != nil {
-		return nil
+		return nil //nolint:nilerr // a malformed service id in a command payload this server persisted can never become valid; an error would withhold the result ack and the agent would resend it forever
 	}
 	sc, err := services.LoadScopeInternal(ctx, s.q, id)
+	if apierr.IsNotFound(err) {
+		return nil // the database was deleted before its info result arrived
+	}
 	if err != nil {
-		return nil
+		return err
 	}
 	var info json.RawMessage
 	errText := ""

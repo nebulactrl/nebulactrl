@@ -33,8 +33,9 @@ type fixture struct {
 	srv    *httptest.Server
 }
 
-func newFixture(t *testing.T, running string) *fixture {
+func newFixture(t *testing.T) *fixture {
 	t.Helper()
+	const running = "1.0.0"
 	dir := t.TempDir()
 	f := &fixture{t: t, dir: dir, exe: filepath.Join(dir, "nebulactrl-agent")}
 	require.NoError(t, os.WriteFile(f.exe, []byte("binary "+running), 0o755))
@@ -70,7 +71,8 @@ func newFixture(t *testing.T, running string) *fixture {
 	return f
 }
 
-func (f *fixture) serve(content string) agentprotocol.UpgradePayload {
+func (f *fixture) serve() agentprotocol.UpgradePayload {
+	const content = "binary 1.1.0"
 	b := []byte(content)
 	f.served.Store(&b)
 	return agentprotocol.UpgradePayload{Version: strings.TrimPrefix(content, "binary "), SHA256: sum(b)}
@@ -94,8 +96,8 @@ func (f *fixture) leftovers() []string {
 }
 
 func TestUpgradeSwapsAtomicallyAndKeepsPrevious(t *testing.T) {
-	f := newFixture(t, "1.0.0")
-	p := f.serve("binary 1.1.0")
+	f := newFixture(t)
+	p := f.serve()
 	res, err := f.c.Upgrade(context.Background(), p)
 	require.NoError(t, err)
 	require.Equal(t, "1.0.0", res.From)
@@ -121,8 +123,8 @@ func TestUpgradeSwapsAtomicallyAndKeepsPrevious(t *testing.T) {
 }
 
 func TestUpgradeRejectsChecksumMismatchAndLeavesBinaryAlone(t *testing.T) {
-	f := newFixture(t, "1.0.0")
-	p := f.serve("binary 1.1.0")
+	f := newFixture(t)
+	p := f.serve()
 	p.SHA256 = sum([]byte("something else"))
 	_, err := f.c.Upgrade(context.Background(), p)
 	require.ErrorContains(t, err, "checksum mismatch")
@@ -133,8 +135,8 @@ func TestUpgradeRejectsChecksumMismatchAndLeavesBinaryAlone(t *testing.T) {
 }
 
 func TestUpgradeRejectsBadInputs(t *testing.T) {
-	f := newFixture(t, "1.0.0")
-	p := f.serve("binary 1.1.0")
+	f := newFixture(t)
+	p := f.serve()
 	for name, mut := range map[string]func(*agentprotocol.UpgradePayload){
 		"no version":   func(p *agentprotocol.UpgradePayload) { p.Version = "" },
 		"short sha":    func(p *agentprotocol.UpgradePayload) { p.SHA256 = "abc" },
@@ -154,8 +156,8 @@ func TestUpgradeRejectsBadInputs(t *testing.T) {
 }
 
 func TestUpgradeDownloadFailure(t *testing.T) {
-	f := newFixture(t, "1.0.0")
-	p := f.serve("binary 1.1.0")
+	f := newFixture(t)
+	p := f.serve()
 	f.status.Store(http.StatusNotFound)
 	_, err := f.c.Upgrade(context.Background(), p)
 	require.ErrorContains(t, err, "HTTP 404")
@@ -164,8 +166,8 @@ func TestUpgradeDownloadFailure(t *testing.T) {
 }
 
 func TestUpgradeRejectsBinaryThatDoesNotRunOrReportsWrongVersion(t *testing.T) {
-	f := newFixture(t, "1.0.0")
-	p := f.serve("binary 1.1.0")
+	f := newFixture(t)
+	p := f.serve()
 	f.probe = func(string) (string, error) { return "", errors.New("exec format error") }
 	_, err := f.c.Upgrade(context.Background(), p)
 	require.ErrorContains(t, err, "does not run")
@@ -178,8 +180,8 @@ func TestUpgradeRejectsBinaryThatDoesNotRunOrReportsWrongVersion(t *testing.T) {
 }
 
 func TestUpgradeFailsWhenDirectoryNotWritable(t *testing.T) {
-	f := newFixture(t, "1.0.0")
-	p := f.serve("binary 1.1.0")
+	f := newFixture(t)
+	p := f.serve()
 	require.NoError(t, os.Chmod(f.dir, 0o500))
 	t.Cleanup(func() { _ = os.Chmod(f.dir, 0o700) })
 	if os.Geteuid() == 0 {
@@ -193,8 +195,8 @@ func TestUpgradeFailsWhenDirectoryNotWritable(t *testing.T) {
 // restart: the "new process" is a Controller whose Version is the new one.
 func swapped(t *testing.T) (*fixture, *Controller) {
 	t.Helper()
-	f := newFixture(t, "1.0.0")
-	_, err := f.c.Upgrade(context.Background(), f.serve("binary 1.1.0"))
+	f := newFixture(t)
+	_, err := f.c.Upgrade(context.Background(), f.serve())
 	require.NoError(t, err)
 	return f, f.c.restarted("1.1.0")
 }
@@ -234,7 +236,7 @@ func TestNewBinaryThatNeverConnectsIsRolledBack(t *testing.T) {
 	// The restored binary starts normally and the bad version is not retried.
 	old := f.c.restarted("1.0.0")
 	require.NoError(t, old.Start())
-	p := f.serve("binary 1.1.0")
+	p := f.serve()
 	_, err = old.Upgrade(context.Background(), p)
 	require.ErrorContains(t, err, "rolled back on this host")
 	p.Force = true
@@ -263,8 +265,8 @@ func TestFlappingConnectionDoesNotConfirm(t *testing.T) {
 }
 
 func TestSwapThatNeverTookEffectIsAbandoned(t *testing.T) {
-	f := newFixture(t, "1.0.0")
-	_, err := f.c.Upgrade(context.Background(), f.serve("binary 1.1.0"))
+	f := newFixture(t)
+	_, err := f.c.Upgrade(context.Background(), f.serve())
 	require.NoError(t, err)
 	// The container was recreated from its image: the agent still runs 1.0.0.
 	require.NoError(t, f.c.Start())
@@ -284,7 +286,7 @@ func TestRollbackWithoutPreviousBinaryFailsLoudly(t *testing.T) {
 }
 
 func TestKeepPreviousFallsBackToCopy(t *testing.T) {
-	f := newFixture(t, "1.0.0")
+	f := newFixture(t)
 	require.NoError(t, copyFile(f.exe, f.exe+".prev"))
 	require.Equal(t, "binary 1.0.0", f.content(f.exe+".prev"))
 	fi, err := os.Stat(f.exe + ".prev")

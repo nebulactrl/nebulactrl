@@ -115,8 +115,26 @@ func InputValues(t *templates.CatalogTemplate) map[string]string {
 		case in.Secret:
 			out[in.Key] = "Nebula-test-secret-4711"
 		default:
-			out[in.Key] = templates.SampleInputValue(in.Format)
+			out[in.Key] = SampleInputValue(in.Format)
 		}
 	}
 	return out
+}
+
+// SampleInputValue is a realistic value of a format, for tests and docs.
+func SampleInputValue(format string) string {
+	switch format {
+	case templates.FormatEmail:
+		// Not a reserved TLD such as .test: apps such as pgAdmin reject
+		// special-use domains in their email validation.
+		return "ops@nebulactrl.dev"
+	case templates.FormatURL:
+		return "https://example.nebulactrl.test"
+	case templates.FormatHostname:
+		return "host.nebulactrl.test"
+	case templates.FormatNumber:
+		return "587"
+	default:
+		return "nebula-test"
+	}
 }

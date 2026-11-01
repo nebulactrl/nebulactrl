@@ -1987,14 +1987,14 @@
 /*
  * View transitions (src/lib/transitions/route-transitions.ts). The script
  * names `#main-content` (`vt-page`) and, per navigation, the card, row,
- * label or tab that morphs (`vt-<kind>-<id>`); it sets `data-vt-variant` and
+ * or label that morphs (`vt-<kind>-<id>`); it sets `data-vt-variant` and
  * `data-vt-scope` on <html> while a transition runs and removes them after.
  *   page     180 ms cross-fade + 8px lift; shared elements 260 ms
  *   fast     150 ms throughout (sidebar, ⌘K, keyboard)
  *   reduced  120 ms plain cross-fade, no lift, nothing morphs
  * Scopes: `page` keeps the sidebar and top bar still and animates only the
- * content area, `local` is an in-page tab switch, `root` (no shell on one
- * side, e.g. login) cross-fades the whole document.
+ * content area, `root` (no shell on one side, e.g. login) cross-fades the
+ * whole document.
  */
 :root {
 	--vt-page-ms: 180ms;
@@ -2015,10 +2015,6 @@ html[data-vt-variant="reduced"] {
 	--vt-ms: var(--vt-reduced-ms);
 	--vt-shared-ms: var(--vt-reduced-ms);
 	--vt-lift: 0px;
-}
-
-html[data-vt-scope="local"] {
-	--vt-lift: 4px;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -2057,12 +2053,10 @@ html[data-vt-variant]::view-transition-group(*) {
 }
 
 /* The chrome around the page does not change: show the new frame at once. */
-html[data-vt-scope="page"]::view-transition-old(root),
-html[data-vt-scope="local"]::view-transition-old(root) {
+html[data-vt-scope="page"]::view-transition-old(root) {
 	display: none;
 }
-html[data-vt-scope="page"]::view-transition-new(root),
-html[data-vt-scope="local"]::view-transition-new(root) {
+html[data-vt-scope="page"]::view-transition-new(root) {
 	animation: none;
 	mix-blend-mode: normal;
 }
@@ -2075,20 +2069,18 @@ html[data-vt-scope="root"]::view-transition-new(root) {
 	animation: vt-lift-in var(--vt-ms) var(--ease-smooth-out) both;
 }
 
-/* The content area and an in-page tab body: cross-fade, new one lifts in. */
-html[data-vt-variant]::view-transition-old(vt-page),
-html[data-vt-variant]::view-transition-old(vt-tab-body) {
+/* The content area: cross-fade, new one lifts in. */
+html[data-vt-variant]::view-transition-old(vt-page) {
 	animation: vt-fade-out var(--vt-ms) var(--ease-smooth-out) both;
 }
-html[data-vt-variant]::view-transition-new(vt-page),
-html[data-vt-variant]::view-transition-new(vt-tab-body) {
+html[data-vt-variant]::view-transition-new(vt-page) {
 	animation: vt-lift-in var(--vt-ms) var(--ease-smooth-out) both;
 }
 
 /*
  * A card, row or header grows into its destination: both snapshots fill the
  * moving group (cropped from the top-left, never squashed) and cross-fade.
- * Titles and tabs keep the browser's aspect-preserving default.
+ * Titles keep the browser's aspect-preserving default.
  */
 html[data-vt-variant]::view-transition-old(*.vt-card),
 html[data-vt-variant]::view-transition-new(*.vt-card),

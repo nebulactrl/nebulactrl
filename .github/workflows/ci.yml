@@ -4,15 +4,15 @@
 #
 #   go     go vet + go test ./...              (unit + DB tests, Postgres service),
 #          3 parallel shards of packages, balanced by scripts/ci/go-durations.json;
-#          go vet runs in shard 1
-#   web    typecheck, biome, bun test, build
+#          go vet runs in shard 1; each shard uploads its coverage to Codecov
+#   web    typecheck, biome, knip, bun test (coverage to Codecov), build
 #   smoke  tests/run.sh smoke                  (~8 Docker scenarios, runner's Docker)
 #
 # Alongside them, the checks that keep the supply chain and the workflows honest:
 #
 #   workflows          the workflow rules, actionlint and zizmor (check-workflows.sh)
 #   govulncheck        known vulnerabilities that the Go code can reach
-#   golangci-lint      make lint-go
+#   golangci-lint      make lint-go, then scripts/ci/deadcode.sh (unreachable Go functions)
 #   dependency review  pull requests only: a new dependency with a high-severity advisory
 #
 # Tier 3 (everything, a superset of smoke) is full.yml.
@@ -97,6 +97,8 @@ jobs:
           go-version-file: go.mod
       - name: golangci-lint
         run: make lint-go
+      - name: deadcode (unreachable Go functions)
+        run: scripts/ci/deadcode.sh
 
   dependency-review:
     name: dependency review
@@ -116,6 +118,9 @@ jobs:
     name: go (shard ${{ matrix.shard }}/3)
     runs-on: ubuntu-24.04
     timeout-minutes: 14
+    permissions:
+      contents: read
+      id-token: write # Codecov upload through OIDC, no token secret
     strategy:
       fail-fast: false
       matrix:
@@ -152,12 +157,22 @@ jobs:
           list="$(go list ./... | go run ./tools/shardtests -packages -shard "$SHARD" -preload-first 90 -durations scripts/ci/go-durations.json -summary)"
           mapfile -t pkgs <<<"$list"
           echo "shard $SHARD: ${#pkgs[@]} packages"
-          go test -count=1 "${pkgs[@]}"
+          go test -count=1 -coverprofile=coverage.out "${pkgs[@]}"
+      - name: Upload coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: coverage.out
+          flags: go
+          use_oidc: true
+          fail_ci_if_error: false # coverage is informational; a Codecov outage never fails CI
 
   web:
     name: web typecheck, lint, test, build
     runs-on: ubuntu-24.04
     timeout-minutes: 6
+    permissions:
+      contents: read
+      id-token: write # Codecov upload through OIDC, no token secret
     defaults:
       run:
         working-directory: apps/web
@@ -176,7 +191,17 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run typecheck
       - run: bun run lint # biome check
-      - run: bun run test
+      - name: knip (unused files, exports and dependencies of the Bun workspace)
+        working-directory: .
+        run: scripts/ci/knip.sh
+      - run: bun test src --coverage --coverage-reporter=lcov --coverage-dir=coverage
+      - name: Upload coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: apps/web/coverage/lcov.info
+          flags: web
+          use_oidc: true
+          fail_ci_if_error: false # coverage is informational; a Codecov outage never fails CI
       - run: bun run build
 
   smoke:

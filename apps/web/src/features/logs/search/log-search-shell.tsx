@@ -16,7 +16,7 @@ import { SearchInput } from "./search-input";
 import type { LogSearch } from "./use-log-search";
 
 /** The facet panel docks beside the log from this width; narrower, it is a popover. */
-export const DOCK_FACETS_AT = 900;
+const DOCK_FACETS_AT = 900;
 
 function useElementWidth(ref: RefObject<HTMLElement | null>): number {
 	const [width, setWidth] = useState(0);

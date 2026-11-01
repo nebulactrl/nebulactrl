@@ -6,7 +6,7 @@ import {
 import { invalidateOperations } from "#/api/invalidate";
 
 /** A service that is starting is re-read quickly; the event feed does not carry it. */
-export const SERVICES_REFRESH_MS = 15_000;
+const SERVICES_REFRESH_MS = 15_000;
 
 /** Admin → Built-in services: the services, the default quota and every team's slices. */
 export const instanceServicesQuery = () =>
@@ -17,7 +17,7 @@ export const instanceServicesQuery = () =>
 		refetchInterval: SERVICES_REFRESH_MS,
 	});
 
-export const INSTANCE_SERVICES_OPERATIONS = [
+const INSTANCE_SERVICES_OPERATIONS = [
 	"getInstanceServices",
 	"getTeamSlice",
 ] as const;

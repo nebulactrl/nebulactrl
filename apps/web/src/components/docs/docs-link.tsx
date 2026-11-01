@@ -13,7 +13,7 @@ const HelpSheet = lazy(() =>
 );
 
 /** "operations/backups#destinations" → its slug and anchor. */
-export function splitDocTarget(to: string): { slug: string; anchor: string } {
+function splitDocTarget(to: string): { slug: string; anchor: string } {
 	const hash = to.indexOf("#");
 	const slug = (hash < 0 ? to : to.slice(0, hash)).replace(/^\/?(docs\/)?/, "");
 	return {

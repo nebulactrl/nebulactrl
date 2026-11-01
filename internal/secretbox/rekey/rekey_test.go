@@ -86,17 +86,17 @@ func clone(t *testing.T, pool *pgxpool.Pool, n int, c secretbox.Column, rows int
 		cols = append(cols, col)
 		switch typ {
 		case "uuid":
-			sets = append(sets, fmt.Sprintf(`"%s" = gen_random_uuid()`, col))
+			sets = append(sets, fmt.Sprintf(`%q = gen_random_uuid()`, col))
 		case "text", "character varying":
-			sets = append(sets, fmt.Sprintf(`"%s" = md5(random()::text)`, col))
+			sets = append(sets, fmt.Sprintf(`%q = md5(random()::text)`, col))
 		case "integer", "bigint", "smallint":
-			sets = append(sets, fmt.Sprintf(`"%s" = (random() * 1000000)::int`, col))
+			sets = append(sets, fmt.Sprintf(`%q = (random() * 1000000)::int`, col))
 		}
 	}
 	cr.Close()
 	require.NoError(t, cr.Err())
 	for _, col := range cols {
-		_, err := pool.Exec(ctx, fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN "%s" DROP NOT NULL`, name, col))
+		_, err := pool.Exec(ctx, fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %q DROP NOT NULL`, name, col))
 		require.NoError(t, err)
 	}
 	rowKey := c.RowKey
@@ -131,7 +131,7 @@ func clone(t *testing.T, pool *pgxpool.Pool, n int, c secretbox.Column, rows int
 
 func setValue(t *testing.T, pool *pgxpool.Pool, c secretbox.Column, rowID string, ct []byte) {
 	t.Helper()
-	tag, err := pool.Exec(context.Background(), fmt.Sprintf(`UPDATE %s SET "%s" = $1 WHERE (%s) = $2`, c.Table, c.Column, c.RowKey), ct, rowID)
+	tag, err := pool.Exec(context.Background(), fmt.Sprintf(`UPDATE %s SET %q = $1 WHERE (%s) = $2`, c.Table, c.Column, c.RowKey), ct, rowID)
 	require.NoError(t, err)
 	require.EqualValues(t, 1, tag.RowsAffected())
 }
@@ -139,7 +139,7 @@ func setValue(t *testing.T, pool *pgxpool.Pool, c secretbox.Column, rowID string
 func getValue(t *testing.T, pool *pgxpool.Pool, c secretbox.Column, rowID string) []byte {
 	t.Helper()
 	var ct []byte
-	require.NoError(t, pool.QueryRow(context.Background(), fmt.Sprintf(`SELECT "%s" FROM %s WHERE (%s) = $1`, c.Column, c.Table, c.RowKey), rowID).Scan(&ct))
+	require.NoError(t, pool.QueryRow(context.Background(), fmt.Sprintf(`SELECT %q FROM %s WHERE (%s) = $1`, c.Column, c.Table, c.RowKey), rowID).Scan(&ct))
 	return ct
 }
 
@@ -358,4 +358,26 @@ func TestRekeyReportsWrongKey(t *testing.T) {
 	require.Equal(t, 1, rep.Failed())
 	require.Equal(t, []string{ids[0]}, rep.Columns[0].FailedRows)
 	require.True(t, bytes.Equal(ct, getValue(t, pool, c, ids[0])), "left untouched")
+}
+
+// TestOneRunPerSchema: the advisory lock keeps two runs in one schema apart,
+// but does not block a run in another schema of the same database (each test
+// package, like each installation sharing a database, has its own schema).
+func TestOneRunPerSchema(t *testing.T) {
+	ctx := context.Background()
+	pool, other := testutil.NewPool(t), testutil.NewPool(t)
+	ring, err := secretbox.NewRing(key(t))
+	require.NoError(t, err)
+
+	held, err := pool.Acquire(ctx)
+	require.NoError(t, err)
+	defer held.Release()
+	var locked bool
+	require.NoError(t, held.QueryRow(ctx, `SELECT pg_try_advisory_lock($1, hashtext(current_schema()))`, rekey.LockID).Scan(&locked))
+	require.True(t, locked)
+
+	_, err = rekey.Run(ctx, pool, ring, rekey.Options{})
+	require.ErrorContains(t, err, "another rekey is already running")
+	_, err = rekey.Run(ctx, other, ring, rekey.Options{})
+	require.NoError(t, err, "a run in another schema is not blocked")
 }

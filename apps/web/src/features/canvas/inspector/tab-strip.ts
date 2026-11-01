@@ -11,7 +11,7 @@ export interface EdgeFade {
 	end: boolean;
 }
 
-export const NO_FADE: EdgeFade = { start: false, end: false };
+const NO_FADE: EdgeFade = { start: false, end: false };
 
 /** The ends that hide content: scrolled away from the start, short of the end. */
 export function edgeFade(

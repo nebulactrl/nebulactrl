@@ -8,7 +8,7 @@ import type { StatusKind } from "#/components/ui/status-icon";
  */
 
 /** What the control plane judged a service to be (`ServiceReport.state`). */
-export type UptimeState =
+type UptimeState =
 	| "up"
 	| "degraded"
 	| "down"
@@ -29,9 +29,9 @@ export type CellTone = "ok" | "warn" | "bad" | "info" | "paused" | "none";
 export const CHECK_INTERVAL_SECONDS = 30;
 
 /** Failed-check and passing-check thresholds, as the monitor bounds them. */
-export const MIN_THRESHOLD = 1;
-export const MAX_THRESHOLD = 20;
-export const MAX_REMINDER_MINUTES = 1440;
+const MIN_THRESHOLD = 1;
+const MAX_THRESHOLD = 20;
+const MAX_REMINDER_MINUTES = 1440;
 
 /** The range a strip opens on, and the ones the toggle offers. */
 export const STRIP_RANGES = ["1h", "24h", "7d", "90d"] as const;
@@ -47,7 +47,7 @@ const RANGE_WORDS: Record<UptimeRange, string> = {
 };
 
 /** "the last hour", for a label that names the strip's window. */
-export function rangeWords(range: UptimeRange): string {
+function rangeWords(range: UptimeRange): string {
 	return RANGE_WORDS[range];
 }
 
@@ -65,7 +65,7 @@ export function rangeStartLabel(range: UptimeRange): string {
 }
 
 /** The width of one cell of a granularity, in milliseconds. */
-export const CELL_MS: Record<Granularity, number> = {
+const CELL_MS: Record<Granularity, number> = {
 	minute: 60_000,
 	hour: 3_600_000,
 	day: 86_400_000,
@@ -160,7 +160,7 @@ export interface PointLike {
 }
 
 /** Passing checks over judged checks (maintenance left out), in percent; null with nothing judged. */
-export function pointAvailability(point: PointLike): number | null {
+function pointAvailability(point: PointLike): number | null {
 	const judged = point.checks - point.maintenance;
 	if (judged <= 0) return null;
 	return ((point.up + point.degraded) / judged) * 100;
@@ -169,8 +169,8 @@ export function pointAvailability(point: PointLike): number | null {
 // --- cells -----------------------------------------------------------------
 
 /** A day cell reads green from 99.5%, amber from 95%, red below. */
-export const DAY_OK_AT = 99.5;
-export const DAY_WARN_AT = 95;
+const DAY_OK_AT = 99.5;
+const DAY_WARN_AT = 95;
 
 /**
  * The colour of a bucket. Minutes and hours show the worst thing that
@@ -263,7 +263,7 @@ export function buildCells(
 }
 
 /** The totals over a run of cells, for the strip's one-line summary. */
-export function cellTotals(cells: readonly Cell[]): {
+function cellTotals(cells: readonly Cell[]): {
 	checks: number;
 	up: number;
 	degraded: number;
@@ -605,7 +605,7 @@ export function rowNote(
 }
 
 /** Rows the environment list shows folded. */
-export const FOLDED_ROWS = 5;
+const FOLDED_ROWS = 5;
 
 /** Down, degraded, gone quiet or failing right now: a row the fold never hides. */
 function needsEyes(item: EnvServiceLike & { lastError: string }): boolean {
@@ -662,7 +662,7 @@ export interface MonitorBody {
 }
 
 /** The presets of the reminder interval; anything else is "custom". */
-export const REMINDER_PRESETS = [15, 30, 60, 120] as const;
+const REMINDER_PRESETS = [15, 30, 60, 120] as const;
 export type ReminderChoice =
 	| "off"
 	| `${(typeof REMINDER_PRESETS)[number]}`

@@ -135,8 +135,9 @@ func (s *Service) loadDeploymentInternal(ctx context.Context, id uuid.UUID) (dep
 	return toDepCtx(db.GetDeploymentScopeRow(row)), nil
 }
 
-func (s *Service) publish(typ string, d depCtx) {
-	services.Publish(s.Bus, typ, d.ProjectID, d.EnvironmentID, d.Dep.ID)
+// publish announces that a deployment changed.
+func (s *Service) publish(d depCtx) {
+	services.Publish(s.Bus, services.EventDeploymentUpdated, d.ProjectID, d.EnvironmentID, d.Dep.ID)
 }
 
 // publishService announces that the service view changed (status chips, staged

@@ -293,7 +293,7 @@ func (s *Service) createDumpNew(ctx context.Context, sc services.Scope, in DumpR
 		return DumpRestoreView{}, err
 	}
 	_ = s.q.SetDumpRestoreDeployment(ctx, db.SetDumpRestoreDeploymentParams{ID: r.ID, DeploymentID: &dep.ID})
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	r.DeploymentID = &dep.ID
 	return s.dumpView(r, true), nil
 }
@@ -376,7 +376,7 @@ func (s *Service) createDumpInPlace(ctx context.Context, sc services.Scope, in D
 		}
 		return DumpRestoreView{}, fmt.Errorf("start dump restore: %w", err)
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	return s.dumpView(r, true), nil
 }
 
@@ -512,7 +512,7 @@ func (s *Service) afterDumpFinished(ctx context.Context, r db.DumpRestore) {
 	if err != nil {
 		return
 	}
-	s.publish(sc, EventBackupUpdated, r.ID)
+	s.publish(sc, r.ID)
 	if r.TargetServiceID != nil && *r.TargetServiceID != r.SourceServiceID {
 		services.PublishService(s.bus, services.EventServiceUpdated, services.Scope{
 			Service: db.Service{ID: *r.TargetServiceID}, ProjectID: sc.ProjectID, EnvironmentID: sc.EnvironmentID,
@@ -541,7 +541,7 @@ func (s *Service) afterDumpPreBackup(ctx context.Context, r db.DumpRestore, b db
 		return
 	}
 	if sc, err := services.LoadScopeInternal(ctx, s.q, r.SourceServiceID); err == nil {
-		s.publish(sc, EventBackupUpdated, r.ID)
+		s.publish(sc, r.ID)
 	}
 }
 
@@ -581,7 +581,7 @@ func (s *Service) AdvanceDumpRestore(ctx context.Context, restoreID uuid.UUID) (
 			return false, err
 		}
 		if sc, err := services.LoadScopeInternal(ctx, s.q, r.SourceServiceID); err == nil {
-			s.publish(sc, EventBackupUpdated, r.ID)
+			s.publish(sc, r.ID)
 		}
 		return true, nil
 	case "failed", "canceled", "rolled_back", "rollback_failed":

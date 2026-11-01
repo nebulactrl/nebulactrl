@@ -215,7 +215,7 @@ func envExampleNames(path string) []string {
 	sc := bufio.NewScanner(f)
 	sc.Buffer(make([]byte, 64<<10), 1<<20)
 	for sc.Scan() && len(names) < 50 {
-		if m := envNameRe.FindStringSubmatch(sc.Text()); m != nil && !seen[m[1]] {
+		if m := envNameRe.FindStringSubmatch(sc.Text()); len(m) > 1 && !seen[m[1]] {
 			seen[m[1]] = true
 			names = append(names, m[1])
 		}

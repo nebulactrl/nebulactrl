@@ -12,8 +12,8 @@ const LANE_GAP = GRID;
 const LANE_WEIGHT = 4;
 
 export const ceilGrid = (n: number) => Math.ceil(n / GRID) * GRID;
-export const floorGrid = (n: number) => Math.floor(n / GRID) * GRID;
-export const roundGrid = (n: number) => Math.round(n / GRID) * GRID;
+const floorGrid = (n: number) => Math.floor(n / GRID) * GRID;
+const roundGrid = (n: number) => Math.round(n / GRID) * GRID;
 
 /** One box to place. */
 export interface LayerVertex {

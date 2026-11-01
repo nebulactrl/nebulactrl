@@ -102,11 +102,14 @@ func (s *Service) HandleSourceScan(ctx context.Context, serverID uuid.UUID, scan
 	}
 	id, err := uuid.Parse(scan.ServiceID)
 	if err != nil {
-		return nil
+		return fmt.Errorf("source scan service id %q: %w", scan.ServiceID, err) // from the agent: logged by the hub, never retried
 	}
 	sc, err := services.LoadScopeInternal(ctx, s.q, id)
+	if apierr.IsNotFound(err) {
+		return nil // deleted service: nothing to store
+	}
 	if err != nil {
-		return nil //nolint:nilerr // deleted service: nothing to store
+		return fmt.Errorf("load service: %w", err)
 	}
 	if sc.Service.SourceType != services.SourceGit {
 		return nil
@@ -114,8 +117,11 @@ func (s *Service) HandleSourceScan(ctx context.Context, serverID uuid.UUID, scan
 	if sc.Service.ServerID == nil || *sc.Service.ServerID != serverID {
 		// A build server scans the checkout of the deployments it builds.
 		built, err := s.q.ServerBuiltForService(ctx, db.ServerBuiltForServiceParams{ServerID: serverID, ServiceID: id})
-		if err != nil || !built {
-			return nil //nolint:nilerr // not this server's service: drop the scan
+		if err != nil {
+			return fmt.Errorf("check build server of service: %w", err)
+		}
+		if !built {
+			return nil // not this server's service: drop the scan
 		}
 	}
 	clean := suggestedEnv{Commit: scan.Commit}

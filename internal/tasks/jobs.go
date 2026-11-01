@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/riverqueue/river"
 
+	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
 	"github.com/nebulactrl/nebulactrl/internal/services"
@@ -123,7 +124,10 @@ func (s *Service) runDue(ctx context.Context, tx pgx.Tx, t db.ServiceTask, now t
 	}
 	sc, err := services.LoadScopeInternal(ctx, q, t.ServiceID)
 	if err != nil {
-		return db.TaskRun{}, nil // service deleted
+		if apierr.IsNotFound(err) {
+			return db.TaskRun{}, nil // the service was deleted: the task is advanced but no run is recorded
+		}
+		return db.TaskRun{}, fmt.Errorf("load service: %w", err)
 	}
 	in := startInput{
 		sc: sc, task: &t, name: t.Name, source: SourceCron, command: decodeArgv(t.Command),
