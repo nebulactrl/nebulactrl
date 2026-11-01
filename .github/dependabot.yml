@@ -43,9 +43,12 @@ updates:
         patterns:
           - "*"
 
-  # The shipped image (Dockerfile).
+  # The shipped image (Dockerfile), the dev agent image and the test git server.
   - package-ecosystem: docker
-    directory: /
+    directories:
+      - /
+      - /deploy/agent
+      - /tests/fixtures/git-server
     schedule:
       interval: monthly
     cooldown:
