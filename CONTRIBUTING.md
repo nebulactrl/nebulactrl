@@ -137,12 +137,15 @@ The highest bump among the commits since the last tag wins. If none of them need
 2. **Actions → release → Run workflow**, branch `main`, **`dry_run` ticked**. It prints the version the release would have (job summary of `version`). It skips the gates and publishes nothing.
 3. Run it again with `dry_run` unticked. The jobs run in this order, and nothing is published until the gates pass:
    - `gate-ci`, `gate-full` and `gate-docs` (the full tier contains the smoke scenarios, so `ci` runs without them);
-   - `version`: creates the tag `vX.Y.Z` and the GitHub Release with generated notes;
-   - `binaries`: CLI and agent archives for linux and macOS (amd64, arm64) and `SHA256SUMS`, attached to the GitHub Release (`make release-binaries VERSION=X.Y.Z` builds the same files locally into `dist/`);
+   - `version`: creates the tag `vX.Y.Z` and a **draft** GitHub Release with generated notes;
+   - `binaries`: CLI and agent archives for linux and macOS (amd64, arm64) and `SHA256SUMS`, attached to the draft (`make release-binaries VERSION=X.Y.Z` builds the same files locally into `dist/`);
    - `images`: the control-plane image `ghcr.io/nebulactrl/nebulactrl` (which also carries the CLI for every platform), one native build per architecture, then `image-manifest` tags `X.Y.Z`, `X.Y` and `latest` (built with `SITE_URL` and `GITHUB_URL` build args, which turn on the in-app docs' "Latest at" note and "Edit this page");
-   - `sign`: signs `install.sh` (as the site serves it), `SHA256SUMS`, the two agent binaries from the image and `release-manifest.txt` (image digest, agent SHA-256, SHA-256 of every installer file) with minisign, and attaches the `.minisig` files to the GitHub Release. The installer, the control plane's one-click update and `install-agent.sh` verify them ([Verifying a release](docs/installing/installer.md#verifying-a-release)). It fails, before the site goes out, when the secret is missing or is not the key whose public half is in `internal/releasesign`;
-   - `site`: after `sign`, builds `apps/site` with `SITE_URL=https://nebulactrl.com` and `GITHUB_URL=https://github.com/nebulactrl/nebulactrl` (the site shows its GitHub links, the release feed links each release page; unset, both are left out), stamps `install.sh` with the release version, serves `install.sh.minisig` and the signed files of every release at `releases/<version>/` (the installer looks there; GitHub's release assets carry the same files), writes the release feed (below) and deploys it with wrangler (needs the [owner actions](#owner-actions) below).
-4. If `binaries`, `images` or `site` fail after `version` succeeded, use **Re-run failed jobs** on that run. Starting a new run would report "no release" because the tag already exists.
+   - `sign`: signs `install.sh` (as the site serves it), `SHA256SUMS`, the two agent binaries from the image and `release-manifest.txt` (image digest, agent SHA-256, SHA-256 of every installer file) with minisign, and attaches the `.minisig` files to the draft. The installer, the control plane's one-click update and `install-agent.sh` verify them ([Verifying a release](docs/installing/installer.md#verifying-a-release)). It fails, before the site goes out, when the secret is missing or is not the key whose public half is in `internal/releasesign`;
+   - `publish`: checks that the draft holds every asset of `binaries` and `sign` (7 archives and checksums, 9 signature and signed files: 16 in all), then publishes it and marks it latest;
+   - `site`: after `publish`, builds `apps/site` with `SITE_URL=https://nebulactrl.com` and `GITHUB_URL=https://github.com/nebulactrl/nebulactrl` (the site shows its GitHub links, the release feed links each release page; unset, both are left out), stamps `install.sh` with the release version, serves `install.sh.minisig` and the signed files of every release at `releases/<version>/` (the installer looks there; GitHub's release assets carry the same files), writes the release feed (below) and deploys it with wrangler (needs the [owner actions](#owner-actions) below).
+4. If `binaries`, `images`, `sign`, `publish` or `site` fail after `version` succeeded, use **Re-run failed jobs** on that run. Starting a new run would report "no release" because the tag already exists.
+
+This repository has GitHub's immutable releases enabled: once a release is published its assets and tag are locked and nothing can be uploaded to it. So the release is created as a draft, every asset is attached to the draft, and only `publish` makes it public. Until then every job can be re-run against the draft, and `site` (the release feed) never announces a release that is not published.
 
 The version is stamped into the binaries (`main.version`), the web app (`VITE_APP_VERSION`) and the image. The installer a control plane serves at `/install.sh` installs that control plane's own version; fetched raw from the repository it installs `latest`.
 
@@ -152,7 +155,7 @@ Only one release runs at a time and a running release is never cancelled. Releas
 
 ### The first release
 
-There is no tag yet, and semantic-release cannot make a first release on 0.x (it always starts at `1.0.0`). So when no `v*` tag exists the `version` job makes **`v0.1.0`** itself: an annotated tag at the released commit and a GitHub Release with generated notes, without semantic-release. A dry run says so. Every later release goes through semantic-release from that tag.
+There is no tag yet, and semantic-release cannot make a first release on 0.x (it always starts at `1.0.0`). So when no `v*` tag exists the `version` job makes **`v0.1.0`** itself: an annotated tag at the released commit and a draft GitHub Release with generated notes, without semantic-release. A dry run says so. Every later release goes through semantic-release from that tag.
 
 ### Distribution
 

@@ -1,15 +1,17 @@
 # Release: Actions -> release -> Run workflow (from `main`). Never automatic.
 #
 #   gate-ci ─┐
-#   gate-full ┼─> version ─┬─> binaries ──────────────────────────┐
-#   gate-docs ┘            └─> images (amd64 | arm64) ─> image-manifest ─> sign ─> site
+#   gate-full ┼─> version ─┬─> binaries ──────────────────────────────────────┐
+#   gate-docs ┘            └─> images (amd64 | arm64) ─> image-manifest ─> sign ─> publish ─> site
 #
 #   gates      ci (go + web; smoke is inside full), full, docs: reusable workflows
 #   version    first release (no v* tag yet): v0.1.0 is created here, without
 #              semantic-release. Every later release: semantic-release decides the
 #              next 0.x version from the Conventional Commits since the last tag
-#              and creates the tag and the GitHub Release (release.config.mjs).
-#   binaries   CLI and agent archives + SHA256SUMS, uploaded to the GitHub Release;
+#              and creates the tag and a DRAFT GitHub Release (release.config.mjs).
+#              The repository has immutable releases: a published release can no
+#              longer take assets, so the release stays a draft until `publish`.
+#   binaries   CLI and agent archives + SHA256SUMS, uploaded to the draft release;
 #              the archives get a build provenance attestation (gh attestation verify)
 #   images     ghcr.io/nebulactrl/nebulactrl, one native build per architecture,
 #              pushed by digest and scanned with Grype (a fixable critical
@@ -25,19 +27,22 @@
 #              files and the manifest go to the GitHub Release, and the site job serves them at
 #              nebulactrl.com/releases/<version>/, next to the release feed. The installer, the update the control plane starts and
 #              install-agent.sh verify them (docs/installing/installer.md)
+#   publish    checks that the draft holds every asset of binaries and sign, then
+#              publishes it (and marks it latest). Nothing before it touches a
+#              published release, so a failed run is re-run from the failed job.
 #   site       nebulactrl.com (apps/site, with install.sh stamped to this release and
 #              the release feed releases/latest.json + releases/<version>.json made
 #              from the GitHub Release notes), deployed to Cloudflare Workers static
-#              assets after image-manifest. Control planes read the feed for the
+#              assets after publish, so the site only announces a published release. Control planes read the feed for the
 #              update notice and the one-click update (docs/operations/updating.md)
 #
 # dry_run (default false) runs `version` with semantic-release --dry-run (or only
 # prints the v0.1.0 bootstrap) and skips every gate and everything that publishes:
 # a look at what the next release would be. Do one before a real release.
 #
-# If binaries, images or site fail after the version job succeeded, use "Re-run failed
-# jobs" on this run: the tag and the GitHub Release already exist, and a new
-# dispatch would report "no new release".
+# If binaries, images, sign, publish or site fail after the version job succeeded, use
+# "Re-run failed jobs" on this run: the tag and the draft release already exist, and a
+# new dispatch would report "no new release".
 name: release
 
 # Manual trigger only. One release at a time and a running release is never
@@ -93,7 +98,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 6
     permissions:
-      contents: write # create the tag and the GitHub Release
+      contents: write # create the tag and the draft GitHub Release
     outputs:
       released: ${{ steps.bootstrap.outputs.released || steps.semrel.outputs.released }}
       version: ${{ steps.bootstrap.outputs.version || steps.semrel.outputs.version }}
@@ -134,7 +139,7 @@ jobs:
           } >>"$GITHUB_OUTPUT"
           if [ "$DRY_RUN" = true ]; then
             echo "released=false" >>"$GITHUB_OUTPUT"
-            echo "Dry run: no v* tag exists, the first release would be v0.1.0 (annotated tag at ${GITHUB_SHA::7} and a GitHub Release with generated notes). Nothing was created." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "Dry run: no v* tag exists, the first release would be v0.1.0 (annotated tag at ${GITHUB_SHA::7} and a draft GitHub Release with generated notes, published after its assets are attached). Nothing was created." | tee -a "$GITHUB_STEP_SUMMARY"
             exit 0
           fi
           # The tag is made at the commit the gates tested: refuse if main has moved.
@@ -145,11 +150,12 @@ jobs:
           git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
             tag -a "$tag" -m "NebulaCtrl $tag" "$GITHUB_SHA"
           git push origin "refs/tags/$tag"
-          gh release create "$tag" --verify-tag --title "$tag" \
+          # Draft: assets are attached by later jobs, `publish` releases it.
+          gh release create "$tag" --draft --verify-tag --title "$tag" \
             --notes "First tagged release. NebulaCtrl is on 0.x: a minor version may contain breaking changes." \
             --generate-notes
           echo "released=true" >>"$GITHUB_OUTPUT"
-          echo "Released $tag" >>"$GITHUB_STEP_SUMMARY"
+          echo "Created draft $tag" >>"$GITHUB_STEP_SUMMARY"
 
       - name: semantic-release
         id: semrel
@@ -172,10 +178,10 @@ jobs:
           echo "tag=v$version" >>"$GITHUB_OUTPUT"
           if [ "$DRY_RUN" = true ]; then
             echo "released=false" >>"$GITHUB_OUTPUT"
-            echo "Dry run: the next release would be v$version. Nothing was created." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "Dry run: the next release would be v$version (created as a draft, published after its assets are attached). Nothing was created." | tee -a "$GITHUB_STEP_SUMMARY"
           else
             echo "released=true" >>"$GITHUB_OUTPUT"
-            echo "Released v$version" >>"$GITHUB_STEP_SUMMARY"
+            echo "Created draft v$version" >>"$GITHUB_STEP_SUMMARY"
           fi
 
   binaries:
@@ -186,7 +192,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 6
     permissions:
-      contents: write # upload release assets
+      contents: write # upload release assets to the draft
       id-token: write # sign the attestation (Sigstore, keyless)
       attestations: write # store it
       artifact-metadata: write # storage record of the attested archives
@@ -206,7 +212,7 @@ jobs:
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
           subject-path: dist/*.tar.gz
-      - name: Upload to the GitHub Release
+      - name: Upload to the draft GitHub Release
         run: gh release upload "$TAG" dist/* --clobber
         env:
           GH_TOKEN: ${{ github.token }}
@@ -478,7 +484,7 @@ jobs:
             minisign -V -P "$pub" -x "$out/$f.minisig" -m "$out/$f" ||
               { echo "::error::$f is not verified by internal/releasesign.PublicKey: NEBULACTRL_MINISIGN_KEY is not that key pair" >&2; exit 1; }
           done
-      - name: Upload to the GitHub Release
+      - name: Upload to the draft GitHub Release
         run: |
           set -euo pipefail
           out="$RUNNER_TEMP/release"
@@ -499,8 +505,47 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  # Publishes the draft made by `version`: the last step that changes the release, so a
+  # published (immutable) release is complete. Everything above re-runs against the draft.
+  publish:
+    name: publish
+    needs: [version, binaries, sign]
+    if: ${{ needs.version.outputs.released == 'true' && !inputs.dry_run }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # publish the release
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ needs.version.outputs.tag }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check the assets and publish
+        run: |
+          set -euo pipefail
+          # What binaries (build-binaries.sh + SHA256SUMS) and sign upload.
+          expected=(SHA256SUMS)
+          for target in linux_amd64 linux_arm64 darwin_amd64 darwin_arm64; do
+            expected+=("nebulactrl_${VERSION}_${target}.tar.gz")
+          done
+          for arch in amd64 arm64; do
+            expected+=("nebulactrl-agent_${VERSION}_linux_${arch}.tar.gz" "nebulactrl-agent-linux-${arch}" "nebulactrl-agent-linux-${arch}.minisig")
+          done
+          expected+=(SHA256SUMS.minisig install.sh install.sh.minisig release-manifest.txt release-manifest.txt.minisig)
+          have="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+          missing=0
+          for f in "${expected[@]}"; do
+            if ! grep -qxF -- "$f" <<<"$have"; then
+              echo "::error::release $TAG has no asset $f" >&2
+              missing=1
+            fi
+          done
+          [ "$missing" = 0 ] || exit 1
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest
+          echo "Published $TAG (${#expected[@]} assets)" >>"$GITHUB_STEP_SUMMARY"
+
   # The public site (nebulactrl.com): Workers static assets, deployed with wrangler.
-  # It goes out last, after the image tags exist, because the install.sh it serves
+  # It goes out last, after the image tags exist and the release is published, because the install.sh it serves
   # is stamped with this release and pulls ghcr.io/nebulactrl/nebulactrl:<version>,
   # and because the release feed it also serves (releases/latest.json) tells every
   # control plane that this version can be installed. The feed notes come from the
@@ -511,7 +556,7 @@ jobs:
   # dry run.
   site:
     name: site
-    needs: [version, image-manifest, sign]
+    needs: [version, image-manifest, publish]
     if: ${{ needs.version.outputs.released == 'true' && !inputs.dry_run }}
     environment: release-site
     runs-on: ubuntu-24.04

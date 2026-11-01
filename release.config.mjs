@@ -46,6 +46,9 @@ export default {
 		[
 			"@semantic-release/github",
 			{
+				// Immutable releases: assets cannot be added once published, so the
+				// workflow attaches them to this draft and its `publish` job publishes it.
+				draftRelease: true,
 				// Only the release itself: no comments on issues and pull requests,
 				// no "released" labels, no failure issues (fewer API calls, no noise).
 				successComment: false,
