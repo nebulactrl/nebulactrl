@@ -1,0 +1,48 @@
+schema: 1
+id: dashy
+revision: 1
+name: Dashy
+summary: Self-hosted start page and personal dashboard with status checks, widgets, themes, icon packs and an in-browser config editor.
+description: Dashy shows your services and bookmarks as a customisable dashboard that is configured from a single YAML file or through its built-in editor. This template keeps the configuration and custom assets on a persistent volume.
+category: homelab
+tags: [dashboard, start-page, bookmarks, monitoring, homelab]
+icon: dashy
+links:
+  website: https://dashy.to
+  docs: https://dashy.to/docs
+  source: https://github.com/Lissy93/dashy
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/Lissy93/dashy/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/dashy.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: dashy
+    name: Dashy
+    kind: app
+    image: ghcr.io/lissy93/dashy:4.9.0
+    digest: sha256:e8725dc24acc9a1d6f09c2ed0499b596af5a1b4eac8c83e912c213da06011356
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    volumes:
+      - name: user-data
+        path: /app/user-data
+    resources:
+      memoryMb: 256
+group: Dashy
+notes:
+  - "Dashy has no login by default: anyone with the domain can edit the dashboard from the UI. Enable authentication in conf.yml (appConfig.auth) or restrict access before exposing it."
+  - "The configuration lives in /app/user-data/conf.yml on the volume; edit it through the in-app config editor."

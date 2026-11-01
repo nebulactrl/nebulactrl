@@ -1,0 +1,52 @@
+schema: 1
+id: redis-insight
+revision: 1
+name: Redis Insight
+summary: Web GUI for browsing, querying and monitoring Redis and Valkey databases.
+description: Runs the official Redis Insight image with a persistent data volume for saved connections, encrypted with a generated key. Add your Redis or Valkey servers from the UI after deploying.
+category: devtools
+tags: [redis, valkey, database, gui, browser]
+links:
+  website: https://redis.io/insight/
+  docs: https://redis.io/docs/latest/operate/redisinsight/
+  source: https://github.com/redis/RedisInsight
+upstream:
+  license: SSPL-1.0
+  licenseUrl: https://github.com/redis/RedisInsight/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/redis-insight.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 1
+services:
+  - key: redisinsight
+    name: Redis Insight
+    kind: app
+    image: redis/redisinsight:3.8.0
+    digest: sha256:b5e19ee240abef6edb435871b90ff8a210995422e8e018ab61c0339d318a1f84
+    port: 5540
+    healthcheck:
+      type: http
+      path: /api/health/
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      RI_APP_HOST: 0.0.0.0
+      RI_APP_PORT: "5540"
+      RI_ENCRYPTION_KEY: ${{secret(32)}}
+      RI_LOG_LEVEL: info
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 512
+group: Redis Insight
+notes:
+  - "Redis Insight has no login of its own: anyone who can open the service address can use it and the connections saved in it. Keep access restricted."
+  - "Add a database with the private host and port of your Redis service (for example a managed Redis or Valkey in the same project) and its password."

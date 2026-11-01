@@ -1,0 +1,60 @@
+schema: 1
+id: siyuan
+revision: 1
+name: SiYuan
+summary: Privacy-first personal knowledge management with block-level references, Markdown and a web UI.
+description: Runs the official SiYuan image in server mode with its workspace on a persistent volume, locked with an access auth code. Open the address in a browser or connect the SiYuan mobile app.
+category: productivity
+tags: [notes, knowledge-base, markdown, pkm, wiki]
+icon: siyuan
+links:
+  website: https://b3log.org/siyuan/
+  docs: https://github.com/siyuan-note/siyuan#docker-hosting
+  source: https://github.com/siyuan-note/siyuan
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/siyuan-note/siyuan/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/siyuan.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - key: ACCESS_AUTH_CODE
+    label: Access auth code
+    description: The lock-screen password required to open the web UI. Anyone with the address can read your notes without it.
+    secret: true
+    default: "${{secret(24)}}"
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: siyuan
+    name: SiYuan
+    kind: app
+    image: b3log/siyuan:v3.8.8
+    digest: sha256:92aa9c361b09657141011ca57c02cccb21ba9f3ddc2c0759a99acd52f29b3f70
+    port: 6806
+    healthcheck:
+      type: http
+      path: /api/system/version
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      SIYUAN_WORKSPACE_PATH: /siyuan/workspace
+      SIYUAN_ACCESS_AUTH_CODE: ${input:ACCESS_AUTH_CODE}
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${input:TIMEZONE}
+    volumes:
+      - name: workspace
+        path: /siyuan/workspace
+    resources:
+      memoryMb: 512
+group: SiYuan
+notes:
+  - "Open the site and enter the access auth code from the install form (variable SIYUAN_ACCESS_AUTH_CODE)."

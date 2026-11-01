@@ -1,0 +1,30 @@
+{
+	"name": "@nebulactrl/ascii",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"version": "0.0.0",
+	"description": "NebulaCtrl's ASCII scenes: the framework-free WebGL2 glyph engine (Eclipse, Dial-out, Lost signal, Dome, Band) behind the sign-in backdrop, the maintenance and error pages and the marketing site's maintenance replica.",
+	"exports": {
+		".": "./src/index.ts",
+		"./engine": "./src/engine.ts",
+		"./eclipse": "./src/scene-eclipse.ts",
+		"./dial-out": "./src/scene-dial-out.ts",
+		"./lost-signal": "./src/scene-lost-signal.ts",
+		"./dome": "./src/scene-dome.ts",
+		"./band": "./src/scene-band.ts",
+		"./layout": "./src/layout.ts",
+		"./palette": "./src/palette.ts"
+	},
+	"scripts": {
+		"build:pages": "bun scripts/build-pages-engine.ts",
+		"test": "bun test src scripts",
+		"lint": "biome check .",
+		"preview": "bun preview/serve.ts"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.6.3",
+		"@types/bun": "1.4.4",
+		"typescript": "7.0.2"
+	}
+}

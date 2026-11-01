@@ -1,0 +1,127 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`www.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-redir"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-redir": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`www.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-redir"
+        ],
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`old.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-dcccccccc-redir"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-redir": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`old.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-dcccccccc-redir"
+        ],
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-app-aaaaaaaa-0:8080"
+            }
+          ]
+        }
+      }
+    },
+    "middlewares": {
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-redir": {
+        "redirectRegex": {
+          "regex": "^https?://[^/]+(.*)$",
+          "replacement": "https://example.com:8443${1}",
+          "permanent": true
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-redir": {
+        "redirectRegex": {
+          "regex": "^https?://[^/]+(.*)$",
+          "replacement": "https://example.com:8443/",
+          "permanent": false
+        }
+      },
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "port": "8443",
+          "permanent": true
+        }
+      }
+    }
+  }
+}

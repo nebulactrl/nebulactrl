@@ -1,0 +1,56 @@
+schema: 1
+id: sonarr
+revision: 1
+name: Sonarr
+summary: TV series collection manager that monitors releases and hands downloads to your torrent or Usenet client.
+description: Sonarr tracks the shows you want, searches your indexers and organises finished downloads into your library. Sonarr publishes no Docker image of its own; this template runs the linuxserver.io image listed in the Sonarr Docker documentation, with config and data volumes.
+category: media
+tags: [tv, arr, media-management, automation, downloads]
+icon: sonarr
+links:
+  website: https://sonarr.tv
+  docs: https://wiki.servarr.com/sonarr
+  source: https://github.com/Sonarr/Sonarr
+upstream:
+  license: GPL-3.0-only
+  licenseUrl: https://github.com/Sonarr/Sonarr/blob/develop/LICENSE.md
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/sonarr.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: TZ, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: sonarr
+    name: Sonarr
+    kind: app
+    image: lscr.io/linuxserver/sonarr:4.0.20
+    digest: sha256:48e36b608b461273b9dae857725cd0561a127f2c694b687318f6d0c5ce63e5c9
+    port: 8989
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${input:TZ}
+    volumes:
+      - name: sonarr-config
+        path: /config
+      - name: sonarr-data
+        path: /data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Sonarr
+notes:
+  - "On the first visit Sonarr asks you to set up authentication: choose a user name and password straight away, because the address is public."
+  - "Add your download client and indexers under Settings. The /data volume is private to this service; point a download client's completed-download folder to a path Sonarr can reach."

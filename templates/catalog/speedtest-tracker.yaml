@@ -1,0 +1,56 @@
+schema: 1
+id: speedtest-tracker
+revision: 1
+name: Speedtest Tracker
+summary: Runs scheduled internet speed tests and keeps the results in a self-hosted dashboard with charts and notifications.
+description: Speedtest Tracker records download, upload and latency from the Ookla speedtest on a schedule. This template runs the LinuxServer.io image that the project's README names as its container build, with SQLite storage on one volume.
+category: analytics
+tags: [speedtest, network, monitoring, bandwidth]
+icon: speedtest
+links:
+  website: https://docs.speedtest-tracker.dev
+  docs: https://docs.speedtest-tracker.dev
+  source: https://github.com/alexjustesen/speedtest-tracker
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/alexjustesen/speedtest-tracker/blob/main/LICENSE.md
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/speedtest-tracker
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: SCHEDULE, label: "Test schedule (cron expression, empty = no automatic tests)", default: "0 */6 * * *"}
+services:
+  - key: speedtest-tracker
+    name: Speedtest Tracker
+    kind: app
+    image: lscr.io/linuxserver/speedtest-tracker:1.15.1
+    digest: sha256:8d3c2826b708c18be7fb46c1afebc6bb3b1ab7c519473df1be89f5ecaa8bb31f
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/healthcheck
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      APP_KEY: base64:${{randomBytes(32,"base64")}}
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      DB_CONNECTION: sqlite
+      SPEEDTEST_SCHEDULE: ${input:SCHEDULE}
+    volumes:
+      - {name: config, path: /config}
+    resources:
+      memoryMb: 512
+group: Speedtest Tracker
+notes:
+  - "Sign in with the default account admin@example.com / password and change both straight away."
+  - "Results measure the connection of the server this stack runs on."

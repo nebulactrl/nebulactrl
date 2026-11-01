@@ -1,0 +1,52 @@
+schema: 1
+id: umami
+revision: 1
+name: Umami
+summary: Simple, fast, privacy-focused web analytics.
+description: Umami is a lightweight alternative to Google Analytics. This template runs the app with a managed Postgres database.
+category: analytics
+tags: [analytics, privacy, statistics]
+icon: umami
+links:
+  website: https://umami.is
+  docs: https://umami.is/docs
+  source: https://github.com/umami-software/umami
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/umami-software/umami/blob/master/LICENSE
+  class: permissive
+origin:
+  type: original
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: app
+    name: Umami
+    kind: app
+    image: ghcr.io/umami-software/umami:3.4.1
+    digest: sha256:e69d1a7932e9dab0fc523edc7be1f3a53f3c261f57856fc2167ae74a8fc022e8
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/heartbeat
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      APP_SECRET: ${{secret(64)}}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Umami DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: umami
+group: Umami
+notes:
+  - "Sign in with the default account admin / umami, then change the password straight away."

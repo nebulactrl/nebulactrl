@@ -1,0 +1,73 @@
+schema: 1
+id: satisfactory
+revision: 1
+name: Satisfactory Dedicated Server
+summary: Dedicated server for the Satisfactory factory-building game, downloaded and updated through SteamCMD.
+description: Runs the community-maintained robtme/satisfactory-server image (formerly wolveix), which installs the Satisfactory dedicated server through SteamCMD on first start and keeps saves, blueprints and game files in a persistent volume. The first start downloads more than 8 GB. The image project is MIT-licensed; the game server software itself is Coffee Stain's.
+category: games
+tags: [satisfactory, game-server, dedicated-server, steam, factory]
+icon: satisfactory
+links:
+  website: https://github.com/robtme/satisfactory-server
+  docs: https://github.com/robtme/satisfactory-server#readme
+  source: https://github.com/robtme/satisfactory-server
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/robtme/satisfactory-server/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/satisfactory.yaml
+  commit: 1d28642
+  license: Apache-2.0
+heavy: true
+requires:
+  memoryMb: 8192
+  diskGb: 30
+  arch: [amd64]
+inputs:
+  - {key: MAXPLAYERS, label: Max players, default: "4"}
+  - key: STEAMBETA
+    label: Experimental branch
+    description: Set to true to run the Experimental game version instead of Early Access.
+    default: "false"
+    options: ["true", "false"]
+services:
+  - key: server
+    name: Satisfactory
+    kind: app
+    image: robtme/satisfactory-server:v1.9.11
+    digest: sha256:ac252dba41653eb21c6feed94b577f98fa152f5792b1aeff2ce11fe364355137
+    healthcheck:
+      type: tcp
+      port: 7777
+      startPeriodSeconds: 120
+      deadlineSeconds: 1800
+    env:
+      MAXPLAYERS: ${input:MAXPLAYERS}
+      STEAMBETA: ${input:STEAMBETA}
+      SERVERSTREAMING: "true"
+      AUTOSAVENUM: "5"
+    ports:
+      - name: game-tcp
+        port: 7777
+        protocol: tcp
+        publish: true
+      - name: game-udp
+        port: 7777
+        protocol: udp
+        publish: true
+      - name: messaging
+        port: 8888
+        protocol: tcp
+        publish: true
+    volumes:
+      - name: config
+        path: /config
+    resources:
+      memoryMb: 8192
+    stopGraceSeconds: 60
+group: Satisfactory
+notes:
+  - "The first start downloads the game files (8 GB or more) and can take 15+ minutes. In Satisfactory open Server Manager, add the server address with port 7777 and claim it to set the admin password."
+  - "Players need ports 7777 (TCP and UDP) and 8888 (TCP) reachable on this server; the server uses a self-signed certificate until you add your own."

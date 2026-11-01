@@ -1,0 +1,87 @@
+schema: 1
+id: heyform
+revision: 1
+name: HeyForm
+summary: Conversational form builder for surveys, questionnaires, quizzes and polls, with no coding required.
+description: HeyForm is a drag-and-drop form builder that presents questions one at a time and collects, exports and integrates the responses. This template runs the community edition with a managed MongoDB database and a managed Valkey instance for job queues, and keeps uploaded files in a volume.
+category: web
+tags: [forms, survey, quiz, builder, questionnaire]
+icon: heyform
+links:
+  website: https://heyform.net
+  docs: https://docs.heyform.net
+  source: https://github.com/heyform/heyform
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/heyform/heyform/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/heyform.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 3
+inputs:
+  - {key: VERIFY_USER_EMAIL, label: "Require email verification code on sign-up (needs SMTP below)", default: "false", options: ["true", "false"]}
+  - {key: SMTP_HOST, label: "SMTP host (optional, needed to send emails)"}
+  - {key: SMTP_PORT, format: number, label: SMTP port, default: "465"}
+  - {key: SMTP_SECURE, label: Use TLS for the SMTP connection, default: "true", options: ["true", "false"]}
+  - {key: SMTP_USER, label: SMTP username}
+  - {key: SMTP_PASSWORD, label: SMTP password, secret: true}
+  - {key: SMTP_FROM, label: "SMTP from address (for example HeyForm <noreply@example.com>)"}
+services:
+  - key: app
+    name: HeyForm
+    kind: app
+    image: heyform/community-edition:v3.0.5
+    digest: sha256:3a103fa72d7ec8d94e8f0c44b009041fdd73d4ed35e3ed1b68ff7fe28520525e
+    port: 9157
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [mongo, redis]
+    domains:
+      - generate: true
+    env:
+      APP_HOMEPAGE_URL: ${{NEBULA_PUBLIC_URL}}
+      TRUST_PROXY: "true"
+      SESSION_KEY: ${{secret(64)}}
+      FORM_ENCRYPTION_KEY: ${{secret(64)}}
+      MONGO_URI: ${{mongo.DATABASE_URL}}
+      REDIS_HOST: ${{redis.REDIS_HOST}}
+      REDIS_PORT: ${{redis.REDIS_PORT}}
+      REDIS_PASSWORD: ${{redis.REDIS_PASSWORD}}
+      VERIFY_USER_EMAIL: ${input:VERIFY_USER_EMAIL}
+      SMTP_HOST: ${input:SMTP_HOST}
+      SMTP_PORT: ${input:SMTP_PORT}
+      SMTP_SECURE: ${input:SMTP_SECURE}
+      SMTP_USER: ${input:SMTP_USER}
+      SMTP_PASSWORD: ${input:SMTP_PASSWORD}
+      SMTP_FROM: ${input:SMTP_FROM}
+    volumes:
+      - name: uploads
+        path: /app/static/upload
+    resources:
+      memoryMb: 768
+  - key: mongo
+    name: HeyForm DB
+    kind: database
+    database:
+      engine: mongodb
+      version: "8.0"
+      databaseName: heyform
+  - key: redis
+    name: HeyForm Redis
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: HeyForm
+notes:
+  - "Open the app and sign up; registration is open by default. Set APP_DISABLE_REGISTRATION=true in the service variables and redeploy once your account exists to make the instance invite-only."
+  - "Without SMTP, keep email verification off: sign-up codes and invitation emails cannot be delivered."
+  - "SESSION_KEY and FORM_ENCRYPTION_KEY are generated once; changing them signs everyone out and makes encrypted form data unreadable."

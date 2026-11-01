@@ -1,0 +1,64 @@
+schema: 1
+id: go2rtc
+revision: 1
+name: go2rtc
+summary: Camera streaming server that converts RTSP, WebRTC, HLS, MJPEG and other stream formats.
+description: go2rtc ingests camera and media streams and re-serves them over many protocols, with a web UI to edit the config. This template runs the official image with HTTP basic auth enabled on the web UI and API, and an editable config on a volume.
+category: media
+tags: [streaming, rtsp, webrtc, cameras, video]
+links:
+  website: https://go2rtc.org
+  docs: https://github.com/AlexxIT/go2rtc#configuration
+  source: https://github.com/AlexxIT/go2rtc
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/AlexxIT/go2rtc/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/go2rtc
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: ADMIN_USERNAME, label: Web UI username, default: admin}
+  - {key: ADMIN_PASSWORD, label: Web UI password, secret: true, default: "${{secret(20)}}"}
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: go2rtc
+    name: go2rtc
+    kind: app
+    image: alexxit/go2rtc:1.9.15
+    digest: sha256:e098de5c2f8040dc3d4784ed2d5cfdac3b0979f9349afe587ef6a670a14b9f4d
+    port: 1984
+    command: [go2rtc, -config, /config/go2rtc.yaml, -config, /etc/go2rtc/auth.yaml]
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 5
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    env:
+      TZ: ${input:TIMEZONE}
+      GO2RTC_API_USERNAME: ${input:ADMIN_USERNAME}
+      GO2RTC_API_PASSWORD: ${input:ADMIN_PASSWORD}
+    ports:
+      - {name: rtsp, port: 8554, protocol: tcp}
+    volumes:
+      - name: config
+        path: /config
+    files:
+      - path: /etc/go2rtc/auth.yaml
+        mode: "0444"
+        content: |
+          api:
+            username: ${GO2RTC_API_USERNAME}
+            password: ${GO2RTC_API_PASSWORD}
+    resources:
+      memoryMb: 256
+group: go2rtc
+notes:
+  - "Sign in to the web UI with the username and password from the install form, then add streams in the Config tab; the config is saved in the config volume."
+  - "The web UI and API are protected with basic auth, because go2rtc can run commands from stream sources. The RTSP port (8554) is kept internal and the WebRTC port (8555) is not published, so browser playback uses MSE, HLS or MJPEG."

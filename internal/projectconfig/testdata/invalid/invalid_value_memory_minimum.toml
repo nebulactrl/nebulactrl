@@ -1,0 +1,10 @@
+# expect: invalid_value
+# schema: reject
+# memory_mb is 0 (no limit) or at least 6.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+memory_mb = 3

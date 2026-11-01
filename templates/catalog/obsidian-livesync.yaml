@@ -1,0 +1,83 @@
+schema: 1
+id: obsidian-livesync
+revision: 1
+name: Obsidian LiveSync
+summary: CouchDB sync server for the Obsidian Self-hosted LiveSync plugin, with CORS and size limits preconfigured.
+description: Runs a single-node Apache CouchDB configured for the Self-hosted LiveSync community plugin, so Obsidian vaults sync between desktop and mobile devices through your own server. Every request requires the administrator credentials from the install form.
+category: productivity
+tags: [obsidian, couchdb, sync, notes, markdown]
+icon: apachecouchdb
+links:
+  website: https://couchdb.apache.org
+  docs: https://github.com/vrtmrz/obsidian-livesync/blob/main/docs/setup_own_server.md
+  source: https://github.com/apache/couchdb
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/apache/couchdb/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/obsidian-livesync.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: COUCHDB_USER, label: CouchDB administrator username, required: true, default: admin}
+  - {key: COUCHDB_PASSWORD, label: CouchDB administrator password, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: couchdb
+    name: CouchDB
+    kind: app
+    image: couchdb:3.5.3
+    digest: sha256:4e8e0a366208a87d5059b0f4fcbefff13c32401a655d4629c19be6288ea77675
+    port: 5984
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "curl -fsS -u \"$COUCHDB_USER:$COUCHDB_PASSWORD\" http://127.0.0.1:5984/_up >/dev/null"]
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      COUCHDB_USER: ${input:COUCHDB_USER}
+      COUCHDB_PASSWORD: ${input:COUCHDB_PASSWORD}
+    volumes:
+      - name: data
+        path: /opt/couchdb/data
+    files:
+      - path: /opt/couchdb/etc/local.d/10-livesync.ini
+        mode: "0444"
+        content: |
+          [couchdb]
+          single_node = true
+          max_document_size = 50000000
+
+          [chttpd]
+          require_valid_user = true
+          max_http_request_size = 4294967296
+          enable_cors = true
+
+          [chttpd_auth]
+          require_valid_user = true
+          authentication_redirect = /_utils/session.html
+
+          [httpd]
+          WWW-Authenticate = Basic realm="couchdb"
+          enable_cors = true
+
+          [cors]
+          origins = app://obsidian.md,capacitor://localhost,http://localhost
+          credentials = true
+          headers = accept, authorization, content-type, origin, referer
+          methods = GET, PUT, POST, HEAD, DELETE
+          max_age = 3600
+    resources:
+      memoryMb: 512
+group: Obsidian LiveSync
+notes:
+  - "In Obsidian, install the Self-hosted LiveSync plugin and enter the generated domain as the server URI (HTTPS), the administrator username and password from the install form, and a database name of your choice; the plugin creates the database."
+  - "Use end-to-end encryption in the plugin if you do not want notes stored readable on the server."

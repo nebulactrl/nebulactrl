@@ -1,0 +1,11 @@
+# expect: process_name_reserved
+# The service's own process is called web unless process_name says otherwise.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.processes.web]
+command = ["run", "worker"]

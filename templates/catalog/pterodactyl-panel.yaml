@@ -1,0 +1,119 @@
+schema: 1
+id: pterodactyl-panel
+revision: 1
+name: Pterodactyl Panel
+summary: Web panel for managing game servers across nodes; this stack runs the panel only, nodes run Wings.
+description: Pterodactyl Panel is the control plane for game servers that run in containers on separate Wings nodes. This template runs the official panel image with a managed MariaDB and Redis and creates the first administrator at start. You still need to install Wings on a server to host games.
+category: games
+tags: [game-server, panel, minecraft, management, containers]
+icon: pterodactyl
+links:
+  website: https://pterodactyl.io
+  docs: https://docs.pterodactyl.io/v1/panel/getting-started
+  source: https://github.com/pterodactyl/panel
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/pterodactyl/panel/blob/develop/LICENSE.md
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/pterodactyl-panel.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_USERNAME, label: Admin username, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+  - {key: TIMEZONE, label: Timezone (IANA name), default: UTC}
+services:
+  - key: panel
+    name: Pterodactyl Panel
+    kind: app
+    image: ghcr.io/pterodactyl/panel:v1.15.2
+    digest: sha256:cd7cda1727f110cee375ed52a95adfe73065548576715e7b92f8c899558271e3
+    port: 80
+    command: [/entrypoint.sh]
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [mariadb, redis]
+    env:
+      APP_ENV: production
+      APP_ENVIRONMENT_ONLY: "false"
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      APP_TIMEZONE: ${input:TIMEZONE}
+      TRUSTED_PROXIES: "*"
+      LOG_LEVEL: info
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: ${{redis.REDIS_HOST}}
+      REDIS_PORT: ${{redis.REDIS_PORT}}
+      REDIS_PASSWORD: ${{redis.REDIS_PASSWORD}}
+      DB_HOST: ${{mariadb.DATABASE_HOST}}
+      DB_PORT: ${{mariadb.DATABASE_PORT}}
+      DB_DATABASE: ${{mariadb.DATABASE_NAME}}
+      DB_USERNAME: ${{mariadb.DATABASE_USER}}
+      DB_PASSWORD: ${{mariadb.DATABASE_PASSWORD}}
+      HASHIDS_SALT: ${{secret(32)}}
+      HASHIDS_LENGTH: "8"
+      ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      ADMIN_USERNAME: ${input:ADMIN_USERNAME}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      ADMIN_FIRSTNAME: Admin
+      ADMIN_LASTNAME: User
+    volumes:
+      - name: var
+        path: /app/var
+    files:
+      - path: /entrypoint.sh
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          set -e
+
+          chown -R nginx: /app/storage/logs/
+
+          USER_EXISTS=$(php artisan tinker --no-ansi --execute='echo \Pterodactyl\Models\User::where("email", "'"$ADMIN_EMAIL"'")->exists() ? "1" : "0";')
+
+          if [ "$USER_EXISTS" = "0" ]; then
+            echo "Admin user does not exist, creating it."
+            php artisan p:user:make --no-interaction \
+              --admin=1 \
+              --email="$ADMIN_EMAIL" \
+              --username="$ADMIN_USERNAME" \
+              --name-first="$ADMIN_FIRSTNAME" \
+              --name-last="$ADMIN_LASTNAME" \
+              --password="$ADMIN_PASSWORD"
+          else
+            echo "Admin user already exists, skipping creation."
+          fi
+
+          exec supervisord -n -c /etc/supervisord.conf
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 768
+  - key: mariadb
+    name: Pterodactyl DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: pterodactyl
+  - key: redis
+    name: Pterodactyl Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+group: Pterodactyl Panel
+notes:
+  - "Sign in with the admin email and the ADMIN_USERNAME / ADMIN_PASSWORD values (see the service variables); the account is created at the first start."
+  - "The panel only manages servers: install Wings on a separate host (https://docs.pterodactyl.io/v1/wings/installing), then add it as a node in the admin area."
+  - "Set up outgoing mail under Admin > Settings > Mail in the panel."

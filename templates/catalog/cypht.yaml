@@ -1,0 +1,75 @@
+schema: 1
+id: cypht
+revision: 1
+name: Cypht
+summary: Lightweight webmail client that aggregates several IMAP, SMTP and JMAP accounts in one inbox.
+description: Cypht reads and sends mail from multiple accounts in a single interface. This template runs the official all-in-one image with a managed MariaDB database for accounts, settings and sessions, and creates the first login.
+category: productivity
+tags: [email, webmail, imap, self-hosted]
+links:
+  website: https://cypht.org
+  docs: https://cypht.org/install.html
+  source: https://github.com/cypht-org/cypht
+upstream:
+  license: LGPL-2.1
+  licenseUrl: https://github.com/cypht-org/cypht/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/cypht
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: cypht
+    name: Cypht
+    kind: app
+    image: cypht/cypht:2.13.0
+    digest: sha256:52d41a0ebfd347c2e2d33c42a0f8171c8a15564243b42a597694825f0cef3125
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      AUTH_TYPE: DB
+      USER_CONFIG_TYPE: DB
+      SESSION_TYPE: DB
+      AUTH_USERNAME: ${input:ADMIN_USERNAME}
+      AUTH_PASSWORD: ${input:ADMIN_PASSWORD}
+      ADMIN_USERS: ${input:ADMIN_USERNAME}
+      DB_CONNECTION_TYPE: host
+      DB_DRIVER: mysql
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASS: ${{db.DATABASE_PASSWORD}}
+      ENABLE_REDIS: "false"
+      ENABLE_MEMCACHED: "false"
+      ENCRYPT_LOCAL_STORAGE: "true"
+    volumes:
+      - name: attachments
+        path: /var/lib/hm3/attachments
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Cypht DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: cypht
+group: Cypht
+notes:
+  - "Sign in with the admin username and password from the install form, then add your mail accounts under Settings."
+  - "Accounts and sessions are stored in the database, so deleting the database volume also deletes every Cypht login."

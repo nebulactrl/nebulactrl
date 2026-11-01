@@ -1,0 +1,62 @@
+schema: 1
+id: unleash
+revision: 1
+name: Unleash
+summary: Feature flag and remote configuration platform with gradual rollouts, segments and SDKs for many languages.
+description: Unleash lets teams roll out features gradually, target user segments and toggle behaviour without deploying. This template runs the open-source Unleash server with a managed Postgres database and a generated administrator login.
+category: devtools
+tags: [feature-flags, feature-toggles, rollouts, configuration, experimentation]
+links:
+  website: https://www.getunleash.io
+  docs: https://docs.getunleash.io
+  source: https://github.com/Unleash/unleash
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/Unleash/unleash/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/unleash
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: unleash
+    name: Unleash
+    kind: app
+    image: unleashorg/unleash-server:8.2.1
+    digest: sha256:c6eaaede7242144f1674343ccd94224dab04a48723e8d94746288741f327fd5c
+    port: 4242
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      DATABASE_SSL: "false"
+      UNLEASH_URL: ${{NEBULA_PUBLIC_URL}}
+      UNLEASH_DEFAULT_ADMIN_USERNAME: ${input:ADMIN_USERNAME}
+      UNLEASH_DEFAULT_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      LOG_LEVEL: warn
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Unleash DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: unleash
+group: Unleash
+notes:
+  - "Sign in with the admin username and password from the install form. They create the initial admin on first start only; change the password inside Unleash afterwards."
+  - "Create API tokens under Admin > API access for your SDKs and point them at <service domain>/api/."

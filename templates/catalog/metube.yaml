@@ -1,0 +1,48 @@
+schema: 1
+id: metube
+revision: 1
+name: MeTube
+summary: Web UI for yt-dlp to download videos and audio from YouTube and hundreds of other sites, with playlist and channel support.
+description: MeTube is a small web front end for yt-dlp. Paste a link, pick the format and quality, and the file is downloaded to the server's download volume; finished files can be fetched from the same page.
+category: media
+tags: [youtube, downloader, yt-dlp, video, audio]
+icon: metube
+links:
+  website: https://github.com/alexta69/metube
+  docs: https://github.com/alexta69/metube/blob/master/README.md
+  source: https://github.com/alexta69/metube
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/alexta69/metube/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/metube.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 20
+services:
+  - key: metube
+    name: MeTube
+    kind: app
+    image: ghcr.io/alexta69/metube:2026.10.25
+    digest: sha256:78560456793445f4449d8b9d92374350c652725aa76dc75f8682d43fc5ff9a5b
+    port: 8081
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    volumes:
+      - name: downloads
+        path: /downloads
+    resources:
+      memoryMb: 512
+group: MeTube
+notes:
+  - "MeTube has no login of its own: anyone who can reach the URL can queue downloads. Restrict access to the domain before exposing it publicly."
+  - "Downloads and the queue state are stored on the downloads volume; size it for the media you plan to fetch."

@@ -1,0 +1,77 @@
+schema: 1
+id: open-notebook
+revision: 1
+name: Open Notebook
+summary: Self-hosted, privacy-focused alternative to Google NotebookLM for researching documents with AI models.
+description: Open Notebook organizes sources (PDFs, web pages, audio, video) into notebooks you can chat with, search and turn into podcasts using the AI providers you configure. This template runs the official image with a SurrealDB 2 database and password protection.
+category: ai
+tags: [notebook, research, ai, rag, podcast]
+links:
+  website: https://www.open-notebook.ai
+  docs: https://www.open-notebook.ai/get-started.html
+  source: https://github.com/lfnovo/open-notebook
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/lfnovo/open-notebook/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/open_notebook
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 10
+inputs:
+  - {key: APP_PASSWORD, label: Password for the web UI and API, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: open-notebook
+    name: Open Notebook
+    kind: app
+    image: lfnovo/open_notebook:1.15.0
+    digest: sha256:54b2025a4a4853c188f74b9b8246eca8c5480e5dd1babfa92db1038ff2f30212
+    port: 8502
+    healthcheck:
+      type: http
+      port: 5055
+      path: /health
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [surrealdb]
+    domains:
+      - generate: true
+    env:
+      API_URL: ${{NEBULA_PUBLIC_URL}}
+      OPEN_NOTEBOOK_ENCRYPTION_KEY: ${{secret(32)}}
+      OPEN_NOTEBOOK_PASSWORD: ${input:APP_PASSWORD}
+      SURREAL_URL: ws://${{surrealdb.NEBULA_PRIVATE_HOST}}:8000/rpc
+      SURREAL_USER: root
+      SURREAL_PASSWORD: ${{surrealdb.SURREAL_PASS}}
+      SURREAL_NAMESPACE: open_notebook
+      SURREAL_DATABASE: open_notebook
+    volumes:
+      - {name: data, path: /app/data}
+    resources:
+      memoryMb: 2048
+  - key: surrealdb
+    name: Open Notebook SurrealDB
+    kind: database
+    image: surrealdb/surrealdb:v2.7.0
+    digest: sha256:e5d7387e3727bbe2f7cd6d869e48cd34777272258572ead37c9656b25f745723
+    command: [start, "rocksdb:/home/nonroot/data"]
+    healthcheck:
+      type: exec
+      command: [CMD, /surreal, isready, --endpoint, "http://127.0.0.1:8000"]
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      SURREAL_USER: root
+      SURREAL_PASS: ${{secret(32)}}
+    volumes:
+      - {name: data, path: /home/nonroot}
+    resources:
+      memoryMb: 512
+group: Open Notebook
+notes:
+  - "Sign in with the UI password from the install form, then add your AI provider credentials under Manage > Models."
+  - "OPEN_NOTEBOOK_ENCRYPTION_KEY encrypts the provider keys stored in the database: back it up, as losing it makes saved keys unreadable."

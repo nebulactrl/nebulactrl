@@ -1,0 +1,57 @@
+schema: 1
+id: libredb-studio
+revision: 1
+name: LibreDB Studio
+summary: Browser-based SQL IDE to query PostgreSQL, MySQL, MongoDB, Redis, ClickHouse and many other databases.
+description: LibreDB Studio is a self-hosted web database client with a query editor, schema browser and saved connections. This template runs the official image with its own configuration stored in SQLite on a volume.
+category: data
+tags: [database, sql, ide, query, admin]
+links:
+  website: https://libredb.org
+  docs: https://github.com/libredb/libredb-studio#readme
+  source: https://github.com/libredb/libredb-studio
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/libredb/libredb-studio/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/libredb-studio
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email (sign-in name), required: true, default: admin@libredb.org}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: studio
+    name: LibreDB Studio
+    kind: app
+    image: ghcr.io/libredb/libredb-studio:1.1.0
+    digest: sha256:e91183def05f4c13703c77363ec51ad68bfa45b1b1d3b92dc53c331b67e53d2c
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/db/health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      JWT_SECRET: ${{secret(64)}}
+      STORAGE_PROVIDER: sqlite
+      STORAGE_SQLITE_PATH: /app/data/libredb-storage.db
+      ALLOWED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: data
+        path: /app/data
+    resources:
+      memoryMb: 512
+group: LibreDB Studio
+notes:
+  - "Sign in with the admin email and password from the install form. They only seed the account on the first start; change the password later under Admin > Accounts."
+  - "Saved connection passwords are encrypted with a key derived from JWT_SECRET: do not rotate that variable or the stored credentials become unreadable."

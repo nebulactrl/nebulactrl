@@ -1,0 +1,53 @@
+schema: 1
+id: maxio
+revision: 1
+name: MaxIO
+summary: Lightweight S3-compatible object storage server in a single Rust binary with a web console.
+description: MaxIO is a MinIO-style object store made by the Coolify team. This template runs the official image with your own access and secret keys, the S3 API and the web console on one public domain, and a persistent data volume.
+category: storage
+tags: [s3, object-storage, minio-alternative, buckets, rust]
+links:
+  website: https://github.com/coollabsio/maxio
+  docs: https://github.com/coollabsio/maxio/blob/main/README.md
+  source: https://github.com/coollabsio/maxio
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/coollabsio/maxio/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/maxio
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 10
+inputs:
+  - {key: MAXIO_ACCESS_KEY, label: Admin access key, description: "Access key (user name) for the S3 API and the console.", default: "${{secret(20)}}"}
+  - {key: MAXIO_SECRET_KEY, label: Admin secret key, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: maxio
+    name: MaxIO
+    kind: app
+    image: ghcr.io/coollabsio/maxio:0.4.2
+    digest: sha256:2e7fc2a32d66fb31c44ce366e8a289218d3c38fcbe25bd6fa575b4df7c0e0272
+    port: 9000
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 10
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    env:
+      MAXIO_ACCESS_KEY: ${input:MAXIO_ACCESS_KEY}
+      MAXIO_SECRET_KEY: ${input:MAXIO_SECRET_KEY}
+      MAXIO_DATA_DIR: /data
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 256
+group: MaxIO
+notes:
+  - "Open <public URL>/ui/ and sign in with the access key and secret key from the install form. Point S3 clients at the public URL with path-style addressing."
+  - "This is a 0.x release: back up the data volume before upgrading."

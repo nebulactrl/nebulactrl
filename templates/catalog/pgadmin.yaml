@@ -1,0 +1,53 @@
+schema: 1
+id: pgadmin
+revision: 1
+name: pgAdmin
+summary: Web-based administration and query tool for PostgreSQL servers.
+description: Runs the official pgAdmin 4 container in server mode with an administrator account from the install form and its settings in a persistent volume. Add your PostgreSQL servers from the UI.
+category: data
+tags: [postgres, database, admin, sql, gui]
+icon: postgresql
+links:
+  website: https://www.pgadmin.org
+  docs: https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html
+  source: https://github.com/pgadmin-org/pgadmin4
+upstream:
+  license: PostgreSQL
+  licenseUrl: https://github.com/pgadmin-org/pgadmin4/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/pgadmin.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: PGADMIN_DEFAULT_EMAIL, format: email, label: "Admin email (login; must be a valid address)", required: true}
+  - {key: PGADMIN_DEFAULT_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: pgadmin
+    name: pgAdmin
+    kind: app
+    image: dpage/pgadmin4:9.18.0
+    digest: sha256:c332c5f6dfba995d9ebc4af261d93506d6876085d712eaaa3defc8dd1a3f26de
+    port: 80
+    healthcheck:
+      type: http
+      path: /misc/ping
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    env:
+      PGADMIN_DEFAULT_EMAIL: ${input:PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${input:PGADMIN_DEFAULT_PASSWORD}
+    volumes:
+      - {name: data, path: /var/lib/pgadmin}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: pgAdmin
+notes:
+  - "Sign in with the admin email and password from the install form; the account is only created on the first start, later changes to these variables do not alter it."
+  - "To manage a database from this project, register it with its internal host name, port and credentials under Servers."

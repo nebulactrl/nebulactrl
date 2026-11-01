@@ -1,0 +1,81 @@
+schema: 1
+id: infisical
+revision: 1
+name: Infisical
+summary: Open source secret management platform to store, sync and rotate application secrets, API keys and certificates.
+description: Infisical centralizes secrets for teams with environments, access controls, audit logs, secret rotation and integrations with CI/CD and cloud platforms. This template runs the app with a managed Postgres database and a managed Valkey (Redis-compatible) instance.
+category: security
+tags: [secrets, security, configuration, vault, devops]
+icon: infisical
+links:
+  website: https://infisical.com
+  docs: https://infisical.com/docs/self-hosting/overview
+  source: https://github.com/Infisical/infisical
+upstream:
+  license: MIT (core) with proprietary ee/ directory
+  licenseUrl: https://github.com/Infisical/infisical/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/infisical.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1536
+  diskGb: 5
+inputs:
+  - {key: SMTP_HOST, format: hostname, label: "SMTP host (optional, needed for email sign-up and invites)"}
+  - {key: SMTP_PORT, format: number, label: SMTP port, default: "587"}
+  - {key: SMTP_USERNAME, label: SMTP username}
+  - {key: SMTP_PASSWORD, label: SMTP password, secret: true}
+  - {key: SMTP_FROM_ADDRESS, label: SMTP from address}
+  - {key: SMTP_FROM_NAME, label: SMTP from name, default: Infisical}
+services:
+  - key: app
+    name: Infisical
+    kind: app
+    image: infisical/infisical:v0.167.2
+    digest: sha256:cb971a75043b6fafdc738e9ca6d4f8a09b4f979a60b2b9ade39af5e095bcc5fb
+    port: 8080
+    healthcheck:
+      type: http
+      path: /api/status
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db, redis]
+    domains:
+      - generate: true
+    env:
+      NODE_ENV: production
+      SITE_URL: ${{NEBULA_PUBLIC_URL}}
+      ENCRYPTION_KEY: ${{randomBytes(16,"hex")}}
+      AUTH_SECRET: ${{randomBytes(32,"base64")}}
+      DB_CONNECTION_URI: ${{db.DATABASE_URL}}
+      REDIS_URL: ${{redis.REDIS_URL}}
+      TELEMETRY_ENABLED: "false"
+      SMTP_HOST: ${input:SMTP_HOST}
+      SMTP_PORT: ${input:SMTP_PORT}
+      SMTP_USERNAME: ${input:SMTP_USERNAME}
+      SMTP_PASSWORD: ${input:SMTP_PASSWORD}
+      SMTP_FROM_ADDRESS: ${input:SMTP_FROM_ADDRESS}
+      SMTP_FROM_NAME: ${input:SMTP_FROM_NAME}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Infisical DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: infisical
+  - key: redis
+    name: Infisical Redis
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Infisical
+notes:
+  - "Open the app and sign up: the first user becomes the instance administrator, so do this before sharing the URL."
+  - "ENCRYPTION_KEY and AUTH_SECRET are generated once and protect the stored secrets. Back them up with your database; losing ENCRYPTION_KEY makes the data unrecoverable."
+  - "Features marked Enterprise in the app need an Infisical licence key."

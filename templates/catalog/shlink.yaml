@@ -1,0 +1,82 @@
+schema: 1
+id: shlink
+revision: 1
+name: Shlink
+summary: Self-hosted URL shortener with visit statistics, custom short domains and a REST API, plus its web client.
+description: Shlink creates and serves short links and records visits. This template runs the Shlink server with a managed Postgres database and the official web client, which stores the servers you add in your browser.
+category: productivity
+tags: [url-shortener, links, redirects, analytics, api]
+icon: shlink
+links:
+  website: https://shlink.io
+  docs: https://shlink.io/documentation/
+  source: https://github.com/shlinkio/shlink
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/shlinkio/shlink/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/shlink.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 640
+  diskGb: 2
+inputs:
+  - {key: API_KEY, label: Admin API key (used to sign in to the web client and call the REST API), secret: true, default: "${{uuid()}}"}
+services:
+  - key: shlink
+    name: Shlink
+    kind: app
+    image: shlinkio/shlink:5.1.8
+    digest: sha256:68a722f7677008a50ccf3a9e570966bc37d7627fe6a870b86be28c5dcf9085ee
+    port: 8080
+    healthcheck:
+      type: http
+      path: /rest/v3/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DEFAULT_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      IS_HTTPS_ENABLED: "true"
+      TRUSTED_PROXIES: "1"
+      INITIAL_API_KEY: ${input:API_KEY}
+      DB_DRIVER: postgres
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    secrets: [INITIAL_API_KEY]
+    resources:
+      memoryMb: 512
+  - key: shlink-web
+    name: Shlink Web Client
+    kind: app
+    image: shlinkio/shlink-web-client:4.8.1
+    digest: sha256:dc8bf3565a25bd0602ff11ee352920830ce457ab58a2b2c62f2ebb23e8c8b9ee
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 128
+  - key: db
+    name: Shlink DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: shlink
+group: Shlink
+notes:
+  - "Open the web client's address and add a server: the URL is the Shlink service's address and the API key is the admin API key from the install form. The key is stored in your browser only, not in the web client's configuration."
+  - "Short links are served from the Shlink service's own address; attach a custom short domain to that service and update DEFAULT_DOMAIN to use your own."

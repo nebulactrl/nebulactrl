@@ -1,0 +1,4 @@
+argv: ["sh" "-c" "set -eu\numask 077\nf=\"$PGDATA/pg_hba.conf\"\n[ -f \"$f\" ] || { echo \"pg_hba.conf not found in $PGDATA\" >&2; exit 4; }\nB='# BEGIN nebulactrl-replication'\nE='# END nebulactrl-replication'\nrest=$(awk -v b=\"$B\" -v e=\"$E\" '$0==b{s=1;next} $0==e{s=0;next} !s{print}' \"$f\")\ncur=$(awk -v b=\"$B\" -v e=\"$E\" '$0==b{s=1;next} $0==e{s=0;next} s{print}' \"$f\")\ncase \"$NC_HBA_ACTION\" in\nadd) lines=$(printf '%s\\n%s\\n' \"$cur\" \"$NC_HBA_LINE\" | awk 'NF && !seen[$0]++') ;;\nremove) lines=$(printf '%s\\n' \"$cur\" | awk -v l=\"$NC_HBA_LINE\" 'NF && $0!=l') ;;\n*) echo \"unknown action $NC_HBA_ACTION\" >&2; exit 2 ;;\nesac\ntmp=\"$f.nebula-new\"\n{\n  printf '%s\\n' \"$rest\"\n  if [ -n \"$lines\" ]; then printf '%s\\n%s\\n%s\\n' \"$B\" \"$lines\" \"$E\"; fi\n} > \"$tmp\"\nmv \"$tmp\" \"$f\"\n"]
+env: ["NC_HBA_ACTION=add" "NC_HBA_LINE=host replication nebula_r_0a1b2c3d samenet scram-sha-256"]
+user: "postgres"
+stdin:

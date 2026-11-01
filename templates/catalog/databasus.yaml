@@ -1,0 +1,48 @@
+schema: 1
+id: databasus
+revision: 1
+name: Databasus
+summary: Self-hosted scheduled backups for PostgreSQL, MySQL, MariaDB and MongoDB with S3, local and cloud storage targets.
+description: Databasus connects to your databases, takes scheduled backups, stores them on S3-compatible or other storage and notifies you about failures. It runs as one container with an embedded Postgres for its own settings.
+category: storage
+tags: [backup, postgres, mysql, mongodb, s3, database]
+icon: databasus
+links:
+  website: https://databasus.com
+  docs: https://databasus.com/installation
+  source: https://github.com/databasus/databasus
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/databasus/databasus/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/databasus.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+services:
+  - key: databasus
+    name: Databasus
+    kind: app
+    image: ghcr.io/databasus/databasus:v3.64.0
+    digest: sha256:a4bbf8b285c54f76c61a997d604cb22d7f53a01fe72b644a8abdb9b5b4cc82a5
+    port: 4005
+    healthcheck:
+      type: http
+      path: /api/v1/system/version
+      startPeriodSeconds: 60
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    volumes:
+      - name: databasus-data
+        path: /databasus-data
+    resources:
+      memoryMb: 512
+group: Databasus
+notes:
+  - "Open the domain and create the first user account; the first sign-up becomes the administrator."
+  - "Backups are stored on the databasus-data volume unless you add an S3 or other remote storage target in the app. Back up that volume as well as the targets."

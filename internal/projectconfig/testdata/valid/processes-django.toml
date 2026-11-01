@@ -1,0 +1,27 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+server = "fra-1"
+
+[services.portal]
+port    = 8000
+command = ["gunicorn", "config.wsgi", "--bind", "0.0.0.0:8000"]
+
+[services.portal.git]
+url    = "https://github.com/acme/portal.git"
+branch = "main"
+
+[services.portal.pre_deploy]
+command = ["python", "manage.py", "migrate", "--noinput"]
+
+[services.portal.domains."portal.acme.com"]
+
+[services.portal.processes.worker]
+command            = ["celery", "-A", "config", "worker", "--loglevel=info"]
+stop_grace_seconds = 60
+
+[services.portal.processes.worker.scale]
+replicas = 2
+
+[services.portal.processes.beat]
+command   = ["celery", "-A", "config", "beat", "--loglevel=info"]
+singleton = true

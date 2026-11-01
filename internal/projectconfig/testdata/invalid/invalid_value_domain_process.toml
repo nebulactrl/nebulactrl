@@ -1,0 +1,14 @@
+# expect: invalid_value
+# A domain routes to a process of its service that has a port.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.processes.worker]
+command = ["run", "worker"]
+
+[services.web.domains."shop.acme.com"]
+process = "worker"

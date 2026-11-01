@@ -1,0 +1,10 @@
+# expect: license_not_accepted
+# Redis is source-available software: accept_license = true acknowledges it.
+# Valkey is the permissive alternative.
+schema = 1
+server = "fra-1"
+
+[services.cache]
+
+[services.cache.database]
+engine = "redis"

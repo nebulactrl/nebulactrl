@@ -1,0 +1,68 @@
+schema: 1
+id: kener
+revision: 1
+name: Kener
+summary: Status page and uptime monitoring system with incidents, maintenance windows and notifications.
+description: Kener monitors websites, APIs and services and publishes a public status page. This template runs the official image with a managed Postgres database and a managed Redis for its job queue.
+category: analytics
+tags: [status-page, monitoring, uptime, incidents, alerting]
+links:
+  website: https://kener.ing
+  docs: https://kener.ing/docs
+  source: https://github.com/rajnandan1/kener
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/rajnandan1/kener/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/kener
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 2
+services:
+  - key: kener
+    name: Kener
+    kind: app
+    image: rajnandan1/kener:4.1.10
+    digest: sha256:d0c2c9493cc5e435c0fa9cadc4c76c9e24a5648f15a00ed78b4ad727ceacfc2e
+    port: 3000
+    healthcheck:
+      type: http
+      path: /healthcheck
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db, redis]
+    domains:
+      - generate: true
+    env:
+      KENER_SECRET_KEY: ${{secret(48)}}
+      ORIGIN: ${{NEBULA_PUBLIC_URL}}
+      REDIS_URL: ${{redis.REDIS_URL}}
+      DATABASE_URL: postgresql://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      TZ: UTC
+    secrets: [DATABASE_URL]
+    volumes:
+      - name: data
+        path: /app/database
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Kener DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: kener
+  - key: redis
+    name: Kener Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+group: Kener
+notes:
+  - "Open /account/signin on the service's domain: the first visit asks you to create the admin account, so do this right after deploying. Then add monitors under Manage."
+  - "ORIGIN is set to the generated domain. If you attach a custom domain, update ORIGIN to match and redeploy, otherwise logins fail with a cross-site POST error."

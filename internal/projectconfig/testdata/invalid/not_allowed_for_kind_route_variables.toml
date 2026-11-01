@@ -1,0 +1,14 @@
+# expect: not_allowed_for_kind
+# schema: reject
+# A route has no container, so it has no variables.
+schema = 1
+server = "fra-1"
+
+[services.printer]
+
+[services.printer.route]
+protocol = "http"
+upstreams = [{ address = "192.168.1.20:631" }]
+
+[services.printer.variables]
+MODE = "office"

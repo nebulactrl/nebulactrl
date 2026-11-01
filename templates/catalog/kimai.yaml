@@ -1,0 +1,74 @@
+schema: 1
+id: kimai
+revision: 1
+name: Kimai
+summary: Open-source time tracking for teams and freelancers, with projects, customers, timesheets, invoices and reports.
+description: Kimai tracks working time against customers, projects and activities, and produces reports and invoices from the timesheets. This template runs the Apache image with a managed MySQL database.
+category: productivity
+tags: [time-tracking, timesheet, invoicing, business]
+icon: kimai
+links:
+  website: https://www.kimai.org
+  docs: https://www.kimai.org/documentation/
+  source: https://github.com/kimai/kimai
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/kimai/kimai/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/kimai.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true, default: admin@example.com}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+  - {key: MAILER_FROM, label: Sender address for outgoing mail, default: kimai@example.com}
+  - {key: MAILER_URL, label: "Mailer DSN (null://null disables mail, e.g. smtp://user:pass@host:587)", secret: true, default: "null://null"}
+services:
+  - key: kimai
+    name: Kimai
+    kind: app
+    image: kimai/kimai2:2.71.0
+    digest: sha256:19b34043e7631b122c5e5aca27c3f3caa0bb37d2bce1478342c666bcdfe84f48
+    port: 8001
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      APP_ENV: prod
+      APP_SECRET: ${{secret(48)}}
+      DATABASE_URL: ${{db.DATABASE_URL}}?charset=utf8mb4&serverVersion=8.4.0
+      ADMINMAIL: ${input:ADMIN_EMAIL}
+      ADMINPASS: ${input:ADMIN_PASSWORD}
+      MAILER_FROM: ${input:MAILER_FROM}
+      MAILER_URL: ${input:MAILER_URL}
+      TRUSTED_HOSTS: ^${{NEBULA_PUBLIC_DOMAIN}}$
+      TRUSTED_PROXIES: 127.0.0.1,PRIVATE_SUBNETS
+    secrets: [MAILER_URL, ADMINPASS]
+    volumes:
+      - name: data
+        path: /opt/kimai/var/data
+      - name: plugins
+        path: /opt/kimai/var/plugins
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Kimai DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: kimai
+group: Kimai
+notes:
+  - "Sign in as the user admin (the account's email is the one from the install form) with the admin password from the install form."
+  - "Kimai only answers for the generated domain. If you attach a custom domain, update TRUSTED_HOSTS to match and redeploy."
+  - "Set the mailer DSN (MAILER_URL) to an SMTP server to enable password resets and notifications."

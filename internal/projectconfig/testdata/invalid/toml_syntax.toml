@@ -1,0 +1,8 @@
+# expect: toml_syntax
+# The table header on the next line is never closed.
+schema = 1
+server = "fra-1"
+
+[services.web
+image = "nginx:1.27"
+port = 80

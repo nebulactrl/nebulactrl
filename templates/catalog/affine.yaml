@@ -1,0 +1,85 @@
+schema: 1
+id: affine
+revision: 1
+name: AFFiNE
+summary: Self-hosted workspace that combines docs, whiteboards and databases, as an alternative to Notion and Miro.
+description: AFFiNE is a local-first knowledge base with docs, whiteboards and tables. This template runs the AFFiNE server (it applies database migrations on every start) with a pgvector Postgres and a managed Redis.
+category: productivity
+tags: [notes, wiki, whiteboard, notion-alternative, workspace]
+icon: affine
+links:
+  website: https://affine.pro
+  docs: https://docs.affine.pro/docs/self-host-affine
+  source: https://github.com/toeverything/AFFiNE
+upstream:
+  license: MIT (client), AFFiNE Enterprise License (server)
+  licenseUrl: https://github.com/toeverything/AFFiNE/blob/canary/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/affine.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+services:
+  - key: affine
+    name: AFFiNE
+    kind: app
+    image: ghcr.io/toeverything/affine:0.27.4
+    digest: sha256:b649f5ce2384ffdf13c23bccf81d759e15973d59d0b0058af65d895a84373099
+    command: [sh, -c, "node ./scripts/self-host-predeploy.js && exec node ./dist/main.js"]
+    port: 3010
+    healthcheck:
+      type: http
+      path: /info
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn: [db, redis]
+    domains:
+      - generate: true
+    env:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:${{db.POSTGRES_PASSWORD}}@${{db.NEBULA_PRIVATE_HOST}}:5432/affine
+      REDIS_SERVER_HOST: ${{redis.REDIS_HOST}}
+      REDIS_SERVER_PORT: ${{redis.REDIS_PORT}}
+      REDIS_SERVER_PASSWORD: ${{redis.REDIS_PASSWORD}}
+      AFFINE_INDEXER_ENABLED: "false"
+      AFFINE_SERVER_HTTPS: "true"
+      AFFINE_SERVER_HOST: ${{NEBULA_PUBLIC_DOMAIN}}
+      AFFINE_SERVER_EXTERNAL_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - {name: config, path: /root/.affine/config}
+      - {name: storage, path: /root/.affine/storage}
+    resources:
+      memoryMb: 1536
+  - key: redis
+    name: AFFiNE Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+  - key: db
+    name: AFFiNE DB
+    kind: database
+    image: pgvector/pgvector:0.8.2-pg16
+    digest: sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d affine"]
+      startPeriodSeconds: 20
+      deadlineSeconds: 300
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: affine
+      POSTGRES_PASSWORD: ${{secret(32)}}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 512
+group: AFFiNE
+notes:
+  - "Open the site and create the first account on the setup screen; it becomes the server administrator."
+  - "The admin panel is at /admin. Configure a mailer there if you want email invitations."

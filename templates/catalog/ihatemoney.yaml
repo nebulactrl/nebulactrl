@@ -1,0 +1,53 @@
+schema: 1
+id: ihatemoney
+revision: 1
+name: I Hate Money
+summary: Shared budget manager for groups that tracks who paid what and who owes whom, without user accounts.
+description: I Hate Money lets friends, flatmates or travellers share expenses in a project protected by its own password and settle up. This template runs the app with its SQLite database on a persistent volume.
+category: productivity
+tags: [budget, expenses, splitting, finance, groups]
+links:
+  website: https://ihatemoney.org
+  docs: https://ihatemoney.readthedocs.io
+  source: https://github.com/spiral-project/ihatemoney
+upstream:
+  license: BSD-3-Clause (with a beer clause)
+  licenseUrl: https://github.com/spiral-project/ihatemoney/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/ihatemoney
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: ihatemoney
+    name: I Hate Money
+    kind: app
+    image: ihatemoney/ihatemoney:7.2.1
+    digest: sha256:009d1520552782765c8c41750262cc69410be7ac616f93a9f371556e472f23c6
+    port: 8000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      SECRET_KEY: ${{secret(64)}}
+      SQLALCHEMY_DATABASE_URI: sqlite:////database/ihatemoney.db
+      SESSION_COOKIE_SECURE: "True"
+      ACTIVATE_DEMO_PROJECT: "False"
+      ALLOW_PUBLIC_PROJECT_CREATION: "True"
+      BABEL_DEFAULT_TIMEZONE: UTC
+    volumes:
+      - {name: database, path: /database}
+    resources:
+      memoryMb: 256
+group: I Hate Money
+notes:
+  - "Open the site and create a project (name, password, contact email); share the project link and password with the group. There is no global admin login."
+  - "Anyone who can reach the site can create projects. Outgoing email (invitations, password recovery) stays off until you set the MAIL_* variables."

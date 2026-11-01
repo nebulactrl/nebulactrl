@@ -1,0 +1,66 @@
+schema: 1
+id: coralproject
+revision: 1
+name: Coral
+summary: Open-source commenting platform with moderation tools, user management and optional SSO for news and community sites.
+description: Coral is a comment system you embed on your own site, with moderation queues, spam and toxicity filters and full data ownership. This template runs Coral with a managed MongoDB and a managed Valkey (Redis-compatible) cache.
+category: web
+tags: [comments, moderation, community, publishing]
+links:
+  website: https://coralproject.net
+  docs: https://docs.coralproject.net
+  source: https://github.com/coralproject/talk
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/coralproject/talk/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/coralproject
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 2
+services:
+  - key: coral
+    name: Coral
+    kind: app
+    image: coralproject/talk:9.11.8
+    digest: sha256:04b1e604b4f88078ca24e0dadf7bca9b9389f6533d7f864f8b9e7d325f0238cb
+    port: 5000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn:
+      - mongo
+      - cache
+    domains:
+      - generate: true
+    env:
+      NODE_ENV: production
+      MONGODB_URI: ${{mongo.MONGO_URL}}
+      REDIS_URI: ${{cache.REDIS_URL}}
+      SIGNING_SECRET: ${{secret(48)}}
+      TRUST_PROXY: "1"
+    resources:
+      memoryMb: 768
+  - key: mongo
+    name: Coral MongoDB
+    kind: database
+    database:
+      engine: mongodb
+      version: "8.0"
+      databaseName: coral
+  - key: cache
+    name: Coral Cache
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Coral
+notes:
+  - "Open the site and complete the install wizard to create the administrator account; the admin area is at /admin."
+  - "Add your website's address under Configure > Advanced > Permitted Domains, then paste the Embed Code from the same page into your pages."

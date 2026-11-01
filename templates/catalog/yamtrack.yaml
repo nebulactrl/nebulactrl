@@ -1,0 +1,62 @@
+schema: 1
+id: yamtrack
+revision: 1
+name: Yamtrack
+summary: Media tracker for movies, TV shows, anime, manga, games, books and comics with calendars and statistics.
+description: Yamtrack is a self-hosted tracker for everything you watch, read and play, with progress, ratings and import from other services. This template runs the app with its SQLite database on a persistent volume and a managed Valkey (Redis-compatible) instance.
+category: media
+tags: [tracker, movies, tv, anime, games, books]
+links:
+  website: https://github.com/FuzzyGrim/Yamtrack
+  docs: https://github.com/FuzzyGrim/Yamtrack/wiki
+  source: https://github.com/FuzzyGrim/Yamtrack
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/FuzzyGrim/Yamtrack/blob/dev/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/yamtrack.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 768
+  diskGb: 2
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name, for example Europe/Berlin)", default: UTC}
+services:
+  - key: yamtrack
+    name: Yamtrack
+    kind: app
+    image: ghcr.io/fuzzygrim/yamtrack:0.26.3
+    digest: sha256:78497b454b2b52d3b1062f6fd238351d714cff0895db4369e49ace36f4622e75
+    port: 8000
+    healthcheck:
+      type: http
+      path: /health/
+      startPeriodSeconds: 40
+      deadlineSeconds: 300
+    dependsOn:
+      - cache
+    domains:
+      - generate: true
+    env:
+      SECRET: ${{secret(50)}}
+      URLS: ${{NEBULA_PUBLIC_URL}}
+      REDIS_URL: ${{cache.REDIS_URL}}
+      TZ: ${input:TIMEZONE}
+    volumes:
+      - name: data
+        path: /yamtrack/db
+    resources:
+      memoryMb: 512
+  - key: cache
+    name: Yamtrack Cache
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Yamtrack
+notes:
+  - "Open the site and register the first account. Registration stays open: set REGISTRATION to false on the service once your accounts exist."
+  - "Metadata providers work with the project's shared keys; for heavy use set your own keys (TMDB_API, IGDB_ID and IGDB_SECRET, and others) as described in the Yamtrack wiki."

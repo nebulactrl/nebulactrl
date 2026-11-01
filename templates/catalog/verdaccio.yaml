@@ -1,0 +1,95 @@
+schema: 1
+id: verdaccio
+revision: 1
+name: Verdaccio
+summary: Lightweight private npm registry that proxies and caches the public registry and hosts your own packages.
+description: Verdaccio is a self-hosted npm-compatible registry with a web UI. This template runs the official image with storage on a volume, an npmjs uplink and a config that allows exactly one registered user, who can publish.
+category: devtools
+tags: [npm, registry, packages, nodejs, proxy]
+icon: verdaccio
+links:
+  website: https://verdaccio.org
+  docs: https://verdaccio.org/docs/what-is-verdaccio
+  source: https://github.com/verdaccio/verdaccio
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/verdaccio/verdaccio/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/verdaccio
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 5
+services:
+  - key: verdaccio
+    name: Verdaccio
+    kind: app
+    image: verdaccio/verdaccio:6.11.1
+    digest: sha256:82f4decaf1c9eff885bf7a1227335f78581ff715288d5f38898e67e28b3bfbdd
+    port: 4873
+    healthcheck:
+      type: http
+      path: /-/ping
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      VERDACCIO_PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: storage
+        path: /verdaccio/storage
+    files:
+      - path: /verdaccio/conf/config.yaml
+        content: |
+          storage: /verdaccio/storage/data
+          plugins: /verdaccio/plugins
+
+          web:
+            title: Verdaccio
+
+          auth:
+            htpasswd:
+              file: /verdaccio/storage/htpasswd
+              max_users: 1
+
+          uplinks:
+            npmjs:
+              url: https://registry.npmjs.org/
+
+          packages:
+            '@*/*':
+              access: $all
+              publish: $authenticated
+              unpublish: $authenticated
+              proxy: npmjs
+
+            '**':
+              access: $all
+              publish: $authenticated
+              unpublish: $authenticated
+              proxy: npmjs
+
+          server:
+            keepAliveTimeout: 60
+
+          middlewares:
+            audit:
+              enabled: true
+
+          log:
+            type: stdout
+            format: pretty
+            level: http
+
+          i18n:
+            web: en-US
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Verdaccio
+notes:
+  - "Create the one allowed account right after deploying: npm adduser --registry <public URL>. Whoever registers first owns the registry, and registration then closes."
+  - "Anyone can read and install packages (access: $all); only the registered user can publish. Edit /verdaccio/conf/config.yaml to change access rules or add more users."

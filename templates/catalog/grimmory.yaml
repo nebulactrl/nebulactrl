@@ -1,0 +1,66 @@
+schema: 1
+id: grimmory
+revision: 1
+name: Grimmory
+summary: Self-hosted digital library for ebooks and comics with a web reader, smart shelves, OPDS and Kobo/KOReader sync.
+description: Grimmory (the successor of Booklore) organises books, fetches metadata and lets multiple users read, annotate and sync them. This template runs the official image with a managed MariaDB database and volumes for app data, the library and the BookDrop import folder.
+category: media
+tags: [books, ebooks, library, reader, opds]
+links:
+  website: https://grimmory.org
+  docs: https://grimmory.org/docs/getting-started
+  source: https://github.com/grimmory-tools/grimmory
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/grimmory-tools/grimmory/blob/develop/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/grimmory.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - {key: TZ, label: Timezone (IANA name), default: UTC}
+services:
+  - key: grimmory
+    name: Grimmory
+    kind: app
+    image: grimmory/grimmory:v3.5.0
+    digest: sha256:bf6fe21c6e247597f7869664a440b5a34242e2d2940575cae39c17bfaa66dc0b
+    port: 6060
+    healthcheck:
+      type: http
+      path: /api/v1/healthcheck
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [mariadb]
+    env:
+      DATABASE_URL: jdbc:mariadb://${{mariadb.DATABASE_HOST}}:${{mariadb.DATABASE_PORT}}/${{mariadb.DATABASE_NAME}}
+      DATABASE_USERNAME: ${{mariadb.DATABASE_USER}}
+      DATABASE_PASSWORD: ${{mariadb.DATABASE_PASSWORD}}
+      TZ: ${input:TZ}
+    volumes:
+      - name: data
+        path: /app/data
+      - name: books
+        path: /books
+      - name: bookdrop
+        path: /bookdrop
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+  - key: mariadb
+    name: Grimmory DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: grimmory
+group: Grimmory
+notes:
+  - "Open the app and create the admin account on first visit; libraries must point at directories under /books (the books volume)."
+  - "Drop files into /bookdrop (the bookdrop volume) to import them through the BookDrop review queue."

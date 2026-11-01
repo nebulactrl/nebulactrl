@@ -1,0 +1,17 @@
+# expect: replicas_require_stateless
+# Volumes are shared by every process and are not shared between replicas.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.volumes]
+uploads = "/app/uploads"
+
+[services.web.processes.worker]
+command = ["run", "worker"]
+
+[services.web.processes.worker.scale]
+replicas = 2

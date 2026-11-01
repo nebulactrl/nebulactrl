@@ -1,0 +1,61 @@
+schema: 1
+id: opencloud
+revision: 1
+name: OpenCloud
+summary: Open source file sync, sharing and collaboration platform with WebDAV and desktop and mobile clients.
+description: OpenCloud (a Go fork of ownCloud Infinite Scale) stores files in spaces and shares them with users and groups, with a web UI, WebDAV, sync clients and an embedded identity provider. This template runs the single-binary server from the project's stable image line, with its configuration and data on persistent volumes.
+category: storage
+tags: [files, sync, cloud, webdav, collaboration]
+links:
+  website: https://opencloud.eu
+  docs: https://docs.opencloud.eu
+  source: https://github.com/opencloud-eu/opencloud
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/opencloud-eu/opencloud/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/opencloud
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: opencloud
+    name: OpenCloud
+    kind: app
+    image: opencloudeu/opencloud:7.2.4
+    digest: sha256:6d992ccc5f1cbc7b2a9b272ba25f879b1b159c2d7ed7f5527e09059f16295697
+    port: 9200
+    command: [-c, "opencloud init || true; opencloud server"]
+    healthcheck:
+      type: http
+      path: /status.php
+      startPeriodSeconds: 45
+      deadlineSeconds: 240
+    env:
+      OC_URL: ${{NEBULA_PUBLIC_URL}}
+      INITIAL_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      IDM_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      PROXY_HTTP_ADDR: 0.0.0.0:9200
+      PROXY_TLS: "false"
+      OC_INSECURE: "false"
+      OC_LOG_LEVEL: info
+    volumes:
+      - {name: config, path: /etc/opencloud}
+      - {name: data, path: /var/lib/opencloud}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+    docker:
+      entrypoint: [/bin/sh]
+group: OpenCloud
+notes:
+  - "Sign in on the generated domain as `admin` with the password from the install form (generated if left empty; read it from the service variables). The initial admin password is only applied on the first start: change it later from the OpenCloud UI, not here."
+  - "The service runs `opencloud init` before every start (it is a no-op once the configuration exists on the config volume), so keep the config and data volumes together when backing up or migrating."
+  - "OpenCloud derives its public address from the generated domain (`OC_URL`); if you attach a custom domain, set OC_URL to it, or clients and the built-in login will keep redirecting to the old one."

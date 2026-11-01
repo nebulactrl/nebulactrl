@@ -1,0 +1,105 @@
+NebulaCtrl
+Copyright (c) NebulaCtrl contributors
+
+NebulaCtrl is licensed under the GNU Affero General Public License, version 3
+only (AGPL-3.0-only). See LICENSE.
+
+This file reproduces the notices that third-party components require to be kept
+in distributions of NebulaCtrl. The full licence inventory and the scan method
+are in docs/security/third-party-licences.md. Attributions for the one-click
+templates are in templates/NOTICE.
+
+
+Apache-2.0 components with NOTICE files (compiled into the binaries)
+--------------------------------------------------------------------
+
+github.com/aws/aws-sdk-go-v2 (https://github.com/aws/aws-sdk-go-v2)
+
+    AWS SDK for Go
+    Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.
+    Copyright 2014-2015 Stripe, Inc.
+
+github.com/aws/smithy-go (https://github.com/aws/smithy-go)
+
+    Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+
+github.com/coreos/go-oidc/v3 (https://github.com/coreos/go-oidc)
+
+    CoreOS Project
+    Copyright 2014 CoreOS, Inc
+
+    This product includes software developed at CoreOS, Inc.
+    (http://www.coreos.com/).
+
+github.com/skeema/knownhosts (https://github.com/skeema/knownhosts)
+
+    Copyright 2025 Skeema LLC and the Skeema Knownhosts authors
+
+go.yaml.in/yaml/v3 (https://github.com/yaml/go-yaml)
+
+    Copyright 2011-2016 Canonical Ltd.
+
+Each of these is licensed under the Apache License, Version 2.0
+(http://www.apache.org/licenses/LICENSE-2.0).
+
+
+Adapted MIT-licensed web code
+-----------------------------
+
+lucide-animated (https://github.com/pqoqubbw/icons)
+    Copyright (c) 2024-2026 pqoqubbw. MIT. Icon components adapted in
+    apps/web/src/components/icons/animated/ (licence text in that directory's
+    LICENSE).
+
+beUI (https://beui.dev)
+    Copyright (c) 2026 Saurabh Chauhan. MIT. Components adapted in
+    apps/web/src/components/motion/ and apps/site/src/components/beui/ (with
+    their helpers in apps/site/src/lib/ease.ts and use-hover-capable.ts). Each
+    adapted file keeps its beui.dev header and the copyright line.
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
+dithercn (https://github.com/opencoredev/dithercn)
+    Preset recipes and algorithm shapes adapted in
+    packages/dither/src/components/images/look.ts and algorithms.ts (the two
+    files carry this notice in their headers). The rest of packages/dither is
+    written from dithercn's public documentation; no dithercn code is installed.
+
+    MIT License
+
+    Copyright (c) 2026 Leo
+    Copyright (c) 2026 Shadcn Labs (startercn, which this project is based on)
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.

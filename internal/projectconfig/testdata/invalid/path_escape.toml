@@ -1,0 +1,16 @@
+# expect: path_escape
+# Paths are relative to the repository and never leave it.
+schema = 1
+server = "fra-1"
+
+[services.web]
+
+[services.web.git]
+connection = "github-acme"
+repo = "acme/shop"
+branch = "main"
+
+[services.web.build]
+type = "dockerfile"
+dockerfile = "../shared/Dockerfile"
+context = "."

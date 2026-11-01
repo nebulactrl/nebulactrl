@@ -1,0 +1,137 @@
+schema: 1
+id: chatwoot
+revision: 1
+name: Chatwoot
+summary: Open-source customer support desk with live chat, email and social channels, an alternative to Intercom and Zendesk.
+description: Chatwoot is an omnichannel support inbox (website live chat, email, WhatsApp, social channels) with automation, reports and a help center. This template runs one Chatwoot container that serves the Rails app and its Sidekiq worker together (they must share the local file storage, which separate services cannot), with a pgvector Postgres and a managed Redis.
+category: productivity
+tags: [chat, helpdesk, customer-support, live-chat, crm, rails]
+icon: chatwoot
+links:
+  website: https://www.chatwoot.com
+  docs: https://www.chatwoot.com/docs/self-hosted/
+  source: https://github.com/chatwoot/chatwoot
+upstream:
+  license: MIT (core) with proprietary enterprise/ directory
+  licenseUrl: https://github.com/chatwoot/chatwoot/blob/develop/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/chatwoot.yaml
+  commit: 69bc72a
+  license: Apache-2.0
+requires:
+  memoryMb: 2560
+  diskGb: 10
+inputs:
+  - {key: MAILER_SENDER_EMAIL, label: Sender address for outgoing mail, format: email}
+  - {key: SMTP_ADDRESS, label: SMTP host (leave empty to configure mail later)}
+  - {key: SMTP_PORT, label: SMTP port, format: number, default: "587"}
+  - {key: SMTP_USERNAME, label: SMTP username}
+  - {key: SMTP_PASSWORD, label: SMTP password, secret: true}
+  - {key: SMTP_DOMAIN, label: SMTP HELO domain}
+  - key: SMTP_AUTHENTICATION
+    label: SMTP authentication
+    default: login
+    options: [login, plain, cram_md5]
+  - key: SMTP_ENABLE_STARTTLS_AUTO
+    label: SMTP STARTTLS
+    default: "true"
+    options: ["true", "false"]
+  - key: ENABLE_ACCOUNT_SIGNUP
+    label: Allow anyone to sign up for a new account
+    default: "false"
+    options: ["true", "false"]
+services:
+  - key: chatwoot
+    name: Chatwoot
+    kind: app
+    image: chatwoot/chatwoot:v4.19.1
+    digest: sha256:a0d571a3a2f78f4fa4b1d7c21a53309c0184068d6021b3664ab37788faef04c1
+    port: 3000
+    command: [sh, /opt/nebula/start.sh]
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, 'wget --spider -q http://127.0.0.1:3000/api && kill -0 "$(cat /tmp/sidekiq.pid)"']
+      intervalSeconds: 15
+      timeoutSeconds: 20
+      startPeriodSeconds: 120
+      deadlineSeconds: 900
+    env:
+      ACTIVE_STORAGE_SERVICE: local
+      DEFAULT_LOCALE: en
+      ENABLE_ACCOUNT_SIGNUP: ${input:ENABLE_ACCOUNT_SIGNUP}
+      FORCE_SSL: "false"
+      FRONTEND_URL: ${{NEBULA_PUBLIC_URL}}
+      INSTALLATION_ENV: docker
+      MAILER_SENDER_EMAIL: ${input:MAILER_SENDER_EMAIL}
+      NODE_ENV: production
+      POSTGRES_DATABASE: chatwoot
+      POSTGRES_HOST: ${{db.NEBULA_PRIVATE_HOST}}
+      POSTGRES_PASSWORD: ${{db.POSTGRES_PASSWORD}}
+      POSTGRES_PORT: "5432"
+      POSTGRES_USERNAME: postgres
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      RAILS_MAX_THREADS: "5"
+      REDIS_URL: ${{redis.REDIS_URL}}
+      SECRET_KEY_BASE: ${{secret(64)}}
+      SMTP_ADDRESS: ${input:SMTP_ADDRESS}
+      SMTP_AUTHENTICATION: ${input:SMTP_AUTHENTICATION}
+      SMTP_DOMAIN: ${input:SMTP_DOMAIN}
+      SMTP_ENABLE_STARTTLS_AUTO: ${input:SMTP_ENABLE_STARTTLS_AUTO}
+      SMTP_PASSWORD: ${input:SMTP_PASSWORD}
+      SMTP_PORT: ${input:SMTP_PORT}
+      SMTP_USERNAME: ${input:SMTP_USERNAME}
+    volumes:
+      - name: storage
+        path: /app/storage
+    files:
+      - path: /opt/nebula/start.sh
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          set -e
+          bundle exec rails db:chatwoot_prepare
+          bundle exec sidekiq -C config/sidekiq.yml &
+          echo $! > /tmp/sidekiq.pid
+          exec bundle exec rails s -p 3000 -b 0.0.0.0
+    domains:
+      - generate: true
+    dependsOn: [db, redis]
+    resources:
+      memoryMb: 2048
+    docker:
+      entrypoint: [docker/entrypoints/rails.sh]
+  - key: db
+    name: Chatwoot Postgres
+    kind: database
+    image: pgvector/pgvector:0.8.2-pg16
+    digest: sha256:00ba258a66dac104fd5171074a0084462a64a1369d8513f3d0a634e2f24d15bc
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d chatwoot -h 127.0.0.1"]
+      startPeriodSeconds: 20
+      deadlineSeconds: 300
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: chatwoot
+      POSTGRES_PASSWORD: ${{secret(32)}}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 512
+  - key: redis
+    name: Chatwoot Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+group: Chatwoot
+notes:
+  - "First start runs the database setup and can take a few minutes. Then open the domain: the first-run page asks you to create the super admin and the first account."
+  - "Account sign-up is off by default; the super admin console is at /super_admin."
+  - "Outgoing mail needs the SMTP inputs (or set them later on the service); without them invitations and email notifications are not delivered."
+  - "The web app and the Sidekiq background worker run inside one container because Chatwoot's local file storage (/app/storage) must be shared between them and template services cannot share volumes. The health check also fails if Sidekiq has died."
+  - "The licence is MIT for the core; the enterprise/ directory shipped in the image is under Chatwoot's Enterprise License (production use needs their subscription terms) and its features stay locked without a plan."

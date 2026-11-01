@@ -1,0 +1,51 @@
+schema: 1
+id: triliumnext
+revision: 1
+name: TriliumNext Notes
+summary: Hierarchical note-taking app for building a large personal knowledge base, with scripting and sync.
+description: TriliumNext (the community continuation of Trilium Notes) stores notes in a tree with rich text, Markdown, code, relations and scripting, and can sync with desktop clients. This template runs the official image with its data directory on a persistent volume.
+category: productivity
+tags: [notes, knowledge-base, markdown, wiki, personal]
+icon: trilium
+links:
+  website: https://triliumnotes.org
+  docs: https://docs.triliumnotes.org
+  source: https://github.com/TriliumNext/Trilium
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/TriliumNext/Trilium/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/triliumnext.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: TZ, label: Timezone (IANA name), default: UTC}
+services:
+  - key: trilium
+    name: TriliumNext
+    kind: app
+    image: ghcr.io/triliumnext/trilium:v0.106.1
+    digest: sha256:d87d810fdcb549db65710a40933acaa16bc75c9426a9164c547f7ba95592941b
+    port: 8080
+    healthcheck:
+      type: http
+      path: /api/health-check
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    env:
+      TZ: ${input:TZ}
+    volumes:
+      - name: data
+        path: /home/node/trilium-data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: TriliumNext
+notes:
+  - "Open the site and set the password on first visit; there is no default login."

@@ -1,0 +1,98 @@
+[
+  {
+    "serviceId": "<idA>",
+    "hosts": [
+      "app.example.com",
+      "www.example.com"
+    ],
+    "upstreams": [
+      "nc-web-<dep>-0:80"
+    ],
+    "healthPath": "/",
+    "networks": [
+      "nebulactrl-env-<envNet>"
+    ],
+    "domains": [
+      {
+        "id": "<idB>",
+        "host": "app.example.com",
+        "kind": "serve",
+        "tlsMode": "auto",
+        "options": {
+          "compress": true,
+          "securityHeaders": "basic"
+        }
+      },
+      {
+        "id": "<idC>",
+        "host": "www.example.com",
+        "kind": "redirect",
+        "redirectTo": "app.example.com",
+        "redirectCode": 301,
+        "preservePath": true,
+        "tlsMode": "auto",
+        "options": {}
+      },
+      {
+        "id": "<idD>",
+        "host": "app.example.com",
+        "pathPrefix": "/api",
+        "stripPrefix": true,
+        "addPrefix": "/v1",
+        "kind": "serve",
+        "tlsMode": "auto",
+        "options": {}
+      }
+    ]
+  },
+  {
+    "serviceId": "<idE>",
+    "hosts": [
+      "nas.example.com"
+    ],
+    "upstreams": [
+      "192.168.1.20:8443"
+    ],
+    "healthPath": "/health",
+    "kind": "external",
+    "scheme": "https",
+    "transport": {
+      "insecureSkipVerify": true
+    },
+    "domains": [
+      {
+        "id": "<idF>",
+        "host": "nas.example.com",
+        "kind": "serve",
+        "tlsMode": "auto",
+        "options": {}
+      }
+    ]
+  },
+  {
+    "serviceId": "<idG>",
+    "hosts": [],
+    "upstreams": [
+      "nc-web-<dep>-0:5432"
+    ],
+    "networks": [
+      "nebulactrl-env-<envNet>"
+    ],
+    "protocol": "tcp",
+    "listenPort": 25432,
+    "allowCidrs": [
+      "203.0.113.0/24"
+    ],
+    "proxyProtocol": 2
+  },
+  {
+    "serviceId": "<idH>",
+    "hosts": [],
+    "upstreams": [
+      "10.0.0.5:53"
+    ],
+    "protocol": "udp",
+    "kind": "external",
+    "listenPort": 5353
+  }
+]

@@ -1,0 +1,194 @@
+schema: 1
+id: langfuse
+revision: 1
+name: Langfuse
+summary: "Open-source LLM engineering platform: tracing, prompt management, evaluation and metrics for LLM applications."
+description: Langfuse collects traces from LLM applications and agents (OpenTelemetry, Python and JS SDKs, LangChain, LlamaIndex, LiteLLM and more), and adds prompt management, datasets, evaluations and cost and latency analytics. This template runs the web app and the background worker with a managed Postgres, a managed ClickHouse for analytics, a managed Redis queue and a private Garage S3 store for raw events. Sign-up is closed and the first admin user is created from the install form.
+category: ai
+tags: [llm, observability, tracing, llmops, prompts, evaluation]
+icon: langfuse
+links:
+  website: https://langfuse.com
+  docs: https://langfuse.com/self-hosting
+  source: https://github.com/langfuse/langfuse
+upstream:
+  license: MIT (core); ee/ directories under the Langfuse Enterprise licence
+  licenseUrl: https://github.com/langfuse/langfuse/blob/main/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/langfuse
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 5120
+  diskGb: 10
+inputs:
+  - {key: ADMIN_EMAIL, label: Admin email, format: email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+  - {key: ORG_NAME, label: Organization name, default: My Org}
+  - {key: PROJECT_NAME, label: First project name, default: My Project}
+services:
+  - key: web
+    name: Langfuse
+    kind: app
+    image: langfuse/langfuse:4.71.0
+    digest: sha256:480b07885c0dc2ad8f542826d66986050ce58c630a1a7830eea15c373ffce5bd
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/public/health
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    domains:
+      - generate: true
+    dependsOn: [db, clickhouse, redis, s3]
+    env:
+      HOSTNAME: 0.0.0.0
+      NEXTAUTH_URL: ${{NEBULA_PUBLIC_URL}}
+      NEXTAUTH_SECRET: ${{secret(32)}}
+      SALT: ${{secret(32)}}
+      ENCRYPTION_KEY: ${{randomBytes(32,"hex")}}
+      DATABASE_URL: postgresql://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://${{clickhouse.DATABASE_HOST}}:${{clickhouse.DATABASE_PORT}}
+      CLICKHOUSE_URL: http://${{clickhouse.DATABASE_HOST}}:8123
+      CLICKHOUSE_USER: ${{clickhouse.DATABASE_USER}}
+      CLICKHOUSE_PASSWORD: ${{clickhouse.DATABASE_PASSWORD}}
+      CLICKHOUSE_DB: ${{clickhouse.DATABASE_NAME}}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${{s3.GARAGE_DEFAULT_BUCKET}}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: garage
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${{s3.GARAGE_DEFAULT_ACCESS_KEY}}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${{s3.GARAGE_DEFAULT_SECRET_KEY}}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://${{s3.NEBULA_PRIVATE_HOST}}:3900
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+      REDIS_HOST: ${{redis.REDIS_HOST}}
+      REDIS_PORT: ${{redis.REDIS_PORT}}
+      REDIS_AUTH: ${{redis.REDIS_PASSWORD}}
+      REDIS_TLS_ENABLED: "false"
+      AUTH_DISABLE_SIGNUP: "true"
+      LANGFUSE_INIT_ORG_ID: my-org
+      LANGFUSE_INIT_ORG_NAME: ${input:ORG_NAME}
+      LANGFUSE_INIT_PROJECT_ID: my-project
+      LANGFUSE_INIT_PROJECT_NAME: ${input:PROJECT_NAME}
+      LANGFUSE_INIT_USER_EMAIL: ${input:ADMIN_EMAIL}
+      LANGFUSE_INIT_USER_NAME: Admin
+      LANGFUSE_INIT_USER_PASSWORD: ${input:ADMIN_PASSWORD}
+    resources:
+      memoryMb: 2048
+  - key: worker
+    name: Langfuse Worker
+    kind: worker
+    image: langfuse/langfuse-worker:4.71.0
+    digest: sha256:68c9020b8352d49ad80d768981b21bd465edfcb7de602e76d9b13949bfa85e0e
+    healthcheck:
+      type: http
+      path: /api/health
+      port: 3030
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn: [web, db, clickhouse, redis, s3]
+    env:
+      NEXTAUTH_URL: ${{web.NEBULA_PUBLIC_URL}}
+      SALT: ${{web.SALT}}
+      ENCRYPTION_KEY: ${{web.ENCRYPTION_KEY}}
+      DATABASE_URL: postgresql://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      TELEMETRY_ENABLED: "false"
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false"
+      CLICKHOUSE_MIGRATION_URL: clickhouse://${{clickhouse.DATABASE_HOST}}:${{clickhouse.DATABASE_PORT}}
+      CLICKHOUSE_URL: http://${{clickhouse.DATABASE_HOST}}:8123
+      CLICKHOUSE_USER: ${{clickhouse.DATABASE_USER}}
+      CLICKHOUSE_PASSWORD: ${{clickhouse.DATABASE_PASSWORD}}
+      CLICKHOUSE_DB: ${{clickhouse.DATABASE_NAME}}
+      CLICKHOUSE_CLUSTER_ENABLED: "false"
+      LANGFUSE_S3_EVENT_UPLOAD_BUCKET: ${{s3.GARAGE_DEFAULT_BUCKET}}
+      LANGFUSE_S3_EVENT_UPLOAD_REGION: garage
+      LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: ${{s3.GARAGE_DEFAULT_ACCESS_KEY}}
+      LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY: ${{s3.GARAGE_DEFAULT_SECRET_KEY}}
+      LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: http://${{s3.NEBULA_PRIVATE_HOST}}:3900
+      LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "true"
+      LANGFUSE_S3_EVENT_UPLOAD_PREFIX: events/
+      LANGFUSE_S3_BATCH_EXPORT_ENABLED: "false"
+      REDIS_HOST: ${{redis.REDIS_HOST}}
+      REDIS_PORT: ${{redis.REDIS_PORT}}
+      REDIS_AUTH: ${{redis.REDIS_PASSWORD}}
+      REDIS_TLS_ENABLED: "false"
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Langfuse DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: langfuse
+  - key: clickhouse
+    name: Langfuse ClickHouse
+    kind: database
+    database:
+      engine: clickhouse
+      version: "26.8"
+      databaseName: langfuse
+  - key: redis
+    name: Langfuse Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+  - key: s3
+    name: Langfuse S3 (Garage)
+    kind: worker
+    image: dxflrs/garage:v2.5.0
+    digest: sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    command: [/garage, server, --single-node, --default-bucket]
+    healthcheck:
+      type: http
+      port: 3903
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      GARAGE_RPC_SECRET: ${{randomBytes(32,"hex")}}
+      GARAGE_ADMIN_TOKEN: ${{secret(32)}}
+      GARAGE_METRICS_TOKEN: ${{secret(32)}}
+      GARAGE_DEFAULT_ACCESS_KEY: GK${{randomBytes(16,"hex")}}
+      GARAGE_DEFAULT_SECRET_KEY: ${{randomBytes(32,"hex")}}
+      GARAGE_DEFAULT_BUCKET: langfuse
+    volumes:
+      - {name: meta, path: /var/lib/garage/meta}
+      - {name: data, path: /var/lib/garage/data}
+    files:
+      - path: /etc/garage.toml
+        mode: "0644"
+        content: |
+          metadata_dir = "/var/lib/garage/meta"
+          data_dir = "/var/lib/garage/data"
+          db_engine = "lmdb"
+
+          replication_factor = 1
+          consistency_mode = "consistent"
+
+          rpc_bind_addr = "0.0.0.0:3901"
+          rpc_public_addr = "127.0.0.1:3901"
+
+          [s3_api]
+          s3_region = "garage"
+          api_bind_addr = "0.0.0.0:3900"
+
+          [admin]
+          api_bind_addr = "0.0.0.0:3903"
+    resources:
+      memoryMb: 256
+group: Langfuse
+notes:
+  - "Sign in at the generated domain with the admin email and password from the install form. Sign-up is disabled (AUTH_DISABLE_SIGNUP); invite further users from the organization settings, or remove that variable to allow self-registration. The first start applies the Postgres and ClickHouse migrations and can take a few minutes."
+  - "The admin user, the organization (my-org) and the first project (my-project) are created only on the first start from the LANGFUSE_INIT_* variables; change them afterwards in the UI. Create API keys under the project settings and point your SDKs at the domain (LANGFUSE_HOST)."
+  - "Raw ingestion events are kept in a private single-node Garage S3 store of this stack (volumes `meta` and `data`). Media uploads (images, audio and files attached to traces) and batch exports are not configured: they need an S3 endpoint reachable from browsers and SDK clients, which would need a second public domain. Back up the Garage volumes together with the databases."
+  - "The ClickHouse migrations of Langfuse 4.x use settings that ClickHouse 25.8 rejects (the first start then fails with a dirty migration version), so the managed ClickHouse is version 26.8. Do not downgrade it."
+  - "The web service is limited to 2 GB: the Next.js server runs out of JavaScript heap at 1 GB and crash-loops during start-up. Keep that limit or raise it."
+  - "Product telemetry is switched off (TELEMETRY_ENABLED=false). Langfuse's `ee/` directories carry a commercial licence for enterprise features such as SCIM and audit logs."

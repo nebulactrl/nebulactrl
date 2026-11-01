@@ -1,0 +1,29 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+server = "fra-1"
+
+[services.shop]
+port = 8080                                    # the image's own CMD serves HTTP
+
+[services.shop.git]
+url    = "https://github.com/acme/shop.git"
+branch = "main"
+
+[services.shop.build]
+type = "dockerfile"
+
+[services.shop.pre_deploy]
+command = ["php", "artisan", "migrate", "--force"]
+
+[services.shop.domains."shop.acme.com"]
+
+[services.shop.processes.queue]
+command            = ["php", "artisan", "queue:work", "--sleep=3", "--tries=3"]
+stop_grace_seconds = 120                       # let a running job finish
+
+[services.shop.processes.queue.scale]
+replicas = 2
+
+[services.shop.processes.scheduler]
+command   = ["php", "artisan", "schedule:work"]
+singleton = true                               # two schedulers would run every task twice

@@ -1,0 +1,46 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema  = 1
+project = "edge"
+server  = "fra-1"
+
+# A tcp route to an address the platform does not run, limited to two networks.
+[services.game]
+name = "Game server"
+
+[services.game.route]
+protocol       = "tcp"
+upstreams      = [{ address = "10.0.0.5:25565" }]
+listen_port    = 25565
+allow_cidrs    = ["203.0.113.0/24", "198.51.100.7/32"]
+deny_cidrs     = ["203.0.113.99/32"]
+proxy_protocol = 2
+
+[services.game.uptime]
+enabled           = true
+failure_threshold = 5
+
+# A udp route: it cannot be restricted by address, so it is open to the internet on purpose.
+[services.voice]
+name   = "Voice server"
+server = "fra-1"
+
+[services.voice.route]
+protocol         = "udp"
+upstreams        = [{ address = "10.0.0.6:9987" }]
+listen_port      = 9987
+open_to_internet = true
+
+# A tcp route to a managed service of the same server.
+[services.echo]
+image = "traefik/whoami:v1.10"
+port  = 80
+
+[services.relay]
+name       = "Relay"
+depends_on = ["echo"]
+
+[services.relay.route]
+protocol         = "tcp"
+upstreams        = [{ service = "echo", port = 80 }]
+listen_port      = 7000
+open_to_internet = true

@@ -1,0 +1,89 @@
+schema: 1
+id: convex
+revision: 1
+name: Convex
+summary: Open-source reactive backend and database for app developers, with the admin dashboard and a managed PostgreSQL store.
+description: Convex is a reactive backend that runs your database, server functions, file storage and scheduled jobs. This template runs the self-hosted backend with its dashboard and stores data in a managed Postgres database.
+category: data
+tags: [backend, database, reactive, realtime, baas]
+icon: convex
+links:
+  website: https://www.convex.dev
+  docs: https://github.com/get-convex/convex-backend/blob/main/self-hosted/README.md
+  source: https://github.com/get-convex/convex-backend
+upstream:
+  license: FSL-1.1-Apache-2.0
+  licenseUrl: https://github.com/get-convex/convex-backend/blob/main/LICENSE.md
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/convex.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: backend
+    name: Convex
+    kind: app
+    image: ghcr.io/convex/convex-backend:bb31399c8704ceb6c19003936f6e144375b2c3bc
+    digest: sha256:207cf95def42f01614b6e3af0af5c20d0dcaa5ff2adf258ee7bc9555576644fa
+    port: 3210
+    healthcheck:
+      type: http
+      path: /version
+      intervalSeconds: 5
+      startPeriodSeconds: 10
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    ports:
+      - {name: site, port: 3211, protocol: tcp, publish: true}
+    env:
+      INSTANCE_NAME: convex-self-hosted
+      INSTANCE_SECRET: ${{randomBytes(32,"hex")}}
+      CONVEX_CLOUD_ORIGIN: ${{NEBULA_PUBLIC_URL}}
+      CONVEX_SITE_ORIGIN: http://${{NEBULA_PUBLIC_DOMAIN}}:3211
+      POSTGRES_URL: postgresql://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}
+      DO_NOT_REQUIRE_SSL: "1"
+      RUST_LOG: info
+    secrets: [POSTGRES_URL]
+    volumes:
+      - name: data
+        path: /convex/data
+    resources:
+      memoryMb: 1024
+    stopGraceSeconds: 10
+  - key: dashboard
+    name: Convex Dashboard
+    kind: app
+    image: ghcr.io/convex/convex-dashboard:bb31399c8704ceb6c19003936f6e144375b2c3bc
+    digest: sha256:a55bf8abca1332f787bc4d4a79850182175027be7b70aa230be4389a1d3268e2
+    port: 6791
+    healthcheck:
+      type: http
+      path: /
+      intervalSeconds: 5
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [backend]
+    domains:
+      - generate: true
+    env:
+      NEXT_PUBLIC_DEPLOYMENT_URL: ${{backend.NEBULA_PUBLIC_URL}}
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Convex DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: convex_self_hosted
+group: Convex
+notes:
+  - "Generate an admin key by running ./generate_admin_key.sh inside the Convex backend container, then paste it into the dashboard sign-in and use it as CONVEX_SELF_HOSTED_ADMIN_KEY in your project."
+  - "Point CONVEX_SELF_HOSTED_URL at the Convex backend domain. HTTP actions are served on the published plain-HTTP port 3211 of the same host (CONVEX_SITE_ORIGIN); terminate TLS in front of it if you need HTTPS."
+  - "Convex releases are tagged by commit; upgrade backend and dashboard together and read the upstream changelog first."

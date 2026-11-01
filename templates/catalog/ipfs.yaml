@@ -1,0 +1,57 @@
+schema: 1
+id: ipfs
+revision: 1
+name: IPFS (Kubo)
+summary: IPFS node that joins the peer-to-peer network, pins content and serves it through an HTTP gateway.
+description: Kubo is the reference implementation of IPFS. This template runs the official image with the server profile, serves the read-only HTTP gateway on the generated domain and publishes the swarm port for peers. The RPC API stays private.
+category: storage
+tags: [ipfs, p2p, decentralized, storage, gateway]
+icon: ipfs
+links:
+  website: https://ipfs.tech
+  docs: https://docs.ipfs.tech
+  source: https://github.com/ipfs/kubo
+upstream:
+  license: MIT OR Apache-2.0
+  licenseUrl: https://github.com/ipfs/kubo/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/ipfs
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 20
+services:
+  - key: ipfs
+    name: IPFS (Kubo)
+    kind: app
+    image: ipfs/kubo:v0.43.1
+    digest: sha256:b293923d66e490e70ced64df42ea7a6cf7eac2740e3fb29101df18070fa7be48
+    port: 8080
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "ipfs --api=/ip4/127.0.0.1/tcp/5001 diag healthy"]
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    env:
+      IPFS_PROFILE: server
+    ports:
+      - {name: swarm-tcp, port: 4001, protocol: tcp, publish: true}
+      - {name: swarm-udp, port: 4001, protocol: udp, publish: true}
+    volumes:
+      - name: ipfs-data
+        path: /data/ipfs
+      - name: ipfs-staging
+        path: /export
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: IPFS (Kubo)
+notes:
+  - "The generated domain serves the IPFS HTTP gateway (for example /ipfs/<cid>) for anyone, so treat it as a public gateway."
+  - "The RPC API (port 5001) is not exposed. Manage the node with the ipfs command from the service's terminal, for example: ipfs add -r /export."

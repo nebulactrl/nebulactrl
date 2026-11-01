@@ -1,0 +1,88 @@
+schema: 1
+id: listmonk
+revision: 1
+name: listmonk
+summary: High-performance, self-hosted newsletter and mailing list manager with a managed PostgreSQL database.
+description: listmonk is a standalone newsletter and mailing list manager with campaign management, templating, subscriber analytics and a REST API. This template installs the schema with a one-shot job before the app starts, and applies pending upgrades on every deploy.
+category: web
+tags: [newsletter, email, mailing-list, marketing]
+icon: listmonk
+links:
+  website: https://listmonk.app
+  docs: https://listmonk.app/docs
+  source: https://github.com/knadh/listmonk
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/knadh/listmonk/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USER, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: install
+    name: listmonk install
+    kind: worker
+    image: listmonk/listmonk:v6.2.0
+    digest: sha256:f535d59e14991337a9f2d570273685378ae86b0d7698c3e00da444e3bc205286
+    oneshot: true
+    command: [sh, -c, "./listmonk --install --idempotent --yes --config '' && ./listmonk --upgrade --yes --config ''"]
+    dependsOn: [db]
+    env:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__host: ${{db.DATABASE_HOST}}
+      LISTMONK_db__port: ${{db.DATABASE_PORT}}
+      LISTMONK_db__user: ${{db.DATABASE_USER}}
+      LISTMONK_db__password: ${{db.DATABASE_PASSWORD}}
+      LISTMONK_db__database: ${{db.DATABASE_NAME}}
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_ADMIN_USER: ${input:ADMIN_USER}
+      LISTMONK_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    resources:
+      memoryMb: 256
+  - key: app
+    name: listmonk
+    kind: app
+    image: listmonk/listmonk:v6.2.0
+    digest: sha256:f535d59e14991337a9f2d570273685378ae86b0d7698c3e00da444e3bc205286
+    port: 9000
+    command: [sh, -c, "exec ./listmonk --config ''"]
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 180
+    dependsOn: [install, db]
+    domains:
+      - generate: true
+    env:
+      LISTMONK_app__address: 0.0.0.0:9000
+      LISTMONK_db__host: ${{db.DATABASE_HOST}}
+      LISTMONK_db__port: ${{db.DATABASE_PORT}}
+      LISTMONK_db__user: ${{db.DATABASE_USER}}
+      LISTMONK_db__password: ${{db.DATABASE_PASSWORD}}
+      LISTMONK_db__database: ${{db.DATABASE_NAME}}
+      LISTMONK_db__ssl_mode: disable
+      LISTMONK_ADMIN_USER: ${input:ADMIN_USER}
+      LISTMONK_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - name: uploads
+        path: /listmonk/uploads
+    resources:
+      memoryMb: 256
+  - key: db
+    name: listmonk DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: listmonk
+group: listmonk
+notes:
+  - "Sign in at /admin with the admin username and password from the install form."
+  - "Configure your SMTP server under Settings > SMTP before sending campaigns."
+  - "To store media uploads on the volume, set the upload path to /listmonk/uploads under Settings > Media."

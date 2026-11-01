@@ -1,0 +1,52 @@
+schema: 1
+id: drizzle-gateway
+revision: 1
+name: Drizzle Gateway
+summary: "Self-hosted Drizzle Studio: a browser database studio to browse, query and alter PostgreSQL, MySQL, MariaDB and SQLite databases."
+description: Drizzle Gateway is the self-hosted version of Drizzle Studio. It lets you connect to your databases, browse and edit rows, run SQL and manage schemas from the browser, protected by a master password. It is free to use but closed-source.
+category: devtools
+tags: [database, sql, postgres, mysql, studio, admin]
+icon: drizzle
+links:
+  website: https://gateway.drizzle.team
+  docs: https://gateway.drizzle.team/docs/docker
+upstream:
+  license: Proprietary (free of charge)
+  licenseUrl: https://gateway.drizzle.team/docs/changelog
+  class: proprietary
+origin:
+  type: coolify
+  path: templates/compose/drizzle-gateway.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: MASTERPASS, label: Master password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: gateway
+    name: Drizzle Gateway
+    kind: app
+    image: ghcr.io/drizzle-team/gateway:1.7.0
+    digest: sha256:3f09490584ad97cb5fa6d2a7335b405b8ac96e3b17a427830930f4ff70fe3993
+    port: 4983
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    env:
+      MASTERPASS: ${input:MASTERPASS}
+      STORE_PATH: /app
+    volumes:
+      - name: store
+        path: /app
+    resources:
+      memoryMb: 256
+group: Drizzle Gateway
+notes:
+  - "Sign in with the master password from the install form, then add your database connections in the UI."
+  - "Connection details are stored on the volume. Connect to other Nebula databases with their private-network hostnames."

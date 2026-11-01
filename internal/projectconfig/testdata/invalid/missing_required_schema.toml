@@ -1,0 +1,8 @@
+# expect: missing_required
+# schema: reject
+# The `schema` key is required and goes first; this file has none.
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80

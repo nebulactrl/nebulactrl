@@ -1,0 +1,115 @@
+schema: 1
+id: louez
+revision: 1
+name: Louez
+summary: "Open-source equipment rental platform: a booking storefront with live availability plus a back office for reservations, customers and contracts."
+description: Louez is a self-hosted rental management app for businesses that rent out equipment. Visitors browse a branded catalog and book with live availability; the owner manages products, reservations, customers, PDF contracts and revenue statistics from a dashboard. This template runs the single-store (standalone) Louez app with a managed MySQL and a private Garage S3 store for product images, which the app serves itself under /files. The optional background-removal worker of the upstream compose file is not included.
+category: web
+tags: [rental, booking, reservations, inventory, ecommerce, business]
+links:
+  website: https://louez.io
+  docs: https://github.com/Synapsr/Louez#readme
+  source: https://github.com/Synapsr/Louez
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/Synapsr/Louez/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/louez
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1536
+  diskGb: 5
+services:
+  - key: louez
+    name: Louez
+    kind: app
+    image: synapsr/louez:2.3.1
+    digest: sha256:8b0b9271203174195f00215b61c8f6efa4a5aa3597bdd798ea7da6867c1d713a
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    domains:
+      - generate: true
+    dependsOn: [db, s3]
+    env:
+      LOUEZ_MODE: standalone
+      LOUEZ_BILLING: "off"
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      AUTH_URL: ${{NEBULA_PUBLIC_URL}}
+      AUTH_TRUST_HOST: "true"
+      AUTH_SECRET: ${{randomBytes(32,"base64")}}
+      NEXT_PUBLIC_APP_URL: ${{NEBULA_PUBLIC_URL}}
+      NEXT_PUBLIC_APP_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      S3_ENDPOINT: http://${{s3.NEBULA_PRIVATE_HOST}}:3900
+      S3_REGION: garage
+      S3_BUCKET: ${{s3.GARAGE_DEFAULT_BUCKET}}
+      S3_ACCESS_KEY_ID: ${{s3.GARAGE_DEFAULT_ACCESS_KEY}}
+      S3_SECRET_ACCESS_KEY: ${{s3.GARAGE_DEFAULT_SECRET_KEY}}
+      S3_PUBLIC_URL: /files
+    volumes:
+      - {name: data, path: /app/data}
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Louez DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: louez
+  - key: s3
+    name: Louez S3 (Garage)
+    kind: worker
+    image: dxflrs/garage:v2.5.0
+    digest: sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    command: [/garage, server, --single-node, --default-bucket]
+    healthcheck:
+      type: http
+      port: 3903
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      GARAGE_RPC_SECRET: ${{randomBytes(32,"hex")}}
+      GARAGE_ADMIN_TOKEN: ${{secret(32)}}
+      GARAGE_METRICS_TOKEN: ${{secret(32)}}
+      GARAGE_DEFAULT_ACCESS_KEY: GK${{randomBytes(16,"hex")}}
+      GARAGE_DEFAULT_SECRET_KEY: ${{randomBytes(32,"hex")}}
+      GARAGE_DEFAULT_BUCKET: louez
+    volumes:
+      - {name: meta, path: /var/lib/garage/meta}
+      - {name: data, path: /var/lib/garage/data}
+    files:
+      - path: /etc/garage.toml
+        mode: "0644"
+        content: |
+          metadata_dir = "/var/lib/garage/meta"
+          data_dir = "/var/lib/garage/data"
+          db_engine = "lmdb"
+
+          replication_factor = 1
+          consistency_mode = "consistent"
+
+          rpc_bind_addr = "0.0.0.0:3901"
+          rpc_public_addr = "127.0.0.1:3901"
+
+          [s3_api]
+          s3_region = "garage"
+          api_bind_addr = "0.0.0.0:3900"
+
+          [admin]
+          api_bind_addr = "0.0.0.0:3903"
+    resources:
+      memoryMb: 256
+group: Louez
+notes:
+  - "Open the domain and create your account, then set up your store. The storefront is at the root of the site and the dashboard is under /dashboard. Do this right after deploying: the first account becomes the store owner."
+  - "Email is optional. Without SMTP settings Louez skips outgoing mail and owners sign in with a password; add SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASSWORD and SMTP_FROM to the Louez service variables to enable it."
+  - "Product images live in a private single-node Garage store (volumes `meta` and `data` of Louez S3) and are streamed by the app under /files, so the store needs no domain of its own. Back up those volumes together with the MySQL database."
+  - "The database schema installs itself on the first start. Billing is off: this instance charges nobody and takes no platform fee. The upstream compose file also runs a background-removal worker for one-click product photo isolation; it is not part of this template."

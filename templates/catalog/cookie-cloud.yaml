@@ -1,0 +1,46 @@
+schema: 1
+id: cookie-cloud
+revision: 1
+name: CookieCloud
+summary: Self-hosted sync server for browser cookies, with client-side encryption, used with the CookieCloud browser extension.
+description: CookieCloud stores end-to-end encrypted cookie and local-storage snapshots uploaded by the CookieCloud browser extension, so you can sync logins between browsers and automation tools. This template runs the server with a persistent data volume.
+category: productivity
+tags: [cookies, sync, browser, privacy, encryption]
+links:
+  website: https://github.com/easychen/CookieCloud
+  docs: https://github.com/easychen/CookieCloud#readme
+  source: https://github.com/easychen/CookieCloud
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/easychen/CookieCloud/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/cookie-cloud
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 1
+services:
+  - key: cookiecloud
+    name: CookieCloud
+    kind: app
+    image: easychen/cookiecloud:2026.10.23
+    digest: sha256:7296aa83706a4a0914842a0b3ae7ccdfaf0db55018ae9dd6336c6e4238e2cc47
+    port: 8088
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    volumes:
+      - {name: data, path: /data/api/data}
+    resources:
+      memoryMb: 128
+group: CookieCloud
+notes:
+  - "In the CookieCloud browser extension, choose self-hosted and enter this service's public URL as the server address, with your own UUID and password."
+  - "The server has no accounts: data is encrypted in the browser with the password you choose; keep that password safe."

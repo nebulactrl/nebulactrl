@@ -1,0 +1,72 @@
+schema: 1
+id: leantime
+revision: 1
+name: Leantime
+summary: Goal-oriented project management for teams without a dedicated project manager, with tasks, kanban boards, timelines and strategy tools.
+description: Leantime combines task boards, milestones, timesheets and lightweight strategy canvases in one project management app. This template runs it with a managed MySQL database.
+category: productivity
+tags: [project-management, kanban, productivity, tasks]
+icon: leantime
+links:
+  website: https://leantime.io
+  docs: https://docs.leantime.io
+  source: https://github.com/Leantime/leantime
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/Leantime/leantime/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/leantime.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: leantime
+    name: Leantime
+    kind: app
+    image: leantime/leantime:3.12.0
+    digest: sha256:8e093293224cf48a24cfac7f32631aa5335014a065cd62b8ced4a74e4d548b80
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      intervalSeconds: 10
+      timeoutSeconds: 10
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      LEAN_APP_URL: ${{NEBULA_PUBLIC_URL}}
+      LEAN_DB_HOST: ${{db.DATABASE_HOST}}
+      LEAN_DB_PORT: ${{db.DATABASE_PORT}}
+      LEAN_DB_DATABASE: ${{db.DATABASE_NAME}}
+      LEAN_DB_USER: ${{db.DATABASE_USER}}
+      LEAN_DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      LEAN_SESSION_PASSWORD: ${{secret(64)}}
+    volumes:
+      - name: public-userfiles
+        path: /var/www/html/public/userfiles
+      - name: userfiles
+        path: /var/www/html/userfiles
+      - name: plugins
+        path: /var/www/html/app/Plugins
+      - name: logs
+        path: /var/www/html/storage/logs
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Leantime DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: leantime
+group: Leantime
+notes:
+  - "Open the app and complete the installer at /install to create the first administrator account."
+  - "The app URL is taken from the generated domain. If you attach a custom domain, update LEAN_APP_URL to match and redeploy."

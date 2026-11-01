@@ -1,0 +1,12 @@
+# expect: wrong_type
+# schema: reject
+# Variable values are always strings: write "8080".
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.variables]
+UPSTREAM_PORT = 8080

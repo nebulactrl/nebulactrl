@@ -1,0 +1,467 @@
+/*
+ * transitions.dev, installed on our own components. The CSS is the skill's,
+ * the values are the shared motion tokens
+ * (`@nebulactrl/tokens/motion.css`) wherever a
+ * token's usage matches, and a literal only where none does.
+ *
+ * Three adaptations, all deliberate:
+ *   1. State. Base UI popups carry `data-starting-style` (first frame of an
+ *      open) and `data-ending-style` (while closing) instead of the skill's
+ *      `.is-open` / `.is-closing`; the rest state is the open state, so the
+ *      snippets' open and closing rules map one to one. `data-instant`
+ *      (keyboard-summoned) drops the transition.
+ *   2. Reduced motion. The skill zeroes the transition. better-ui asks for an
+ *      opacity cross-fade instead, so each guard keeps a 150ms opacity fade
+ *      and drops the travel, scale and blur.
+ *   3. `will-change` is left off the popups: it is added only after a
+ *      first-frame stutter is seen, and each of them mounts for one open.
+ *
+ * Everything sits in `@layer components`, so a utility on the element
+ * (`data-instant:transition-none`, a `duration-*`) still wins.
+ */
+
+/* `duration-quick`, `duration-fast`, ...: Tailwind's `duration-*` reads
+   `--transition-duration-*`, the token package declares `--duration-*`. */
+@theme static {
+	--transition-duration-stagger: var(--duration-stagger);
+	--transition-duration-micro: var(--duration-micro);
+	--transition-duration-quick: var(--duration-quick);
+	--transition-duration-fast: var(--duration-fast);
+	--transition-duration-medium: var(--duration-medium);
+	--transition-duration-slow: var(--duration-slow);
+	--transition-duration-very-slow: var(--duration-very-slow);
+}
+
+:root {
+	/* Menu dropdown (05): menus, selects, comboboxes, popovers. */
+	--dropdown-open-dur: var(--duration-fast);
+	--dropdown-close-dur: var(--duration-quick);
+	--dropdown-pre-scale: var(--scale-medium);
+	--dropdown-closing-scale: var(--scale-tiny);
+	--dropdown-ease: var(--ease-smooth-out);
+
+	/* Modal (06): dialogs, alert dialogs and their scrims. */
+	--modal-open-dur: var(--duration-fast);
+	--modal-close-dur: var(--duration-quick);
+	--modal-scale: var(--scale-large);
+	--modal-scale-close: var(--scale-large);
+	--modal-ease: var(--ease-smooth-out);
+
+	/* Tooltip (17). The 80ms appear delay of the skill is the provider's
+	   hover-intent `delay` here (300ms), so the animation carries none. */
+	--tt-in-dur: var(--duration-quick);
+	--tt-out-dur: 50ms;
+	--tt-scale: var(--scale-small);
+	--tt-delay: 0ms;
+	--tt-in-ease: var(--ease-out);
+	--tt-out-ease: var(--ease-out);
+	--tt-move-dur: 160ms;
+	--tt-move-ease: var(--ease-smooth-out);
+
+	/* Tabs sliding (16): every gliding indicator (tabs, segmented, settings nav). */
+	--tabs-dur: var(--duration-fast);
+	--tabs-ease: var(--ease-smooth-out);
+
+	/* Toast (22). A toast leaves like any exit (better-ui): 150ms. */
+	--toast-open: var(--duration-medium);
+	--toast-close: var(--exit-duration);
+	--toast-distance: 16px;
+	--toast-blur: var(--blur-small);
+	--toast-scale: var(--scale-medium);
+	--toast-ease: var(--ease-smooth-out);
+
+	/* Accordion (21). */
+	--acc-expand: var(--duration-fast);
+	--acc-collapse: var(--duration-fast);
+	--acc-chevron: var(--duration-fast);
+	--acc-ease: var(--ease-smooth-out);
+
+	/* Skeleton loader and reveal (14). The pulse itself is `nc-skeleton`;
+	   only the reveal is installed. */
+	--reveal-dur: var(--duration-slow);
+	--reveal-blur: var(--blur-small);
+	--reveal-ease: var(--ease-in-out);
+
+	/* Success check (10), calibrated for a 14px status icon: the 40px bob and
+	   10px blur of the demo would throw a small glyph off the row. */
+	--check-opacity-dur: var(--duration-very-slow);
+	--check-rotate-dur: var(--duration-very-slow);
+	--check-rotate-from: 80deg;
+	--check-bob-dur: var(--duration-very-slow);
+	--check-y-amount: 6px;
+	--check-blur-dur: var(--duration-very-slow);
+	--check-blur-from: 4px;
+	--check-path-dur: var(--duration-very-slow);
+	--check-path-delay: var(--duration-micro);
+	--check-ease-out: var(--ease-smooth-out);
+	--check-ease-opacity: var(--ease-smooth-out);
+	--check-ease-rotate: var(--ease-smooth-out);
+	--check-ease-bob: var(--ease-bounce);
+	--check-ease-path: var(--ease-smooth-out);
+	/* `path.getTotalLength()` of Lucide's `CircleCheck` tick (`m9 12 2 2 4-4`),
+	   rounded up by 1. */
+	--check-dash: 9;
+
+	/* Text morph (33): Copy -> Copied and the like. */
+	--text-morph-dur: 180ms;
+	--text-morph-resize-dur: 240ms;
+	--text-morph-blur: var(--blur-small);
+	--text-morph-ease: var(--ease-smooth-out);
+
+	/* Number pop-in (02) is `useTick` in packages/dither (its own constants,
+	   the same smooth-out curve). */
+}
+
+@layer components {
+	/* ── Menu dropdown (05) ─────────────────────────────────────────── */
+	.t-dropdown {
+		transform-origin: var(--transform-origin, top left);
+		transition:
+			scale var(--dropdown-open-dur) var(--dropdown-ease),
+			opacity var(--dropdown-open-dur) var(--dropdown-ease);
+	}
+	.t-dropdown[data-starting-style] {
+		scale: var(--dropdown-pre-scale);
+		opacity: 0;
+	}
+	.t-dropdown[data-ending-style] {
+		scale: var(--dropdown-closing-scale);
+		opacity: 0;
+		transition:
+			scale var(--dropdown-close-dur) var(--dropdown-ease),
+			opacity var(--dropdown-close-dur) var(--dropdown-ease);
+	}
+	.t-dropdown[data-instant] {
+		transition: none;
+	}
+
+	/* ── Modal (06) ─────────────────────────────────────────────────── */
+	.t-modal {
+		transform-origin: center;
+		transition:
+			scale var(--modal-open-dur) var(--modal-ease),
+			opacity var(--modal-open-dur) var(--modal-ease);
+	}
+	.t-modal[data-starting-style] {
+		scale: var(--modal-scale);
+		opacity: 0;
+	}
+	.t-modal[data-ending-style] {
+		scale: var(--modal-scale-close);
+		opacity: 0;
+		transition:
+			scale var(--modal-close-dur) var(--modal-ease),
+			opacity var(--modal-close-dur) var(--modal-ease);
+	}
+	/* The scrim shares the modal's clock; it has no scale. */
+	.t-scrim {
+		transition: opacity var(--modal-open-dur) var(--modal-ease);
+	}
+	.t-scrim[data-starting-style] {
+		opacity: 0;
+	}
+	.t-scrim[data-ending-style] {
+		opacity: 0;
+		transition: opacity var(--modal-close-dur) var(--modal-ease);
+	}
+
+	/* ── Tooltip (17) ───────────────────────────────────────────────── */
+	.t-tt {
+		transform-origin: var(--transform-origin, 50% 100%);
+		transition:
+			opacity var(--tt-in-dur) var(--tt-in-ease) var(--tt-delay),
+			scale var(--tt-in-dur) var(--tt-in-ease) var(--tt-delay);
+	}
+	.t-tt[data-starting-style] {
+		scale: var(--tt-scale);
+		opacity: 0;
+	}
+	/* Leaving is quick and carries no delay. */
+	.t-tt[data-ending-style] {
+		scale: var(--tt-scale);
+		opacity: 0;
+		transition:
+			opacity var(--tt-out-dur) var(--tt-out-ease),
+			scale var(--tt-out-dur) var(--tt-out-ease);
+	}
+	/* A neighbouring trigger while one is showing: no animation at all. */
+	.t-tt[data-instant] {
+		transition: none;
+	}
+
+	/* ── Tabs sliding (16) ──────────────────────────────────────────── */
+	/* The pill's geometry is written inline by the component (tabs.tsx,
+	   toggle-group.tsx, settings-nav.tsx), with `transition: none` for the
+	   first placement, a keyboard move and reduced motion. */
+	.t-tabs-pill {
+		transition:
+			transform var(--tabs-dur) var(--tabs-ease),
+			width var(--tabs-dur) var(--tabs-ease),
+			height var(--tabs-dur) var(--tabs-ease),
+			opacity var(--duration-quick) var(--ease-out);
+	}
+
+	/* ── Toast (22) ─────────────────────────────────────────────────── */
+	/* Rises with a fade, a slight scale and a cross-blur; slower in than out. */
+	.t-toast {
+		opacity: 0;
+		translate: 0 var(--toast-distance);
+		scale: var(--toast-scale);
+		filter: blur(var(--toast-blur));
+		transition:
+			opacity var(--toast-close) var(--toast-ease),
+			translate var(--toast-close) var(--toast-ease),
+			scale var(--toast-close) var(--toast-ease),
+			filter var(--toast-close) var(--toast-ease);
+	}
+	.t-toast.is-open {
+		opacity: 1;
+		translate: 0 0;
+		scale: 1;
+		filter: blur(0);
+		transition:
+			opacity var(--toast-open) var(--toast-ease),
+			translate var(--toast-open) var(--toast-ease),
+			scale var(--toast-open) var(--toast-ease),
+			filter var(--toast-open) var(--toast-ease);
+	}
+
+	/* ── Accordion (21) ─────────────────────────────────────────────── */
+	/* Height via grid-template-rows 0fr <-> 1fr, no measuring. Padding goes
+	   on .t-acc-panel-inner, never on .t-acc-panel. */
+	.t-acc-panel {
+		display: grid;
+		grid-template-rows: 0fr;
+		transition: grid-template-rows var(--acc-collapse) var(--acc-ease);
+	}
+	.t-acc[data-open="true"] > .t-acc-panel,
+	.t-acc-panel[data-open="true"] {
+		grid-template-rows: 1fr;
+		transition: grid-template-rows var(--acc-expand) var(--acc-ease);
+	}
+	.t-acc-panel-inner {
+		overflow: hidden;
+		opacity: 0;
+		filter: blur(var(--blur-small));
+		transition:
+			opacity var(--acc-collapse) var(--acc-ease),
+			filter var(--acc-collapse) var(--acc-ease);
+	}
+	.t-acc[data-open="true"] > .t-acc-panel > .t-acc-panel-inner,
+	.t-acc-panel[data-open="true"] > .t-acc-panel-inner {
+		opacity: 1;
+		filter: blur(0);
+		transition:
+			opacity var(--acc-expand) var(--acc-ease),
+			filter var(--acc-expand) var(--acc-ease);
+	}
+	/* The chevron flips vertically, "v" to "^" through a flat line; the path
+	   is symmetric about its box centre. Lucide's ChevronDown is. */
+	.t-acc-chevron {
+		display: inline-flex;
+		scale: 1 1;
+		transform-origin: center;
+		transition: scale var(--acc-chevron) var(--acc-ease);
+	}
+	.t-acc-chevron path {
+		vector-effect: non-scaling-stroke;
+	}
+	.t-acc[data-open="true"] .t-acc-chevron,
+	.t-acc-chevron[data-open="true"] {
+		scale: 1 -1;
+	}
+
+	/* ── Skeleton reveal (14) ───────────────────────────────────────── */
+	/* The reveal only (the breathing is `nc-skeleton`). The wrapper stacks the
+	   leaving skeleton over the content; both cross-fade with a matching
+	   cross-blur. The content is the wrapper's own children, so the wrapper
+	   keeps the caller's layout classes: no extra element between a flex or
+	   grid parent and its items. */
+	.t-skel {
+		position: relative;
+	}
+	.t-skel-skeleton {
+		position: absolute;
+		inset: 0;
+		z-index: 1;
+		overflow: hidden;
+		pointer-events: none;
+		opacity: 1;
+		filter: blur(0);
+		transition:
+			opacity var(--reveal-dur) var(--reveal-ease),
+			filter var(--reveal-dur) var(--reveal-ease);
+	}
+	.t-skel > :not(.t-skel-skeleton) {
+		opacity: 0;
+		filter: blur(var(--reveal-blur));
+		transition:
+			opacity var(--reveal-dur) var(--reveal-ease),
+			filter var(--reveal-dur) var(--reveal-ease);
+	}
+	.t-skel.is-revealed > .t-skel-skeleton {
+		opacity: 0;
+		filter: blur(var(--reveal-blur));
+	}
+	.t-skel.is-revealed > :not(.t-skel-skeleton) {
+		opacity: 1;
+		filter: blur(0);
+	}
+
+	/* ── Success check (10) ─────────────────────────────────────────── */
+	/* The wrapper drives fade + rotate + blur + Y-bob; the tick's path draws
+	   its stroke. Appear only: the glyph stays, it is the static cue. */
+	.t-success-check {
+		display: inline-block;
+		transform-origin: center;
+		opacity: 0;
+		will-change: transform, opacity, filter;
+	}
+	.t-success-check svg {
+		display: block;
+		overflow: visible;
+	}
+	.t-success-check svg path {
+		stroke-dasharray: var(--check-dash);
+		stroke-dashoffset: var(--check-dash);
+	}
+	.t-success-check[data-state="in"] {
+		animation:
+			t-check-fade var(--check-opacity-dur) var(--check-ease-opacity) forwards,
+			t-check-rotate var(--check-rotate-dur) var(--check-ease-rotate) forwards,
+			t-check-blur var(--check-blur-dur) var(--check-ease-out) forwards,
+			t-check-bob var(--check-bob-dur) var(--check-ease-bob) forwards;
+	}
+	.t-success-check[data-state="in"] svg path {
+		animation: t-check-draw var(--check-path-dur) var(--check-ease-path)
+			var(--check-path-delay, 0ms) forwards;
+	}
+
+	/* ── Text morph (33) ────────────────────────────────────────────── */
+	.t-morph {
+		white-space: nowrap;
+	}
+	.t-morph-swap {
+		display: inline-grid;
+		vertical-align: bottom;
+		justify-items: start;
+		transition: width var(--text-morph-resize-dur) var(--text-morph-ease);
+	}
+	.t-morph-swap > span {
+		grid-area: 1 / 1;
+		white-space: pre;
+		transition:
+			opacity var(--text-morph-dur) var(--text-morph-ease),
+			filter var(--text-morph-dur) var(--text-morph-ease);
+	}
+	.t-morph-new {
+		opacity: 0;
+		filter: blur(var(--text-morph-blur));
+	}
+	.t-morph-swap.is-morphing .t-morph-old {
+		opacity: 0;
+		filter: blur(var(--text-morph-blur));
+	}
+	.t-morph-swap.is-morphing .t-morph-new {
+		opacity: 1;
+		filter: blur(0);
+	}
+}
+
+@keyframes t-check-fade {
+	from {
+		opacity: 0;
+	}
+	to {
+		opacity: 1;
+	}
+}
+@keyframes t-check-rotate {
+	from {
+		transform: rotate(var(--check-rotate-from));
+	}
+	to {
+		transform: rotate(0deg);
+	}
+}
+@keyframes t-check-blur {
+	from {
+		filter: blur(var(--check-blur-from));
+	}
+	to {
+		filter: blur(0);
+	}
+}
+@keyframes t-check-bob {
+	from {
+		translate: 0 var(--check-y-amount);
+	}
+	to {
+		translate: 0 0;
+	}
+}
+@keyframes t-check-draw {
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+/*
+ * Reduced motion. The global rule in styles.css zeroes every transition;
+ * these opt back in to a plain opacity cross-fade with no travel, scale or
+ * blur (better-ui: cross-fade, never an instant pop). Layered `!important`
+ * beats the unlayered global `!important`.
+ */
+@media (prefers-reduced-motion: reduce) {
+	@layer components {
+		.t-dropdown,
+		.t-modal,
+		.t-tt,
+		.t-scrim,
+		.rm-fade,
+		.t-toast,
+		.t-toast.is-open {
+			translate: none !important;
+			scale: none !important;
+			filter: none !important;
+			transition: opacity var(--duration-quick) var(--ease-out) !important;
+		}
+		.t-dropdown[data-ending-style],
+		.t-modal[data-ending-style],
+		.t-tt[data-ending-style],
+		.t-scrim[data-ending-style] {
+			transition: opacity var(--duration-quick) var(--ease-out) !important;
+		}
+		.t-dropdown[data-instant],
+		.t-tt[data-instant] {
+			transition: none !important;
+		}
+		.t-tabs-pill,
+		.t-acc-chevron,
+		.t-morph-swap,
+		.t-morph-swap > span {
+			transition: none !important;
+		}
+		/* The panel snaps; the content cross-fades. */
+		.t-acc-panel {
+			transition: none !important;
+		}
+		.t-acc-panel-inner {
+			filter: none !important;
+			transition: opacity var(--duration-quick) var(--ease-out) !important;
+		}
+		.t-skel-skeleton,
+		.t-skel > :not(.t-skel-skeleton) {
+			filter: none !important;
+			transition: opacity var(--duration-quick) var(--ease-out) !important;
+		}
+		.t-success-check {
+			animation: none !important;
+			opacity: 1;
+		}
+		.t-success-check svg path {
+			animation: none !important;
+			stroke-dashoffset: 0 !important;
+		}
+	}
+}

@@ -1,0 +1,9 @@
+# expect: egress_blocked
+# A service that blocks outbound access cannot join shared networks.
+schema = 1
+server = "fra-1"
+
+[services.worker]
+image = "ghcr.io/acme/worker:1.0"
+block_egress = true
+networks = ["backplane"]

@@ -1,0 +1,62 @@
+schema: 1
+id: glpi
+revision: 1
+name: GLPI
+summary: "IT asset management and service desk: inventory, tickets, licences and a knowledge base, with a managed MySQL database."
+description: GLPI is an ITSM platform covering IT asset inventory, helpdesk tickets, contracts, licences and a knowledge base. This template uses the official image, which installs or upgrades the database schema automatically on start and runs GLPI's background tasks.
+category: productivity
+tags: [itsm, helpdesk, asset-management, ticketing, inventory]
+icon: glpi
+links:
+  website: https://glpi-project.org
+  docs: https://help.glpi-project.org/documentation
+  source: https://github.com/glpi-project/glpi
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://github.com/glpi-project/glpi/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/glpi.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: glpi
+    name: GLPI
+    kind: app
+    image: glpi/glpi:12.0.0
+    digest: sha256:ab9f66ad0e2fa03d0670df14fb7e71d35e13d985efca34c341702fe92261eaa7
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      GLPI_DB_HOST: ${{db.DATABASE_HOST}}
+      GLPI_DB_PORT: ${{db.DATABASE_PORT}}
+      GLPI_DB_NAME: ${{db.DATABASE_NAME}}
+      GLPI_DB_USER: ${{db.DATABASE_USER}}
+      GLPI_DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - name: glpi-data
+        path: /var/glpi
+    resources:
+      memoryMb: 768
+  - key: db
+    name: GLPI DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: glpi
+group: GLPI
+notes:
+  - "The first start creates the database schema, which can take a couple of minutes. Then sign in with the default account glpi / glpi."
+  - "Change the passwords of the default accounts (glpi, tech, normal, post-only) or disable them right after the first login, and set the public URL under Setup > General."

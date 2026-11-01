@@ -1,0 +1,39 @@
+# expect: limit_exceeded
+# schema: reject
+# At most nine processes besides the service's own: ten with it.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.processes.p1]
+command = ["run", "1"]
+
+[services.web.processes.p2]
+command = ["run", "2"]
+
+[services.web.processes.p3]
+command = ["run", "3"]
+
+[services.web.processes.p4]
+command = ["run", "4"]
+
+[services.web.processes.p5]
+command = ["run", "5"]
+
+[services.web.processes.p6]
+command = ["run", "6"]
+
+[services.web.processes.p7]
+command = ["run", "7"]
+
+[services.web.processes.p8]
+command = ["run", "8"]
+
+[services.web.processes.p9]
+command = ["run", "9"]
+
+[services.web.processes.p10]
+command = ["run", "10"]

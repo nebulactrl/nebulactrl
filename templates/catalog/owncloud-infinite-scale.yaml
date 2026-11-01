@@ -1,0 +1,66 @@
+schema: 1
+id: owncloud-infinite-scale
+revision: 1
+name: ownCloud Infinite Scale
+summary: ownCloud's Go-based file sync and share platform with spaces, WebDAV and ownCloud desktop and mobile clients.
+description: ownCloud Infinite Scale (oCIS) is a single-binary rewrite of ownCloud with a web UI, spaces, sharing, WebDAV and an embedded identity provider, storing everything on local volumes. This template runs the official image behind the generated HTTPS domain.
+category: storage
+tags: [files, sync, cloud, webdav, collaboration]
+icon: owncloud
+links:
+  website: https://owncloud.com/infinite-scale/
+  docs: https://doc.owncloud.com/ocis/next/
+  source: https://github.com/owncloud/ocis
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/owncloud/ocis/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/owncloud-infinite-scale
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: ocis
+    name: ownCloud Infinite Scale
+    kind: app
+    image: owncloud/ocis:8.0.9
+    digest: sha256:65ea03b9345f5795365462397cd7114997d4db6033b61b93e5f070cd1e080f33
+    port: 9200
+    command: [-c, "ocis init --insecure yes || true; ocis server"]
+    healthcheck:
+      type: http
+      path: /status.php
+      startPeriodSeconds: 45
+      deadlineSeconds: 240
+    env:
+      OCIS_URL: ${{NEBULA_PUBLIC_URL}}
+      OCIS_LOG_LEVEL: info
+      OCIS_INSECURE: "true"
+      PROXY_TLS: "false"
+      PROXY_HTTP_ADDR: 0.0.0.0:9200
+      IDM_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      SETTINGS_GRPC_ADDR: 0.0.0.0:9191
+      GATEWAY_GRPC_ADDR: 0.0.0.0:9142
+      STORAGE_USERS_DATA_GATEWAY_URL: http://127.0.0.1:9200/data
+      THUMBNAILS_FILESYSTEMSTORAGE_ROOT: /var/lib/ocis-thumbnails
+    volumes:
+      - {name: config, path: /etc/ocis}
+      - {name: data, path: /var/lib/ocis}
+      - {name: thumbnails, path: /var/lib/ocis-thumbnails}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+    docker:
+      entrypoint: [/bin/sh]
+group: ownCloud Infinite Scale
+notes:
+  - "Sign in on the generated domain as `admin` with the password from the install form (generated if left empty). The admin password is applied when the configuration is first created; later changes of the variable do not alter it."
+  - "oCIS only works on an HTTPS public URL (its identity provider rejects plain HTTP issuers): the generated domain is HTTPS and `OCIS_URL` follows it. If you attach another domain, set OCIS_URL to it."
+  - "The service runs `ocis init` before every start (a no-op once the configuration exists), so keep the config, data and thumbnails volumes together when backing up. The OpenCloud template is a fork of this project; install only one of them per domain."

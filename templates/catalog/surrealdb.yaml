@@ -1,0 +1,55 @@
+schema: 1
+id: surrealdb
+revision: 1
+name: SurrealDB
+summary: Multi-model database for relational, document, graph and vector data with a built-in query language and HTTP/WebSocket API.
+description: SurrealDB is a multi-model database server. This template runs the official image as a single node on RocksDB storage with a generated root password, reachable on the generated domain over HTTP and WebSocket.
+category: data
+tags: [database, graph, document, multi-model]
+icon: surrealdb
+links:
+  website: https://surrealdb.com
+  docs: https://surrealdb.com/docs/surrealdb
+  source: https://github.com/surrealdb/surrealdb
+upstream:
+  license: BUSL-1.1
+  licenseUrl: https://github.com/surrealdb/surrealdb/blob/main/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/surrealdb
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: ROOT_USERNAME, label: Root username, default: root, required: true}
+  - {key: ROOT_PASSWORD, label: Root password, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: surrealdb
+    name: SurrealDB
+    kind: app
+    image: surrealdb/surrealdb:v3.3.4
+    digest: sha256:649a60a3b9c0177d9923c938e1c2563e48cde2a9d06ac2c0519714be719b02af
+    port: 8000
+    command: [start, "rocksdb:/home/nonroot/data"]
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      SURREAL_USER: ${input:ROOT_USERNAME}
+      SURREAL_PASS: ${input:ROOT_PASSWORD}
+    volumes:
+      - {name: data, path: /home/nonroot}
+    resources:
+      memoryMb: 512
+group: SurrealDB
+notes:
+  - "Connect with the root username and password from the install form, for example: surreal sql --endpoint https://<your domain> --username root --password <password> --namespace main --database main."
+  - "The root user is only created when the datastore is new; changing these values later does not alter an existing database."
+  - "SurrealDB is licensed under the Business Source License: you may not offer it to third parties as a database service."

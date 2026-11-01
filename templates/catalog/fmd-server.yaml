@@ -1,0 +1,59 @@
+schema: 1
+id: fmd-server
+revision: 1
+name: FMD Server
+summary: Self-hosted server for the FMD Android app to locate, ring and remotely control your own phone.
+description: Runs the official FMD Server image (Go backend and web UI, SQLite storage) with a registration token so only your devices can register. HTTPS is provided by the platform proxy, which the web UI requires.
+category: security
+tags: [android, phone, location, find-my-device, privacy]
+links:
+  website: https://fmd-foss.org
+  docs: https://fmd-foss.org/docs/fmd-server/overview
+  source: https://gitlab.com/fmd-foss/fmd-server
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://gitlab.com/fmd-foss/fmd-server/-/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/fmd-server
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 2
+inputs:
+  - key: REGISTRATION_TOKEN
+    label: Registration token
+    description: The FMD app must present this token when it registers an account. Keep it private.
+    secret: true
+    default: "${{secret(32)}}"
+  - {key: MAX_SAVED_LOCATIONS, label: Locations kept per account, default: "1000"}
+  - {key: MAX_SAVED_PICTURES, label: Pictures kept per account, default: "10"}
+services:
+  - key: fmd-server
+    name: FMD Server
+    kind: app
+    image: registry.gitlab.com/fmd-foss/fmd-server:0.17.0
+    digest: sha256:93c1db7a376e94ee9552916ac724371e0e2d8cd88c10668f83132d86efd1ac6a
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      FMD_REGISTRATIONTOKEN: ${input:REGISTRATION_TOKEN}
+      FMD_MAXSAVEDLOC: ${input:MAX_SAVED_LOCATIONS}
+      FMD_MAXSAVEDPIC: ${input:MAX_SAVED_PICTURES}
+    volumes:
+      - name: db
+        path: /var/lib/fmd-server/db
+    resources:
+      memoryMb: 128
+group: FMD Server
+notes:
+  - "In the FMD Android app, register with the service's https address as the server URL and the registration token from the install form (variable FMD_REGISTRATIONTOKEN)."
+  - "FMD Server is pre-1.0: minor versions can contain breaking changes, so read the changelog before changing the image tag."

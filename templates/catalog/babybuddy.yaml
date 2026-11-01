@@ -1,0 +1,53 @@
+schema: 1
+id: babybuddy
+revision: 1
+name: Baby Buddy
+summary: Track feedings, sleep, diaper changes, growth and other daily events for babies and toddlers.
+description: Baby Buddy helps caregivers learn a child's patterns by logging feedings, sleep, diapers, tummy time, pumping and measurements, with charts and reminders. It stores its SQLite database and settings on a single volume.
+category: productivity
+tags: [baby, parenting, family, tracking, health]
+icon: babybuddy
+links:
+  website: https://babybuddy.app
+  docs: https://docs.baby-buddy.net
+  source: https://github.com/babybuddy/babybuddy
+upstream:
+  license: BSD-2-Clause
+  licenseUrl: https://github.com/babybuddy/babybuddy/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/babybuddy.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: babybuddy
+    name: Baby Buddy
+    kind: app
+    image: lscr.io/linuxserver/babybuddy:2.11.0
+    digest: sha256:3f244c1a3cd06696c2e8edb40f9fda71a837a77fee06f2f5c2f96ac99c135071
+    port: 8000
+    healthcheck:
+      type: http
+      path: /login/
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    env:
+      CSRF_TRUSTED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+      PUID: "1000"
+      PGID: "1000"
+      TZ: UTC
+    volumes:
+      - name: config
+        path: /config
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Baby Buddy
+notes:
+  - "Sign in with the default account admin / admin and change the password immediately under the user menu."
+  - "Set the TZ variable to your own timezone so that logged times match local time."

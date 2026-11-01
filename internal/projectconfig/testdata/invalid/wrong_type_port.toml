@@ -1,0 +1,9 @@
+# expect: wrong_type
+# schema: reject
+# port is an integer, not a string.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = "80"

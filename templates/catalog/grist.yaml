@@ -1,0 +1,73 @@
+schema: 1
+id: grist
+revision: 1
+name: Grist
+summary: Relational spreadsheet that combines spreadsheet flexibility with database structure, formulas in Python and access rules.
+description: Grist is a modern spreadsheet where columns have types, tables link to each other and formulas are written in Python. This template runs the open-source Community image with a managed PostgreSQL database for the home database; documents are stored on a volume.
+category: productivity
+tags: [spreadsheet, database, low-code, productivity]
+icon: grist
+links:
+  website: https://www.getgrist.com
+  docs: https://support.getgrist.com/self-managed/
+  source: https://github.com/gristlabs/grist-core
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/gristlabs/grist-core/blob/main/LICENSE.txt
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/grist.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Administrator email, required: true}
+  - {key: BOOT_KEY, label: Boot key (proves you operate the server on first run), secret: true, default: "${{secret(32)}}"}
+  - {key: TZ, label: Server timezone, default: UTC}
+services:
+  - key: grist
+    name: Grist
+    kind: app
+    image: gristlabs/grist-oss:1.7.21
+    digest: sha256:5657dc14b1745ef759bf789e5206ff4591e9b7d61d53777cc2fc710bfc9fbe36
+    port: 8484
+    healthcheck:
+      type: http
+      path: /status
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      APP_HOME_URL: ${{NEBULA_PUBLIC_URL}}
+      GRIST_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      GRIST_BOOT_KEY: ${input:BOOT_KEY}
+      GRIST_SESSION_SECRET: ${{randomBytes(32,"hex")}}
+      TYPEORM_TYPE: postgres
+      TYPEORM_HOST: ${{db.DATABASE_HOST}}
+      TYPEORM_PORT: ${{db.DATABASE_PORT}}
+      TYPEORM_DATABASE: ${{db.DATABASE_NAME}}
+      TYPEORM_USERNAME: ${{db.DATABASE_USER}}
+      TYPEORM_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      TZ: ${input:TZ}
+    volumes:
+      - name: persist
+        path: /persist
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Grist DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: grist
+group: Grist
+notes:
+  - "A fresh Grist has no sign-in: open the service URL, paste the boot key from the install form at the boot page, confirm the administrator email and walk through the Quick setup wizard."
+  - "In the wizard, pick an authentication method (OIDC, SAML or forwarded headers) before sharing the URL; until then anyone who reaches Grist can read and edit documents. Also enable a sandbox (gVisor or Pyodide) there, because formulas run as Python code."
+  - "Documents are SQLite files in the persist volume: back it up."

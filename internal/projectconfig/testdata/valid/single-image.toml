@@ -1,0 +1,186 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema  = 1
+project = "single-image"
+server  = "fra-1"
+
+[variables]
+REGION = "eu"
+
+# One image service that uses every section an image service can have.
+[services.api]
+name               = "API"
+image              = "ghcr.io/acme/api:1.4.2"
+port               = 8080
+command            = ["/app/server", "--listen", ":8080"]
+one_shot           = false
+stop_grace_seconds = 20
+memory_mb          = 512
+cpus               = 1.5
+image_retention    = 5
+block_egress       = false
+networks           = ["backplane"]
+generate_domain    = true
+
+[services.api.health_check]
+type                 = "http"
+path                 = "/healthz"
+port                 = 8080
+interval_seconds     = 5
+timeout_seconds      = 3
+start_period_seconds = 10
+deadline_seconds     = 60
+success_threshold    = 2
+
+[services.api.pre_deploy]
+command         = ["/app/server", "migrate"]
+timeout_seconds = 300
+
+[services.api.post_deploy]
+command         = ["/app/server", "warm-cache"]
+timeout_seconds = 120
+
+[services.api.variables]
+LOG_LEVEL      = "info"
+LOG_DIR        = "/var/log/api"
+LOG_FILE       = "${{LOG_DIR}}/api.log"
+REGION_NAME    = "${{shared.REGION}}"
+SESSION_KEY    = "${{secret(32)}}"
+FEATURE_FLAG   = { value = "on", scope = "runtime", comment = "rolled out to everyone", rotate_every_days = 0 }
+PUBLIC_API_KEY = { value = "pk_demo_0123456789", public = true, comment = "publishable, not a credential" }
+
+[services.api.secrets]
+keys  = ["STRIPE_SECRET_KEY", "SENTRY_AUTH_TOKEN"]
+scope = "runtime"
+
+[services.api.volumes]
+uploads = "/app/uploads"
+cache   = "/var/cache/api"
+
+[services.api.files."/etc/api/api.conf"]
+mode    = "0644"
+content = """
+listen = 8080
+log    = "info"
+"""
+
+[services.api.files."/etc/api/motd"]
+content = "welcome\n"
+
+[services.api.domains."api.acme.com"]
+target_port  = 8080
+tls          = "auto"
+dns_resolver = "cloudflare"
+www_redirect = true
+
+[services.api.domains."api.acme.com".cloudflare]
+proxied    = true
+origin_lock = false
+
+[services.api.domains."api.acme.com".options]
+force_https      = true
+compress         = true
+noindex          = false
+security_headers = "basic"
+basic_auth       = false
+large_uploads    = false
+
+[services.api.domains."api.acme.com".options.request_headers]
+X-Forwarded-Prefix = "/v1"
+
+[services.api.domains."api.acme.com".options.response_headers]
+X-Frame-Options = "DENY"
+
+[services.api.domains."api.acme.com".options.cors]
+origins         = ["https://app.acme.com"]
+methods         = ["GET", "POST"]
+headers         = ["Authorization"]
+expose_headers  = ["X-Request-Id"]
+credentials     = true
+max_age_seconds = 600
+
+[[services.api.domains."api.acme.com".options.redirects]]
+regex       = "^https://api.acme.com/old/(.*)"
+replacement = "https://api.acme.com/new/${1}"
+permanent   = true
+
+[[services.api.domains."api.acme.com".options.redirects]]
+regex       = "^https://api.acme.com/tmp/(.*)"
+replacement = "https://api.acme.com/other/${1}"
+permanent   = false
+
+[services.api.domains."api.acme.com".options.rate_limit]
+average             = 100
+period_seconds      = 1
+burst               = 200
+trusted_proxy_depth = 1
+
+[services.api.domains."api.acme.com".options.access]
+allow_cidrs         = ["203.0.113.0/24", "198.51.100.0/24"]
+deny_cidrs          = ["203.0.113.66/32"]
+trusted_proxy_depth = 1
+reject_status       = 403
+
+[services.api.domains."api.acme.com/v1"]
+strip_prefix = true
+add_prefix   = "/v2"
+
+[services.api.domains."old-api.acme.com"]
+kind          = "redirect"
+redirect_to   = "api.acme.com"
+redirect_code = 301
+preserve_path = true
+
+[services.api.scale]
+replicas = 1
+
+[services.api.scale.autoscaling]
+enabled            = false
+min                = 1
+max                = 3
+target_cpu_percent = 70
+
+[services.api.uptime]
+enabled            = true
+alerts             = true
+failure_threshold  = 3
+recovery_threshold = 2
+reminder_minutes   = 60
+
+[services.api.tasks.cleanup]
+schedule        = "0 3 * * *"
+timezone        = "UTC"
+command         = ["/app/server", "cleanup"]
+enabled         = true
+timeout_seconds = 600
+concurrency     = "forbid"
+
+[services.api.tasks.report]
+schedule    = "@daily"
+command     = ["/app/server", "report"]
+concurrency = "allow"
+
+[services.api.docker]
+cap_drop          = ["ALL"]
+cap_add           = ["NET_BIND_SERVICE"]
+no_new_privileges = true
+read_only_rootfs  = false
+pids_limit        = 512
+hostname          = "api"
+dns               = ["1.1.1.1", "9.9.9.9"]
+user              = "1000:1000"
+shm_size_mb       = 128
+init              = true
+stop_signal       = "SIGQUIT"
+entrypoint        = ["/entrypoint.sh"]
+
+[services.api.docker.sysctls]
+"net.core.somaxconn" = "1024"
+
+[services.api.docker.ulimits]
+nofile = { soft = 65536, hard = 65536 }
+
+[services.api.docker.labels]
+team = "platform"
+
+[services.api.docker.tmpfs]
+"/tmp" = { size_mb = 64, mode = "1777" }

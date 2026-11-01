@@ -1,0 +1,46 @@
+schema: 1
+id: chroma
+revision: 1
+name: Chroma
+summary: Open-source vector database for embeddings and semantic search in AI applications.
+description: Chroma stores embeddings and documents and answers similarity queries over an HTTP API, with persistent storage on a volume. The server has no built-in authentication, so this template does not create a public domain.
+category: ai
+tags: [ai, vector-database, embeddings, search, llm]
+icon: chroma
+links:
+  website: https://www.trychroma.com
+  docs: https://docs.trychroma.com
+  source: https://github.com/chroma-core/chroma
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/chroma-core/chroma/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/chroma.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: chroma
+    name: Chroma
+    kind: app
+    image: ghcr.io/chroma-core/chroma:1.5.9
+    digest: sha256:1e0b73a187a28757c572acba508c46f48c9e8b0acaf5c20e6d95cdedce1acdf6
+    port: 8000
+    healthcheck:
+      type: http
+      path: /api/v2/heartbeat
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 512
+group: Chroma
+notes:
+  - "Other services in the environment connect with the Chroma HTTP client to this service's private host (shown on the service) on port 8000."
+  - "Chroma has no authentication. Only add a public domain behind an authenticating proxy or network restriction."

@@ -1,0 +1,62 @@
+schema: 1
+id: castopod
+revision: 1
+name: Castopod
+summary: Podcast hosting platform with ActivityPub federation, analytics and a public podcast site.
+description: Castopod hosts podcasts with built-in analytics, fediverse comments and RSS feeds. This template runs the official image with a managed MariaDB database.
+category: media
+tags: [podcast, audio, hosting, activitypub]
+links:
+  website: https://castopod.org
+  docs: https://docs.castopod.org
+  source: https://gitlab.com/adaures/castopod
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://gitlab.com/adaures/castopod/-/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/castopod.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 10
+services:
+  - key: castopod
+    name: Castopod
+    kind: app
+    image: castopod/castopod:1.15.6
+    digest: sha256:bb9cf0970b88bb722746a6c2960e2862f484411ab1080a2876543170ca504853
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      CP_BASEURL: ${{NEBULA_PUBLIC_URL}}
+      CP_ANALYTICS_SALT: ${{secret(64)}}
+      CP_DISABLE_HTTPS: "1"
+      CP_DATABASE_HOSTNAME: ${{db.DATABASE_HOST}}
+      CP_DATABASE_NAME: ${{db.DATABASE_NAME}}
+      CP_DATABASE_USERNAME: ${{db.DATABASE_USER}}
+      CP_DATABASE_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - {name: media, path: /app/public/media}
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Castopod DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: castopod
+group: Castopod
+notes:
+  - "Open /cp-install on your site's address to create the superadmin account."
+  - "ActivityPub needs HTTPS; the generated domain is served over TLS by the proxy."

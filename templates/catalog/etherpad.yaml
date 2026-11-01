@@ -1,0 +1,68 @@
+schema: 1
+id: etherpad
+revision: 1
+name: Etherpad
+summary: Real-time collaborative editor where several people write the same document together.
+description: Etherpad is a collaborative text editor with plugins, import and export. This template runs the official image against a managed Postgres database and enables the admin interface with a generated password.
+category: productivity
+tags: [collaboration, editor, real-time, documents, pads]
+links:
+  website: https://etherpad.org
+  docs: https://github.com/ether/etherpad/blob/develop/doc/docker.md
+  source: https://github.com/ether/etherpad
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/ether/etherpad/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/etherpad
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_PASSWORD, label: Admin password (user "admin"), secret: true, default: "${{secret(24)}}"}
+services:
+  - key: app
+    name: Etherpad
+    kind: app
+    image: etherpad/etherpad:3.3.11
+    digest: sha256:2540ced7be293925de4e3452255ee0ee74ced100cfe20abd2edc6ad4426edd34
+    port: 9001
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      NODE_ENV: production
+      DB_TYPE: postgres
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASS: ${{db.DATABASE_PASSWORD}}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      TRUST_PROXY: "true"
+    volumes:
+      - name: var
+        path: /opt/etherpad-lite/var
+      - name: plugins
+        path: /opt/etherpad-lite/src/plugin_packages
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Etherpad DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: etherpad
+group: Etherpad
+notes:
+  - "Open the service's domain to create pads. The admin interface is at /admin: sign in as admin with the password from the install form."

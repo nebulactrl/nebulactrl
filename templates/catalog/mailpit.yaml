@@ -1,0 +1,59 @@
+schema: 1
+id: mailpit
+revision: 1
+name: Mailpit
+summary: Email and SMTP testing tool with a web UI and API that catches every message instead of delivering it.
+description: Mailpit is a small SMTP server that captures email and shows it in a web UI, so apps can be tested without sending real mail. Messages are kept in a SQLite file on a persistent volume. The web UI is protected with basic authentication.
+category: devtools
+tags: [email, smtp, testing, development]
+links:
+  website: https://mailpit.axllent.org
+  docs: https://mailpit.axllent.org/docs/
+  source: https://github.com/axllent/mailpit
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/axllent/mailpit/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: original
+requires:
+  memoryMb: 128
+  diskGb: 1
+inputs:
+  - {key: UI_USER, label: Web UI username, required: true, default: admin}
+  - {key: UI_PASSWORD, label: Web UI password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: app
+    name: Mailpit
+    kind: app
+    image: axllent/mailpit:v1.32.0
+    digest: sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    port: 8025
+    healthcheck:
+      type: http
+      path: /livez
+      startPeriodSeconds: 5
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    env:
+      MP_DATABASE: /data/mailpit.db
+      MP_MAX_MESSAGES: "5000"
+      MP_UI_AUTH: ${input:UI_USER}:${input:UI_PASSWORD}
+      MP_SMTP_AUTH_ACCEPT_ANY: "true"
+      MP_SMTP_AUTH_ALLOW_INSECURE: "true"
+    secrets: [MP_UI_AUTH]
+    volumes:
+      - name: data
+        path: /data
+    ports:
+      - name: smtp
+        port: 1025
+        protocol: tcp
+        publish: false
+    resources:
+      memoryMb: 128
+group: Mailpit
+notes:
+  - "Sign in to the web UI with the username and password chosen at install (the password is stored in the MP_UI_AUTH variable)."
+  - "Point other services at SMTP host = this service's private host, port 1025, no TLS; any username and password is accepted. The SMTP port is not published to the internet, so it is only reachable from other services on the same server."

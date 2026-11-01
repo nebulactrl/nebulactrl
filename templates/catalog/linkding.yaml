@@ -1,0 +1,55 @@
+schema: 1
+id: linkding
+revision: 1
+name: linkding
+summary: Minimal, fast self-hosted bookmark manager with tags, full-text search, archiving, browser extensions and a REST API.
+description: linkding stores and organizes bookmarks with tags, bundles and full-text search, and can keep local archives of saved pages. This template runs it with its built-in SQLite database on a persistent volume.
+category: media
+tags: [bookmarks, links, archive, self-hosted]
+icon: linkding
+links:
+  website: https://linkding.link
+  docs: https://linkding.link/installation/
+  source: https://github.com/sissbruecker/linkding
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/sissbruecker/linkding/blob/master/LICENSE.txt
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/linkding.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USER, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: linkding
+    name: linkding
+    kind: app
+    image: sissbruecker/linkding:1.47.0
+    digest: sha256:e35cb50e0581178f245125ffaa909c565416c94c9f22ace305a7d234a4345522
+    port: 9090
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      LD_SUPERUSER_NAME: ${input:ADMIN_USER}
+      LD_SUPERUSER_PASSWORD: ${input:ADMIN_PASSWORD}
+      LD_CSRF_TRUSTED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: data
+        path: /etc/linkding/data
+    resources:
+      memoryMb: 256
+group: linkding
+notes:
+  - "Sign in with the admin username and password from the install form. The account is only created on the first start; later changes to these values do not alter it."
+  - "If you attach a custom domain, update LD_CSRF_TRUSTED_ORIGINS to its https:// URL and redeploy, or form submissions will fail with a CSRF error."

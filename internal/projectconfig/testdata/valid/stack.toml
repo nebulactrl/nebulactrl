@@ -1,0 +1,46 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema  = 1
+project = "media"
+server  = "fra-1"
+
+[services.media]
+name       = "Media stack"
+depends_on = ["tracker"]
+
+[services.media.stack]
+wait_seconds = 420
+compose = '''
+services:
+  web:
+    image: nginx:1.27-alpine
+    expose:
+      - "80"
+    environment:
+      GREETING: ${GREETING}
+  cache:
+    image: valkey/valkey:8
+'''
+
+[services.media.stack.resources.web]
+memory_mb = 256
+cpus      = 0.5
+
+[services.media.stack.resources.cache]
+memory_mb = 128
+
+[services.media.variables]
+GREETING = "hello"
+
+[services.media.secrets]
+keys = ["CACHE_PASSWORD"]
+
+[services.media.domains."media.acme.com"]
+component   = "web"
+target_port = 80
+
+[services.media.uptime]
+failure_threshold = 5
+
+# A plain image service the stack depends on.
+[services.tracker]
+image = "traefik/whoami:v1.10"

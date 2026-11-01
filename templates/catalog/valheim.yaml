@@ -1,0 +1,86 @@
+schema: 1
+id: valheim
+revision: 1
+name: Valheim Dedicated Server
+summary: Valheim dedicated server with automatic game updates, world backups and optional crossplay.
+description: Runs the community-valheim-tools/valheim-server image (the project formerly published as lloesche/valheim-server). The Valheim server (~1 GB) is downloaded from Steam on first start and kept up to date automatically; worlds and hourly backups live in the config volume. The image project is Apache-2.0; the Valheim server software is proprietary to Iron Gate AB and is downloaded from Steam.
+category: games
+tags: [valheim, game-server, steam, survival]
+icon: steam
+links:
+  website: https://github.com/community-valheim-tools/valheim-server-docker
+  docs: https://github.com/community-valheim-tools/valheim-server-docker#readme
+  source: https://github.com/community-valheim-tools/valheim-server-docker
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/community-valheim-tools/valheim-server-docker/blob/main/LICENSE
+  class: permissive
+origin:
+  type: original
+heavy: true
+requires:
+  memoryMb: 4096
+  diskGb: 8
+  arch: [amd64]
+inputs:
+  - key: SERVER_NAME
+    label: Server name
+    description: Name shown in the server browser.
+    default: Nebula Valheim
+  - key: WORLD_NAME
+    label: World name
+    description: The world to load, or create when it does not exist yet. Use the name of an existing world directory to continue a world.
+    default: Dedicated
+  - key: SERVER_PASS
+    label: Server password
+    description: At least 5 characters, and it must not be contained in the server or world name, or Valheim refuses to start. A random one is generated when left empty.
+    secret: true
+    default: "${{secret(12)}}"
+  - key: SERVER_PUBLIC
+    label: List in the server browser
+    description: With false the server is not listed; join through Join by IP.
+    default: "false"
+    options: ["false", "true"]
+  - key: CROSSPLAY
+    label: Crossplay
+    description: Allow Xbox, Microsoft Store and other non-Steam clients (uses the additional UDP port 2458).
+    default: "false"
+    options: ["false", "true"]
+services:
+  - key: server
+    name: Valheim
+    kind: app
+    image: ghcr.io/community-valheim-tools/valheim-server:1.4.1
+    digest: sha256:f34d67ba8023e343b10ffda0144759a8c8d986f276510460315a01051bed8a6d
+    healthcheck:
+      type: exec
+      command: [CMD, pgrep, -f, "valheim_server.x86_64"]
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 300
+      deadlineSeconds: 1500
+    env:
+      SERVER_NAME: ${input:SERVER_NAME}
+      WORLD_NAME: ${input:WORLD_NAME}
+      SERVER_PASS: ${input:SERVER_PASS}
+      SERVER_PUBLIC: ${input:SERVER_PUBLIC}
+      CROSSPLAY: ${input:CROSSPLAY}
+    secrets: [SERVER_PASS]
+    ports:
+      - {name: game, port: 2456, protocol: udp, publish: true}
+      - {name: query, port: 2457, protocol: udp, publish: true}
+      - {name: crossplay, port: 2458, protocol: udp, publish: true}
+    volumes:
+      - name: config
+        path: /config
+      - name: server
+        path: /opt/valheim
+    resources:
+      memoryMb: 6144
+    stopGraceSeconds: 120
+group: Valheim
+notes:
+  - "The first start downloads about 1 GB from Steam, so the service takes several minutes to become healthy."
+  - "In Valheim choose Join Game, Join by IP and enter the server's address with port 2456. The password is the variable SERVER_PASS."
+  - "Worlds and automatic backups (hourly, kept 3 days) are stored in the config volume under worlds_local and backups."
+  - "Idle the server uses about 3 GB of RAM; 4 GB is the minimum and 8 GB is recommended for several players."

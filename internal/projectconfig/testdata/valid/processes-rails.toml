@@ -1,0 +1,23 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+server = "fra-1"
+
+[services.app]
+port    = 3000
+command = ["bundle", "exec", "puma", "-C", "config/puma.rb"]
+
+[services.app.git]
+url    = "https://github.com/acme/blog.git"
+branch = "main"
+
+[services.app.pre_deploy]
+command = ["bin/rails", "db:migrate"]
+
+[services.app.domains."blog.acme.com"]
+
+[services.app.processes.sidekiq]
+command            = ["bundle", "exec", "sidekiq"]
+stop_grace_seconds = 120
+
+[services.app.processes.sidekiq.scale]
+replicas = 2

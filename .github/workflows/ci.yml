@@ -1,0 +1,229 @@
+# Tiers 1 and 2 of the test pyramid (tests/README.md). Runs on every pull request
+# to main and every push to main, on demand (Actions -> ci -> Run workflow) and as
+# a gate inside release.yml.
+#
+#   go     go vet + go test ./...              (unit + DB tests, Postgres service),
+#          3 parallel shards of packages, balanced by scripts/ci/go-durations.json;
+#          go vet runs in shard 1
+#   web    typecheck, biome, bun test, build
+#   smoke  tests/run.sh smoke                  (~8 Docker scenarios, runner's Docker)
+#
+# Alongside them, the checks that keep the supply chain and the workflows honest:
+#
+#   workflows          the workflow rules, actionlint and zizmor (check-workflows.sh)
+#   govulncheck        known vulnerabilities that the Go code can reach
+#   golangci-lint      make lint-go
+#   dependency review  pull requests only: a new dependency with a high-severity advisory
+#
+# Tier 3 (everything, a superset of smoke) is full.yml.
+name: ci
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      smoke:
+        description: "Also run the smoke tier (the full tier contains it)"
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      smoke:
+        description: "Also run the smoke tier (release.yml passes false: the full tier contains it)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+# github.workflow is the caller's name when called from release.yml, so a manual
+# or pull request run of ci can never cancel the gates of a release. Only pull
+# request runs are cancelled when superseded; a run on main finishes (a newer push
+# replaces a run that is still queued).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # The Postgres service below. Tests create their own schemas inside it.
+  NEBULACTRL_TEST_DATABASE_URL: postgres://nebulactrl:nebulactrl@localhost:5432/nebulactrl_test?sslmode=disable
+
+jobs:
+  workflows:
+    name: workflows (rules, actionlint, zizmor)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod # actionlint runs through go run
+      - name: Workflow rules, actionlint, zizmor
+        run: scripts/release/check-workflows.sh
+        env:
+          GH_TOKEN: ${{ github.token }} # zizmor's online audits; read-only on fork pull requests
+
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod # the pinned toolchain is part of the analysis
+      # Fails on a vulnerability the code reaches (also in the standard library of
+      # the pinned Go version). Keep the version equal to security.yml.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  golangci-lint:
+    name: golangci-lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: golangci-lint
+        run: make lint-go
+
+  dependency-review:
+    name: dependency review
+    # Compares the pull request's dependency changes with its base: no pull request, no diff.
+    if: ${{ github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+
+  go:
+    name: go (shard ${{ matrix.shard }}/3)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 14
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      SHARD: ${{ matrix.shard }}/3
+    services:
+      postgres:
+        image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+        env:
+          POSTGRES_USER: nebulactrl
+          POSTGRES_PASSWORD: nebulactrl
+          POSTGRES_DB: nebulactrl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebulactrl -d nebulactrl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod # caches the module and build caches, keyed on go.sum
+      - name: go vet
+        if: ${{ matrix.shard == 1 }}
+        run: go vet ./...
+      - name: go test (this shard's packages)
+        shell: bash
+        run: |
+          list="$(go list ./... | go run ./tools/shardtests -packages -shard "$SHARD" -preload-first 90 -durations scripts/ci/go-durations.json -summary)"
+          mapfile -t pkgs <<<"$list"
+          echo "shard $SHARD: ${#pkgs[@]} packages"
+          go test -count=1 "${pkgs[@]}"
+
+  web:
+    name: web typecheck, lint, test, build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun run lint # biome check
+      - run: bun run test
+      - run: bun run build
+
+  smoke:
+    name: smoke (docker scenarios)
+    # inputs.smoke only exists for workflow_dispatch and workflow_call; pushes and
+    # pull requests always run it.
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || inputs.smoke }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+        env:
+          POSTGRES_USER: nebulactrl
+          POSTGRES_PASSWORD: nebulactrl
+          POSTGRES_DB: nebulactrl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebulactrl -d nebulactrl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # The harness agent pulls Traefik and the pages server and the fixtures use
+      # registry:2. They are cached as a tarball keyed on the pinned references
+      # (a changed pin changes the key), so most runs pull nothing from Docker Hub.
+      - name: Restore Docker image cache
+        id: images
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/docker-images.tar
+          key: docker-smoke-${{ hashFiles('internal/agent/proxy/manager.go', 'internal/agent/proxy/manager_pages.go') }}
+      - name: Load cached Docker images
+        if: steps.images.outputs.cache-hit == 'true'
+        run: docker load -i ~/docker-images.tar
+      - name: Smoke tests
+        run: ./tests/run.sh smoke -v # runs go test -count=1
+      - name: Save Docker images for the cache
+        if: success() && steps.images.outputs.cache-hit != 'true'
+        run: |
+          traefik="$(grep -ohE 'traefik:v[0-9.]+@sha256:[0-9a-f]{64}' internal/agent/proxy/manager.go | head -1)"
+          pages="$(grep -ohE 'nginx:[0-9A-Za-z.-]+@sha256:[0-9a-f]{64}' internal/agent/proxy/manager_pages.go | head -1)"
+          docker save -o ~/docker-images.tar registry:2 "$traefik" "$pages"

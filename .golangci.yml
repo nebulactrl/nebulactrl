@@ -1,0 +1,68 @@
+version: "2"
+
+run:
+  # tests/integration is behind this tag; without it those files are never linted.
+  build-tags:
+    - integration
+
+linters:
+  default: standard
+  enable:
+    - bodyclose
+    - errorlint
+    - gosec
+  settings:
+    errcheck:
+      exclude-functions:
+        # Write errors on CLI output and HTTP responses have no recovery path.
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    errorlint:
+      # Many call sites format a cause with %v on purpose, so callers cannot
+      # errors.Is/As through an API boundary or a secondary rollback error.
+      errorf: false
+    gosec:
+      excludes:
+        # Name-based guess ("password", "token" in a constant name); gitleaks scans for real secrets.
+        - G101
+        # Duplicate of errcheck, which is enabled.
+        - G104
+        # No range analysis: reports every int->int32 for sqlc params and uint64<->int64 counters.
+        - G115
+        # Flags indexes inside `range` loops over the same nested slice.
+        - G602
+        # Name-based guess on JSON field names; this product's API carries secrets by design.
+        - G117
+    staticcheck:
+      # SA and S checks find bugs and simplifications; ST and QF are style suggestions.
+      # S1016 would couple request DTOs to domain types that are mapped field by field on purpose.
+      checks: ["all", "-ST*", "-QF*", "-S1016"]
+  exclusions:
+    generated: lax
+    rules:
+      # Test cleanup and helper results are not worth checking; fixtures use weak
+      # modes, random data and plain HTTP on purpose.
+      - path: _test\.go$
+        linters: [bodyclose, errcheck, gosec]
+      # Deferred cleanup (Close, Remove) has nowhere to report an error.
+      - linters: [errcheck]
+        source: ^\s*defer\s.*\.(Close|CloseNow|Remove|RemoveAll)\(
+      # Dev generators and the integration fixture app are not shipped.
+      - path: ^(tools|tests/fixtures)/
+        linters: [gosec]
+      # Test helper packages (gitsshtest, meshtest, ...) are non-_test files.
+      - path: ^internal/.*test/
+        linters: [gosec]
+      # The agent exists to run host commands (docker, compose, systemctl, deploy scripts).
+      - path: ^(cmd/agent|internal/agent)/
+        text: "G204:"
+        linters: [gosec]
+      # The CLI reads user-chosen paths and the agent its own data directory.
+      - path: ^(cmd/cli|internal/agent)/
+        text: "G304:"
+        linters: [gosec]
+
+formatters:
+  enable:
+    - gofmt

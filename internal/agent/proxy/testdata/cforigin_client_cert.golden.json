@@ -1,0 +1,192 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-cflock-b1cd3e83",
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "middlewares": [
+          "nc-cflock-b1cd3e83",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ipallow",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ratelimit",
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-compress"
+        ],
+        "tls": {
+          "certResolver": "le",
+          "options": "nc-aop-507e5f1c"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`www.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`www.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`www.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-app-aaaaaaaa-0:8080"
+            }
+          ]
+        }
+      }
+    },
+    "middlewares": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-compress": {
+        "compress": {
+          "encodings": [
+            "zstd",
+            "br",
+            "gzip"
+          ],
+          "excludedContentTypes": [
+            "text/event-stream"
+          ]
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ipallow": {
+        "ipAllowList": {
+          "sourceRange": [
+            "0.0.0.0/1",
+            "128.0.0.0/2",
+            "224.0.0.0/3",
+            "208.0.0.0/4",
+            "200.0.0.0/5",
+            "192.0.0.0/6",
+            "196.0.0.0/7",
+            "199.0.0.0/8",
+            "198.128.0.0/9",
+            "198.64.0.0/10",
+            "198.0.0.0/11",
+            "198.32.0.0/12",
+            "198.56.0.0/13",
+            "198.52.0.0/14",
+            "198.48.0.0/15",
+            "198.50.0.0/16",
+            "198.51.128.0/17",
+            "198.51.0.0/18",
+            "198.51.64.0/19",
+            "198.51.112.0/20",
+            "198.51.104.0/21",
+            "198.51.96.0/22",
+            "198.51.102.0/23",
+            "198.51.101.0/24",
+            "198.51.100.128/25",
+            "198.51.100.64/26",
+            "198.51.100.32/27",
+            "198.51.100.16/28",
+            "198.51.100.8/29",
+            "198.51.100.0/30",
+            "198.51.100.4/31",
+            "198.51.100.6/32",
+            "::/0"
+          ],
+          "ipStrategy": {
+            "depth": 1
+          }
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ratelimit": {
+        "rateLimit": {
+          "average": 10,
+          "period": "1s",
+          "burst": 5,
+          "sourceCriterion": {
+            "ipStrategy": {
+              "depth": 1
+            }
+          }
+        }
+      },
+      "nc-cflock-b1cd3e83": {
+        "ipAllowList": {
+          "sourceRange": [
+            "103.21.244.0/22",
+            "104.16.0.0/13",
+            "173.245.48.0/20",
+            "2400:cb00::/32"
+          ]
+        }
+      },
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "permanent": true
+        }
+      }
+    }
+  },
+  "tls": {
+    "options": {
+      "nc-aop-507e5f1c": {
+        "clientAuth": {
+          "caFiles": [
+            "-----BEGIN CERTIFICATE-----\nMIIBrzCCAVSgAwIBAgIUYqHtgynkgvXeinQFxuaQtS2956QwCgYIKoZIzj0EAwIw\nGDEWMBQGA1UEAwwNKi5leGFtcGxlLmNvbTAgFw0yNjEwMjYxMTE0MDdaGA8yMTI2\nMTAwMjExMTQwN1owGDEWMBQGA1UEAwwNKi5leGFtcGxlLmNvbTBZMBMGByqGSM49\nAgEGCCqGSM49AwEHA0IABIrXae1qBB73+/+CqbTlbDNuletTd5xVIgX+n7UstK5d\nGamDyl7cKkQb5agGuDUjXMqIKyZrMrcZDDiy7mkqLeSjejB4MB0GA1UdDgQWBBTF\nfm4V2AwfoFJiWrauMDo7XYvjlzAfBgNVHSMEGDAWgBTFfm4V2AwfoFJiWrauMDo7\nXYvjlzAPBgNVHRMBAf8EBTADAQH/MCUGA1UdEQQeMByCDSouZXhhbXBsZS5jb22C\nC2V4YW1wbGUuY29tMAoGCCqGSM49BAMCA0kAMEYCIQD5Hbwxiv3dRn5VH7RZBbNc\n19/geNtVGHLueCllj5WZ4AIhAJRUXgdPXWL8HBH0hSrH2+v8Kta8vtFwcv+6Y+Yq\nVHX/\n-----END CERTIFICATE-----\n"
+          ],
+          "clientAuthType": "RequireAndVerifyClientCert"
+        }
+      }
+    }
+  }
+}

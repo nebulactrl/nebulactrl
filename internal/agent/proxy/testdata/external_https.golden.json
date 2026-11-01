@@ -1,0 +1,80 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`nas.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`nas.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "tls": {}
+      },
+      "nc-11111111-1111-1111-1111-111111111111-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`nas.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": false,
+          "servers": [
+            {
+              "url": "https://192.168.1.20:8443"
+            },
+            {
+              "url": "https://192.168.1.21:8443"
+            }
+          ],
+          "healthCheck": {
+            "path": "/healthz",
+            "interval": "5s",
+            "timeout": "3s",
+            "followRedirects": false
+          },
+          "serversTransport": "nc-11111111-1111-1111-1111-111111111111"
+        }
+      }
+    },
+    "middlewares": {
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "permanent": true
+        }
+      }
+    },
+    "serversTransports": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "insecureSkipVerify": true,
+        "serverName": "nas.lan"
+      }
+    }
+  }
+}

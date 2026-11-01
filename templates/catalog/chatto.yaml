@@ -1,0 +1,86 @@
+schema: 1
+id: chatto
+revision: 1
+name: Chatto
+summary: Real-time team and group chat you can self-host, with channels, threads and file sharing.
+description: Runs the single Chatto binary with its embedded NATS JetStream store on one persistent volume. Voice and video calls (LiveKit) are not part of this template.
+category: productivity
+tags: [chat, messaging, team, community]
+links:
+  website: https://chatto.run
+  docs: https://docs.chatto.run
+  source: https://github.com/chattocorp/chatto
+upstream:
+  license: AGPL-3.0-or-later
+  licenseUrl: https://github.com/chattocorp/chatto/blob/main/LICENSES/AGPL-3.0-or-later.txt
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/chatto
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - key: ADMIN_EMAIL
+    format: email
+    label: Owner e-mail address
+    description: The account that registers with this address becomes the server owner.
+    required: true
+  - key: SMTP_ENABLED
+    label: Send e-mail through SMTP
+    description: Set to true after filling in the SMTP settings below. Needed for e-mail/password registration, verification and password reset.
+    default: "false"
+    options: ["true", "false"]
+  - {key: SMTP_HOST, label: SMTP host}
+  - {key: SMTP_PORT, format: number, label: SMTP port, default: "587"}
+  - key: SMTP_TLS
+    label: SMTP TLS mode
+    description: mandatory = STARTTLS (port 587), implicit = SMTPS (port 465).
+    default: mandatory
+    options: [mandatory, implicit]
+  - {key: SMTP_USERNAME, label: SMTP username}
+  - {key: SMTP_PASSWORD, label: SMTP password, secret: true}
+  - {key: SMTP_FROM, label: "SMTP sender address (From)"}
+services:
+  - key: chatto
+    name: Chatto
+    kind: app
+    image: ghcr.io/chattocorp/chatto:0.4.26
+    digest: sha256:ae5f288499a6e524d1267962cd7cbdaaec5694503421a1e967e71208ece90bad
+    port: 4000
+    healthcheck:
+      type: http
+      path: /readyz
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      CHATTO_WEBSERVER_URL: ${{NEBULA_PUBLIC_URL}}
+      CHATTO_WEBSERVER_PORT: "4000"
+      CHATTO_WEBSERVER_COOKIE_SIGNING_SECRET: ${{randomBytes(32,"hex")}}
+      CHATTO_WEBSERVER_COOKIE_ENCRYPTION_SECRET: ${{randomBytes(32,"hex")}}
+      CHATTO_CORE_SECRET_KEY: ${{randomBytes(32,"hex")}}
+      CHATTO_CORE_ASSETS_SIGNING_SECRET: ${{randomBytes(32,"hex")}}
+      CHATTO_NATS_EMBEDDED_ENABLED: "true"
+      CHATTO_NATS_EMBEDDED_DATA_DIR: /data
+      CHATTO_NATS_EMBEDDED_SYNC_INTERVAL: always
+      CHATTO_OWNERS_EMAILS: ${input:ADMIN_EMAIL}
+      CHATTO_SMTP_ENABLED: ${input:SMTP_ENABLED}
+      CHATTO_SMTP_HOST: ${input:SMTP_HOST}
+      CHATTO_SMTP_PORT: ${input:SMTP_PORT}
+      CHATTO_SMTP_TLS: ${input:SMTP_TLS}
+      CHATTO_SMTP_USERNAME: ${input:SMTP_USERNAME}
+      CHATTO_SMTP_PASSWORD: ${input:SMTP_PASSWORD}
+      CHATTO_SMTP_FROM: ${input:SMTP_FROM}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 512
+group: Chatto
+notes:
+  - "Open the site right after deploying and finish the first-run wizard (server name and local owner account): the first visitor can create the owner."
+  - "The embedded NATS store is not a separate service. Back up with the chatto backup command rather than copying the live volume."

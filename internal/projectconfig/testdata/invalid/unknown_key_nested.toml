@@ -1,0 +1,12 @@
+# expect: unknown_key
+# schema: reject
+# A typo inside a sub-table: `bransh` for `branch`.
+schema = 1
+server = "fra-1"
+
+[services.web]
+
+[services.web.git]
+connection = "github-acme"
+repo = "acme/shop"
+bransh = "main"

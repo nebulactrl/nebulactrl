@@ -1,0 +1,35 @@
+{
+  "railpackVersion": "0.43.0",
+  "resolvedPackages": {
+    "caddy": {
+      "name": "caddy",
+      "requestedVersion": "2",
+      "resolvedVersion": "2.11.7",
+      "source": "railpack default"
+    }
+  },
+  "metadata": {
+    "providers": "staticfile"
+  },
+  "detectedProviders": [
+    "staticfile"
+  ],
+  "logs": [
+    {
+      "Level": "info",
+      "Msg": "Detected Staticfile",
+      "DocsPath": ""
+    },
+    {
+      "Level": "info",
+      "Msg": "Using staticfile root dir: .",
+      "DocsPath": ""
+    },
+    {
+      "Level": "suggestion",
+      "Msg": "Add a `.dockerignore` file to exclude files from the build",
+      "DocsPath": "/config/excluding-files"
+    }
+  ],
+  "success": true
+}

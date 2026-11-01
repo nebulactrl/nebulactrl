@@ -1,0 +1,102 @@
+schema: 1
+id: librechat
+revision: 1
+name: LibreChat
+summary: Self-hosted ChatGPT-style chat interface for OpenAI, Anthropic, Google and other AI providers, with agents, presets and multi-user accounts.
+description: LibreChat is an open-source AI chat UI. This template runs the app with a managed MongoDB and Meilisearch for conversation search; file-search (RAG) is not included.
+category: ai
+tags: [ai, chat, llm, openai, anthropic, agents]
+links:
+  website: https://www.librechat.ai
+  docs: https://www.librechat.ai/docs
+  source: https://github.com/LibreChat-AI/LibreChat
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/LibreChat-AI/LibreChat/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/librechat.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: OPENAI_API_KEY, label: "OpenAI API key (leave as user_provided to let each user enter their own)", secret: true, default: user_provided}
+  - {key: ANTHROPIC_API_KEY, label: "Anthropic API key (leave as user_provided to let each user enter their own)", secret: true, default: user_provided}
+  - {key: GOOGLE_KEY, label: "Google AI API key (leave as user_provided to let each user enter their own)", secret: true, default: user_provided}
+  - {key: ALLOW_REGISTRATION, label: "Allow new users to register (true or false)", default: "true"}
+services:
+  - key: librechat
+    name: LibreChat
+    kind: app
+    image: ghcr.io/librechat-ai/librechat:v0.8.8
+    digest: sha256:5b706bcee1ca154a1e2987303aaeca0eb27f97919cccee4bb604226c2f8abf61
+    port: 3080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [mongodb, meilisearch]
+    domains:
+      - generate: true
+    env:
+      HOST: 0.0.0.0
+      TRUST_PROXY: "1"
+      NO_INDEX: "true"
+      DOMAIN_CLIENT: ${{NEBULA_PUBLIC_URL}}
+      DOMAIN_SERVER: ${{NEBULA_PUBLIC_URL}}
+      MONGO_URI: ${{mongodb.MONGO_URL}}
+      SEARCH: "true"
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_HOST: http://${{meilisearch.NEBULA_PRIVATE_HOST}}:7700
+      MEILI_MASTER_KEY: ${{meilisearch.MEILI_MASTER_KEY}}
+      CREDS_KEY: ${{randomBytes(32,"hex")}}
+      CREDS_IV: ${{randomBytes(16,"hex")}}
+      JWT_SECRET: ${{secret(64)}}
+      JWT_REFRESH_SECRET: ${{secret(64)}}
+      ALLOW_EMAIL_LOGIN: "true"
+      ALLOW_REGISTRATION: ${input:ALLOW_REGISTRATION}
+      ALLOW_SOCIAL_LOGIN: "false"
+      ALLOW_UNVERIFIED_EMAIL_LOGIN: "true"
+      OPENAI_API_KEY: ${input:OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${input:ANTHROPIC_API_KEY}
+      GOOGLE_KEY: ${input:GOOGLE_KEY}
+    volumes:
+      - {name: images, path: /app/client/public/images}
+      - {name: uploads, path: /app/uploads}
+      - {name: logs, path: /app/logs}
+    resources:
+      memoryMb: 1024
+  - key: mongodb
+    name: LibreChat MongoDB
+    kind: database
+    database:
+      engine: mongodb
+      version: "8.0"
+      databaseName: LibreChat
+  - key: meilisearch
+    name: LibreChat Meilisearch
+    kind: worker
+    image: getmeili/meilisearch:v1.35.1
+    digest: sha256:8b57fc3c7f46535ddef3828df1538465ac19d892eb57c9a10da6df0880bd5856
+    healthcheck:
+      type: http
+      path: /health
+      port: 7700
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      MEILI_ENV: production
+      MEILI_NO_ANALYTICS: "true"
+      MEILI_MASTER_KEY: ${{secret(32)}}
+    volumes:
+      - {name: meili-data, path: /meili_data}
+    resources:
+      memoryMb: 512
+group: LibreChat
+notes:
+  - "Register the first account on the sign-in page; it becomes the administrator. Set ALLOW_REGISTRATION to false afterwards if you do not want open sign-ups."
+  - "With the default user_provided value each user adds their own provider keys in the chat UI; replace it with a real key to share one key with all users."

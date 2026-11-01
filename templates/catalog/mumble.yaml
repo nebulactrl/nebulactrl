@@ -1,0 +1,60 @@
+schema: 1
+id: mumble
+revision: 1
+name: Mumble
+summary: Low-latency, high-quality voice chat server, popular for gaming groups and communities.
+description: Runs the official Mumble server (Murmur) with a persistent SQLite database. Voice traffic needs TCP and UDP port 64738, which this template publishes on the server.
+category: games
+tags: [voice-chat, voip, gaming, murmur]
+icon: mumble
+links:
+  website: https://www.mumble.info
+  docs: https://www.mumble.info/documentation/
+  source: https://github.com/mumble-voip/mumble
+upstream:
+  license: BSD-3-Clause
+  licenseUrl: https://github.com/mumble-voip/mumble/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/mumble
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 1
+inputs:
+  - {key: WELCOME_TEXT, label: Welcome message, default: "Welcome to Mumble Server! Low-latency voice chat."}
+  - {key: MAX_USERS, label: Maximum users, default: "50"}
+  - key: SERVER_PASSWORD
+    label: Server password
+    description: Optional. When set, clients must enter this password to join. Leave empty for an open server.
+    secret: true
+services:
+  - key: mumble
+    name: Mumble
+    kind: app
+    image: mumblevoip/mumble-server:v1.5.939
+    digest: sha256:2373aaf071dfcea95b0d45bc2ddf6c10318674a313a7e4816e826e9ba4bca942
+    healthcheck:
+      type: tcp
+      port: 64738
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      MUMBLE_SUPERUSER_PASSWORD: ${{secret(32)}}
+      MUMBLE_CONFIG_WELCOMETEXT: ${input:WELCOME_TEXT}
+      MUMBLE_CONFIG_USERS: ${input:MAX_USERS}
+      MUMBLE_CONFIG_SERVERPASSWORD: ${input:SERVER_PASSWORD}
+    ports:
+      - {name: voice-tcp, port: 64738, protocol: tcp, publish: true}
+      - {name: voice-udp, port: 64738, protocol: udp, publish: true}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 128
+group: Mumble
+notes:
+  - "Connect with a Mumble client to the server's address on port 64738. The SuperUser password is the generated MUMBLE_SUPERUSER_PASSWORD variable of the service: log in as SuperUser to create channels and register users."
+  - "The server uses a self-signed certificate; clients ask you to trust it on first connect."

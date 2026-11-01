@@ -1,0 +1,48 @@
+schema: 1
+id: termix
+revision: 1
+name: Termix
+summary: Web-based SSH terminal, file manager and remote desktop (RDP, VNC) client for managing servers from the browser.
+description: Termix keeps your SSH hosts, credentials, tunnels and remote desktop sessions in one web app. This template runs the standard Termix image, which includes RDP and VNC support, with a persistent data volume.
+category: devtools
+tags: [ssh, terminal, remote-desktop, rdp, server-management]
+links:
+  website: https://termix.site
+  docs: https://docs.termix.site
+  source: https://github.com/Termix-SSH/Termix
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/Termix-SSH/Termix/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/termix.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: termix
+    name: Termix
+    kind: app
+    image: ghcr.io/termix-ssh/termix:26.10.5
+    digest: sha256:28a627c1e2a568ea8c2d3fd83861675fdd3d8327a09f5a245c399b4864ad5ceb
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      DATA_DIR: /app/data
+    volumes:
+      - {name: data, path: /app/data}
+    resources:
+      memoryMb: 512
+group: Termix
+notes:
+  - "Open the site right after the deploy and create the first account: it becomes the admin."
+  - "All hosts and credentials live in the data volume; back it up before updating."

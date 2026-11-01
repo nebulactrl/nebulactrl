@@ -1,0 +1,94 @@
+schema: 1
+id: colanode
+revision: 1
+name: Colanode Server
+summary: Sync server for Colanode, the open-source local-first Slack and Notion alternative for chat, docs, databases and files.
+description: Colanode is a local-first collaboration suite where clients keep a local copy of the workspace and sync it through this server. This template runs the Colanode server with a pgvector Postgres, a managed Valkey for events and job queues, and files stored on a local volume (the server's built-in file storage provider, so no S3 store is needed).
+category: productivity
+tags: [collaboration, chat, knowledge-base, local-first, notion-alternative, slack-alternative]
+links:
+  website: https://colanode.com
+  docs: https://colanode.com/docs/self-hosting
+  source: https://github.com/colanode/colanode
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/colanode/colanode/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/colanode
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - {key: SERVER_NAME, label: Server name shown in the clients, default: My Colanode}
+services:
+  - key: server
+    name: Colanode Server
+    kind: app
+    image: ghcr.io/colanode/server:0.4.7
+    digest: sha256:7006cac874fd5a154425108b9c7e6d6d9d117933c3694820b1a4c28aeb10008c
+    port: 3000
+    healthcheck:
+      type: http
+      path: /config
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      CONFIG: /etc/colanode/config.json
+      NODE_ENV: production
+      POSTGRES_URL: postgres://postgres:${{db.POSTGRES_PASSWORD}}@${{db.NEBULA_PRIVATE_HOST}}:5432/colanode
+      REDIS_URL: ${{valkey.REDIS_URL}}
+      SERVER_NAME: ${input:SERVER_NAME}
+    files:
+      - path: /etc/colanode/config.json
+        mode: "0444"
+        content: |
+          {
+            "name": "env://SERVER_NAME",
+            "mode": "standalone",
+            "cors": {"origin": true},
+            "account": {"verificationType": "automatic"},
+            "storage": {"provider": {"type": "file", "directory": "/var/lib/colanode/storage"}}
+          }
+    volumes:
+      - name: storage
+        path: /var/lib/colanode/storage
+    domains:
+      - generate: true
+    dependsOn: [db, valkey]
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Colanode Postgres
+    kind: database
+    image: pgvector/pgvector:0.8.2-pg17
+    digest: sha256:feb68f4f15446397d8cac7f4fe48fe4586de83160d1fc48b46283312d1a33966
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d colanode"]
+      startPeriodSeconds: 20
+      deadlineSeconds: 300
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: colanode
+      POSTGRES_PASSWORD: ${{secret(32)}}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 512
+  - key: valkey
+    name: Colanode Valkey
+    kind: database
+    database:
+      engine: valkey
+      version: "8"
+group: Colanode
+notes:
+  - "Open the generated domain: the page shows the server's config URL. Install the Colanode desktop or mobile app, add a server with this domain, then register the first account (accounts are verified automatically, no email is needed)."
+  - "Registration is open to anyone who can reach the server URL. Put it behind your own access control if that is not what you want."
+  - "The server uses its built-in file storage on the data volume. Email, Google login, AI and S3/GCS/Azure storage are set in the config file (/etc/colanode/config.json on the service, see the Colanode self-hosting docs)."
+  - "The separate Colanode web client image (ghcr.io/colanode/web) is not included: it only publishes a floating tag and a template can expose just one public domain."

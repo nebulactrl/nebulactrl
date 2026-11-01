@@ -1,0 +1,71 @@
+schema: 1
+id: enshrouded
+revision: 1
+name: Enshrouded Dedicated Server
+summary: Enshrouded dedicated game server with automatic updates and a password-protected player role.
+description: Runs the community mornedhels/enshrouded-server image (SteamCMD plus Proton), which downloads the Enshrouded server from Steam on first start and keeps it updated. Saves live in the game volume. The image project is MIT; the game server software is proprietary to Keen Games and downloaded from Steam.
+category: games
+tags: [enshrouded, game-server, steam, survival]
+icon: steam
+links:
+  website: https://github.com/mornedhels/enshrouded-server
+  docs: https://github.com/mornedhels/enshrouded-server#readme
+  source: https://github.com/mornedhels/enshrouded-server
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/mornedhels/enshrouded-server/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/enshrouded
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 8192
+  diskGb: 30
+  arch: [amd64]
+inputs:
+  - {key: SERVER_NAME, label: Server name, description: Name shown in the server browser., default: Nebula Enshrouded}
+  - {key: SERVER_PASSWORD, label: Server password, description: Players enter this password to join. A random one is generated when left empty., secret: true, default: "${{secret(16)}}"}
+  - {key: SERVER_SLOT_COUNT, label: Player slots, description: Maximum concurrent players (1-16)., default: "6"}
+services:
+  - key: server
+    name: Enshrouded
+    kind: app
+    image: mornedhels/enshrouded-server:1.8.1
+    digest: sha256:160d469d7a2dbed3a8dac2b1904df387302bfa0f524a26344582e1b76ca46fe4
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "supervisorctl status enshrouded-server | grep -q RUNNING"]
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 300
+      deadlineSeconds: 1800
+    env:
+      PUID: "4711"
+      PGID: "4711"
+      SERVER_NAME: ${input:SERVER_NAME}
+      SERVER_SLOT_COUNT: ${input:SERVER_SLOT_COUNT}
+      SERVER_ROLE_0_NAME: Default
+      SERVER_ROLE_0_PASSWORD: ${input:SERVER_PASSWORD}
+      SERVER_ROLE_0_CAN_KICK_BAN: "true"
+      SERVER_ROLE_0_CAN_ACCESS_INVENTORIES: "true"
+      SERVER_ROLE_0_CAN_EDIT_WORLD: "true"
+      SERVER_ROLE_0_CAN_EDIT_BASE: "true"
+      SERVER_ROLE_0_CAN_EXTEND_BASE: "true"
+      UPDATE_CRON: 0 3 * * *
+      UPDATE_CHECK_PLAYERS: "true"
+    secrets: [SERVER_ROLE_0_PASSWORD]
+    ports:
+      - {name: query, port: 15637, protocol: udp, publish: true}
+    volumes:
+      - {name: game, path: /opt/enshrouded}
+    resources:
+      memoryMb: 8192
+    stopGraceSeconds: 90
+group: Enshrouded
+notes:
+  - "The first start downloads the game server from Steam (several GB) and can take 10 minutes or more before the service reports healthy."
+  - "In Enshrouded choose Join, then search for the server name (or add the host address with port 15637) and enter the server password (variable SERVER_ROLE_0_PASSWORD)."
+  - "Everyone using the password gets the single Default role with full permissions, including kick and ban; see the image docs for defining more roles."

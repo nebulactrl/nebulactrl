@@ -1,0 +1,60 @@
+schema: 1
+id: ampache
+revision: 1
+name: Ampache
+summary: Web-based music and video streaming server and library manager.
+description: Ampache streams your music and videos to browsers and many client apps. This template runs the official image with its bundled MariaDB and an automated first-run install that creates the admin account.
+category: media
+tags: [music, streaming, audio, library]
+links:
+  website: https://ampache.org
+  docs: https://github.com/ampache/ampache/wiki
+  source: https://github.com/ampache/ampache
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/ampache/ampache/blob/develop/LICENSE.md
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/ampache
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: ADMIN_USER, label: Admin username, default: admin, required: true}
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: ampache
+    name: Ampache
+    kind: app
+    image: ampache/ampache:8.3.0
+    digest: sha256:806948d8c9bd54923ae40fb4b4a64d5238e0c6be8655a43ea47a398cd32d0ef7
+    port: 80
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    env:
+      DB_NAME: ampache
+      DB_HOST: localhost
+      MYSQL_USER: ampache_admin
+      MYSQL_PASS: ${{secret(24)}}
+      AMPACHE_ADMIN_USER: ${input:ADMIN_USER}
+      AMPACHE_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      AMPACHE_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - {name: config, path: /var/www/config}
+      - {name: log, path: /var/log/ampache}
+      - {name: mysql, path: /var/lib/mysql}
+      - {name: media, path: /media}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: Ampache
+notes:
+  - "The first start installs the database and creates the admin account from the install form; sign in with it."
+  - "Upload music into the media volume (mounted at /media) and add /media as a catalog in Ampache's admin area."

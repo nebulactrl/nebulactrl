@@ -1,0 +1,187 @@
+{
+	"version": 1,
+	"recordedAt": "2026-10-27T16:18:18Z",
+	"service": "web",
+	"source": "traefik/whoami:latest",
+	"strategy": "rolling",
+	"outcome": "succeeded",
+	"totalSeconds": 5.657,
+	"events": [
+		{
+			"t": 0.0,
+			"step": "status",
+			"status": "created",
+			"message": ""
+		},
+		{
+			"t": 0.0,
+			"step": "status",
+			"status": "queued",
+			"message": ""
+		},
+		{
+			"t": 0.024,
+			"step": "status",
+			"status": "preparing",
+			"message": ""
+		},
+		{
+			"t": 0.069,
+			"step": "pull",
+			"status": "started",
+			"message": "Pulling traefik/whoami:latest"
+		},
+		{
+			"t": 0.444,
+			"step": "pull",
+			"status": "succeeded",
+			"message": "Image traefik/whoami@sha256:c4717a8d1f0134a7444e24f881160e033991f23027c6c5a9a3f8fd22e70d1d44"
+		},
+		{
+			"t": 0.462,
+			"step": "create",
+			"status": "started",
+			"message": "Creating container nc-web-f9db9596-0"
+		},
+		{
+			"t": 0.462,
+			"step": "status",
+			"status": "releasing",
+			"message": ""
+		},
+		{
+			"t": 0.894,
+			"step": "create",
+			"status": "succeeded",
+			"message": ""
+		},
+		{
+			"t": 0.9,
+			"step": "start",
+			"status": "started",
+			"message": ""
+		},
+		{
+			"t": 1.034,
+			"step": "start",
+			"status": "succeeded",
+			"message": ""
+		},
+		{
+			"t": 1.042,
+			"step": "health",
+			"status": "started",
+			"message": "Checking health (http)"
+		},
+		{
+			"t": 1.042,
+			"step": "status",
+			"status": "verifying",
+			"message": ""
+		},
+		{
+			"t": 3.101,
+			"step": "health",
+			"status": "succeeded",
+			"message": "Healthy"
+		},
+		{
+			"t": 3.162,
+			"step": "route",
+			"status": "started",
+			"message": "Updating proxy routes"
+		},
+		{
+			"t": 3.392,
+			"step": "route",
+			"status": "succeeded",
+			"message": ""
+		},
+		{
+			"t": 3.397,
+			"step": "verify",
+			"status": "started",
+			"message": "Verifying http://shop.localhost/ through the proxy"
+		},
+		{
+			"t": 3.4,
+			"step": "verify",
+			"status": "succeeded",
+			"message": "Reachable through the proxy"
+		},
+		{
+			"t": 3.404,
+			"step": "retire",
+			"status": "started",
+			"message": "Retiring previous release"
+		},
+		{
+			"t": 5.607,
+			"step": "retire",
+			"status": "succeeded",
+			"message": ""
+		},
+		{
+			"t": 5.657,
+			"step": "status",
+			"status": "succeeded",
+			"message": "Deployed nc-web-f9db9596-0"
+		}
+	],
+	"phases": [
+		{
+			"id": "build",
+			"label": "Build",
+			"startS": 0.0,
+			"endS": 0.462,
+			"skipped": false
+		},
+		{
+			"id": "release",
+			"label": "Release",
+			"startS": 0.462,
+			"endS": 1.042,
+			"skipped": false
+		},
+		{
+			"id": "verify",
+			"label": "Verify",
+			"startS": 1.042,
+			"endS": 5.657,
+			"skipped": false
+		}
+	],
+	"routeSwitchS": 3.392,
+	"canvas": [
+		{
+			"name": "web",
+			"kind": "app",
+			"source": "traefik/whoami:latest",
+			"domain": "shop.localhost",
+			"server": "agent1",
+			"replicas": 1,
+			"port": 80,
+			"strategy": "rolling"
+		},
+		{
+			"name": "api",
+			"kind": "app",
+			"source": "traefik/whoami:latest",
+			"domain": null,
+			"server": "agent1",
+			"replicas": 1,
+			"port": 80,
+			"strategy": "rolling"
+		},
+		{
+			"name": "postgres",
+			"kind": "database",
+			"source": "postgres:18",
+			"domain": null,
+			"server": "agent1",
+			"replicas": 1,
+			"port": 5432,
+			"strategy": "recreate"
+		}
+	]
+}

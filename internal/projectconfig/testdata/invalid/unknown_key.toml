@@ -1,0 +1,10 @@
+# expect: unknown_key
+# schema: reject
+# `healthcheck` is not a key; the table is `health_check`.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+healthcheck = { path = "/healthz" }

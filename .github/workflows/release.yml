@@ -1,0 +1,641 @@
+# Release: Actions -> release -> Run workflow (from `main`). Never automatic.
+#
+#   gate-ci ─┐
+#   gate-full ┼─> version ─┬─> binaries ──────────────────────────┐
+#   gate-docs ┘            └─> images (amd64 | arm64) ─> image-manifest ─> sign ─> site
+#
+#   gates      ci (go + web; smoke is inside full), full, docs: reusable workflows
+#   version    first release (no v* tag yet): v0.1.0 is created here, without
+#              semantic-release. Every later release: semantic-release decides the
+#              next 0.x version from the Conventional Commits since the last tag
+#              and creates the tag and the GitHub Release (release.config.mjs).
+#   binaries   CLI and agent archives + SHA256SUMS, uploaded to the GitHub Release;
+#              the archives get a build provenance attestation (gh attestation verify)
+#   images     ghcr.io/nebulactrl/nebulactrl, one native build per architecture,
+#              pushed by digest and scanned with Grype (a fixable critical
+#              vulnerability stops the release before any tag exists); image-manifest
+#              merges them into <version>, <major>.<minor> and latest and attests the
+#              build provenance of the multi-arch image. The image also carries the CLI
+#              for every platform, which the control plane serves at /download/cli
+#   sign       signs with minisign (secret NEBULACTRL_MINISIGN_KEY of the release-signing environment, an unencrypted key; its public
+#              key is internal/releasesign.PublicKey and NC_RELEASE_PUBKEY in the installer):
+#              install.sh (as the site serves it), SHA256SUMS, the two agent binaries as they
+#              are in the image, and release-manifest.txt, which records the image digest, the
+#              agent binaries' SHA-256 and the SHA-256 of every installer file. The .minisig
+#              files and the manifest go to the GitHub Release, and the site job serves them at
+#              nebulactrl.com/releases/<version>/, next to the release feed. The installer, the update the control plane starts and
+#              install-agent.sh verify them (docs/installing/installer.md)
+#   site       nebulactrl.com (apps/site, with install.sh stamped to this release and
+#              the release feed releases/latest.json + releases/<version>.json made
+#              from the GitHub Release notes), deployed to Cloudflare Workers static
+#              assets after image-manifest. Control planes read the feed for the
+#              update notice and the one-click update (docs/operations/updating.md)
+#
+# dry_run (default false) runs `version` with semantic-release --dry-run (or only
+# prints the v0.1.0 bootstrap) and skips every gate and everything that publishes:
+# a look at what the next release would be. Do one before a real release.
+#
+# If binaries, images or site fail after the version job succeeded, use "Re-run failed
+# jobs" on this run: the tag and the GitHub Release already exist, and a new
+# dispatch would report "no new release".
+name: release
+
+# Manual trigger only. One release at a time and a running release is never
+# cancelled.
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run: show the next version, publish nothing (skips the gates)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/nebulactrl/nebulactrl
+  # The wrangler that deploys the site, pinned exactly (npx, not the bun lockfile).
+  # Keep apps/site/wrangler.jsonc and CONTRIBUTING.md on the same number.
+  WRANGLER_VERSION: 4.154.0
+  # The scanner of the images job, pinned by digest. Keep equal to security.yml.
+  GRYPE_IMAGE: anchore/grype:v0.121.0@sha256:621d56d1d68106b787022c81546f7e0a36202a25d1239f0c20195fab8c16f7ea
+
+jobs:
+  gate-ci:
+    name: gate / ci
+    if: ${{ github.ref == 'refs/heads/main' && !inputs.dry_run }}
+    uses: ./.github/workflows/ci.yml
+    with:
+      smoke: false # the full tier below contains the smoke scenarios
+
+  gate-full:
+    name: gate / full
+    if: ${{ github.ref == 'refs/heads/main' && !inputs.dry_run }}
+    uses: ./.github/workflows/full.yml
+    with:
+      templates: sample
+
+  gate-docs:
+    name: gate / docs
+    if: ${{ github.ref == 'refs/heads/main' && !inputs.dry_run }}
+    uses: ./.github/workflows/docs.yml
+
+  version:
+    name: version
+    needs: [gate-ci, gate-full, gate-docs]
+    # Skipped gates (dry run) are fine, failed ones are not.
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' && !contains(needs.*.result, 'failure') }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    permissions:
+      contents: write # create the tag and the GitHub Release
+    outputs:
+      released: ${{ steps.bootstrap.outputs.released || steps.semrel.outputs.released }}
+      version: ${{ steps.bootstrap.outputs.version || steps.semrel.outputs.version }}
+      tag: ${{ steps.bootstrap.outputs.tag || steps.semrel.outputs.tag }}
+    steps:
+      # Credentials stay in the checkout: this job pushes the tag.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # semantic-release reads every commit since the last tag
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.0 # semantic-release 25 needs Node >= 22.14
+
+      - name: Look for an existing release tag
+        id: tags
+        run: |
+          git fetch --tags --force --quiet
+          if [ -n "$(git tag --list 'v[0-9]*' | head -n 1)" ]; then
+            echo "exists=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >>"$GITHUB_OUTPUT"
+          fi
+
+      # No v* tag: semantic-release would make its first release 1.0.0 whatever
+      # the commits say. We stay on 0.x, so the first release is v0.1.0, made here.
+      - name: First release (v0.1.0, without semantic-release)
+        id: bootstrap
+        if: steps.tags.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          tag=v0.1.0
+          {
+            echo "version=0.1.0"
+            echo "tag=$tag"
+          } >>"$GITHUB_OUTPUT"
+          if [ "$DRY_RUN" = true ]; then
+            echo "released=false" >>"$GITHUB_OUTPUT"
+            echo "Dry run: no v* tag exists, the first release would be v0.1.0 (annotated tag at ${GITHUB_SHA::7} and a GitHub Release with generated notes). Nothing was created." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          # The tag is made at the commit the gates tested: refuse if main has moved.
+          if [ "$(git ls-remote origin refs/heads/main | cut -f1)" != "$GITHUB_SHA" ]; then
+            echo "::error::main moved since this run started; run the release again" >&2
+            exit 1
+          fi
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            tag -a "$tag" -m "NebulaCtrl $tag" "$GITHUB_SHA"
+          git push origin "refs/tags/$tag"
+          gh release create "$tag" --verify-tag --title "$tag" \
+            --notes "First tagged release. NebulaCtrl is on 0.x: a minor version may contain breaking changes." \
+            --generate-notes
+          echo "released=true" >>"$GITHUB_OUTPUT"
+          echo "Released $tag" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: semantic-release
+        id: semrel
+        if: steps.tags.outputs.exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          args=()
+          if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
+          scripts/release/semantic-release.sh "${args[@]}" 2>&1 | tee semantic-release.log
+          version="$(sed -n 's/.*next release version is \([0-9][0-9.]*\).*/\1/p' semantic-release.log | head -n 1)"
+          if [ -z "$version" ]; then
+            echo "released=false" >>"$GITHUB_OUTPUT"
+            echo "No release: no commit since the last tag needs one (feat, fix, perf, revert or a breaking change)." | tee -a "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "version=$version" >>"$GITHUB_OUTPUT"
+          echo "tag=v$version" >>"$GITHUB_OUTPUT"
+          if [ "$DRY_RUN" = true ]; then
+            echo "released=false" >>"$GITHUB_OUTPUT"
+            echo "Dry run: the next release would be v$version. Nothing was created." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "released=true" >>"$GITHUB_OUTPUT"
+            echo "Released v$version" >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+  binaries:
+    name: binaries
+    needs: version
+    if: ${{ needs.version.outputs.released == 'true' }}
+    # Go cross-compiles the 6 archives in one job rather than in a matrix.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 6
+    permissions:
+      contents: write # upload release assets
+      id-token: write # sign the attestation (Sigstore, keyless)
+      attestations: write # store it
+      artifact-metadata: write # storage record of the attested archives
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: Build archives and SHA256SUMS
+        run: scripts/release/build-binaries.sh "$VERSION" dist
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+      - name: Attest the build provenance of the archives
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: dist/*.tar.gz
+      - name: Upload to the GitHub Release
+        run: gh release upload "$TAG" dist/* --clobber
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+
+  # The only Dockerfile that ships is the root Dockerfile (the control plane,
+  # which also carries the agent binaries it serves). deploy/agent/Dockerfile.dev
+  # is a development image, and the installer pulls nothing else of ours.
+  images:
+    name: image / ${{ matrix.arch }}
+    needs: version
+    if: ${{ needs.version.outputs.released == 'true' }}
+    # Native build per architecture (the arm64 one on the arm64 runner): the only
+    # way to build arm64 images without QEMU.
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: .
+          platforms: linux/${{ matrix.arch }}
+          build-args: |
+            VERSION=${{ needs.version.outputs.version }}
+            SITE_URL=https://nebulactrl.com
+            GITHUB_URL=https://github.com/nebulactrl/nebulactrl
+          outputs: type=image,name=${{ env.IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          # No layer cache: a release image is built from the sources only, so no
+          # cache entry written by another run can end up in it.
+          provenance: false
+          sbom: false
+      - name: Export the digest
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: digests-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+      # The agent binaries the control plane serves are the ones in the image. The sign job
+      # signs exactly these bytes, so install-agent.sh can verify what it downloads from
+      # a control plane. Both architecture builds must hold the same bytes (checked there).
+      - name: Extract the agent binaries from the image
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          set -euo pipefail
+          docker pull -q "$IMAGE@$DIGEST" >/dev/null
+          cid="$(docker create "$IMAGE@$DIGEST")"
+          mkdir -p "$RUNNER_TEMP/agents"
+          docker cp "$cid:/usr/share/nebulactrl/agent/." "$RUNNER_TEMP/agents/"
+          docker rm "$cid" >/dev/null
+          test -s "$RUNNER_TEMP/agents/nebulactrl-agent-linux-amd64"
+          test -s "$RUNNER_TEMP/agents/nebulactrl-agent-linux-arm64"
+      # The tags are made only after this passes (image-manifest needs this job). The image
+      # was pulled above, so Grype reads it from the runner's Docker daemon and needs no
+      # registry credentials.
+      - name: Scan the image for fixable critical vulnerabilities
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          docker run --rm -v /var/run/docker.sock:/var/run/docker.sock "$GRYPE_IMAGE" \
+            "docker:$IMAGE@$DIGEST" --only-fixed --fail-on critical
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: agents-${{ matrix.arch }}
+          path: ${{ runner.temp }}/agents/*
+          if-no-files-found: error
+          retention-days: 1
+
+  image-manifest:
+    name: image / tags
+    needs: [version, images]
+    if: ${{ needs.version.outputs.released == 'true' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      digest: ${{ steps.index.outputs.digest }}
+    permissions:
+      contents: read
+      packages: write # tag the image; store the attestation in the registry
+      id-token: write # sign the attestation (Sigstore, keyless)
+      attestations: write # store it
+      artifact-metadata: write # storage record of the attested image
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-*
+          merge-multiple: true
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ github.token }}
+      - name: Tag <version>, <major>.<minor> and latest
+        working-directory: ${{ runner.temp }}/digests
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          minor="${VERSION%.*}"
+          # shellcheck disable=SC2046
+          docker buildx imagetools create \
+            -t "$IMAGE:$VERSION" -t "$IMAGE:$minor" -t "$IMAGE:latest" \
+            $(printf "$IMAGE@sha256:%s " *)
+          docker buildx imagetools inspect "$IMAGE:$VERSION"
+      # The digest of the multi-arch image behind the tags. The release manifest records it
+      # and the installer pulls image@digest, so a tag moved later changes nothing.
+      - name: Record the digest of the tagged image
+        id: index
+        env:
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "$IMAGE:$VERSION" | awk '/^Digest:/ { print $2; exit }')"
+          if ! [[ "$digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::could not read the digest of $IMAGE:$VERSION (got '$digest')" >&2
+            exit 1
+          fi
+          docker buildx imagetools inspect "$IMAGE@$digest" >/dev/null
+          echo "digest=$digest" >>"$GITHUB_OUTPUT"
+          echo "$IMAGE:$VERSION is $digest" >>"$GITHUB_STEP_SUMMARY"
+      - name: Attest the build provenance of the image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ env.IMAGE }}
+          subject-digest: ${{ steps.index.outputs.digest }}
+          push-to-registry: true
+
+  # Signs the release (see the header). A failure here stops the release before the site
+  # goes out, so nothing announces a version whose files are unsigned. Re-run failed jobs
+  # once the secret is set. The key is a secret of the release-signing environment, which
+  # only this job enters and only from main, so no other job of the release can read it. It
+  # never leaves this job: it is written to a 0600 file in the runner's temp directory and
+  # removed at the end.
+  sign:
+    name: sign
+    needs: [version, binaries, image-manifest]
+    if: ${{ needs.version.outputs.released == 'true' && !inputs.dry_run }}
+    environment: release-signing
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: write # upload the signatures and the manifest to the GitHub Release
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ needs.version.outputs.tag }}
+      INDEX_DIGEST: ${{ needs.image-manifest.outputs.digest }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Check the signing key
+        env:
+          MINISIGN_KEY: ${{ secrets.NEBULACTRL_MINISIGN_KEY }}
+        run: |
+          if [ -z "$MINISIGN_KEY" ]; then
+            echo "::error::Set the secret NEBULACTRL_MINISIGN_KEY of the release-signing environment (an unencrypted minisign secret key: minisign -G -W), then re-run this job."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/in/agents
+          pattern: agents-*
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: ${{ runner.temp }}/in/digests
+          pattern: digests-*
+      - name: Install minisign
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq minisign
+          minisign -v
+      - name: Collect the files to sign
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/release"
+          mkdir -p "$out"
+          # The agent binaries: both image builds must hold the same bytes, or the signature
+          # would be valid for one architecture's image only.
+          for arch in amd64 arm64; do
+            f="nebulactrl-agent-linux-$arch"
+            cmp "$RUNNER_TEMP/in/agents/agents-amd64/$f" "$RUNNER_TEMP/in/agents/agents-arm64/$f" ||
+              { echo "::error::$f differs between the amd64 and the arm64 image build: the build is not reproducible, so one signature cannot cover both images" >&2; exit 1; }
+            cp "$RUNNER_TEMP/in/agents/agents-amd64/$f" "$out/$f"
+          done
+          # The installer exactly as the site serves it (apps/site assembles it the same way).
+          sed -i "s|^NC_DEFAULT_VERSION=.*|NC_DEFAULT_VERSION=${VERSION}|" deploy/install/install.sh
+          grep -qx "NC_DEFAULT_VERSION=${VERSION}" deploy/install/install.sh
+          go run ./tests/install/assemble >"$out/install.sh"
+          grep -qx "NC_DEFAULT_VERSION=${VERSION}" "$out/install.sh"
+          # The checksums of the CLI and agent archives (the binaries job built and uploaded them).
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir "$out"
+      - name: Write the release manifest
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/release"
+          sum() { sha256sum "$1" | cut -d' ' -f1; }
+          amd64="$(basename "$RUNNER_TEMP"/in/digests/digests-amd64/*)"
+          arm64="$(basename "$RUNNER_TEMP"/in/digests/digests-arm64/*)"
+          {
+            echo "nebulactrl-release-manifest 1"
+            echo "version $VERSION"
+            echo "tag $TAG"
+            echo "image $IMAGE@$INDEX_DIGEST"
+            echo "image-amd64 $IMAGE@sha256:$amd64"
+            echo "image-arm64 $IMAGE@sha256:$arm64"
+            echo "agent-amd64 $(sum "$out/nebulactrl-agent-linux-amd64")"
+            echo "agent-arm64 $(sum "$out/nebulactrl-agent-linux-arm64")"
+            echo "installer $(sum "$out/install.sh")"
+            echo "checksums $(sum "$out/SHA256SUMS")"
+            # Every file the installer can fetch on its own (raw mode: lib/*.sh, the compose file,
+            # the instance configs, uninstall.sh); install.sh itself is signed on its own.
+            git ls-files deploy/install | grep -v '\.go$' | grep -vx 'deploy/install/install.sh' | while read -r f; do
+              echo "file $(sum "$f") $f"
+            done
+          } >"$out/release-manifest.txt"
+          cat "$out/release-manifest.txt"
+      - name: Sign
+        env:
+          MINISIGN_KEY: ${{ secrets.NEBULACTRL_MINISIGN_KEY }}
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/release"
+          key="$RUNNER_TEMP/minisign.key"
+          trap 'rm -f "$key"' EXIT
+          (umask 077; printf '%s\n' "$MINISIGN_KEY" >"$key")
+          pub="$(sed -n 's/^const PublicKey = "\(.*\)"$/\1/p' internal/releasesign/releasesign.go)"
+          [ -n "$pub" ] || { echo "::error::cannot read internal/releasesign.PublicKey" >&2; exit 1; }
+          for f in install.sh SHA256SUMS release-manifest.txt nebulactrl-agent-linux-amd64 nebulactrl-agent-linux-arm64; do
+            minisign -S -s "$key" -m "$out/$f" -x "$out/$f.minisig" -t "nebulactrl v$VERSION $f"
+            # Only prehashed signatures ("ED") are accepted by the verifiers.
+            [ "$(sed -n 2p "$out/$f.minisig" | base64 -d | head -c 2)" = ED ] ||
+              { echo "::error::$f.minisig is not a prehashed signature: use a minisign that signs prehashed by default (0.10 or newer)" >&2; exit 1; }
+            # The secret key must be the one whose public key is compiled into the product.
+            minisign -V -P "$pub" -x "$out/$f.minisig" -m "$out/$f" ||
+              { echo "::error::$f is not verified by internal/releasesign.PublicKey: NEBULACTRL_MINISIGN_KEY is not that key pair" >&2; exit 1; }
+          done
+      - name: Upload to the GitHub Release
+        run: |
+          set -euo pipefail
+          out="$RUNNER_TEMP/release"
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber \
+            "$out/install.sh" "$out/install.sh.minisig" \
+            "$out/SHA256SUMS.minisig" \
+            "$out/release-manifest.txt" "$out/release-manifest.txt.minisig" \
+            "$out/nebulactrl-agent-linux-amd64" "$out/nebulactrl-agent-linux-amd64.minisig" \
+            "$out/nebulactrl-agent-linux-arm64" "$out/nebulactrl-agent-linux-arm64.minisig"
+      # The site serves install.sh and install.sh.minisig side by side: the installer the
+      # one-click update downloads is verified by the signature next to it.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: signed-installer
+          path: |
+            ${{ runner.temp }}/release/install.sh
+            ${{ runner.temp }}/release/install.sh.minisig
+          if-no-files-found: error
+          retention-days: 1
+
+  # The public site (nebulactrl.com): Workers static assets, deployed with wrangler.
+  # It goes out last, after the image tags exist, because the install.sh it serves
+  # is stamped with this release and pulls ghcr.io/nebulactrl/nebulactrl:<version>,
+  # and because the release feed it also serves (releases/latest.json) tells every
+  # control plane that this version can be installed. The feed notes come from the
+  # GitHub Release made by the version job (`gh release view`, so the job reads the
+  # repository with the workflow token). Needs the secrets CLOUDFLARE_API_TOKEN and
+  # CLOUDFLARE_ACCOUNT_ID of the release-site environment (the account id may be a
+  # variable of it instead); see CONTRIBUTING.md, "Releasing". Never runs on a
+  # dry run.
+  site:
+    name: site
+    needs: [version, image-manifest, sign]
+    if: ${{ needs.version.outputs.released == 'true' && !inputs.dry_run }}
+    environment: release-site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Check the Cloudflare credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::Set the secret CLOUDFLARE_API_TOKEN and the secret or variable CLOUDFLARE_ACCOUNT_ID of the release-site environment (CONTRIBUTING.md, Releasing), then re-run this job."
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      # The site serves the installer assembled by Go (go run ./tests/install/assemble).
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.0 # wrangler 4 needs Node >= 22
+      # No dependency cache in this job: it deploys with the Cloudflare secrets, and an
+      # entry written by another run must not reach it (cache poisoning).
+      - run: bun install --frozen-lockfile
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: signed-installer
+          path: ${{ runner.temp }}/signed
+      # Same stamp the image build applies: the installer installs this release.
+      - name: Stamp install.sh with the release version
+        run: |
+          set -euo pipefail
+          sed -i "s|^NC_DEFAULT_VERSION=.*|NC_DEFAULT_VERSION=${VERSION}|" deploy/install/install.sh
+          grep -qx "NC_DEFAULT_VERSION=${VERSION}" deploy/install/install.sh
+      - name: Build the site
+        working-directory: apps/site
+        run: bun run build
+        env:
+          SITE_URL: https://nebulactrl.com
+          GITHUB_URL: https://github.com/nebulactrl/nebulactrl
+          SITE_VERSION: v${{ needs.version.outputs.version }}
+      - name: Check the stamped installer in dist
+        working-directory: apps/site
+        run: |
+          set -euo pipefail
+          grep -qx "NC_DEFAULT_VERSION=${VERSION}" dist/install.sh
+          # What the sign job signed must be what the site serves, byte for byte.
+          cmp dist/install.sh "$RUNNER_TEMP/signed/install.sh"
+          cp "$RUNNER_TEMP/signed/install.sh.minisig" dist/install.sh.minisig
+      # The signed files of every release (manifest, signatures) are served from
+      # nebulactrl.com/releases/<version>/, where the installer and install-agent.sh look
+      # (the repository's release assets carry the same files). A deploy
+      # replaces the whole site, so the small files of earlier releases are fetched again from
+      # their GitHub Releases (a release made before signing has none and is skipped).
+      # releases/latest/ is a copy of this release.
+      - name: Publish the signed release files
+        working-directory: apps/site
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist/releases
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 200 --json tagName --jq '.[].tagName' | while read -r tag; do
+            dir="dist/releases/${tag#v}"
+            mkdir -p "$dir"
+            gh release download "$tag" --repo "$GITHUB_REPOSITORY" --dir "$dir" \
+              --pattern 'release-manifest.txt' --pattern 'release-manifest.txt.minisig' \
+              --pattern 'SHA256SUMS.minisig' --pattern 'install.sh.minisig' \
+              --pattern 'nebulactrl-agent-linux-*.minisig' || { rm -rf "$dir"; echo "no signed files in $tag"; }
+          done
+          test -s "dist/releases/${VERSION}/release-manifest.txt.minisig"
+          rm -rf dist/releases/latest
+          cp -r "dist/releases/${VERSION}" dist/releases/latest
+      # The release feed control planes read for the update notice. The notes are the
+      # GitHub Release the version job made. apps/site/scripts/release-feed.ts is
+      # tested in release-feed.test.ts; the build above empties dist, so the feed is
+      # written after it and before the deploy.
+      - name: Write the release feed
+        working-directory: apps/site
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+          RELEASE_VERSION: ${{ needs.version.outputs.version }}
+          GITHUB_URL: https://github.com/nebulactrl/nebulactrl
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body,publishedAt >"$RUNNER_TEMP/release.json"
+          bun run scripts/release-feed.ts "$RUNNER_TEMP/release.json"
+          grep -q "\"version\": \"${VERSION}\"" dist/releases/latest.json
+          test -s "dist/releases/${VERSION}.json"
+      - name: Deploy to Cloudflare (Workers static assets)
+        working-directory: apps/site
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes "wrangler@${WRANGLER_VERSION}" deploy
+      - name: Check the live installer
+        run: |
+          for _ in 1 2 3 4 5 6; do
+            if curl -fsSL --retry 2 https://nebulactrl.com/install.sh | grep -qx "NC_DEFAULT_VERSION=${VERSION}"; then
+              echo "https://nebulactrl.com/install.sh installs ${VERSION}" | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::https://nebulactrl.com/install.sh does not show ${VERSION} yet. The deploy succeeded; check the custom domain (CONTRIBUTING.md, Releasing)."
+      - name: Check the live release feed
+        run: |
+          for _ in 1 2 3 4 5 6; do
+            if curl -fsSL --retry 2 "https://nebulactrl.com/releases/latest.json?release=${VERSION}" | grep -q "\"version\": \"${VERSION}\""; then
+              echo "https://nebulactrl.com/releases/latest.json announces ${VERSION}" | tee -a "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "::warning::https://nebulactrl.com/releases/latest.json does not show ${VERSION} yet. The deploy succeeded; control planes will not announce this release until it does (CONTRIBUTING.md, Releasing)."

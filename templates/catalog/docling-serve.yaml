@@ -1,0 +1,52 @@
+schema: 1
+id: docling-serve
+revision: 1
+name: Docling Serve
+summary: HTTP API and web UI that converts PDFs, Office files and images into Markdown, JSON or HTML using Docling.
+description: Docling Serve runs the Docling document-conversion engine as a service with OCR, layout and table recognition. This template runs the official CPU image with the web UI enabled and an API key.
+category: ai
+tags: [documents, pdf, ocr, conversion, api, markdown]
+links:
+  website: https://github.com/docling-project/docling-serve
+  docs: https://github.com/docling-project/docling-serve/blob/main/docs/README.md
+  source: https://github.com/docling-project/docling-serve
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/docling-project/docling-serve/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/docling-serve
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 6144
+  diskGb: 15
+inputs:
+  - {key: API_KEY, label: API key (sent as the X-Api-Key header), secret: true, default: "${{secret(32)}}"}
+services:
+  - key: docling-serve
+    name: Docling Serve
+    kind: app
+    image: quay.io/docling-project/docling-serve-cpu:v1.38.2
+    digest: sha256:7a480a1604fa3b42efeddc7db9527690d9f9bc903226136013e2bfe6b1a4dfb0
+    port: 5001
+    healthcheck:
+      type: http
+      path: /health
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    env:
+      DOCLING_SERVE_ENABLE_UI: "true"
+      DOCLING_SERVE_API_KEY: ${input:API_KEY}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 6144
+group: Docling Serve
+notes:
+  - "The web UI is at /ui on the service address; API requests need the header X-Api-Key with the key from the install form (variable DOCLING_SERVE_API_KEY)."
+  - "The image is about 4 GB and loads its models at start, so the first deployment takes several minutes."

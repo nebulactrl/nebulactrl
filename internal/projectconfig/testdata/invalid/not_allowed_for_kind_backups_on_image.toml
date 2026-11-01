@@ -1,0 +1,12 @@
+# expect: not_allowed_for_kind
+# schema: reject
+# Backup schedules belong to database services.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+
+[services.web.backups.nightly]
+destination = "offsite-s3"
+cron = "0 2 * * *"

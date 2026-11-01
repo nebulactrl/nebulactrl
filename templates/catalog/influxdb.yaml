@@ -1,0 +1,63 @@
+schema: 1
+id: influxdb
+revision: 1
+name: InfluxDB
+summary: Time series database (2.x) with built-in UI, Flux and InfluxQL for metrics, events and IoT data.
+description: InfluxDB 2 stores high-volume time series data and ships a web UI, query tools and a token-based HTTP API. The first start creates the admin user, organization and bucket from the install form.
+category: data
+tags: [database, time-series, metrics, monitoring, iot]
+icon: influxdb
+links:
+  website: https://www.influxdata.com
+  docs: https://docs.influxdata.com/influxdb/v2/
+  source: https://github.com/influxdata/influxdb
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/influxdata/influxdb/blob/main-2.x/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/influxdb.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password (at least 8 characters), secret: true, default: "${{secret(24)}}"}
+  - {key: ORG, label: Initial organization, required: true, default: nebula}
+  - {key: BUCKET, label: Initial bucket, required: true, default: default}
+services:
+  - key: influxdb
+    name: InfluxDB
+    kind: app
+    image: influxdb:2.9.1-alpine
+    digest: sha256:385d5fe4746f4c087d6468519f023b24b425c0848a63b3185de8681e0f94d285
+    port: 8086
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${input:ADMIN_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${input:ADMIN_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${input:ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${input:BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${{secret(40)}}
+    volumes:
+      - name: data
+        path: /var/lib/influxdb2
+      - name: config
+        path: /etc/influxdb2
+    resources:
+      memoryMb: 512
+group: InfluxDB
+notes:
+  - "Sign in with the admin username and password from the install form."
+  - "The operator API token was generated at install time and is stored as DOCKER_INFLUXDB_INIT_ADMIN_TOKEN in the service variables; use it for clients and Telegraf."
+  - "The initial user, organization, bucket and token are only created on the first start with an empty data volume; changing these variables later has no effect."

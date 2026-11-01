@@ -1,0 +1,47 @@
+schema: 1
+id: komari-monitor
+revision: 1
+name: Komari Monitor
+summary: Lightweight self-hosted server monitoring panel with real-time metrics, ping tasks and a public status page.
+description: Komari collects CPU, memory, disk and network metrics from agents you install on your servers. This template runs the Komari server with its embedded SQLite database in a persistent volume.
+category: homelab
+tags: [monitoring, servers, metrics, status-page, uptime]
+links:
+  website: https://www.komari.wiki
+  docs: https://www.komari.wiki/en/install/quick-start
+  source: https://github.com/komari-monitor/komari
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/komari-monitor/komari/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/komari-monitor
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: komari
+    name: Komari
+    kind: app
+    image: ghcr.io/komari-monitor/komari:1.6.1
+    digest: sha256:68df57a235d0d9d631f73a6c95466d1acc4220e9cae6ab2c5e009a51318937e0
+    port: 25774
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    volumes:
+      - name: data
+        path: /app/data
+    resources:
+      memoryMb: 256
+group: Komari Monitor
+notes:
+  - "Open the site right after deploying: the first-run installation guide creates the administrator account, and whoever opens it first becomes the admin."
+  - "Add servers from the admin dashboard, which shows the agent install command for each one."

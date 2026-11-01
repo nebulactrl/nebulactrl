@@ -1,0 +1,12 @@
+# expect: invalid_value
+# A schedule is a cron expression with 5 fields, or @daily and friends.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.tasks.digest]
+schedule = "every day at seven"
+command = ["bun", "run", "jobs:digest"]

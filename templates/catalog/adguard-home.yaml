@@ -1,0 +1,57 @@
+schema: 1
+id: adguard-home
+revision: 1
+name: AdGuard Home
+summary: Network-wide ad and tracker blocking DNS server with a web dashboard.
+description: AdGuard Home is a self-hosted DNS sinkhole with filtering, per-client rules and encrypted DNS support. The web dashboard is available through the generated domain.
+category: homelab
+tags: [dns, adblock, privacy, network]
+icon: adguard
+links:
+  website: https://adguard.com/adguard-home/overview.html
+  docs: https://github.com/AdguardTeam/AdGuardHome/wiki
+  source: https://github.com/AdguardTeam/AdGuardHome
+upstream:
+  license: GPL-3.0-only
+  licenseUrl: https://github.com/AdguardTeam/AdGuardHome/blob/master/LICENSE.txt
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: app
+    name: AdGuard Home
+    kind: app
+    image: adguard/adguardhome:v0.107.79
+    digest: sha256:aba9e3bf0613be3ba3755e1fc311b126e2c24bec25e18b6483894a88283074f0
+    port: 3000
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    ports:
+      - name: dns-tcp
+        port: 53
+        protocol: tcp
+        publish: false
+      - name: dns-udp
+        port: 53
+        protocol: udp
+        publish: false
+    volumes:
+      - name: work
+        path: /opt/adguardhome/work
+      - name: conf
+        path: /opt/adguardhome/conf
+    resources:
+      memoryMb: 256
+group: AdGuard Home
+notes:
+  - "Open the domain to run the setup wizard. In step 1 keep the admin web interface on port 3000 (all interfaces) so the domain keeps working after setup; the default port 80 would make the dashboard unreachable. Then create the admin account."
+  - "DNS listens on port 53 inside the container. Ports below 1024 cannot be published by NebulaCtrl, so the DNS ports are declared but not published and the server is not reachable as a DNS resolver from other machines out of the box."
+  - "To serve DNS to your network, publish 53/tcp and 53/udp on the host yourself (for example a Docker port mapping or a firewall forward to the container) and free port 53 first: on many Linux hosts systemd-resolved already listens on it."
+  - "Alternatively use DNS-over-HTTPS: in Settings, Encryption, enable it and send clients to https://<your domain>/dns-query. The domain is served by the reverse proxy, so allow plain HTTP in the encryption settings."

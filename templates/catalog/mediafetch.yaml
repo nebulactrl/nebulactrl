@@ -1,0 +1,55 @@
+schema: 1
+id: mediafetch
+revision: 1
+name: MediaFetch
+summary: Small web interface for yt-dlp to download video or audio from a pasted link.
+description: MediaFetch wraps yt-dlp in a simple web page protected by basic auth. Downloaded files are kept in a volume and linked from the page.
+category: media
+tags: [yt-dlp, downloader, video, audio, utility]
+links:
+  website: https://www.lukedunsmore.com/mediafetch
+  docs: https://docs.lukedunsmore.com/docs/self-hosted/mediafetch/
+  source: https://github.com/lukedunsmoto/mediafetch
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/lukedunsmoto/mediafetch/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/mediafetch
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 10
+  arch: [amd64]
+inputs:
+  - {key: USERNAME, label: Login username, default: admin}
+  - {key: PASSWORD, label: Login password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: mediafetch
+    name: MediaFetch
+    kind: app
+    image: lukedunsmoto/mediafetch:1.3.5
+    digest: sha256:bfcbb0b276ce5a6fc38314aa07927f2e0c1504acb5cf5ae6ef4da9915d08caa6
+    port: 3002
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 10
+      deadlineSeconds: 90
+    domains:
+      - generate: true
+    env:
+      BASIC_AUTH_USER: ${input:USERNAME}
+      BASIC_AUTH_PASS: ${input:PASSWORD}
+      PUBLIC_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      OUTPUT_DIR: /data/downloads
+      MAX_CONCURRENT_JOBS: "2"
+      JOB_TIMEOUT_MS: "600000"
+    volumes:
+      - {name: downloads, path: /data/downloads}
+    resources:
+      memoryMb: 512
+group: MediaFetch
+notes:
+  - "Sign in with the username and password from the install form (HTTP basic auth covers the whole app)."

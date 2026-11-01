@@ -1,0 +1,51 @@
+schema: 1
+id: dokuwiki
+revision: 1
+name: DokuWiki
+summary: Simple wiki that stores pages as plain text files, with no database required.
+description: DokuWiki is a lightweight wiki for documentation and team knowledge bases. This template runs the official DokuWiki image with one storage volume for pages, media, plugins and configuration.
+category: productivity
+tags: [wiki, documentation, knowledge-base, notes]
+links:
+  website: https://www.dokuwiki.org
+  docs: https://www.dokuwiki.org/manual
+  source: https://github.com/dokuwiki/dokuwiki
+upstream:
+  license: GPL-2.0-only
+  licenseUrl: https://github.com/dokuwiki/dokuwiki/blob/master/COPYING
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/dokuwiki.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: dokuwiki
+    name: DokuWiki
+    kind: app
+    image: dokuwiki/dokuwiki:2026-07-14c
+    digest: sha256:8f77037a8a643ee0bf5545d3127d49e5e5ff7ea6d942b864d8fa0d15ea4c8cdd
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health.php
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      PHP_TIMEZONE: ${input:TIMEZONE}
+    volumes:
+      - name: storage
+        path: /storage
+    resources:
+      memoryMb: 256
+group: DokuWiki
+notes:
+  - "Open /install.php on the site's address to run DokuWiki's installer and create the superuser; it is not protected until you do."
+  - "Everything (pages, media, plugins, local configuration) lives in the storage volume."

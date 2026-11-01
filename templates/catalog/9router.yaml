@@ -1,0 +1,58 @@
+schema: 1
+id: 9router
+revision: 1
+name: 9Router
+summary: AI gateway that routes OpenAI-compatible requests from coding tools to many LLM providers with auto-fallback and token savings.
+description: 9Router is a local proxy and dashboard that lets tools such as Claude Code, Codex, Cursor or Cline use one endpoint backed by subscription, cheap and free model providers. It falls back between providers automatically and tracks quotas.
+category: ai
+tags: [ai, gateway, llm, proxy, developer-tools]
+icon: 9router
+links:
+  website: https://9router.com
+  docs: https://github.com/decolua/9router/blob/master/DOCKER.md
+  source: https://github.com/decolua/9router
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/decolua/9router/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/9router.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: INITIAL_PASSWORD, label: Dashboard password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: 9router
+    name: 9Router
+    kind: app
+    image: decolua/9router:0.5.111
+    digest: sha256:48f570f929a6f0c4c1763befe5432beba0310a6c03cfde7cf197f436daf7ccaa
+    port: 20128
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    env:
+      DATA_DIR: /app/data
+      INITIAL_PASSWORD: ${input:INITIAL_PASSWORD}
+      JWT_SECRET: ${{secret(64)}}
+      API_KEY_SECRET: ${{secret(32)}}
+      MACHINE_ID_SALT: ${{randomBytes(32,"hex")}}
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      NEXT_PUBLIC_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: data
+        path: /app/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: 9Router
+notes:
+  - "Sign in to the dashboard with the password from the install form, then connect a provider under Providers."
+  - "Point your coding tool at <public URL>/v1 and use an API key created in the dashboard."

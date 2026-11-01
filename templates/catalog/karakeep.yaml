@@ -1,0 +1,96 @@
+schema: 1
+id: karakeep
+revision: 2
+name: Karakeep
+summary: Self-hostable bookmark-everything app for links, notes and images with full-text search and optional AI tagging.
+description: Karakeep (formerly Hoarder) saves links, notes and images, archives pages with a headless browser, indexes everything with Meilisearch and can tag bookmarks automatically using an OpenAI-compatible model. This template runs the web app, a headless Chrome and Meilisearch.
+category: media
+tags: [bookmarks, read-it-later, archive, search, ai]
+icon: karakeep
+links:
+  website: https://karakeep.app
+  docs: https://docs.karakeep.app
+  source: https://github.com/karakeep-app/karakeep
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/karakeep-app/karakeep/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/karakeep.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: DISABLE_SIGNUPS, label: "Disable new sign-ups (set to true after creating your account)", default: "false", options: ["true", "false"]}
+  - {key: OPENAI_API_KEY, label: "OpenAI API key (optional, enables AI tagging)", secret: true}
+services:
+  - key: web
+    name: Karakeep
+    kind: app
+    image: ghcr.io/karakeep-app/karakeep:0.34.1
+    digest: sha256:69ae5315c618b7c14c1af3e34c6e211acdb231793af424ecd1cab0b70691d987
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [chrome, meilisearch]
+    domains:
+      - generate: true
+    env:
+      DATA_DIR: /data
+      NEXTAUTH_URL: ${{NEBULA_PUBLIC_URL}}
+      NEXTAUTH_SECRET: ${{randomBytes(36,"base64")}}
+      MEILI_ADDR: http://${{meilisearch.NEBULA_PRIVATE_HOST}}:7700
+      MEILI_MASTER_KEY: ${{meilisearch.MEILI_MASTER_KEY}}
+      BROWSER_WEB_URL: http://${{chrome.NEBULA_PRIVATE_HOST}}:9222
+      DISABLE_SIGNUPS: ${input:DISABLE_SIGNUPS}
+      OPENAI_API_KEY: ${input:OPENAI_API_KEY}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 1024
+  - key: chrome
+    name: Karakeep Chrome
+    kind: worker
+    image: ghcr.io/karakeep-app/karakeep-chrome:156.0.8078.47-r1
+    digest: sha256:4ad61127638dd27bfe685222787c5780dd1d083d23a7658c39af657775814c44
+    command: [--disable-gpu, --hide-scrollbars, --disable-blink-features=AutomationControlled, "--window-size=1440,900"]
+    healthcheck:
+      type: tcp
+      port: 9222
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    docker:
+      shmSizeMb: 512
+    resources:
+      memoryMb: 768
+  - key: meilisearch
+    name: Karakeep Meilisearch
+    kind: worker
+    image: getmeili/meilisearch:v1.41.0
+    digest: sha256:860fa4baed04ae1c235de870edab0c8006227546dea1bbb6411fbfc5e27cf1db
+    healthcheck:
+      type: http
+      path: /health
+      port: 7700
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      MEILI_MASTER_KEY: ${{randomBytes(24,"hex")}}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - name: meili-data
+        path: /meili_data
+    resources:
+      memoryMb: 256
+group: Karakeep
+notes:
+  - "Open the app and create the first account with Sign Up. Afterwards set DISABLE_SIGNUPS=true in the web service variables and redeploy to close registration."
+  - "AI tagging needs an OpenAI-compatible API key (OPENAI_API_KEY); without one bookmarks are still saved, archived and searchable."
+  - "Bookmarks, uploaded assets and archived pages live in the data volume; the search index in the Meilisearch volume can be rebuilt from the admin page."

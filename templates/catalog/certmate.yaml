@@ -1,0 +1,62 @@
+schema: 1
+id: certmate
+revision: 1
+name: CertMate
+summary: Web UI and REST API that issues and renews Let's Encrypt certificates through DNS-01 challenges.
+description: CertMate manages SSL certificates across many DNS providers, with backups and multi-account support. This template runs the single CertMate container with persistent volumes for certificates, data, logs and backups.
+category: security
+tags: [ssl, certificates, letsencrypt, dns, acme]
+links:
+  website: https://www.certmate.org/
+  docs: https://www.certmate.org/docs/
+  source: https://github.com/fabriziosalmi/certmate
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/fabriziosalmi/certmate/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/certmate
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: certmate
+    name: CertMate
+    kind: app
+    image: fabriziosalmi/certmate:2.55.0
+    digest: sha256:5a1c9b8351dbbb2d00cab55b60211b898976a693a4ded351f825618ca0c06281
+    port: 8000
+    healthcheck:
+      type: http
+      path: /health
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 40
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      FLASK_ENV: production
+      BEHIND_PROXY: "true"
+      SECRET_KEY: ${{secret(48)}}
+      API_BEARER_TOKEN: ${{secret(48)}}
+      CERTMATE_BACKUP_PASSPHRASE: ${{secret(48)}}
+    volumes:
+      - name: certificates
+        path: /app/certificates
+      - name: data
+        path: /app/data
+      - name: logs
+        path: /app/logs
+      - name: backups
+        path: /app/backups
+    resources:
+      memoryMb: 512
+group: CertMate
+notes:
+  - "The first page creates the administrator account and asks for the API_BEARER_TOKEN: copy it from the service's variables."
+  - "DNS provider credentials (Cloudflare, Route53 and others) are added in the web UI after signing in."
+  - "CERTMATE_BACKUP_PASSPHRASE encrypts automatic backups; keep a copy of it, because backups cannot be restored without it."

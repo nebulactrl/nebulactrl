@@ -1,0 +1,64 @@
+schema: 1
+id: dagu
+revision: 1
+name: Dagu
+summary: Self-contained workflow engine that runs jobs defined as DAGs in YAML, with a web UI and no database.
+description: Dagu schedules and orchestrates workflows declared in plain YAML. This template runs the official image with built-in user management and a persistent volume for DAG definitions and run history.
+category: automation
+tags: [workflow, scheduler, cron, dag, orchestration]
+links:
+  website: https://dagu.sh
+  docs: https://docs.dagu.sh
+  source: https://github.com/dagucloud/dagu
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://github.com/dagucloud/dagu/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/dagu
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - key: ADMIN_USERNAME
+    label: Admin username
+    default: admin
+    required: true
+  - key: ADMIN_PASSWORD
+    label: Admin password
+    secret: true
+    default: "${{secret(24)}}"
+services:
+  - key: dagu
+    name: Dagu
+    kind: app
+    image: ghcr.io/dagucloud/dagu:2.24.0
+    digest: sha256:790e84c78e2d697365a91067209c495032292fdccaca3d4968840fbcaccd1c97
+    port: 8080
+    command: [dagu, start-all]
+    healthcheck:
+      type: http
+      path: /api/v1/health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      DAGU_HOST: 0.0.0.0
+      DAGU_PORT: "8080"
+      DAGU_AUTH_MODE: builtin
+      DAGU_AUTH_TOKEN_SECRET: ${{secret(48)}}
+      DAGU_AUTH_BUILTIN_INITIAL_ADMIN_USERNAME: ${input:ADMIN_USERNAME}
+      DAGU_AUTH_BUILTIN_INITIAL_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - name: data
+        path: /var/lib/dagu
+    resources:
+      memoryMb: 512
+group: Dagu
+notes:
+  - "Sign in with the admin username and the generated admin password (variable DAGU_AUTH_BUILTIN_INITIAL_ADMIN_PASSWORD); the account is created on first start."
+  - "Workflows run commands inside this container; give accounts only to people you trust."

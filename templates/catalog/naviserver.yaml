@@ -1,0 +1,55 @@
+schema: 1
+id: naviserver
+revision: 1
+name: NaviServer
+summary: Lightweight Minecraft server manager with a web panel, CLI and automatic Java runtime management.
+description: NaviServer creates and runs Vanilla, Paper, Fabric, Forge and NeoForge Minecraft servers from a web panel, with backups and monitoring. This template publishes the first two Minecraft ports (25565 and 25566).
+category: games
+tags: [minecraft, game-server, panel, paper, fabric]
+links:
+  website: https://github.com/andre-carbajal/NaviServer
+  docs: https://github.com/andre-carbajal/NaviServer/wiki
+  source: https://github.com/andre-carbajal/NaviServer
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/andre-carbajal/NaviServer/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/naviserver
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 10
+services:
+  - key: naviserver
+    name: NaviServer
+    kind: app
+    image: ghcr.io/andre-carbajal/naviserver:2.6.0
+    digest: sha256:e17012a81e7d18fb91e467c2cfc93d9c8fb478de51aa8d0e10408e28e9a87f20
+    port: 23008
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      NAVISERVER_HOST: 0.0.0.0
+      NAVISERVER_PORT: "23008"
+      NAVISERVER_SECRET_KEY: ${{secret(64)}}
+      NAVISERVER_CLI_TOKEN: ${{secret(64)}}
+    volumes:
+      - {name: data, path: /data}
+    ports:
+      - {name: minecraft-1, port: 25565, protocol: tcp, publish: true}
+      - {name: minecraft-2, port: 25566, protocol: tcp, publish: true}
+    resources:
+      memoryMb: 2048
+    stopGraceSeconds: 60
+group: NaviServer
+notes:
+  - "Open the domain and create the first administrator account when prompted: the first visitor to the setup page claims it, so do this right after deploying."
+  - "Create each Minecraft server on port 25565 or 25566 inside NaviServer; other ports in its default range (25565-25600) are not published by this template."

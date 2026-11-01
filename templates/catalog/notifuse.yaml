@@ -1,0 +1,84 @@
+schema: 1
+id: notifuse
+revision: 1
+name: Notifuse
+summary: Newsletter, marketing email and transactional notification platform with a visual email builder and automations.
+description: Notifuse lets teams manage contacts, design emails, send broadcasts and transactional messages and track delivery. This template runs the official image against a managed Postgres database.
+category: web
+tags: [newsletter, email, marketing, notifications, transactional]
+links:
+  website: https://notifuse.com/
+  docs: https://docs.notifuse.com/
+  source: https://github.com/Notifuse/notifuse
+upstream:
+  license: BUSL-1.1
+  licenseUrl: https://github.com/Notifuse/notifuse/blob/main/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/notifuse
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Root administrator email, required: true}
+  - {key: SMTP_HOST, label: SMTP host for sign-in and notification emails (leave empty to use the setup wizard)}
+  - {key: SMTP_PORT, format: number, label: SMTP port, default: "587"}
+  - {key: SMTP_USERNAME, label: SMTP user name}
+  - {key: SMTP_PASSWORD, label: SMTP password, secret: true}
+  - {key: SMTP_FROM_EMAIL, label: SMTP from address}
+  - {key: SMTP_FROM_NAME, label: SMTP from name, default: Notifuse}
+services:
+  - key: notifuse
+    name: Notifuse
+    kind: app
+    image: notifuse/notifuse:v42.0
+    digest: sha256:768759a11a71a4a8f565c4a84f6c7e5e0e9f8b37543a5dc2fdc5c2f00934e1b5
+    port: 8080
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: "8080"
+      ENVIRONMENT: production
+      API_ENDPOINT: ${{NEBULA_PUBLIC_URL}}
+      ROOT_EMAIL: ${input:ADMIN_EMAIL}
+      SECRET_KEY: ${{secret(48)}}
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      DB_PREFIX: notifuse
+      DB_SSLMODE: disable
+      SMTP_HOST: ${input:SMTP_HOST}
+      SMTP_PORT: ${input:SMTP_PORT}
+      SMTP_USERNAME: ${input:SMTP_USERNAME}
+      SMTP_PASSWORD: ${input:SMTP_PASSWORD}
+      SMTP_FROM_EMAIL: ${input:SMTP_FROM_EMAIL}
+      SMTP_FROM_NAME: ${input:SMTP_FROM_NAME}
+    volumes:
+      - name: notifuse-data
+        path: /app/data
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Notifuse DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: notifuse_system
+group: Notifuse
+notes:
+  - "Open the service address and finish the setup wizard if it appears. Sign-in uses one-time codes sent by email, so SMTP must be configured (install form or wizard) before you can log in as the root administrator."
+  - "Notifuse v40 and later use the Business Source License: free to self-host, but more than three workspaces, granular permissions, SSO and audit logs need a licence key from the vendor (see the licence link)."
+  - "SECRET_KEY encrypts stored credentials; back it up with the database."

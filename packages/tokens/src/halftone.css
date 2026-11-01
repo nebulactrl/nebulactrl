@@ -1,0 +1,150 @@
+/*
+ * @nebulactrl/tokens: the halftone (apps/web and apps/site).
+ *
+ * AMBIENT: the ONLY place background / atmosphere decisions live. "Stipple": a real
+ * halftone whose dot SIZE follows an intensity field, so the light is made of ink.
+ * Static CSS only (no animation, no WebGL, no blur): the layer is rasterised once.
+ * Halftone means light: a floor or a backdrop, never inside a card, dialog, menu,
+ * input, tooltip or control.
+ *
+ *   canvas-floor   (apps/web) screen-anchored dawn from the top edge + a fine dot lattice that pans
+ *   bg-ambient     app / auth floor, subtle top dither (`ht-arc` adds the auth planet-rim)
+ *   ht-dawn        a faint dawn from the top edge: the app's content column, the site's page heads
+ *   ht-foot        sidebar foot dithering out
+ *   ht-sphere      the halftone sphere of an empty state
+ *   ht-layer       any other host that sets its own --ht-* dials (the site's hero and closing floors)
+ *
+ * Dial per surface with --ht-size (screen pitch), --ht-alpha (intensity) and --ht-field
+ * (#000 = no dot; <= #606060 separate dots; >= #8c8c8c fuse into solid). The canvas dawn and
+ * the page bands read the --ambient-* tokens below (strength, peak = max dot size, reach,
+ * ink). Decorative only: texture never sits behind text at more than 8% contrast, text
+ * never relies on a dot, and floor labels sit on chips.
+ *
+ * The host provides `--bg-app` (the flat floor `ht-dawn`, `bg-ambient` and `ht-arc` paint under
+ * the dots); the app also provides `--canvas-dot-color` and `--canvas-vignette-color` for `ht-arc`.
+ * The site overrides `--ambient-strength` to keep its text clear of the dots.
+ */
+:root {
+	/*
+	 * Ambient restraint: the halftone is atmosphere, never content. Every dawn /
+	 * page-band host below reads ONLY these tokens, so a retune happens here. Dots
+	 * sit near neutral ink with a faint accent tint; the dawn is gone ~160px below
+	 * the top edge. The fine lattice (--canvas-dot-color) is a separate dial.
+	 */
+	--ambient-strength: 0.35;
+	/* Max dot size: the field's peak level (#000 = no dot; higher = bigger dot). */
+	--ambient-dawn-peak: #6c6c6c;
+	--ambient-corner-peak: #484848;
+	--ambient-band-peak: #626262;
+	/* How far the dawn reaches down from the top edge. */
+	--ambient-reach: 160px;
+	/* Desaturated ink: a faint accent tint only. */
+	--ambient-ink: brightness(0.5) sepia(1) saturate(0.55) hue-rotate(208deg);
+	--ambient-alpha-canvas: calc(0.75 * var(--ambient-strength));
+	--ambient-alpha-page: calc(0.4 * var(--ambient-strength));
+	--ambient-alpha-band: calc(0.3 * var(--ambient-strength));
+}
+
+/* The one ambient backdrop for full-bleed screens (auth, fallbacks): a flat floor with a
+   subtle top dither. Positioned + isolated so the halftone layer sits under the content. */
+@utility bg-ambient {
+	--ht-size: 6px;
+	--ht-alpha: var(--ambient-alpha-band);
+	--ht-tint: var(--ambient-ink);
+	--ht-field: radial-gradient(
+		90% var(--ambient-reach) at 50% 0,
+		var(--ambient-band-peak) 0%,
+		#000 100%
+	);
+	position: relative;
+	isolation: isolate;
+	background-color: var(--bg-app);
+}
+/* A faint dawn under the top bar. Low alpha keeps body text readable over it (ink-3
+   stays above 7:1 on the brightest dot). */
+@utility ht-dawn {
+	--ht-size: 8px;
+	--ht-alpha: var(--ambient-alpha-page);
+	--ht-tint: var(--ambient-ink);
+	--ht-field: radial-gradient(
+		90% var(--ambient-reach) at 50% 0,
+		var(--ambient-band-peak) 0%,
+		#000 100%
+	);
+	position: relative;
+	isolation: isolate;
+	background-color: var(--bg-app);
+}
+/* Auth hero: a halftone planet-rim rising behind the card plus the top dawn. */
+@utility ht-arc {
+	--ht-size: 10px;
+	--ht-alpha: 0.62;
+	--ht-field:
+		radial-gradient(circle 640px at 50% 131%, #000 0 70%, #666 83%, #000 100%),
+		radial-gradient(60% 40% at 50% -18%, #909090 0%, #000 100%);
+	position: relative;
+	isolation: isolate;
+	background-color: var(--bg-app);
+	background-image:
+		radial-gradient(circle, var(--canvas-dot-color) 1px, transparent 1.25px),
+		radial-gradient(130% 100% at 50% 50%, transparent 55%, var(--canvas-vignette-color) 100%);
+	background-size: 24px 24px, 100% 100%;
+}
+/* Sidebar foot: the halftone dithers out upward. Needs a positioned host. */
+@utility ht-foot {
+	--ht-size: 6px;
+	--ht-alpha: 0.34;
+	--ht-field: linear-gradient(0deg, #8c8c8c 0%, #000 42%);
+	isolation: isolate;
+	&::before {
+		inset: auto 0 0 0;
+		height: 280px;
+	}
+}
+/* The sphere of an empty state: a lit ball made of dots. */
+@utility ht-sphere {
+	--ht-size: 5px;
+	--ht-alpha: 1;
+	--ht-field: radial-gradient(circle at 34% 30%, #707070 0%, #525252 42%, #000 86%);
+	--ht-tint: brightness(0.55) sepia(1) saturate(4.5) hue-rotate(208deg);
+	position: relative;
+	isolation: isolate;
+	overflow: hidden;
+	border-radius: 999px;
+	background: oklch(0.17 0.012 262);
+	box-shadow:
+		0 0 0 1px oklch(1 0 0 / 0.08),
+		0 0 60px -10px oklch(0.611 0.214 278.6 / 0.3);
+}
+
+/* The halftone layer itself, shared by every host above: dot-screen + intensity field,
+   screen-blended, thresholded with contrast(60), tinted by the filter chain, screened
+   onto the floor (black = transparent). `.canvas-floor` is the app's own host. `.ht-layer`
+   is for a host that sets its own --ht-* dials; it is positioned and isolated so the layer
+   sits under its content, and has no floor colour of its own. */
+@layer components {
+	.ht-layer {
+		position: relative;
+		isolation: isolate;
+	}
+	:is(.canvas-floor, .bg-ambient, .ht-dawn, .ht-arc, .ht-foot, .ht-sphere, .ht-layer)::before {
+		content: "";
+		position: absolute;
+		inset: 0;
+		z-index: -1;
+		pointer-events: none;
+		mix-blend-mode: screen;
+		opacity: var(--ht-alpha, 0.8);
+		background:
+			radial-gradient(circle at 50% 50%, #737373 0, #000 62%) 0 0 / var(--ht-size, 8px)
+				var(--ht-size, 8px),
+			var(--ht-field, linear-gradient(#000, #000));
+		background-blend-mode: screen;
+		filter: contrast(60) var(--ht-tint, brightness(0.45) sepia(1) saturate(5) hue-rotate(208deg));
+	}
+	@media (forced-colors: active) {
+		:is(.canvas-floor, .bg-ambient, .ht-dawn, .ht-arc, .ht-foot, .ht-sphere, .ht-layer)::before {
+			display: none;
+		}
+	}
+}

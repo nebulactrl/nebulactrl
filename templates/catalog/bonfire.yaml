@@ -1,0 +1,111 @@
+schema: 1
+id: bonfire
+revision: 1
+name: Bonfire
+summary: Federated social network toolkit with ActivityPub support and community moderation tools.
+description: Bonfire is a modular fediverse platform for building customisable community spaces. This template runs the Social flavour with a PostGIS database and a Meilisearch index.
+category: web
+tags: [social, fediverse, activitypub, community]
+links:
+  website: https://bonfirenetworks.org
+  docs: https://docs.bonfirenetworks.org
+  source: https://github.com/bonfire-networks/bonfire-app
+upstream:
+  license: AGPL-3.0-or-later
+  licenseUrl: https://github.com/bonfire-networks/bonfire-app/blob/main/LICENSES/AGPL-3.0-only.txt
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/bonfire
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 5
+  arch: [amd64]
+inputs:
+  - {key: APP_NAME, label: Instance name, default: Bonfire}
+services:
+  - key: bonfire
+    name: Bonfire
+    kind: app
+    image: bonfirenetworks/bonfire:1.0.7-social-amd64
+    digest: sha256:5ca5cd7311edc4285a9915b2a99cddf9c50ca1e6bc1eb8b86407d4dca9760fb1
+    port: 4000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 120
+      deadlineSeconds: 600
+    dependsOn: [db, search]
+    domains:
+      - generate: true
+    env:
+      HOSTNAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      PUBLIC_PORT: "443"
+      SERVER_PORT: "4000"
+      APP_NAME: ${input:APP_NAME}
+      LANG: en_US.UTF-8
+      SECRET_KEY_BASE: ${{secret(64)}}
+      SIGNING_SALT: ${{secret(32)}}
+      ENCRYPTION_SALT: ${{secret(32)}}
+      RELEASE_COOKIE: ${{secret(32)}}
+      POSTGRES_HOST: ${{db.NEBULA_PRIVATE_HOST}}
+      POSTGRES_USER: postgres
+      POSTGRES_DB: bonfire_db
+      POSTGRES_PASSWORD: ${{db.POSTGRES_PASSWORD}}
+      DB_MIGRATE_INDEXES_CONCURRENTLY: "false"
+      SEARCH_ADAPTER: meili
+      SEARCH_MEILI_INSTANCE: http://${{search.NEBULA_PRIVATE_HOST}}:7700
+      MEILI_MASTER_KEY: ${{search.MEILI_MASTER_KEY}}
+      MAIL_BACKEND: none
+      UPLOAD_LIMIT: "20"
+    volumes:
+      - name: uploads
+        path: /opt/app/data/uploads
+    stopGraceSeconds: 45
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Bonfire DB
+    kind: database
+    image: postgis/postgis:17-3.5-alpine
+    digest: sha256:894f570c0cf0664ed5576a8fd5d5bfb8fb1b19d592885b686c3a88c8bd90c41f
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d bonfire_db"]
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: bonfire_db
+      POSTGRES_PASSWORD: ${{secret(32)}}
+    volumes:
+      - name: db-data
+        path: /var/lib/postgresql/data
+    resources:
+      memoryMb: 512
+  - key: search
+    name: Bonfire Search
+    kind: worker
+    image: getmeili/meilisearch:v1.11
+    digest: sha256:6f8f1fc29d1ff67b4d8d503bb4e0a69b55c8d42600decafde951344218193a27
+    healthcheck:
+      type: http
+      path: /health
+      port: 7700
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${{secret(32)}}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - name: search-data
+        path: /meili_data
+    resources:
+      memoryMb: 512
+group: Bonfire
+notes:
+  - "Open /signup: the first account to sign up becomes the instance admin and needs no email confirmation. Further sign-ups are invite-only by default."
+  - "No mail backend is configured (MAIL_BACKEND=none). To let other people confirm their email, set the MAIL_* variables on the Bonfire service (see https://docs.bonfirenetworks.org/deploy.html)."

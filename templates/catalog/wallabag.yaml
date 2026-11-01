@@ -1,0 +1,55 @@
+schema: 1
+id: wallabag
+revision: 1
+name: wallabag
+summary: Read-it-later app that saves web articles for offline reading, with tags, annotations and import from other services.
+description: wallabag stores the readable content of the pages you save and syncs with mobile apps and browser extensions. This template runs the official image with the SQLite backend, which the image sets up on first start, and persistent volumes for the database and article images.
+category: productivity
+tags: [read-it-later, bookmarks, articles, archive, reader]
+icon: wallabag
+links:
+  website: https://wallabag.org/
+  docs: https://doc.wallabag.org/
+  source: https://github.com/wallabag/wallabag
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/wallabag/wallabag/blob/master/COPYING.md
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/wallabag
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 3
+services:
+  - key: wallabag
+    name: wallabag
+    kind: app
+    image: wallabag/wallabag:2.6.14.1
+    digest: sha256:92754c1238ddfb5099874852585c4216d5a65e2840bfc672e86f00b3f8f88ef1
+    port: 80
+    healthcheck:
+      type: http
+      path: /login
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    domains:
+      - generate: true
+    env:
+      SYMFONY__ENV__DATABASE_DRIVER: pdo_sqlite
+      SYMFONY__ENV__DOMAIN_NAME: ${{NEBULA_PUBLIC_URL}}
+      SYMFONY__ENV__SECRET: ${{secret(32)}}
+      SYMFONY__ENV__SERVER_NAME: wallabag
+    volumes:
+      - name: data
+        path: /var/www/wallabag/data
+      - name: images
+        path: /var/www/wallabag/web/assets/images
+    resources:
+      memoryMb: 512
+group: wallabag
+notes:
+  - "The initial account is wallabag / wallabag: sign in right after deploying and change the password, because it is publicly known."
+  - "Outgoing email (password resets, 2FA codes) needs SYMFONY__ENV__MAILER_DSN and SYMFONY__ENV__FROM_EMAIL set on the service; public registration is off by default."

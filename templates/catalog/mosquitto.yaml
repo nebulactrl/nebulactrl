@@ -1,0 +1,92 @@
+schema: 1
+id: mosquitto
+revision: 1
+name: Eclipse Mosquitto
+summary: Lightweight MQTT broker for IoT and home automation, with password authentication, persistence and MQTT over WebSockets for services on the private network.
+description: Eclipse Mosquitto is the reference open source MQTT broker (versions 5.0, 3.1.1 and 3.1). This template runs the official image with anonymous access disabled, a generated password for a single user created at every start, persistent message storage, plain MQTT on port 1883 (published on the server) and MQTT over WebSockets on port 9001 inside the environment's private network.
+category: data
+tags: [mqtt, broker, iot, messaging, home-automation]
+icon: eclipsemosquitto
+links:
+  website: https://mosquitto.org
+  docs: https://mosquitto.org/documentation/
+  source: https://github.com/eclipse-mosquitto/mosquitto
+upstream:
+  license: EPL-2.0 OR BSD-3-Clause
+  licenseUrl: https://github.com/eclipse-mosquitto/mosquitto/blob/master/LICENSE.txt
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/mosquitto
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 1
+inputs:
+  - {key: MQTT_USERNAME, label: MQTT username, required: true, default: mqtt}
+  - {key: MQTT_PASSWORD, label: MQTT password, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: mosquitto
+    name: Eclipse Mosquitto
+    kind: app
+    image: eclipse-mosquitto:2.1.2-alpine
+    digest: sha256:860aeb5d63ce509508f6dcfb2bc8a1c1dd2bc60555b562b45ce90e52d8dabb0f
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "mosquitto_pub -h 127.0.0.1 -p 1883 -u \"$MQTT_USERNAME\" -P \"$MQTT_PASSWORD\" -t __healthcheck -m ok -q 1 >/dev/null 2>&1"]
+      intervalSeconds: 30
+      timeoutSeconds: 5
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      MQTT_USERNAME: ${input:MQTT_USERNAME}
+      MQTT_PASSWORD: ${input:MQTT_PASSWORD}
+    volumes:
+      - name: mosquitto-data
+        path: /mosquitto/data
+    files:
+      - path: /mosquitto/config/mosquitto.conf
+        mode: "0444"
+        content: |
+          persistence true
+          persistence_location /mosquitto/data/
+          log_dest stdout
+
+          listener 1883
+          protocol mqtt
+
+          listener 9001
+          protocol websockets
+
+          allow_anonymous false
+          password_file /mosquitto/data/passwordfile
+    ports:
+      - name: mqtt
+        port: 1883
+        protocol: tcp
+        publish: true
+    docker:
+      entrypoint:
+        - /bin/sh
+        - -ec
+        - |
+          # Rebuild the password file from the environment on every start so the
+          # credentials are never stored in a file or in this script.
+          umask 077
+          password_file=$(mktemp /mosquitto/data/passwordfile.XXXXXX)
+          trap 'rm -f "$password_file"' EXIT
+          mosquitto_passwd -b -c - "$MQTT_USERNAME" "$MQTT_PASSWORD" > "$password_file"
+          chown 1883:1883 "$password_file"
+          chmod 600 "$password_file"
+          mv -f "$password_file" /mosquitto/data/passwordfile
+          trap - EXIT
+          exec /docker-entrypoint.sh /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf
+    resources:
+      memoryMb: 128
+group: Eclipse Mosquitto
+notes:
+  - "Anonymous access is off. Connect with the MQTT username and password from the install form; the single account is recreated from those variables on every start, so change the password in the service variables and redeploy."
+  - "Port 1883 is published on the server and is plain, unencrypted MQTT: passwords cross the network in clear text. Keep clients on a trusted network, or unpublish the port and let other services of this environment connect privately."
+  - "MQTT over WebSockets listens on port 9001 of the private host name (NEBULA_PRIVATE_HOST) and is not routed through a domain: a WebSocket-only listener answers no plain HTTP request, so the proxy cannot verify it. To expose it over HTTPS, put a WebSocket-aware reverse proxy in front of it."
+  - "Only one user exists and the password file is rebuilt at every start. For several users, ACLs or TLS on the raw MQTT port, edit the config in the service's Files (/mosquitto/config/mosquitto.conf) and replace the entrypoint script."

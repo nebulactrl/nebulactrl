@@ -1,0 +1,60 @@
+schema: 1
+id: chiefonboarding
+revision: 1
+name: ChiefOnboarding
+summary: Employee onboarding platform with task sequences, to-do lists, resources and new-hire portals.
+description: ChiefOnboarding guides new hires through onboarding with sequences, tasks, documents and integrations. This template runs the web app and its background worker in one container with a managed Postgres database.
+category: productivity
+tags: [onboarding, hr, employees, tasks, workflow]
+links:
+  website: https://chiefonboarding.com
+  docs: https://docs.chiefonboarding.com
+  source: https://github.com/chiefonboarding/ChiefOnboarding
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/chiefonboarding/ChiefOnboarding/blob/master/LICENSE.md
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/chiefonboarding
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 2
+  arch:
+    - amd64
+services:
+  - key: chiefonboarding
+    name: ChiefOnboarding
+    kind: app
+    image: chiefonboarding/chiefonboarding:v2.5.0
+    digest: sha256:d0964135ea82f1a2e12633b6b47202a3926053a776f26a53a14c29f00470209f
+    port: 8000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn:
+      - db
+    domains:
+      - generate: true
+    env:
+      SECRET_KEY: ${{secret(50)}}
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      ALLOWED_HOSTS: ${{NEBULA_PUBLIC_DOMAIN}}
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+    resources:
+      memoryMb: 768
+  - key: db
+    name: ChiefOnboarding DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: chiefonboarding
+group: ChiefOnboarding
+notes:
+  - "Open the site: the first visit shows a setup screen where you create the admin account and can load demo data."
+  - "File uploads need an S3-compatible bucket (AWS_* variables, see the object storage docs); email needs EMAIL_HOST or an Anymail provider key."

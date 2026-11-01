@@ -1,0 +1,57 @@
+schema: 1
+id: tianji
+revision: 1
+name: Tianji
+summary: All-in-one web analytics, uptime monitoring and server status in a single lightweight app.
+description: Tianji combines privacy-friendly website analytics with uptime checks and server status pages. This template runs the official image with a managed Postgres database.
+category: analytics
+tags: [analytics, uptime, monitoring, status-page]
+links:
+  website: https://tianji.dev
+  docs: https://tianji.dev/docs/intro
+  source: https://github.com/msgbyte/tianji
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/msgbyte/tianji/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/tianji
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 3
+services:
+  - key: tianji
+    name: Tianji
+    kind: app
+    image: moonrailgun/tianji:1.33.12
+    digest: sha256:18bf2e3d3806ceadc6be32708dfe8f907908f2f61abaaec889a830cb4d13824a
+    port: 12345
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 40
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      JWT_SECRET: ${{randomBytes(32,"hex")}}
+      ALLOW_REGISTER: "false"
+      ALLOW_OPENAPI: "true"
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Tianji DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: tianji
+group: Tianji
+notes:
+  - "Sign in with the default account admin / admin, then change the password straight away: the address is public."
+  - "Public registration is off (ALLOW_REGISTER=false); create more users from the admin area."

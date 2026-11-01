@@ -1,0 +1,58 @@
+schema: 1
+id: rustdesk
+revision: 1
+name: RustDesk Server
+summary: Self-hosted RustDesk rendezvous and relay server for remote desktop connections, an alternative to TeamViewer.
+description: Runs the official rustdesk-server-s6 image, which contains both the ID/rendezvous server (hbbs) and the relay (hbbr) in one container. Only clients that hold this server's public key can connect. The RustDesk client apps are installed separately.
+category: productivity
+tags: [remote-desktop, relay, teamviewer, self-hosted]
+icon: rustdesk
+links:
+  website: https://rustdesk.com
+  docs: https://rustdesk.com/docs/en/self-host/
+  source: https://github.com/rustdesk/rustdesk-server
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/rustdesk/rustdesk-server/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/rustdesk
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - key: RELAY_HOST
+    format: hostname
+    label: Public host name or IP of this server
+    description: The address RustDesk clients use to reach this server (for example rustdesk.example.com or its IP). hbbs tells clients to use the relay at this address on port 21117.
+    required: true
+services:
+  - key: rustdesk
+    name: RustDesk Server
+    kind: app
+    image: rustdesk/rustdesk-server-s6:1.1.16
+    digest: sha256:5974cd791a5aca6fbf01a167b37e7427db1d136e95b2710c33a34fdc9fea724c
+    healthcheck:
+      type: docker
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    env:
+      RELAY: ${input:RELAY_HOST}:21117
+      ENCRYPTED_ONLY: "1"
+    ports:
+      - {name: nat-test, port: 21115, protocol: tcp, publish: true}
+      - {name: id-tcp, port: 21116, protocol: tcp, publish: true}
+      - {name: id-udp, port: 21116, protocol: udp, publish: true}
+      - {name: relay, port: 21117, protocol: tcp, publish: true}
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 256
+group: RustDesk
+notes:
+  - "In the RustDesk client open Settings > Network > ID/Relay server and enter this server's address as ID server, and the public key as Key. Leave the relay server empty."
+  - "The public key is created on the first start: read it from the service logs (hbbs prints it) or from /data/id_ed25519.pub in the data volume."
+  - "Encrypted-only mode is on, so clients without the key are refused. Keep the data volume: it holds the key pair, and losing it means reconfiguring every client."

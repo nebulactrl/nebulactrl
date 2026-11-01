@@ -1,0 +1,147 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema  = 1
+project = "acme-shop"          # must equal the target project's slug when --project / the binding names one
+server  = "fra-1"              # default server (by name) for every service; override per service or environment
+
+# Project-wide shared variables. Services read them as ${{shared.APP_NAME}}.
+[variables]
+APP_NAME = "Acme Shop"
+
+# ───────────────────────── web: built from git ─────────────────────────
+[services.web]
+name               = "Web"
+port               = 3000                 # no port => the service is a worker (no HTTP health check, no domain)
+stop_grace_seconds = 30
+depends_on         = ["db"]               # deploy order; references in variables add edges automatically
+
+[services.web.git]
+connection  = "github-acme"               # git connection NAME (Team settings → Integrations); never a token
+repo        = "acme/shop"
+branch      = "main"
+auto_deploy = true                        # immediate
+watch_paths = ["apps/web/**", "packages/**", "!**/*.md"]   # monorepo filter; replaces the whole list
+
+[services.web.build]
+type       = "dockerfile"                 # auto | dockerfile | railpack | starter:<node|python|go|ruby|php|static>
+dockerfile = "apps/web/Dockerfile"
+context    = "."
+
+[services.web.health_check]
+type             = "http"
+path             = "/healthz"
+deadline_seconds = 90
+
+[services.web.pre_deploy]                 # runs before the new release starts; non-zero exit fails the deploy
+command         = ["bun", "run", "db:migrate"]
+timeout_seconds = 300
+
+[services.web.variables]
+NODE_ENV     = "production"
+APP_URL      = "https://shop.acme.com"
+DATABASE_URL = "${{db.DATABASE_URL}}"     # reference to another service's exported variable
+SESSION_SECRET = "${{secret(48)}}"        # generator: runs once, same text again keeps the value
+SITE_NAME    = "${{shared.APP_NAME}}"
+BUILD_FLAG   = { value = "1", scope = "build", comment = "read by the bundler" }   # table form for metadata
+
+[services.web.secrets]                    # names only; the values are set in the dashboard / CLI / secret manager
+keys = ["STRIPE_SECRET_KEY"]
+
+[services.web.domains."shop.acme.com"]    # key = hostname, or hostname/path-prefix
+www_redirect = true
+
+[services.web.domains."shop.acme.com".cloudflare]   # immediate; needs a Cloudflare connection
+proxied = true
+
+[services.web.domains."shop.acme.com".options]      # replaces the domain's whole option set
+compress         = true
+security_headers = "strict"
+
+[services.web.scale]                      # immediate
+replicas = 2
+
+[services.web.uptime]                     # immediate
+failure_threshold = 3
+reminder_minutes  = 60
+
+[services.web.tasks.digest]               # cron task, immediate; runs in the service's image
+schedule        = "0 7 * * 1-5"
+timezone        = "Europe/Berlin"
+command         = ["bun", "run", "jobs:digest"]
+timeout_seconds = 900
+
+# ───────────────────────── worker: same repo, no port ─────────────────────────
+[services.worker]
+command    = ["bun", "run", "worker"]
+memory_mb  = 512
+depends_on = ["db"]
+
+[services.worker.git]
+connection  = "github-acme"
+repo        = "acme/shop"
+branch      = "main"
+watch_paths = ["apps/worker/**", "packages/**"]
+
+[services.worker.build]
+type       = "dockerfile"
+dockerfile = "apps/worker/Dockerfile"
+context    = "."
+
+[services.worker.variables]
+DATABASE_URL      = "${{db.DATABASE_URL}}"
+QUEUE_CONCURRENCY = "8"
+
+# ───────────────────────── db: managed Postgres with nightly backups ─────────────────────────
+[services.db.database]                    # create-only keys: engine, version, name, username
+engine   = "postgres"
+version  = "17"
+name     = "shop"
+username = "shop"
+
+[services.db.backups.nightly]             # immediate; key = stable identity of the schedule
+destination     = "offsite-s3"            # backup destination NAME
+cron            = "0 2 * * *"
+timezone        = "Europe/Berlin"
+retention_count = 14
+retention_days  = 30
+
+[services.db.uptime]
+reminder_minutes = 30
+
+# ───────────────────────── printer: external route (no container) ─────────────────────────
+[services.printer]
+name    = "Office printer"
+only_in = ["production"]                  # this service exists in the file only for these environments
+
+[services.printer.route]
+protocol    = "http"
+upstreams   = [{ address = "192.168.1.20:631" }]     # or { service = "web", port = 3000 } for a managed service
+health_path = "/"
+
+[services.printer.domains."print.acme.com".options.access]
+allow_cidrs = ["203.0.113.0/24"]
+
+# ───────────────────────── staging overrides ─────────────────────────
+[environments.staging]
+server = "fra-staging"
+
+[environments.staging.variables]          # environment-layer shared variables (override the project layer)
+APP_NAME = "Acme Shop (staging)"
+
+[environments.staging.services.web]
+unset = ['domains."shop.acme.com"', "scale", "uptime"]   # TOML key paths; only allowed in environment blocks
+
+[environments.staging.services.web.git]
+branch = "develop"
+
+[environments.staging.services.web.variables]
+NODE_ENV = "staging"
+APP_URL  = "https://shop.staging.acme.com"
+
+[environments.staging.services.web.domains."shop.staging.acme.com".cloudflare]
+proxied = false
+
+[environments.staging.services.worker.git]
+branch = "develop"
+
+[environments.staging.services.db]
+unset = ["backups.nightly"]

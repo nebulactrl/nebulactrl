@@ -1,0 +1,13 @@
+# expect: invalid_value
+# A backup schedule runs at most once every 5 minutes.
+schema = 1
+server = "fra-1"
+
+[services.db]
+
+[services.db.database]
+engine = "postgres"
+
+[services.db.backups.frequent]
+destination = "offsite-s3"
+cron = "* * * * *"

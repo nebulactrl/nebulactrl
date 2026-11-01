@@ -1,0 +1,58 @@
+schema: 1
+id: databasement
+revision: 1
+name: Databasement
+summary: Self-hosted web app to schedule, run and restore backups of MySQL, PostgreSQL, MariaDB, MongoDB and other databases.
+description: Runs the Databasement image with its own SQLite database and the built-in queue worker on one persistent volume. Backups can go to S3, SFTP, Samba or the local volume.
+category: storage
+tags: [backup, database, mysql, postgres, mongodb]
+links:
+  website: https://david-crty.github.io/databasement/
+  docs: https://david-crty.github.io/databasement/self-hosting/docker
+  source: https://github.com/David-Crty/databasement
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/David-Crty/databasement/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/databasement
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name, used for backup schedules and file names)", default: UTC}
+services:
+  - key: databasement
+    name: Databasement
+    kind: app
+    image: davidcrty/databasement:1.10.7
+    digest: sha256:9d5ffaad38e704716751402a6754a058c9c1d9442b35efdf6f75a2b8d2a349e4
+    port: 2226
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 60
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      APP_KEY: base64:${{randomBytes(32,"base64")}}
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      APP_DISPLAY_TIMEZONE: ${input:TIMEZONE}
+      DB_CONNECTION: sqlite
+      DB_DATABASE: /data/database.sqlite
+      ENABLE_QUEUE_WORKER: "true"
+      LOG_CHANNEL: stderr
+      TRUSTED_PROXIES: "*"
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 512
+group: Databasement
+notes:
+  - "Open the app and register the first account; it becomes the administrator."
+  - "APP_KEY encrypts the stored database credentials. Back it up with the data volume: without it the saved connections cannot be decrypted."

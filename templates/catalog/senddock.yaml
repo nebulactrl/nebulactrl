@@ -1,0 +1,63 @@
+schema: 1
+id: senddock
+revision: 1
+name: SendDock
+summary: Self-hosted email marketing platform where every project has its own SMTP, domain, subscribers and analytics.
+description: SendDock manages subscribers, templates, broadcasts and scheduled campaigns and sends through your own SMTP relay. This template runs the app with a managed Postgres database and a managed Redis; the optional Pro features need a licence key from the vendor.
+category: web
+tags: [email, newsletter, mailing-list, marketing, smtp]
+links:
+  website: https://senddock.dev
+  docs: https://docs.senddock.dev
+  source: https://github.com/Arkhe-Systems/senddock
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/Arkhe-Systems/senddock/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/senddock
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: app
+    name: SendDock
+    kind: app
+    image: ghcr.io/arkhe-systems/senddock:0.8.3
+    digest: sha256:791e4194c9733053278f349c9218e5e2625a626f706f0e6dfd23ecf3203b61c4
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}?sslmode=disable
+      REDIS_URL: ${{cache.REDIS_URL}}
+      JWT_SECRET: ${{secret(64)}}
+      PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      FRONTEND_URL: ${{NEBULA_PUBLIC_URL}}
+    resources:
+      memoryMb: 256
+  - key: db
+    name: SendDock DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: senddock
+  - key: cache
+    name: SendDock Redis
+    kind: database
+    database:
+      engine: redis
+      version: "8"
+group: SendDock
+notes:
+  - "Open the domain and create your admin account on first visit, then add an SMTP relay (SES, Postmark, your own Postfix...) to each project: SendDock does not send mail by itself."

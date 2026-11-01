@@ -1,0 +1,63 @@
+schema: 1
+id: joplin
+revision: 1
+name: Joplin Server
+summary: Sync server for the Joplin note-taking apps, with a managed Postgres database.
+description: Joplin Server synchronises notes, notebooks and attachments between Joplin clients and offers sharing and a web admin area. This template runs the official image against a managed Postgres 16 database. Joplin Server is free for personal use under its own licence.
+category: productivity
+tags: [notes, sync, joplin, markdown]
+icon: joplin
+links:
+  website: https://joplinapp.org
+  docs: https://github.com/laurent22/joplin/blob/dev/packages/server/README.md
+  source: https://github.com/laurent22/joplin/tree/dev/packages/server
+upstream:
+  license: Joplin Server Personal Use License
+  licenseUrl: https://github.com/laurent22/joplin/blob/dev/packages/server/LICENSE.md
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/joplin.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 768
+  diskGb: 5
+services:
+  - key: joplin
+    name: Joplin Server
+    kind: app
+    image: joplin/server:3.7.3
+    digest: sha256:d951ce50b6d3d542393ebc4d08bd62d9a4fb0a6f6827abb861726c83560ecf97
+    port: 22300
+    healthcheck:
+      type: http
+      path: /api/ping
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [postgres]
+    env:
+      APP_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      APP_PORT: "22300"
+      DB_CLIENT: pg
+      POSTGRES_HOST: ${{postgres.DATABASE_HOST}}
+      POSTGRES_PORT: ${{postgres.DATABASE_PORT}}
+      POSTGRES_DATABASE: ${{postgres.DATABASE_NAME}}
+      POSTGRES_USER: ${{postgres.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{postgres.DATABASE_PASSWORD}}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+  - key: postgres
+    name: Joplin DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: joplin
+group: Joplin Server
+notes:
+  - "Sign in to the admin area with the default account admin@localhost / admin, then change the email and password straight away."
+  - "In the Joplin apps choose Joplin Server as the sync target and use this site's address as the server URL."
+  - "Joplin Server is free for personal use; business use needs a Joplin Server Business licence."

@@ -1,0 +1,84 @@
+schema: 1
+id: odoo-19
+revision: 1
+name: Odoo 19
+summary: Open-source business suite with ERP, CRM, accounting, inventory, e-commerce and more (Community edition, version 19).
+description: Runs the official Odoo 19.0 Community image with its own Postgres database, a filestore volume and a volume for extra addons. The database manager is protected by a generated master password.
+category: productivity
+tags: [erp, crm, accounting, business, inventory]
+icon: odoo
+links:
+  website: https://www.odoo.com
+  docs: https://www.odoo.com/documentation/19.0/
+  source: https://github.com/odoo/odoo
+upstream:
+  license: LGPL-3.0
+  licenseUrl: https://github.com/odoo/odoo/blob/19.0/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/odoo_19
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1536
+  diskGb: 10
+inputs:
+  - {key: ADMIN_PASSWD, label: Database manager master password, description: "Odoo master password, written to odoo.conf and needed to create, back up or delete databases.", secret: true, default: "${{secret(24)}}"}
+services:
+  - key: web
+    name: Odoo
+    kind: app
+    image: odoo:19.0-20261015
+    digest: sha256:27f920e002c43a1af7022a68f3cc17db71a2f9f3348800cb050721ce54893e49
+    port: 8069
+    healthcheck:
+      type: http
+      path: /web/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      HOST: ${{db.NEBULA_PRIVATE_HOST}}
+      USER: odoo
+      PASSWORD: ${{db.POSTGRES_PASSWORD}}
+    secrets: [PASSWORD]
+    files:
+      - path: /etc/odoo/odoo.conf
+        mode: "0444"
+        content: |
+          [options]
+          addons_path = /mnt/extra-addons
+          data_dir = /var/lib/odoo
+          db_port = 5432
+          proxy_mode = True
+          admin_passwd = ${input:ADMIN_PASSWD}
+    volumes:
+      - {name: data, path: /var/lib/odoo}
+      - {name: addons, path: /mnt/extra-addons}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Odoo DB
+    kind: database
+    image: postgres:17-alpine
+    digest: sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U odoo -d postgres"]
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      POSTGRES_USER: odoo
+      POSTGRES_DB: postgres
+      POSTGRES_PASSWORD: ${{secret(32)}}
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 512
+group: Odoo 19
+notes:
+  - "Open the site: Odoo shows the database creation form. Enter the master password from the install form (also stored in /etc/odoo/odoo.conf), then choose a database name and your admin email and password."
+  - "Odoo refuses to run as the Postgres user postgres, so this template runs its own Postgres with an odoo user instead of a managed database."

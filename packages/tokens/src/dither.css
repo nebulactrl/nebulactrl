@@ -1,0 +1,235 @@
+/*
+ * @nebulactrl/tokens: the ordered-dither tokens (`packages/dither`).
+ *
+ * Ink and paper map onto the host's colour ladder (`--color-accent-ink`,
+ * `--color-surface-raised`, ...); series colours reuse the status and accent
+ * tokens, so a dithered chart reads as the same product as the solid ones.
+ * Hosts that lack a status token (the marketing site defines no `--color-info`)
+ * fall back to the literal the app uses, so both apps draw the same colours.
+ * Dither is texture, never text: labels, axes and tooltips stay solid.
+ *
+ *   --dither-ink    the default ink (accent-ink)
+ *   --dither-paper  what a mark sits on (the raised card); marker rings use it
+ *   --dither-cell   one dither cell in CSS px (3 reads as print, 2 for small marks)
+ *   --dither-bloom  0-1 glow strength behind a fill; 0 turns the glow off
+ *   --dither-fill-duration / --dither-fill-ease  how long a bar takes to grow to a
+ *                   value (first reveal and every change); 350ms in the app, the
+ *                   site stretches it on its scroll reveal
+ */
+:root {
+	--dither-ink: var(--color-accent-ink);
+	--dither-paper: var(--color-surface-raised);
+	--dither-track: color-mix(in oklab, var(--color-ink-1) 9%, var(--color-surface-well));
+	--dither-cell: 3px;
+	--dither-bloom: 0.35;
+	--dither-fill-duration: var(--duration-medium, 350ms);
+	--dither-fill-ease: var(--ease-smooth-out, cubic-bezier(0.22, 1, 0.36, 1));
+	--dither-series-1: var(--color-accent-ink);
+	--dither-series-2: var(--color-info, oklch(0.78 0.15 235));
+	--dither-series-3: var(--color-status-live);
+	--dither-series-4: var(--color-warn);
+	--dither-series-5: var(--color-bad);
+	--dither-series-6: oklch(0.76 0.13 320);
+	--dither-series-7: var(--color-status-degraded, oklch(0.76 0.15 60));
+	--dither-series-8: var(--color-status-stopped, oklch(0.62 0.02 262));
+	/*
+	 * Named colours (dithercn's `dither-tokens` vocabulary), mapped onto our own
+	 * status/accent tokens. `ditherColorVar("blue")` and the `palette` props of
+	 * every component accept the bare names. `--dither-color-<name>` is the
+	 * long alias for hand-written CSS.
+	 */
+	--dither-blue: var(--color-info, oklch(0.78 0.15 235));
+	--dither-purple: var(--color-accent-ink);
+	--dither-green: var(--color-status-live);
+	--dither-pink: oklch(0.76 0.13 320);
+	--dither-orange: var(--color-status-degraded, oklch(0.76 0.15 60));
+	--dither-red: var(--color-bad);
+	--dither-grey: var(--color-status-stopped, oklch(0.62 0.02 262));
+	--dither-color-blue: var(--dither-blue);
+	--dither-color-purple: var(--dither-purple);
+	--dither-color-green: var(--dither-green);
+	--dither-color-pink: var(--dither-pink);
+	--dither-color-orange: var(--dither-orange);
+	--dither-color-red: var(--dither-red);
+	--dither-color-grey: var(--dither-grey);
+}
+
+/*
+ * The edge of a bar's fill: the width (and, for stacked parts, the left) the
+ * kit transitions. One rule, so every bar in either app moves on the same
+ * clock; a host retimes a bar group by setting `--dither-fill-duration` on it
+ * and staggers a bar with `--dither-fill-delay`.
+ */
+[data-dither-edge] {
+	transition-duration: var(--dither-fill-duration, 350ms);
+	transition-timing-function: var(--dither-fill-ease, cubic-bezier(0.22, 1, 0.36, 1));
+	transition-delay: var(--dither-fill-delay, 0ms);
+}
+
+/* Tailwind utilities: bg-dither-ink, text-dither-blue, border-dither-red, … */
+@theme inline {
+	--color-dither-ink: var(--dither-ink);
+	--color-dither-paper: var(--dither-paper);
+	--color-dither-blue: var(--dither-blue);
+	--color-dither-purple: var(--dither-purple);
+	--color-dither-green: var(--dither-green);
+	--color-dither-pink: var(--dither-pink);
+	--color-dither-orange: var(--dither-orange);
+	--color-dither-red: var(--dither-red);
+	--color-dither-grey: var(--dither-grey);
+}
+
+/* A sweeping comet for indeterminate dither bars. Transform only. */
+@keyframes nc-dither-comet {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(400%);
+	}
+}
+
+/* The working band of a running bar (`activity="band"`): it crosses the fill once per 1.4s,
+   clipped by the fill's width. Transform only. */
+@keyframes nc-dither-band {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(360%);
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	[data-dither-comet] {
+		animation: none !important;
+		transform: translateX(120%);
+	}
+	/* No band, and the resolved state is instant. */
+	[data-dither-band] {
+		display: none;
+	}
+	[data-dither-resolve] {
+		transition: none !important;
+	}
+}
+
+/* Forced colours: the pattern is decoration, the data is the shape. Masks drop to
+   solid system colours and the track gets a real border. */
+@media (forced-colors: active) {
+	[data-dither-fill] {
+		forced-color-adjust: none;
+		-webkit-mask-image: none !important;
+		mask-image: none !important;
+		background-color: Highlight !important;
+	}
+	[data-dither-track] {
+		forced-color-adjust: none;
+		background-color: Canvas !important;
+		border: 1px solid CanvasText;
+	}
+	[data-dither-decor] {
+		display: none;
+	}
+}
+
+/*
+ * The NebulaCtrl mark's hover splay (`<NebulaMark hover>`): the petals open,
+ * four stars fly out from the centre and the mark tilts with a soft glow while
+ * it, or an enclosing link or button, is pointer-hovered or keyboard-focused.
+ * The emboss and the dithered shadow are drawn for the closed mark only, so
+ * they fade while it is open. Reduced motion shows the stars, nothing moves.
+ */
+.nc-mark {
+	--nc-mark-ease: cubic-bezier(0.22, 1, 0.36, 1);
+	overflow: visible;
+	transform: rotate(0deg) scale(1);
+	filter: drop-shadow(0 0 0 rgb(140 150 255 / 0));
+	transition:
+		transform 800ms var(--nc-mark-ease),
+		filter 800ms var(--nc-mark-ease);
+}
+.nc-mark-rest {
+	transition: opacity 300ms ease;
+}
+.nc-mark-petal {
+	transform-box: fill-box;
+	transform-origin: center;
+	transform: translate(0, 0) rotate(0deg);
+	transition: transform 480ms var(--nc-mark-ease);
+}
+.nc-mark-petal-2 {
+	--nc-mark-delay: 40ms;
+}
+.nc-mark-petal-3 {
+	--nc-mark-delay: 80ms;
+}
+.nc-mark-star {
+	transform: translate(150px, 150px) scale(0);
+	opacity: 0;
+	transition:
+		transform 400ms var(--nc-mark-ease),
+		opacity 200ms ease;
+}
+.nc-mark-star-1 {
+	--nc-mark-delay: 60ms;
+}
+.nc-mark-star-2 {
+	--nc-mark-delay: 140ms;
+}
+.nc-mark-star-3 {
+	--nc-mark-delay: 220ms;
+}
+.nc-mark-star-4 {
+	--nc-mark-delay: 300ms;
+}
+
+@media (hover: hover) and (pointer: fine) {
+	:is(a, button):is(:hover, :focus-visible) .nc-mark .nc-mark-star,
+	.nc-mark:hover .nc-mark-star {
+		opacity: 1;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		:is(a, button):is(:hover, :focus-visible) .nc-mark .nc-mark-star,
+		.nc-mark:hover .nc-mark-star {
+			transform: translate(var(--nc-mark-star-to)) scale(1);
+			transition: opacity 200ms ease;
+		}
+	}
+
+	@media (prefers-reduced-motion: no-preference) {
+		:is(a, button):is(:hover, :focus-visible) .nc-mark,
+		.nc-mark:hover {
+			transform: rotate(-14deg) scale(1.06);
+			filter: drop-shadow(0 0 3px rgb(140 150 255 / 0.55));
+		}
+		:is(a, button):is(:hover, :focus-visible) .nc-mark .nc-mark-rest,
+		.nc-mark:hover .nc-mark-rest {
+			opacity: 0;
+		}
+		:is(a, button):is(:hover, :focus-visible) .nc-mark .nc-mark-petal,
+		.nc-mark:hover .nc-mark-petal {
+			transition: transform 620ms var(--nc-mark-ease) var(--nc-mark-delay, 0ms);
+		}
+		:is(a, button):is(:hover, :focus-visible) .nc-mark .nc-mark-petal-1,
+		.nc-mark:hover .nc-mark-petal-1 {
+			transform: translate(-20px, -24px) rotate(-6deg);
+		}
+		:is(a, button):is(:hover, :focus-visible) .nc-mark .nc-mark-petal-2,
+		.nc-mark:hover .nc-mark-petal-2 {
+			transform: translate(30px, -2px) rotate(10deg);
+		}
+		:is(a, button):is(:hover, :focus-visible) .nc-mark .nc-mark-petal-3,
+		.nc-mark:hover .nc-mark-petal-3 {
+			transform: translate(6px, 22px) rotate(4deg);
+		}
+		:is(a, button):is(:hover, :focus-visible) .nc-mark .nc-mark-star,
+		.nc-mark:hover .nc-mark-star {
+			transform: translate(var(--nc-mark-star-to)) scale(1);
+			transition:
+				transform 700ms var(--nc-mark-ease) var(--nc-mark-delay, 0ms),
+				opacity 300ms ease var(--nc-mark-delay, 0ms);
+		}
+	}
+}

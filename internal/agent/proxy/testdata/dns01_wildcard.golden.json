@@ -1,0 +1,108 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "HostRegexp(`^[^.]+\\.preview\\.example\\.org$`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "HostRegexp(`^[^.]+\\.preview\\.example\\.org$`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "tls": {
+          "certResolver": "nc-dns-cloudflare",
+          "domains": [
+            {
+              "main": "*.preview.example.org"
+            }
+          ]
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "HostRegexp(`^[^.]+\\.preview\\.example\\.org$`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-cert-dddddddd": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`nc-cert-dddddddd.nc.invalid`)",
+        "service": "noop@internal",
+        "tls": {
+          "certResolver": "nc-dns-cloudflare",
+          "domains": [
+            {
+              "main": "*.example.com",
+              "sans": [
+                "example.com"
+              ]
+            }
+          ]
+        },
+        "observability": {
+          "accessLogs": false
+        },
+        "priority": 1
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-app-aaaaaaaa-0:8080"
+            }
+          ]
+        }
+      }
+    },
+    "middlewares": {
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "permanent": true
+        }
+      }
+    }
+  },
+  "tls": {
+    "stores": {
+      "default": {
+        "defaultGeneratedCert": {
+          "resolver": "nc-dns-cloudflare",
+          "domain": {
+            "main": "*.example.com",
+            "sans": [
+              "example.com"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

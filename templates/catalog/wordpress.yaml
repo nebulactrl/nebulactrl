@@ -1,0 +1,68 @@
+schema: 1
+id: wordpress
+revision: 1
+name: WordPress
+summary: The world's most popular CMS and blogging platform, with a managed MariaDB database.
+description: WordPress is an open-source content management system for websites, blogs and shops. This template runs the Docker Official Apache image with a managed MariaDB database and generated authentication keys and salts.
+category: web
+tags: [cms, blog, website, php]
+icon: wordpress
+links:
+  website: https://wordpress.org
+  docs: https://developer.wordpress.org
+  source: https://github.com/WordPress/WordPress
+upstream:
+  license: GPL-2.0-or-later
+  licenseUrl: https://github.com/WordPress/WordPress/blob/master/license.txt
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 768
+  diskGb: 5
+services:
+  - key: app
+    name: WordPress
+    kind: app
+    image: wordpress:7.1.3-apache
+    digest: sha256:e5a724ec7ad9055f48b2941ac1b674b08e77ed60edb8937a6254fb89ec45ddf7
+    port: 80
+    healthcheck:
+      type: http
+      path: /wp-login.php
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      WORDPRESS_DB_HOST: ${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}
+      WORDPRESS_DB_USER: ${{db.DATABASE_USER}}
+      WORDPRESS_DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      WORDPRESS_DB_NAME: ${{db.DATABASE_NAME}}
+      WORDPRESS_AUTH_KEY: ${{secret(64)}}
+      WORDPRESS_SECURE_AUTH_KEY: ${{secret(64)}}
+      WORDPRESS_LOGGED_IN_KEY: ${{secret(64)}}
+      WORDPRESS_NONCE_KEY: ${{secret(64)}}
+      WORDPRESS_AUTH_SALT: ${{secret(64)}}
+      WORDPRESS_SECURE_AUTH_SALT: ${{secret(64)}}
+      WORDPRESS_LOGGED_IN_SALT: ${{secret(64)}}
+      WORDPRESS_NONCE_SALT: ${{secret(64)}}
+      WORDPRESS_CONFIG_EXTRA: "if (isset($_SERVER['HTTP_X_FORWARDED_PROTO']) && $_SERVER['HTTP_X_FORWARDED_PROTO'] === 'https') { $_SERVER['HTTPS'] = 'on'; }"
+    secrets: [WORDPRESS_AUTH_KEY, WORDPRESS_SECURE_AUTH_KEY, WORDPRESS_LOGGED_IN_KEY, WORDPRESS_NONCE_KEY]
+    volumes:
+      - name: html
+        path: /var/www/html
+    resources:
+      memoryMb: 512
+  - key: db
+    name: WordPress DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: wordpress
+group: WordPress
+notes:
+  - "Open the site's address to run the installer: choose a language, then the site title and your administrator account."
+  - "The PHP files, themes, plugins and uploads live in the html volume (/var/www/html); back it up together with the database."

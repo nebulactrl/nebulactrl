@@ -1,0 +1,79 @@
+schema: 1
+id: adventurelog
+revision: 1
+name: AdventureLog
+summary: Self-hosted travel tracker and trip planner with maps, journaling and Strava integration.
+description: AdventureLog is a travel log and trip planner. This template runs the single-container deployment (web app and API behind one URL) with a PostGIS database.
+category: homelab
+tags: [travel, maps, journal, trips, planner]
+links:
+  website: https://adventurelog.app
+  docs: https://adventurelog.app/docs/intro/adventurelog_overview.html
+  source: https://github.com/seanmorley15/AdventureLog
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/seanmorley15/AdventureLog/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/adventurelog
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 3072
+  diskGb: 5
+  arch: [amd64]
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: app
+    name: AdventureLog
+    kind: app
+    image: ghcr.io/seanmorley15/adventurelog:v0.13.0
+    digest: sha256:08bf228403dc99559a661e0d03a5ff08823da21a47fb7ab281dcef98794571ec
+    port: 80
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 120
+      deadlineSeconds: 600
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      SITE_URL: ${{NEBULA_PUBLIC_URL}}
+      PGHOST: ${{db.NEBULA_PRIVATE_HOST}}
+      POSTGRES_DB: database
+      POSTGRES_USER: adventure
+      POSTGRES_PASSWORD: ${{db.POSTGRES_PASSWORD}}
+      SECRET_KEY: ${{secret(50)}}
+      DJANGO_ADMIN_USERNAME: admin
+      DJANGO_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      DJANGO_ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      DEBUG: "False"
+    volumes:
+      - {name: media, path: /code/media}
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: AdventureLog DB
+    kind: database
+    image: postgis/postgis:16-3.5
+    digest: sha256:94146ac37bc61e2322f88016056c5920729cb8c64c8542ed590af8fc2abdac07
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U adventure -d database"]
+      startPeriodSeconds: 20
+      deadlineSeconds: 300
+    env:
+      POSTGRES_DB: database
+      POSTGRES_USER: adventure
+      POSTGRES_PASSWORD: ${{secret(24)}}
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 1024
+group: AdventureLog
+notes:
+  - "Sign in as admin with the password from the install form. The first start imports world geography data and can take a few minutes."

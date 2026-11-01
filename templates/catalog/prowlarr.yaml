@@ -1,0 +1,52 @@
+schema: 1
+id: prowlarr
+revision: 1
+name: Prowlarr
+summary: Indexer manager and proxy that syncs torrent and Usenet indexers to Sonarr, Radarr and other *arr apps.
+description: Prowlarr manages your indexers in one place and pushes them to your PVR apps. This template runs the LinuxServer.io image (listed on the Servarr wiki, which has no first-party image) with one config volume.
+category: media
+tags: [indexer, torrent, usenet, arr]
+links:
+  website: https://prowlarr.com
+  docs: https://wiki.servarr.com/prowlarr
+  source: https://github.com/Prowlarr/Prowlarr
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/Prowlarr/Prowlarr/blob/develop/LICENSE.md
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/prowlarr.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: prowlarr
+    name: Prowlarr
+    kind: app
+    image: lscr.io/linuxserver/prowlarr:2.6.5
+    digest: sha256:b3b00047ed20f6ce2b16780145cb6a0acb51c9e28ea6aa6f5dcd33c7034f1797
+    port: 9696
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${input:TIMEZONE}
+    volumes:
+      - {name: config, path: /config}
+    resources:
+      memoryMb: 512
+group: Prowlarr
+notes:
+  - "On the first visit Prowlarr asks you to set up authentication: choose Forms login and create the admin account straight away, since the instance is public."
+  - "The Servarr project publishes no Docker image of its own; this is the LinuxServer.io image its wiki lists."

@@ -1,0 +1,59 @@
+schema: 1
+id: omniroute
+revision: 1
+name: OmniRoute
+summary: AI gateway that exposes one OpenAI-compatible endpoint in front of many LLM providers, with fallback combos, quotas and a dashboard.
+description: OmniRoute routes requests from coding tools and apps to subscription, API-key and free model providers with automatic fallback and usage tracking. This template runs the official image with its SQLite data on a volume and requires an API key for the proxy endpoints.
+category: ai
+tags: [ai, llm, gateway, proxy, openai-compatible]
+links:
+  website: https://omniroute.online
+  docs: https://github.com/cheaper-inference/OmniRoute/blob/main/docs/guides/DOCKER_GUIDE.md
+  source: https://github.com/cheaper-inference/OmniRoute
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/cheaper-inference/OmniRoute/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/omniroute
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1536
+  diskGb: 3
+inputs:
+  - {key: INITIAL_PASSWORD, label: Dashboard password, secret: true, default: "${{secret(20)}}"}
+  - {key: REQUIRE_API_KEY, label: Require an API key on the /v1 proxy endpoints (keep true on a public URL), default: "true", options: ["true", "false"]}
+services:
+  - key: omniroute
+    name: OmniRoute
+    kind: app
+    image: diegosouzapw/omniroute:3.8.52
+    digest: sha256:b08a12e876baa8a5ccadd1ebbe346fe7267dba3b1c9f4fd6bb02070fae41ab6c
+    port: 20128
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    env:
+      NODE_ENV: production
+      DATA_DIR: /app/data
+      INITIAL_PASSWORD: ${input:INITIAL_PASSWORD}
+      JWT_SECRET: ${{secret(64)}}
+      API_KEY_SECRET: ${{randomBytes(32,"hex")}}
+      REQUIRE_API_KEY: ${input:REQUIRE_API_KEY}
+    volumes:
+      - name: data
+        path: /app/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1536
+    stopGraceSeconds: 40
+group: OmniRoute
+notes:
+  - "Sign in to the dashboard with the password from the install form, connect providers, then create an API key under the API keys page."
+  - "Point your tool at <public URL>/v1 with that API key; the proxy endpoints reject requests without one while REQUIRE_API_KEY is true."
+  - "The container heap is capped at 1 GiB, enough for the dashboard and light chat. Raise OMNIROUTE_MEMORY_MB and the memory limit for heavy coding-agent traffic."

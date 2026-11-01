@@ -1,0 +1,53 @@
+schema: 1
+id: yuvomi
+revision: 1
+name: Yuvomi
+summary: Privacy-first family planner with shared tasks, shopping lists, meals, calendar and budget in one self-hosted app.
+description: Runs the official Yuvomi image as a single container with its SQLite database and backups in persistent volumes. No external database or cloud service is needed.
+category: productivity
+tags: [family, planner, calendar, tasks, household]
+links:
+  website: https://yuvomi.cloud
+  docs: https://github.com/ulsklyc/yuvomi#readme
+  source: https://github.com/ulsklyc/yuvomi
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/ulsklyc/yuvomi/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/yuvomi
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: yuvomi
+    name: Yuvomi
+    kind: app
+    image: ghcr.io/ulsklyc/yuvomi:2.81.0
+    digest: sha256:70f7ee6645dc152184ce6d0e4cbc143043017f9e778c9717d996bb7897494d7f
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    env:
+      NODE_ENV: production
+      DB_PATH: /data/yuvomi.db
+      BACKUP_DIR: /backups
+      SESSION_SECRET: ${{secret(64)}}
+      SESSION_SECURE: "true"
+      TRUST_PROXY: "1"
+    volumes:
+      - {name: data, path: /data}
+      - {name: backups, path: /backups}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Yuvomi
+notes:
+  - "Open the site right after the first start and create the admin account: whoever opens it first becomes the administrator. Family members then join through invite links."

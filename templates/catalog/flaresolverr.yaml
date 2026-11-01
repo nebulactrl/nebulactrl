@@ -1,0 +1,45 @@
+schema: 1
+id: flaresolverr
+revision: 1
+name: FlareSolverr
+summary: Proxy server that solves Cloudflare and DDoS-Guard challenges with a headless browser for other tools.
+description: FlareSolverr drives a headless browser to fetch pages protected by anti-bot challenges and returns the cookies and content to clients such as Prowlarr. The API has no authentication, so this template does not create a public domain.
+category: homelab
+tags: [proxy, cloudflare, scraping, prowlarr, browser]
+links:
+  website: https://github.com/FlareSolverr/FlareSolverr
+  docs: https://github.com/FlareSolverr/FlareSolverr#readme
+  source: https://github.com/FlareSolverr/FlareSolverr
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/FlareSolverr/FlareSolverr/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/flaresolverr
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 2
+services:
+  - key: flaresolverr
+    name: FlareSolverr
+    kind: app
+    image: ghcr.io/flaresolverr/flaresolverr:v3.5.2
+    digest: sha256:c80ae007ce2ccdcd217a12426e4f039ef763ff90738c808d38810c3e59323767
+    port: 8191
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      LOG_LEVEL: info
+      TZ: UTC
+    resources:
+      memoryMb: 1024
+group: FlareSolverr
+notes:
+  - "Point clients such as Prowlarr at this service's private host (shown on the service) on port 8191, e.g. http://<private host>:8191."
+  - "The API has no authentication and can fetch arbitrary URLs. Only add a public domain behind an authenticating proxy or network restriction."

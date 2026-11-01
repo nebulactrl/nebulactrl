@@ -1,0 +1,70 @@
+schema: 1
+id: gitlab-ce
+revision: 1
+name: GitLab CE
+summary: Git hosting with merge requests, CI/CD pipelines, issue tracking and a container registry in one application.
+description: GitLab Community Edition from the official Omnibus image, with its bundled PostgreSQL and Redis, running a single-process web server and the built-in monitoring stack disabled to keep memory use down.
+category: devtools
+tags: [git, ci-cd, version-control, issues, code-review]
+icon: gitlab
+links:
+  website: https://about.gitlab.com
+  docs: https://docs.gitlab.com/install/docker/
+  source: https://gitlab.com/gitlab-org/gitlab-foss
+upstream:
+  license: MIT
+  licenseUrl: https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/gitlab-ce
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 4096
+  diskGb: 20
+inputs:
+  - {key: ROOT_PASSWORD, label: "Password for the root administrator (at least 8 characters; avoid quotes)", secret: true, default: "${{secret(24)}}"}
+services:
+  - key: gitlab
+    name: GitLab CE
+    kind: app
+    image: gitlab/gitlab-ce:19.5.1-ce.0
+    digest: sha256:bb79dc86267c557fd11e7feb0cd9dd506dd02e991ecdd6cae11ca7d7e5d36fc3
+    port: 80
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "/opt/gitlab/bin/gitlab-healthcheck --fail --max-time 10"]
+      intervalSeconds: 30
+      timeoutSeconds: 30
+      startPeriodSeconds: 300
+      deadlineSeconds: 900
+    env:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url '${{NEBULA_PUBLIC_URL}}'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+        gitlab_rails['initial_root_password'] = '${input:ROOT_PASSWORD}'
+        gitlab_rails['gitlab_email_enabled'] = false
+        puma['worker_processes'] = 0
+        sidekiq['concurrency'] = 10
+        prometheus_monitoring['enable'] = false
+    secrets: [GITLAB_OMNIBUS_CONFIG]
+    volumes:
+      - name: gitlab-config
+        path: /etc/gitlab
+      - name: gitlab-logs
+        path: /var/log/gitlab
+      - name: gitlab-data
+        path: /var/opt/gitlab
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 4096
+    stopGraceSeconds: 120
+group: GitLab CE
+notes:
+  - "The first start takes several minutes while GitLab initialises its database. Sign in as root with the password from the install form."
+  - "The root password is only applied on the very first start; change it later inside GitLab. Email is disabled (gitlab_email_enabled) until you configure SMTP in GITLAB_OMNIBUS_CONFIG."
+  - "Only HTTP(S) is exposed; Git over SSH is not published by this template."

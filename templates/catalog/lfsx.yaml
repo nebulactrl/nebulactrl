@@ -1,0 +1,66 @@
+schema: 1
+id: lfsx
+revision: 1
+name: LFSX
+summary: Self-hosted Git LFS server that stores large files on your own disk and takes permissions from your Git forge.
+description: Runs the LFSX server. It has no accounts of its own; clients present their GitHub, GitLab or Gitea token and LFSX asks the forge what they may do. Objects are stored in a persistent volume.
+category: devtools
+tags: [git, git-lfs, storage, large-files]
+icon: git
+links:
+  website: https://lfsx.dev
+  docs: https://lfsx.dev/docs/quickstart
+  source: https://github.com/FerrLabs/LFSX
+upstream:
+  license: MPL-2.0
+  licenseUrl: https://github.com/FerrLabs/LFSX/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/lfsx
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 20
+inputs:
+  - key: LFSX_ALLOWED
+    label: Repositories served
+    description: Comma-separated repositories this server stores objects for, as org/repo, org/prefix-* or org/*. Required so that not every repository on the forge can fill your disk.
+    required: true
+  - key: LFSX_AUTH
+    label: Forge that provides permissions
+    description: github (github.com), gitlab (gitlab.com) or gitea/forgejo (needs the API URL below).
+    default: github
+    options: [github, gitlab, gitea, forgejo]
+  - key: LFSX_GITEA_API_URL
+    format: url
+    label: Gitea or Forgejo API URL
+    description: Only for Gitea or Forgejo, for example https://git.example.com/api/v1. Leave empty for GitHub and GitLab.
+services:
+  - key: lfsx
+    name: LFSX
+    kind: app
+    image: ghcr.io/ferrlabs/lfsx:1.26.41
+    digest: sha256:35173402ffcc6a33770cc1a3b283ed71268da2b098d686523c2fd6ed9e1a553c
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      LFSX_PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      LFSX_ALLOWED: ${input:LFSX_ALLOWED}
+      LFSX_AUTH: ${input:LFSX_AUTH}
+      LFSX_GITEA_API_URL: ${input:LFSX_GITEA_API_URL}
+    volumes:
+      - {name: data, path: /var/lib/lfsx}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: LFSX
+notes:
+  - "Point a repository at the server with a .lfsconfig containing url = <this site's address>/<org>/<repo>; clients authenticate with their forge token as the HTTP password."
+  - "There are no LFSX accounts: a user may download or upload exactly what the forge grants them on that repository, and only repositories matching the allowed list are served."

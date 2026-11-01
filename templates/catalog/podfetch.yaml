@@ -1,0 +1,62 @@
+schema: 1
+id: podfetch
+revision: 1
+name: PodFetch
+summary: Self-hosted podcast manager that downloads new episodes, plays them in a web UI and syncs with GPodder-compatible apps.
+description: Runs the official PodFetch image with SQLite and a podcast download volume, protected by a username and password. The GPodder integration lets apps such as AntennaPod sync subscriptions and progress.
+category: media
+tags: [podcast, audio, gpodder, rss]
+links:
+  website: https://samtv12345.github.io/PodFetch/
+  docs: https://samtv12345.github.io/PodFetch/
+  source: https://github.com/SamTV12345/PodFetch
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/SamTV12345/PodFetch/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/podfetch
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 10
+inputs:
+  - {key: USERNAME, label: Admin username, default: admin}
+  - key: PASSWORD
+    label: Admin password
+    secret: true
+    default: "${{secret(24)}}"
+services:
+  - key: podfetch
+    name: PodFetch
+    kind: app
+    image: ghcr.io/samtv12345/podfetch:v5.2.3
+    digest: sha256:31b5e10cfc2e690b73ec130d15306367a259da5b5303a54b7b1879c483af4ef6
+    port: 8000
+    healthcheck:
+      type: http
+      path: /ui/
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: sqlite:///app/db/podcast.db
+      POLLING_INTERVAL: "300"
+      BASIC_AUTH: "true"
+      USERNAME: ${input:USERNAME}
+      PASSWORD: ${input:PASSWORD}
+      GPODDER_INTEGRATION_ENABLED: "true"
+    volumes:
+      - name: podcasts
+        path: /app/podcasts
+      - name: db
+        path: /app/db
+    resources:
+      memoryMb: 256
+group: PodFetch
+notes:
+  - "Open the site and sign in with the username and password from the install form. Add podcasts by searching or pasting an RSS feed URL."
+  - "For GPodder sync in apps like AntennaPod, use the site address with the same username and password."

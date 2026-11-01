@@ -1,0 +1,109 @@
+schema: 1
+id: graylog
+revision: 1
+name: Graylog
+summary: Centralized log management that collects, index and searches logs with dashboards and alerts, backed by MongoDB and OpenSearch.
+description: Graylog Open collects logs from servers, containers and applications (GELF, syslog, Beats and more), indexes them in OpenSearch and gives you search, streams, dashboards and alerting. This template runs Graylog with a managed MongoDB for its configuration and a single-node OpenSearch for the log data.
+category: analytics
+tags: [logging, log-management, siem, monitoring, search]
+icon: graylog
+links:
+  website: https://graylog.org
+  docs: https://go2docs.graylog.org/current/home.htm
+  source: https://github.com/Graylog2/graylog2-server
+upstream:
+  license: SSPL-1.0
+  licenseUrl: https://github.com/Graylog2/graylog2-server/blob/master/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/graylog
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 3072
+  diskGb: 10
+inputs:
+  - {key: ADMIN_PASSWORD, label: "Password of the admin user (username admin)", secret: true, default: "${{secret(32)}}"}
+services:
+  - key: graylog
+    name: Graylog
+    kind: app
+    image: graylog/graylog:7.1.9
+    digest: sha256:598bd41fefd5d65d05bb6a14f53d063fd717ea907a0764609413e7b89bae7406
+    port: 9000
+    healthcheck:
+      type: http
+      path: /api/system/lbstatus
+      intervalSeconds: 30
+      timeoutSeconds: 5
+      startPeriodSeconds: 120
+      deadlineSeconds: 360
+    dependsOn: [mongodb, opensearch]
+    domains:
+      - generate: true
+    env:
+      GRAYLOG_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      GRAYLOG_PASSWORD_SECRET: ${{secret(96)}}
+      GRAYLOG_HTTP_BIND_ADDRESS: 0.0.0.0:9000
+      GRAYLOG_HTTP_EXTERNAL_URI: ${{NEBULA_PUBLIC_URL}}/
+      GRAYLOG_MONGODB_URI: ${{mongodb.MONGO_URL}}
+      GRAYLOG_ELASTICSEARCH_HOSTS: http://${{opensearch.NEBULA_PRIVATE_HOST}}:9200
+      GRAYLOG_NODE_ID_FILE: /usr/share/graylog/data/data/node-id
+      GRAYLOG_SERVER_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - name: graylog-data
+        path: /usr/share/graylog/data
+    docker:
+      entrypoint:
+        - /usr/bin/tini
+        - --
+        - /bin/bash
+        - -ec
+        - |
+          export GRAYLOG_ROOT_PASSWORD_SHA2="$(printf '%s' "$GRAYLOG_ADMIN_PASSWORD" | sha256sum | cut -d ' ' -f 1)"
+          unset GRAYLOG_ADMIN_PASSWORD
+          exec /docker-entrypoint.sh
+    resources:
+      memoryMb: 1536
+    stopGraceSeconds: 60
+  - key: mongodb
+    name: Graylog MongoDB
+    kind: database
+    database: {engine: mongodb, version: "8.0", databaseName: graylog}
+  - key: opensearch
+    name: Graylog OpenSearch
+    kind: database
+    image: opensearchproject/opensearch:2.19.5
+    digest: sha256:4ee82ecb35d837a6186c81aaa64c8a5bce71aa956edbd87f1f684ab56af52c44
+    command: [opensearch, -Ediscovery.type=single-node, -Eaction.auto_create_index=false, -Ebootstrap.memory_lock=true]
+    healthcheck:
+      type: http
+      path: /_cluster/health?wait_for_status=yellow
+      port: 9200
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    env:
+      DISABLE_INSTALL_DEMO_CONFIG: "true"
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: -Xms512m -Xmx512m
+    volumes:
+      - name: opensearch-data
+        path: /usr/share/opensearch/data
+    docker:
+      ulimits:
+        - {name: memlock, soft: -1, hard: -1}
+        - {name: nofile, soft: 65536, hard: 65536}
+      hostSysctls:
+        vm.max_map_count: 262144
+    resources:
+      memoryMb: 1536
+    stopGraceSeconds: 60
+group: Graylog
+notes:
+  - "Sign in at the generated domain as admin with the ADMIN_PASSWORD you set at install (a generated one is visible in the Graylog service's variables). The preflight setup page of a fresh Graylog is skipped because the password hash and password secret are provided."
+  - "Graylog receives nothing until you create an input (System > Inputs, for example GELF UDP/TCP on 12201 or Syslog). Inputs listen inside the private network only; publish an input's port with a TCP/UDP proxy route on the Graylog service if senders outside this server must reach it."
+  - "OpenSearch runs as a single node without its security plugin and is reachable only from the private network. It needs vm.max_map_count of at least 262144 on the host: the deploy plan shows the command when the server's value is lower."
+  - "Graylog Open is licensed under the SSPL (source-available)."

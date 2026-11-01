@@ -1,0 +1,44 @@
+schema: 1
+id: uptime-kuma
+revision: 1
+name: Uptime Kuma
+summary: Self-hosted monitoring tool with a clean dashboard, status pages and 90+ notification channels.
+description: Uptime Kuma monitors HTTP(s), TCP, ping, DNS, Docker and more, sends alerts and publishes status pages. This template runs the official image with its embedded SQLite database on a persistent volume.
+category: analytics
+tags: [monitoring, uptime, status-page, alerting]
+icon: uptimekuma
+links:
+  website: https://uptime.kuma.pet
+  docs: https://github.com/louislam/uptime-kuma/wiki
+  source: https://github.com/louislam/uptime-kuma
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/louislam/uptime-kuma/blob/master/LICENSE
+  class: permissive
+origin:
+  type: original
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: app
+    name: Uptime Kuma
+    kind: app
+    image: louislam/uptime-kuma:2.5.7
+    digest: sha256:4b95dbe7ac5343b768f8e04e3035ccd59997872b1a35ab9b0f082d2cc279070e
+    port: 3001
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    volumes:
+      - name: data
+        path: /app/data
+    resources:
+      memoryMb: 512
+group: Uptime Kuma
+notes:
+  - "Open the generated domain on first start and create the administrator account in the setup wizard; choose SQLite when asked for the database."

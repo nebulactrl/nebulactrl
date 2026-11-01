@@ -1,0 +1,53 @@
+schema: 1
+id: gotenberg
+revision: 1
+name: Gotenberg
+summary: Stateless API that converts HTML, Markdown, Office documents and URLs to PDF using Chromium and LibreOffice.
+description: Gotenberg is a Docker-powered, stateless HTTP API for generating and manipulating PDF files (HTML, Markdown and Office conversion, merging, splitting, watermarking). This template enables basic authentication with a generated username and password.
+category: devtools
+tags: [pdf, api, conversion, chromium, libreoffice]
+icon: gotenberg
+links:
+  website: https://gotenberg.dev
+  docs: https://gotenberg.dev/docs/getting-started/introduction
+  source: https://github.com/gotenberg/gotenberg
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/gotenberg/gotenberg/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/gotenberg.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 3
+inputs:
+  - {key: API_USERNAME, label: API username, required: true, default: gotenberg}
+  - {key: API_PASSWORD, label: API password, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: gotenberg
+    name: Gotenberg
+    kind: app
+    image: gotenberg/gotenberg:8.38.1
+    digest: sha256:aa552cc115db488e0f0bcb07446aac13071ad51505b642c84bb894500907b42b
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      API_ENABLE_BASIC_AUTH: "true"
+      GOTENBERG_API_BASIC_AUTH_USERNAME: ${input:API_USERNAME}
+      GOTENBERG_API_BASIC_AUTH_PASSWORD: ${input:API_PASSWORD}
+    secrets: [GOTENBERG_API_BASIC_AUTH_USERNAME]
+    resources:
+      memoryMb: 1024
+group: Gotenberg
+notes:
+  - "Call the API with HTTP basic auth using the username and password from the install form, for example POST /forms/chromium/convert/url. The /health endpoint stays open."
+  - "Gotenberg is stateless and needs no volumes; give it at least 1 GB of memory for Chromium and LibreOffice conversions."

@@ -1,0 +1,91 @@
+schema: 1
+id: authentik
+revision: 1
+name: authentik
+summary: Identity provider and single sign-on platform with OIDC, OAuth2, SAML, LDAP and proxy authentication.
+description: authentik provides login flows, user and group management and single sign-on for your applications over OIDC, OAuth2, SAML and more. This template runs the server and the background worker against a managed Postgres database.
+category: security
+tags: [authentication, identity, sso, oidc, saml, oauth2]
+icon: authentik
+links:
+  website: https://goauthentik.io
+  docs: https://docs.goauthentik.io
+  source: https://github.com/goauthentik/authentik
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/goauthentik/authentik/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/authentik
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email (akadmin), required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password (akadmin), secret: true, default: "${{secret(24)}}"}
+services:
+  - key: db
+    name: authentik DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: authentik
+  - key: server
+    name: authentik
+    kind: app
+    image: ghcr.io/goauthentik/server:2026.8.5
+    digest: sha256:602227a86455d6772e3d16b7d852713c4f864f40df5df894abd1285bb53979a5
+    port: 9000
+    command: [server]
+    healthcheck:
+      type: http
+      path: /-/health/ready/
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      AUTHENTIK_POSTGRESQL__HOST: ${{db.DATABASE_HOST}}
+      AUTHENTIK_POSTGRESQL__PORT: ${{db.DATABASE_PORT}}
+      AUTHENTIK_POSTGRESQL__NAME: ${{db.DATABASE_NAME}}
+      AUTHENTIK_POSTGRESQL__USER: ${{db.DATABASE_USER}}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${{db.DATABASE_PASSWORD}}
+      AUTHENTIK_SECRET_KEY: ${{secret(64)}}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 1024
+  - key: worker
+    name: authentik Worker
+    kind: worker
+    image: ghcr.io/goauthentik/server:2026.8.5
+    digest: sha256:602227a86455d6772e3d16b7d852713c4f864f40df5df894abd1285bb53979a5
+    command: [worker]
+    healthcheck:
+      type: exec
+      command: [CMD, ak, healthcheck]
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db, server]
+    env:
+      AUTHENTIK_POSTGRESQL__HOST: ${{db.DATABASE_HOST}}
+      AUTHENTIK_POSTGRESQL__PORT: ${{db.DATABASE_PORT}}
+      AUTHENTIK_POSTGRESQL__NAME: ${{db.DATABASE_NAME}}
+      AUTHENTIK_POSTGRESQL__USER: ${{db.DATABASE_USER}}
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${{db.DATABASE_PASSWORD}}
+      AUTHENTIK_SECRET_KEY: ${{server.AUTHENTIK_SECRET_KEY}}
+      AUTHENTIK_WEB__BASE_URL: ${{server.NEBULA_PUBLIC_URL}}
+      AUTHENTIK_BOOTSTRAP_EMAIL: ${input:ADMIN_EMAIL}
+      AUTHENTIK_BOOTSTRAP_PASSWORD: ${input:ADMIN_PASSWORD}
+    resources:
+      memoryMb: 1024
+group: authentik
+notes:
+  - "Sign in as akadmin with the email and password from the install form. The bootstrap values are only read on the very first start; change the password under the admin interface afterwards."
+  - "This template does not mount the Docker socket, so outposts are not deployed automatically: run them manually as described in the authentik docs. The enterprise/ directory of authentik has its own licence and only matters if you buy an enterprise licence key."

@@ -1,0 +1,82 @@
+schema: 1
+id: paperless-ngx
+revision: 1
+name: Paperless-ngx
+summary: Document management system that scans, OCRs, indexes and archives your paper documents.
+description: Paperless-ngx turns scanned and digital documents into a searchable archive with OCR, tagging and automatic matching. This template runs it with a managed Postgres database and a Valkey broker, with separate volumes for data, media, the consume inbox and exports.
+category: productivity
+tags: [documents, ocr, archive, dms, scanning]
+icon: paperlessngx
+links:
+  website: https://docs.paperless-ngx.com
+  docs: https://docs.paperless-ngx.com
+  source: https://github.com/paperless-ngx/paperless-ngx
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/paperless-ngx/paperless-ngx/blob/dev/LICENSE
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 1536
+  diskGb: 10
+inputs:
+  - {key: PAPERLESS_ADMIN_USER, label: Admin username, required: true, default: admin}
+  - {key: PAPERLESS_ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(24)}}"}
+  - {key: TIMEZONE, label: Timezone (IANA name), default: UTC}
+  - {key: OCR_LANGUAGE, label: "OCR languages (Tesseract codes joined by +, e.g. eng+deu)", default: eng}
+services:
+  - key: app
+    name: Paperless-ngx
+    kind: app
+    image: ghcr.io/paperless-ngx/paperless-ngx:3.3.4
+    digest: sha256:9bc6e8248891bcfa6f52fffe8b81e4ea8cae75790c3ec1b9906961a7ba55c969
+    port: 8000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      PAPERLESS_DBHOST: ${{db.DATABASE_HOST}}
+      PAPERLESS_DBPORT: ${{db.DATABASE_PORT}}
+      PAPERLESS_DBNAME: ${{db.DATABASE_NAME}}
+      PAPERLESS_DBUSER: ${{db.DATABASE_USER}}
+      PAPERLESS_DBPASS: ${{db.DATABASE_PASSWORD}}
+      PAPERLESS_REDIS: ${{cache.REDIS_URL}}
+      PAPERLESS_SECRET_KEY: ${{secret(64)}}
+      PAPERLESS_URL: ${{NEBULA_PUBLIC_URL}}
+      PAPERLESS_PROXY_SSL_HEADER: '["HTTP_X_FORWARDED_PROTO", "https"]'
+      PAPERLESS_ADMIN_USER: ${input:PAPERLESS_ADMIN_USER}
+      PAPERLESS_ADMIN_PASSWORD: ${input:PAPERLESS_ADMIN_PASSWORD}
+      PAPERLESS_TIME_ZONE: ${input:TIMEZONE}
+      PAPERLESS_OCR_LANGUAGE: ${input:OCR_LANGUAGE}
+    secrets: [PAPERLESS_DBPASS]
+    volumes:
+      - {name: data, path: /usr/src/paperless/data}
+      - {name: media, path: /usr/src/paperless/media}
+      - {name: consume, path: /usr/src/paperless/consume}
+      - {name: export, path: /usr/src/paperless/export}
+    resources:
+      memoryMb: 1536
+  - key: db
+    name: Paperless DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: paperless
+  - key: cache
+    name: Paperless Broker
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Paperless-ngx
+notes:
+  - "Sign in with the admin username and password you chose at install; the account is created on first start."
+  - "Drop files into the consume volume (/usr/src/paperless/consume) to have them imported automatically; uploads through the web UI work without it."
+  - "OCR language data other than English must be installed in the container: set PAPERLESS_OCR_LANGUAGES (space-separated, e.g. `deu fra`) on the service in addition to the OCR languages input, then redeploy."

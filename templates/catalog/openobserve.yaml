@@ -1,0 +1,57 @@
+schema: 1
+id: openobserve
+revision: 1
+name: OpenObserve
+summary: Observability platform for logs, metrics and traces with OpenTelemetry ingestion and a built-in UI.
+description: OpenObserve stores and searches logs, metrics and traces on local disk in a single binary. This template runs the open-source edition from the project's own image with a persistent data volume and a root user created from the install form.
+category: analytics
+tags: [observability, logs, metrics, traces, opentelemetry]
+icon: openobserve
+links:
+  website: https://openobserve.ai
+  docs: https://openobserve.ai/docs/
+  source: https://github.com/openobserve/openobserve
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/openobserve/openobserve/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/openobserve.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - {key: ZO_ROOT_USER_EMAIL, format: email, label: Root user email, required: true}
+  - {key: ZO_ROOT_USER_PASSWORD, label: Root user password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: openobserve
+    name: OpenObserve
+    kind: app
+    image: public.ecr.aws/zinclabs/openobserve:v1.1.2
+    digest: sha256:4a154849432f75c4fb024de32fe34163c02406c905dab22bf8d213d2e3386392
+    port: 5080
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      ZO_ROOT_USER_EMAIL: ${input:ZO_ROOT_USER_EMAIL}
+      ZO_ROOT_USER_PASSWORD: ${input:ZO_ROOT_USER_PASSWORD}
+      ZO_DATA_DIR: /data
+      ZO_WEB_URL: ${{NEBULA_PUBLIC_URL}}
+      ZO_COOKIE_SECURE_ONLY: "true"
+      ZO_TELEMETRY: "false"
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 1024
+group: OpenObserve
+notes:
+  - "Sign in with the root email and password from the install form. The root user is only created on the first start; later changes to these variables do not update it."
+  - "Send OpenTelemetry or HTTP ingestion to <public URL>/api/default/ with the root credentials or an ingestion token from the UI."

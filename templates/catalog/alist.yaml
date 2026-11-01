@@ -1,0 +1,50 @@
+schema: 1
+id: alist
+revision: 1
+name: AList
+summary: File list and WebDAV server that mounts many storage backends (local, S3, cloud drives) behind one web UI.
+description: AList lets you browse, preview and share files from many storage providers through a single interface and WebDAV. This template runs the official xhofe/alist image with a persistent data volume.
+category: storage
+tags: [files, webdav, storage, file-browser]
+links:
+  website: https://alistgo.com/
+  docs: https://alistgo.com/guide/install/docker.html
+  source: https://github.com/AlistGo/alist
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/AlistGo/alist/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/alist
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: alist
+    name: AList
+    kind: app
+    image: xhofe/alist:v3.66.0
+    digest: sha256:afa909f81817770520df07515287eb3df3d4e3c6631ca28b02cbae8499149b39
+    port: 5244
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      PGID: "0"
+      PUID: "0"
+      UMASK: "022"
+    volumes:
+      - name: alist-data
+        path: /opt/alist/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: AList
+notes:
+  - "On first start AList generates a random admin password and prints it once in the service logs (look for 'initial password'); sign in as admin and change it."

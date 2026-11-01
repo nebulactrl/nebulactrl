@@ -1,0 +1,53 @@
+schema: 1
+id: grocy
+revision: 1
+name: Grocy
+summary: Household management with grocery lists, pantry stock tracking, recipes, meal plans, chores and batteries.
+description: Grocy is a self-hosted ERP for your kitchen and household. This template runs the LinuxServer.io image, which is the Docker image the Grocy project itself points to, with its SQLite data on a persistent volume.
+category: productivity
+tags: [groceries, household, inventory, recipes, chores]
+icon: grocy
+links:
+  website: https://grocy.info
+  docs: https://github.com/grocy/grocy#readme
+  source: https://github.com/grocy/grocy
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/grocy/grocy/blob/master/LICENSE.md
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/grocy.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name, for example Europe/Berlin)", default: UTC}
+services:
+  - key: grocy
+    name: Grocy
+    kind: app
+    image: lscr.io/linuxserver/grocy:4.7.1
+    digest: sha256:6282144f9a14d4a4dca2bc96801a2e43a2ff51116f001b13e5488eacad7b80e2
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      TZ: ${input:TIMEZONE}
+    volumes:
+      - name: config
+        path: /config
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Grocy
+notes:
+  - "Sign in with the default account admin / admin and change the password immediately under the user menu."

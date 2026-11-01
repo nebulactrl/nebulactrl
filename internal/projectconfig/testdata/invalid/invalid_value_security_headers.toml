@@ -1,0 +1,12 @@
+# expect: invalid_value
+# schema: reject
+# security_headers is basic or strict.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.domains."shop.acme.com".options]
+security_headers = "paranoid"

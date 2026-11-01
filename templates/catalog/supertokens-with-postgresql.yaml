@@ -1,0 +1,62 @@
+schema: 1
+id: supertokens-with-postgresql
+revision: 1
+name: SuperTokens Core
+summary: Authentication backend (the SuperTokens core) for sign-up, sessions, passwordless, social login and MFA, used through the SuperTokens SDKs.
+description: SuperTokens core stores users and sessions for your own application's backend SDK. This template runs the official core image with a managed Postgres database; the API is private by default and protected by an API key.
+category: security
+tags: [authentication, sessions, auth, login, mfa, oauth]
+links:
+  website: https://supertokens.com
+  docs: https://supertokens.com/docs/deployment/self-host-supertokens
+  source: https://github.com/supertokens/supertokens-core
+upstream:
+  license: Apache-2.0 (core), SuperTokens Enterprise License (ee/)
+  licenseUrl: https://github.com/supertokens/supertokens-core/blob/master/LICENSE.md
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/supertokens-with-postgresql.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 2
+inputs:
+  - {key: API_KEY, label: Core API key (your backend sends it as the api-key header), secret: true, default: "${{secret(32)}}"}
+services:
+  - key: supertokens
+    name: SuperTokens Core
+    kind: app
+    image: supertokens/supertokens-postgresql:12.4.1
+    digest: sha256:c74eef1f69b78388d6a3b5af142c8338be7824e532fe6d9e778a932227151637
+    port: 3567
+    healthcheck:
+      type: http
+      path: /hello
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [postgres]
+    env:
+      API_KEYS: ${input:API_KEY}
+      POSTGRESQL_HOST: ${{postgres.DATABASE_HOST}}
+      POSTGRESQL_PORT: ${{postgres.DATABASE_PORT}}
+      POSTGRESQL_USER: ${{postgres.DATABASE_USER}}
+      POSTGRESQL_PASSWORD: ${{postgres.DATABASE_PASSWORD}}
+      POSTGRESQL_DATABASE_NAME: ${{postgres.DATABASE_NAME}}
+      DISABLE_TELEMETRY: "true"
+    secrets: [API_KEYS]
+    resources:
+      memoryMb: 768
+  - key: postgres
+    name: SuperTokens DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: supertokens
+group: SuperTokens
+notes:
+  - "The core has no UI and no public address: it is a private API for your own backend. Point your backend SDK's connectionURI at http://<service private host>:3567 and give it the core API key from the install form."
+  - "Only add a public domain to the core if you must (the API key then protects it): SuperTokens advises keeping the core reachable only by your trusted backends."
+  - "Code under ee/ in the source is licensed under the SuperTokens Enterprise License, which requires a subscription for production use of those features (see the licence link); the rest of the core is Apache-2.0."

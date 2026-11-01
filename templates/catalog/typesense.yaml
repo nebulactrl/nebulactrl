@@ -1,0 +1,54 @@
+schema: 1
+id: typesense
+revision: 1
+name: Typesense
+summary: Fast, typo-tolerant, in-memory search engine with a simple REST API, an open-source alternative to Algolia.
+description: Typesense is a search engine that keeps its index in RAM and persists data to disk. This template runs the official image with a generated API key, CORS enabled and a data volume.
+category: data
+tags: [search, search-engine, api, algolia-alternative]
+links:
+  website: https://typesense.org
+  docs: https://typesense.org/docs
+  source: https://github.com/typesense/typesense
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/typesense/typesense/blob/master/LICENSE.txt
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/typesense.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: API_KEY, label: Admin API key, secret: true, default: "${{secret(40)}}"}
+  - {key: ENABLE_CORS, label: Enable CORS for browser clients, default: "true", options: ["true", "false"]}
+services:
+  - key: typesense
+    name: Typesense
+    kind: app
+    image: typesense/typesense:30.2
+    digest: sha256:610f2d34b1f93d00762869da2c67736775e5798d19a2c8b91b014b8a0cc1e110
+    port: 8108
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      TYPESENSE_API_KEY: ${input:API_KEY}
+      TYPESENSE_DATA_DIR: /data
+      TYPESENSE_ENABLE_CORS: ${input:ENABLE_CORS}
+    volumes:
+      - name: data
+        path: /data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Typesense
+notes:
+  - "Send the admin API key in the X-TYPESENSE-API-KEY header on every request, for example: curl -H 'X-TYPESENSE-API-KEY: <key>' <public URL>/collections."
+  - "Create scoped search-only keys for browsers instead of exposing the admin key; the whole index must fit in RAM, so size the memory limit to your data."

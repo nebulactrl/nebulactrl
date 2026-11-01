@@ -1,0 +1,63 @@
+schema: 1
+id: pgbackweb
+revision: 1
+name: PG Back Web
+summary: Web interface for scheduling, storing and restoring PostgreSQL backups to local disk or S3.
+description: PG Back Web connects to your PostgreSQL databases, runs scheduled backups to a local volume or S3 destinations and can restore or notify by webhook. This template runs the official image with its own managed Postgres database.
+category: devtools
+tags: [backup, postgresql, database, s3, restore]
+links:
+  website: https://github.com/eduardolat/pgbackweb
+  docs: https://github.com/eduardolat/pgbackweb#readme
+  source: https://github.com/eduardolat/pgbackweb
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/eduardolat/pgbackweb/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/pgbackweb.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: TIME_ZONE, label: "Timezone (IANA name, used for schedules and backup file names)", default: UTC}
+services:
+  - key: pgbackweb
+    name: PG Back Web
+    kind: app
+    image: eduardolat/pgbackweb:0.5.2
+    digest: sha256:cd902026c133fbd8b25fd2a8b5b1727dbac94ae4094e12c0321442af449cac5c
+    port: 8085
+    healthcheck:
+      type: http
+      path: /auth/login
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      PBW_ENCRYPTION_KEY: ${{secret(64)}}
+      PBW_POSTGRES_CONN_STRING: postgresql://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}?sslmode=disable
+      TZ: ${input:TIME_ZONE}
+    secrets: [PBW_POSTGRES_CONN_STRING]
+    volumes:
+      - name: backups
+        path: /backups
+    resources:
+      memoryMb: 512
+  - key: db
+    name: PG Back Web DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: pgbackweb
+group: PG Back Web
+notes:
+  - "Open the service's domain right after deploying: the first visit asks you to create the first user, who owns the instance."
+  - "Back up the PBW_ENCRYPTION_KEY variable: it encrypts the stored database and destination credentials and cannot be recovered."
+  - "Add the PostgreSQL servers to back up under Databases, using hosts the service can reach (for example the private host of another service)."

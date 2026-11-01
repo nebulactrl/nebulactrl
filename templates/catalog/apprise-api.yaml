@@ -1,0 +1,54 @@
+schema: 1
+id: apprise-api
+revision: 1
+name: Apprise API
+summary: HTTP API and web UI for sending notifications to dozens of services through the Apprise library.
+description: Apprise API wraps the Apprise notification library behind a small web service. Applications post a message once and Apprise delivers it to chat, email, push and many other services, either ad hoc or through saved configurations.
+category: devtools
+tags: [notifications, api, apprise, push]
+icon: apprise
+links:
+  website: https://github.com/caronc/apprise-api
+  docs: https://github.com/caronc/apprise-api#readme
+  source: https://github.com/caronc/apprise-api
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/caronc/apprise-api/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/apprise-api
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: apprise-api
+    name: Apprise API
+    kind: app
+    image: caronc/apprise:2.0.2
+    digest: sha256:6ae97e24b3447f85f725a03ba73c6dc3a5f4b99f4273ac126de2d9b5ed6205d5
+    port: 8000
+    healthcheck:
+      type: http
+      path: /status
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      APPRISE_STATEFUL_MODE: simple
+      APPRISE_WORKER_COUNT: "1"
+      APPRISE_DEFAULT_FORMAT: text
+    volumes:
+      - name: config
+        path: /config
+      - name: attach
+        path: /attach
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Apprise API
+notes:
+  - "Apprise API has no built-in login: anyone who can reach the domain can send notifications and read saved configurations. Restrict access (for example with an auth proxy or an IP allow-list) before exposing it."
+  - "Send a message with POST /notify/ and a urls field, or save a configuration under /add/{KEY} and notify it via /notify/{KEY}."

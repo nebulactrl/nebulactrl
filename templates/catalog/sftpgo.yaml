@@ -1,0 +1,56 @@
+schema: 1
+id: sftpgo
+revision: 1
+name: SFTPGo
+summary: SFTP, FTP/S and WebDAV file server with a web admin UI, virtual users, quotas and cloud storage backends.
+description: Runs the official SFTPGo image with the embedded SQLite data provider. The web admin and user UI are served on the generated domain; the SFTP port is published for clients. Files, backups, the database and host keys live in persistent volumes.
+category: storage
+tags: [sftp, ftp, webdav, file-transfer, server]
+icon: sftpgo
+links:
+  website: https://sftpgo.com
+  docs: https://docs.sftpgo.com
+  source: https://github.com/drakkan/sftpgo
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/drakkan/sftpgo/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/sftpgo.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 10
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: sftpgo
+    name: SFTPGo
+    kind: app
+    image: ghcr.io/drakkan/sftpgo:v2.7.6
+    digest: sha256:1edd28d80de2a008863fbfc58c8ff7db47b1b410bae48d4e6076192337809b11
+    port: 8080
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    env:
+      SFTPGO_DEFAULT_ADMIN_USERNAME: ${input:ADMIN_USERNAME}
+      SFTPGO_DEFAULT_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    ports:
+      - {name: sftp, port: 2022, protocol: tcp, publish: true}
+    volumes:
+      - {name: data, path: /srv/sftpgo}
+      - {name: state, path: /var/lib/sftpgo}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: SFTPGo
+notes:
+  - "Sign in to the admin UI at /web/admin with the admin username and password from the install form, then create users. The default admin is only created on the very first start."
+  - "SFTP clients connect to the server address on port 2022. User files are stored under /srv/sftpgo/data/<username> in the data volume."

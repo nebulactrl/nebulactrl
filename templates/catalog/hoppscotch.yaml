@@ -1,0 +1,80 @@
+schema: 1
+id: hoppscotch
+revision: 1
+name: Hoppscotch
+summary: "Open source API development platform with REST, GraphQL and WebSocket clients, collections and team workspaces."
+description: Hoppscotch is a browser-based API client with collections, environments, team workspaces and an admin dashboard. This template runs the all-in-one image behind a single domain (app at /, admin at /admin, API at /backend) with a managed Postgres database; a one-shot job applies database migrations before every start.
+category: devtools
+tags: [api, rest, graphql, testing, postman-alternative]
+icon: hoppscotch
+links:
+  website: https://hoppscotch.io
+  docs: https://docs.hoppscotch.io/documentation/self-host/community-edition/getting-started
+  source: https://github.com/hoppscotch/hoppscotch
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/hoppscotch/hoppscotch/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/hoppscotch.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 2
+services:
+  - key: app
+    name: Hoppscotch
+    kind: app
+    image: hoppscotch/hoppscotch:2026.9.0
+    digest: sha256:3160f5b3acf49478552a66a0785ee6c75f64311066f149f7d946fbd540f8388d
+    port: 80
+    healthcheck:
+      type: http
+      path: /backend/ping
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db, migrate]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      DATA_ENCRYPTION_KEY: ${{secret(32)}}
+      ENABLE_SUBPATH_BASED_ACCESS: "true"
+      TRUST_PROXY: "true"
+      VITE_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      VITE_SHORTCODE_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      VITE_ADMIN_URL: ${{NEBULA_PUBLIC_URL}}/admin
+      VITE_BACKEND_API_URL: ${{NEBULA_PUBLIC_URL}}/backend/v1
+      VITE_BACKEND_GQL_URL: ${{NEBULA_PUBLIC_URL}}/backend/graphql
+      VITE_BACKEND_WS_URL: wss://${{NEBULA_PUBLIC_DOMAIN}}/backend/graphql
+      VITE_APP_TOS_LINK: https://docs.hoppscotch.io/support/terms
+      VITE_APP_PRIVACY_POLICY_LINK: https://docs.hoppscotch.io/support/privacy
+      WHITELISTED_ORIGINS: ${{NEBULA_PUBLIC_URL}},${{NEBULA_PUBLIC_URL}}/admin,${{NEBULA_PUBLIC_URL}}/backend,app://localhost_3200,app://hoppscotch
+    resources:
+      memoryMb: 1024
+  - key: migrate
+    name: Hoppscotch migrations
+    kind: worker
+    image: hoppscotch/hoppscotch:2026.9.0
+    digest: sha256:3160f5b3acf49478552a66a0785ee6c75f64311066f149f7d946fbd540f8388d
+    oneshot: true
+    command: [sh, -c, "pnpm exec prisma migrate deploy"]
+    dependsOn: [db]
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Hoppscotch DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: hoppscotch
+group: Hoppscotch
+notes:
+  - "Open /admin first: the first user to sign in becomes the administrator and completes the onboarding (sign-in providers, SMTP)."
+  - "Email sign-in needs SMTP; configure it in the admin dashboard, or enable a GitHub/Google/Microsoft OAuth provider there."
+  - "DATA_ENCRYPTION_KEY encrypts settings stored in the database. Keep it unchanged, or the stored configuration becomes unreadable."

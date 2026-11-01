@@ -1,0 +1,8 @@
+# expect: wrong_type
+# TOML datetimes are not supported anywhere in nebula.toml.
+schema = 1
+server = "fra-1"
+
+[services.web]
+name = 1979-05-27T07:32:00Z
+image = "nginx:1.27"

@@ -1,0 +1,72 @@
+version: 2
+
+# Monthly and grouped, so updates arrive as at most one pull request per ecosystem.
+# The workflows pin actions to commit SHAs; dependabot rewrites the SHA and the
+# trailing version comment together. The Dockerfile base images are pinned as
+# tag@digest and bumped the same way. The cooldown keeps a release that was
+# published minutes ago (and may be pulled again) out of the pull request;
+# security updates ignore it.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: gomod
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      bun-workspace:
+        patterns:
+          - "*"
+
+  # The shipped image (Dockerfile).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      docker:
+        patterns:
+          - "*"
+
+  # The installer's compose file (every image is pinned by digest) and the dev stack.
+  - package-ecosystem: docker-compose
+    directories:
+      - /deploy/install
+      - /deploy/dev
+    schedule:
+      interval: monthly
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    groups:
+      compose:
+        patterns:
+          - "*"

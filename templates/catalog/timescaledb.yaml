@@ -1,0 +1,55 @@
+schema: 1
+id: timescaledb
+revision: 1
+name: TimescaleDB
+summary: PostgreSQL 17 with the TimescaleDB extension for time-series data, fast ingest and real-time analytics in plain SQL.
+description: Runs the official timescale/timescaledb image (PostgreSQL 17 with the community edition of TimescaleDB, extension pre-created, telemetry off) with its data in a persistent volume. It is reachable by other services in the project on port 5432.
+category: data
+tags: [database, postgres, time-series, timescaledb, sql]
+icon: timescale
+links:
+  website: https://www.tigerdata.com
+  docs: https://docs.tigerdata.com
+  source: https://github.com/timescale/timescaledb
+upstream:
+  license: Apache-2.0 (core) and Timescale License (community edition features, included in this image)
+  licenseUrl: https://github.com/timescale/timescaledb/blob/main/tsl/LICENSE-TIMESCALE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/timescaledb
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - {key: ADMIN_USERNAME, label: Database superuser name, default: tsdbadmin}
+services:
+  - key: timescaledb
+    name: TimescaleDB
+    kind: database
+    image: timescale/timescaledb:2.31.0-pg17
+    digest: sha256:b56a3f51991df1f79d0c1a0841cad5c5fa8058fdd6a3ee6886394a6d4c174538
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, 'pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB"']
+      intervalSeconds: 10
+      timeoutSeconds: 5
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      POSTGRES_USER: ${input:ADMIN_USERNAME}
+      POSTGRES_PASSWORD: ${{secret(32)}}
+      POSTGRES_DB: timescaledb
+      TIMESCALEDB_TELEMETRY: "off"
+    ports:
+      - {name: postgres, port: 5432, protocol: tcp}
+    volumes:
+      - {name: data, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 1024
+group: TimescaleDB
+notes:
+  - "Connect from other services with host ${NEBULA_PRIVATE_HOST} of this service, port 5432, database timescaledb, the superuser name from the install form and the generated POSTGRES_PASSWORD from the service variables."
+  - "The credentials only apply on the first start with an empty data volume. The port is not published to the internet; add a published port on the service only if you need outside access and restrict it."

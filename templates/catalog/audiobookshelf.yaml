@@ -1,0 +1,59 @@
+schema: 1
+id: audiobookshelf
+revision: 1
+name: Audiobookshelf
+summary: Self-hosted audiobook and podcast server with progress sync and mobile apps.
+description: Audiobookshelf streams and manages your audiobooks and podcasts, tracks listening progress per user and syncs with the official mobile apps.
+category: media
+tags: [audiobooks, podcasts, media, books]
+icon: audiobookshelf
+links:
+  website: https://www.audiobookshelf.org
+  docs: https://www.audiobookshelf.org/docs
+  source: https://github.com/advplyr/audiobookshelf
+upstream:
+  license: GPL-3.0-only
+  licenseUrl: https://github.com/advplyr/audiobookshelf/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 256
+  diskGb: 5
+inputs:
+  - key: TZ
+    label: Time zone
+    description: IANA time zone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: app
+    name: Audiobookshelf
+    kind: app
+    image: ghcr.io/advplyr/audiobookshelf:2.37.2
+    digest: sha256:b897c33f05972fb1bf484f7487bc878fa91ec8691335c1db6e2929c3a7658efa
+    port: 80
+    healthcheck:
+      type: http
+      path: /healthcheck
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      TZ: ${input:TZ}
+    volumes:
+      - name: config
+        path: /config
+      - name: metadata
+        path: /metadata
+      - name: audiobooks
+        path: /audiobooks
+      - name: podcasts
+        path: /podcasts
+    resources:
+      memoryMb: 512
+group: Audiobookshelf
+notes:
+  - "Open the domain and create the root account on first visit."
+  - "Add libraries pointing at /audiobooks and /podcasts, then copy your files into those volumes. To use existing files on the host, mount that folder into the service as well."
+  - "Keep the config and metadata volumes: they hold the database and cached covers."

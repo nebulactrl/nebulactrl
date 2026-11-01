@@ -1,0 +1,75 @@
+schema: 1
+id: hi-events
+revision: 1
+name: Hi.Events
+summary: Event management and ticket selling platform with checkout, check-in and organizer pages.
+description: Hi.Events lets you create events, sell tickets and manage attendees. This template runs the official all-in-one image (frontend and API in one container) with a managed Postgres database; emails are written to the log until you configure a mail transport.
+category: web
+tags: [events, ticketing, tickets, registration]
+links:
+  website: https://hi.events
+  docs: https://hi.events/docs
+  source: https://github.com/HiEventsDev/hi.events
+upstream:
+  license: AGPL-3.0 with Hi.Events Enterprise Licence for ee/ code
+  licenseUrl: https://github.com/HiEventsDev/hi.events/blob/main/LICENCE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/hi-events
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 3
+inputs:
+  - {key: STRIPE_PUBLISHABLE_KEY, label: "Stripe publishable key (optional, needed to take card payments)"}
+services:
+  - key: app
+    name: Hi.Events
+    kind: app
+    image: daveearley/hi.events-all-in-one:v2.0.0
+    digest: sha256:8f192597f0a83267f608057fd3c9195678d19f7743415076f992596fbbe66859
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      APP_KEY: base64:${{randomBytes(32,"base64")}}
+      JWT_SECRET: ${{randomBytes(32,"base64")}}
+      APP_FRONTEND_URL: ${{NEBULA_PUBLIC_URL}}
+      APP_CDN_URL: ${{NEBULA_PUBLIC_URL}}/storage
+      VITE_FRONTEND_URL: ${{NEBULA_PUBLIC_URL}}
+      VITE_API_URL_CLIENT: ${{NEBULA_PUBLIC_URL}}/api
+      VITE_API_URL_SERVER: http://localhost:80/api
+      VITE_STRIPE_PUBLISHABLE_KEY: ${input:STRIPE_PUBLISHABLE_KEY}
+      STRIPE_PUBLIC_KEY: ${input:STRIPE_PUBLISHABLE_KEY}
+      LOG_CHANNEL: stderr
+      QUEUE_CONNECTION: sync
+      MAIL_MAILER: log
+      FILESYSTEM_PUBLIC_DISK: public
+      FILESYSTEM_PRIVATE_DISK: local
+      DB_CONNECTION: pgsql
+      DATABASE_URL: ${{db.DATABASE_URL}}
+    volumes:
+      - name: storage
+        path: /app/backend/storage/app
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Hi.Events DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: hievents
+group: Hi.Events
+notes:
+  - "Open /auth/register to create the first account. Registration stays open to anyone: after creating your account, set APP_DISABLE_REGISTRATION=true on the Hi.Events service and redeploy."
+  - "Emails are only written to the log (MAIL_MAILER=log). Set the MAIL_* variables (see https://hi.events/docs/getting-started/deploying) to send ticket and confirmation emails."
+  - "Card payments need a Stripe account: set STRIPE_SECRET_KEY and STRIPE_WEBHOOK_SECRET on the service as well as the publishable key. The 'Powered by Hi.Events' footer must stay (AGPL section 7); removing it needs a commercial licence."

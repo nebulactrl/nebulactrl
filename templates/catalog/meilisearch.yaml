@@ -1,0 +1,54 @@
+schema: 1
+id: meilisearch
+revision: 1
+name: Meilisearch
+summary: Fast, typo-tolerant search engine with a RESTful API, secured with a master key.
+description: Meilisearch is a search engine for full-text, faceted and hybrid search, with instant results and typo tolerance. This template runs it in production mode with a master key that protects the API and keeps the index on a volume.
+category: data
+tags: [search, full-text, api, engine]
+icon: meilisearch
+links:
+  website: https://www.meilisearch.com
+  docs: https://www.meilisearch.com/docs
+  source: https://github.com/meilisearch/meilisearch
+upstream:
+  license: MIT AND BUSL-1.1
+  licenseUrl: https://github.com/meilisearch/meilisearch/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/meilisearch.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: MEILI_MASTER_KEY, label: Master key (16+ characters), secret: true, default: "${{secret(32)}}"}
+services:
+  - key: meilisearch
+    name: Meilisearch
+    kind: app
+    image: getmeili/meilisearch:v1.56.0
+    digest: sha256:1f578fa865f8251894b3bf38d6668d6209a3f451f8f65ab953e129d4c1db5ef4
+    port: 7700
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      MEILI_ENV: production
+      MEILI_MASTER_KEY: ${input:MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: "true"
+    volumes:
+      - name: data
+        path: /meili_data
+    resources:
+      memoryMb: 512
+group: Meilisearch
+notes:
+  - "In production mode every API call except /health needs a key: send the master key as a Bearer token, or use it to create scoped search and admin keys via POST /keys."
+  - "Meilisearch is MIT licensed apart from a few enterprise features (for example sharding) that are under the Business Source License and not needed for a standard install."

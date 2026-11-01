@@ -1,0 +1,254 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "nc-pages",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-maint"
+        ],
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`plain.example.com`)",
+        "service": "nc-pages",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-maint"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`plain.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`go.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-dcccccccc-redir"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-redir": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`go.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-dcccccccc-redir"
+        ],
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`bare.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`bare.example.com`)",
+        "service": "nc-pages",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-maint"
+        ],
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`bare.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-22222222-2222-2222-2222-222222222222-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`other.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-22222222-2222-2222-2222-222222222222-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`other.example.com`)",
+        "service": "nc-22222222-2222-2222-2222-222222222222",
+        "middlewares": [
+          "nc-errors"
+        ],
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-22222222-2222-2222-2222-222222222222-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`other.example.com`)",
+        "service": "nc-22222222-2222-2222-2222-222222222222",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-pages-notfound-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "PathPrefix(`/`)",
+        "service": "nc-pages",
+        "middlewares": [
+          "nc-pages-notfound"
+        ],
+        "priority": 1
+      },
+      "nc-pages-notfound-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "PathPrefix(`/`)",
+        "service": "nc-pages",
+        "middlewares": [
+          "nc-pages-notfound"
+        ],
+        "tls": {},
+        "priority": 1
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-app-aaaaaaaa-0:8080"
+            }
+          ]
+        }
+      },
+      "nc-22222222-2222-2222-2222-222222222222": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-db-bbbbbbbb-0:80"
+            }
+          ]
+        }
+      },
+      "nc-pages": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nebulactrl-pages:8080"
+            }
+          ]
+        }
+      }
+    },
+    "middlewares": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-auth": {
+        "basicAuth": {
+          "users": [
+            "a:$2a$10$abcdefghijklmnopqrstuuABCDEFGHIJKLMNOPQRSTUVWXYZ01234"
+          ]
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-redir": {
+        "redirectRegex": {
+          "regex": "^https?://[^/]+(.*)$",
+          "replacement": "https://app.example.com/",
+          "permanent": true
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-maint": {
+        "replacePath": {
+          "path": "/m/11111111-1111-1111-1111-111111111111"
+        }
+      },
+      "nc-errors": {
+        "errors": {
+          "status": [
+            "502-504"
+          ],
+          "service": "nc-pages",
+          "query": "/err/{status}"
+        }
+      },
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "permanent": true
+        }
+      },
+      "nc-pages-notfound": {
+        "replacePath": {
+          "path": "/err/404"
+        }
+      }
+    }
+  }
+}

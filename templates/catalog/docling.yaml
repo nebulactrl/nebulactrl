@@ -1,0 +1,54 @@
+schema: 1
+id: docling
+revision: 1
+name: Docling Serve
+summary: API and web UI that convert PDF, Office, HTML and image documents into Markdown or JSON, with OCR.
+description: Docling Serve wraps the Docling document-conversion library in an HTTP API with a small test UI. This template runs the official CPU image, protected by a generated API key.
+category: ai
+tags: [documents, pdf, ocr, markdown, rag]
+links:
+  website: https://docling-project.github.io/docling/
+  docs: https://github.com/docling-project/docling-serve/blob/main/docs/configuration.md
+  source: https://github.com/docling-project/docling-serve
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/docling-project/docling-serve/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/docling.yaml
+  commit: 1d28642
+  license: Apache-2.0
+heavy: true
+requires:
+  memoryMb: 4096
+  diskGb: 10
+inputs:
+  - {key: API_KEY, label: API key (sent as the X-Api-Key header), secret: true, default: "${{secret(32)}}"}
+  - {key: NUM_THREADS, label: CPU threads used for conversion, default: "4"}
+services:
+  - key: docling-serve
+    name: Docling Serve
+    kind: app
+    image: ghcr.io/docling-project/docling-serve-cpu:v1.38.2
+    digest: sha256:7a480a1604fa3b42efeddc7db9527690d9f9bc903226136013e2bfe6b1a4dfb0
+    port: 5001
+    healthcheck:
+      type: http
+      path: /health
+      timeoutSeconds: 30
+      startPeriodSeconds: 120
+      deadlineSeconds: 420
+    domains:
+      - generate: true
+    env:
+      DOCLING_SERVE_ENABLE_UI: "true"
+      DOCLING_SERVE_LOG_LEVEL: WARNING
+      DOCLING_SERVE_API_KEY: ${input:API_KEY}
+      DOCLING_NUM_THREADS: ${input:NUM_THREADS}
+    resources:
+      memoryMb: 4096
+group: Docling Serve
+notes:
+  - "API requests must send the key from the install form in the X-Api-Key header. The test UI is at /ui on the service's domain; interactive API docs are at /docs."
+  - "Conversion is CPU-bound and memory-hungry: large PDFs can need several GB of RAM."

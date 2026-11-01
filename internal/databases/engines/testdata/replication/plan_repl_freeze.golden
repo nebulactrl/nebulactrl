@@ -1,0 +1,10 @@
+argv: ["psql" "-X" "-q" "-A" "-t" "-v" "ON_ERROR_STOP=1" "-U" "app" "-d" "postgres"]
+env: []
+user: ""
+stdin:
+ALTER SYSTEM SET default_transaction_read_only = on;
+SELECT pg_reload_conf();
+SELECT pg_sleep(1);
+SELECT count(pg_terminate_backend(pid)) FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid();
+CHECKPOINT;
+SELECT 'nebula:lsn:' || pg_current_wal_lsn();

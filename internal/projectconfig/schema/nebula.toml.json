@@ -1,0 +1,3054 @@
+{
+  "$defs": {
+    "access": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_cidrs": {
+          "$ref": "#/$defs/cidrList",
+          "description": "CIDRs allowed. Empty means everyone not denied.",
+          "examples": [
+            [
+              "203.0.113.0/24"
+            ]
+          ]
+        },
+        "deny_cidrs": {
+          "$ref": "#/$defs/cidrList",
+          "description": "CIDRs refused first.",
+          "examples": [
+            [
+              "198.51.100.0/24"
+            ]
+          ]
+        },
+        "reject_status": {
+          "description": "HTTP status for refused clients.",
+          "examples": [
+            403
+          ],
+          "maximum": 599,
+          "minimum": 400,
+          "type": "integer"
+        },
+        "trusted_proxy_depth": {
+          "description": "Number of trusted proxies in front, so the real client IP is matched.",
+          "examples": [
+            0
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "argv": {
+      "items": {
+        "maxLength": 4096,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "type": "array"
+    },
+    "autoscaling": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Scale replicas automatically.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "max": {
+          "default": 3,
+          "description": "Most replicas. At least min.",
+          "examples": [
+            3
+          ],
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "min": {
+          "default": 1,
+          "description": "Fewest replicas.",
+          "examples": [
+            1
+          ],
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target_cpu_percent": {
+          "default": 70,
+          "description": "Average CPU utilisation the autoscaler aims for.",
+          "examples": [
+            70
+          ],
+          "maximum": 95,
+          "minimum": 20,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "backup": {
+      "additionalProperties": false,
+      "properties": {
+        "cron": {
+          "description": "Cron expression with 5 fields, or @hourly, @daily, @weekly, @monthly, @yearly. At most one run per 5 minutes.",
+          "examples": [
+            "0 2 * * *"
+          ],
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "destination": {
+          "$ref": "#/$defs/name",
+          "description": "Name of the backup destination.",
+          "examples": [
+            "offsite-s3"
+          ]
+        },
+        "enabled": {
+          "default": true,
+          "description": "Run the schedule.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "retention_count": {
+          "default": 7,
+          "description": "How many backups to keep. 0 means no limit.",
+          "examples": [
+            14
+          ],
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "retention_days": {
+          "default": 0,
+          "description": "How many days to keep backups. 0 means no limit.",
+          "examples": [
+            30
+          ],
+          "maximum": 3650,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "timezone": {
+          "default": "UTC",
+          "description": "IANA time zone of the schedule.",
+          "examples": [
+            "Europe/Berlin"
+          ],
+          "maxLength": 64,
+          "type": "string"
+        }
+      },
+      "required": [
+        "destination",
+        "cron"
+      ],
+      "type": "object"
+    },
+    "build": {
+      "additionalProperties": false,
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/relPath",
+          "default": ".",
+          "description": "Build context directory, relative to the repository root.",
+          "examples": [
+            "."
+          ]
+        },
+        "dockerfile": {
+          "$ref": "#/$defs/relPath",
+          "default": "Dockerfile",
+          "description": "Path of the Dockerfile, relative to the repository root.",
+          "examples": [
+            "apps/web/Dockerfile"
+          ]
+        },
+        "location": {
+          "default": "inherit",
+          "description": "Where the build runs: inherit, target (the deploying server) or build_server.",
+          "enum": [
+            "inherit",
+            "target",
+            "build_server"
+          ],
+          "examples": [
+            "inherit"
+          ]
+        },
+        "registry": {
+          "$ref": "#/$defs/name",
+          "description": "Name of the registry that receives images built on a build server.",
+          "examples": [
+            "ghcr"
+          ]
+        },
+        "server": {
+          "$ref": "#/$defs/name",
+          "description": "Name of the build server when location is build_server.",
+          "examples": [
+            "builder-1"
+          ]
+        },
+        "type": {
+          "default": "auto",
+          "description": "Build method: auto, dockerfile, railpack or starter:<node|python|go|ruby|php|static>.",
+          "examples": [
+            "dockerfile"
+          ],
+          "pattern": "^(auto|dockerfile|railpack|starter:(node|python|go|ruby|php|static))$",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "cidrList": {
+      "items": {
+        "maxLength": 64,
+        "type": "string"
+      },
+      "maxItems": 200,
+      "type": "array"
+    },
+    "cloudflare": {
+      "additionalProperties": false,
+      "properties": {
+        "origin_lock": {
+          "description": "Lock the origin so only Cloudflare can reach it.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "proxied": {
+          "default": true,
+          "description": "Route traffic through the Cloudflare proxy (orange cloud). Absent means true for a name NebulaCtrl starts managing, except a wildcard name or a non-HTTP(S) port, which default to DNS only; a name behind a Cloudflare Tunnel is always proxied. Absent never changes a name that already exists: it keeps its current setting. Write false to stay DNS only.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "cors": {
+      "additionalProperties": false,
+      "properties": {
+        "credentials": {
+          "description": "Allow credentials.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "expose_headers": {
+          "description": "Response headers exposed to the browser.",
+          "examples": [
+            [
+              "X-Request-Id"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "headers": {
+          "description": "Allowed request headers.",
+          "examples": [
+            [
+              "Authorization"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "max_age_seconds": {
+          "description": "How long browsers cache the preflight answer.",
+          "examples": [
+            600
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "methods": {
+          "description": "Allowed methods.",
+          "examples": [
+            [
+              "GET",
+              "POST"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "origins": {
+          "description": "Allowed origins, or *.",
+          "examples": [
+            [
+              "https://app.acme.com"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array"
+        }
+      },
+      "required": [
+        "origins"
+      ],
+      "type": "object"
+    },
+    "database": {
+      "additionalProperties": false,
+      "properties": {
+        "accept_license": {
+          "default": false,
+          "description": "Acknowledge the licence of a source-available engine. Required for those engines. Not stored.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "engine": {
+          "description": "Database engine.",
+          "enum": [
+            "postgres",
+            "mysql",
+            "mariadb",
+            "valkey",
+            "redis",
+            "mongodb",
+            "clickhouse"
+          ],
+          "examples": [
+            "postgres"
+          ]
+        },
+        "flavor": {
+          "description": "Engine flavor, where the engine has more than one.",
+          "examples": [
+            ""
+          ],
+          "maxLength": 64,
+          "type": "string"
+        },
+        "name": {
+          "description": "Name of the initial database. Defaults to the engine's default.",
+          "examples": [
+            "shop"
+          ],
+          "maxLength": 63,
+          "type": "string"
+        },
+        "username": {
+          "description": "Name of the application user. Defaults to the engine's default.",
+          "examples": [
+            "shop"
+          ],
+          "maxLength": 63,
+          "type": "string"
+        },
+        "version": {
+          "description": "Engine version. Defaults to the engine's default version.",
+          "examples": [
+            "17"
+          ],
+          "maxLength": 64,
+          "type": "string"
+        }
+      },
+      "required": [
+        "engine"
+      ],
+      "type": "object"
+    },
+    "device": {
+      "additionalProperties": false,
+      "properties": {
+        "container_path": {
+          "description": "Where it appears in the container. Defaults to the host path.",
+          "examples": [
+            "/dev/dri/renderD128"
+          ],
+          "type": "string"
+        },
+        "host_path": {
+          "description": "Device node on the host, under /dev.",
+          "examples": [
+            "/dev/dri/renderD128"
+          ],
+          "pattern": "^/dev/",
+          "type": "string"
+        },
+        "permissions": {
+          "description": "Subset of rwm.",
+          "examples": [
+            "rw"
+          ],
+          "pattern": "^[rwm]{1,3}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "host_path"
+      ],
+      "type": "object"
+    },
+    "docker": {
+      "additionalProperties": false,
+      "properties": {
+        "apparmor_unconfined": {
+          "description": "Remove the default AppArmor profile. Unrestricted servers only.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "cap_add": {
+          "description": "Linux capabilities to add. NET_ADMIN and SYS_ADMIN need an unrestricted server.",
+          "examples": [
+            [
+              "NET_BIND_SERVICE"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "cap_drop": {
+          "description": "Linux capabilities to drop, or ALL.",
+          "examples": [
+            [
+              "ALL"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "devices": {
+          "description": "Host devices mapped into the container. Unrestricted servers only.",
+          "examples": [
+            [
+              {
+                "host_path": "/dev/dri/renderD128"
+              }
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/device"
+          },
+          "type": "array"
+        },
+        "dns": {
+          "description": "Resolver IP addresses, at most 3.",
+          "examples": [
+            [
+              "1.1.1.1"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3,
+          "type": "array"
+        },
+        "entrypoint": {
+          "$ref": "#/$defs/argv",
+          "description": "Replaces the image's ENTRYPOINT, as an argv array.",
+          "examples": [
+            [
+              "/entrypoint.sh"
+            ]
+          ],
+          "minItems": 1
+        },
+        "extra_hosts": {
+          "description": "/etc/hosts entries as name:ip or name:host-gateway.",
+          "examples": [
+            [
+              "db.local:10.0.0.5"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "gpus": {
+          "$ref": "#/$defs/gpus",
+          "description": "GPU request. Unrestricted servers only.",
+          "examples": [
+            {
+              "count": 1,
+              "driver": "nvidia"
+            }
+          ]
+        },
+        "group_add": {
+          "description": "Supplementary numeric group IDs.",
+          "examples": [
+            [
+              "44"
+            ]
+          ],
+          "items": {
+            "pattern": "^[0-9]+$",
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "host_sysctls": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "description": "Kernel parameters the application needs on the host, as minimum values. The plan warns when the host is lower.",
+          "examples": [
+            "\"vm.max_map_count\" = 262144"
+          ],
+          "type": "object"
+        },
+        "hostname": {
+          "description": "Container hostname, an RFC 1123 label.",
+          "examples": [
+            "web"
+          ],
+          "maxLength": 63,
+          "type": "string"
+        },
+        "init": {
+          "description": "Run a minimal init as PID 1.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "labels": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Container labels. com.docker.*, nebulactrl.* and traefik.* are reserved.",
+          "examples": [
+            "\"team\" = \"shop\""
+          ],
+          "type": "object"
+        },
+        "no_new_privileges": {
+          "description": "Set the no-new-privileges security option.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "pid_host": {
+          "description": "Share the host's PID namespace. Unrestricted servers only.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "pids_limit": {
+          "description": "Maximum number of processes and threads.",
+          "examples": [
+            512
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "privileged": {
+          "description": "Give the container host-root equivalent rights. Unrestricted servers only.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "read_only_rootfs": {
+          "description": "Mount the root filesystem read-only.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "runtime": {
+          "description": "OCI runtime configured in the daemon. Unrestricted servers only.",
+          "examples": [
+            "runsc"
+          ],
+          "type": "string"
+        },
+        "seccomp_unconfined": {
+          "description": "Remove the default syscall filter. Unrestricted servers only.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "shm_size_mb": {
+          "description": "Size of /dev/shm in MiB.",
+          "examples": [
+            256
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "stop_signal": {
+          "description": "Signal used to stop the container.",
+          "examples": [
+            "SIGQUIT"
+          ],
+          "maxLength": 32,
+          "type": "string"
+        },
+        "sysctls": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Namespaced kernel parameters from the allowed list.",
+          "examples": [
+            "\"net.core.somaxconn\" = \"1024\""
+          ],
+          "type": "object"
+        },
+        "tmpfs": {
+          "additionalProperties": {
+            "$ref": "#/$defs/tmpfs"
+          },
+          "description": "In-memory filesystems keyed by absolute path.",
+          "examples": [
+            "\"/tmp\" = { size_mb = 64 }"
+          ],
+          "propertyNames": {
+            "pattern": "^/.+"
+          },
+          "type": "object"
+        },
+        "ulimits": {
+          "additionalProperties": {
+            "$ref": "#/$defs/ulimit"
+          },
+          "description": "Resource limits keyed nofile or memlock.",
+          "examples": [
+            "nofile = { soft = 65536, hard = 65536 }"
+          ],
+          "propertyNames": {
+            "enum": [
+              "nofile",
+              "memlock"
+            ]
+          },
+          "type": "object"
+        },
+        "user": {
+          "description": "User to run as, uid[:gid] or names.",
+          "examples": [
+            "1000:1000"
+          ],
+          "maxLength": 128,
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "domain": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "redirect"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "redirect_to"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "add_prefix": {
+          "description": "Prefix added to the path before forwarding.",
+          "examples": [
+            "/v1"
+          ],
+          "maxLength": 200,
+          "type": "string"
+        },
+        "certificate": {
+          "$ref": "#/$defs/name",
+          "description": "Name of an uploaded certificate of the service's server. Needs tls = custom.",
+          "examples": [
+            "wildcard-acme"
+          ]
+        },
+        "cloudflare": {
+          "$ref": "#/$defs/cloudflare",
+          "description": "Cloudflare settings of the hostname. NebulaCtrl always manages the DNS record when the hostname's zone is in the team's connected Cloudflare account. Applied immediately; needs a Cloudflare connection.",
+          "examples": [
+            {
+              "proxied": true
+            }
+          ]
+        },
+        "component": {
+          "description": "Compose component this domain targets. Required for stacks.",
+          "examples": [
+            "web"
+          ],
+          "maxLength": 63,
+          "type": "string"
+        },
+        "dns_resolver": {
+          "description": "DNS-01 provider code that obtains this domain's certificate.",
+          "examples": [
+            "cloudflare"
+          ],
+          "pattern": "^[a-z0-9][a-z0-9-]{0,39}$",
+          "type": "string"
+        },
+        "kind": {
+          "default": "serve",
+          "description": "serve the service or redirect to another host.",
+          "enum": [
+            "serve",
+            "redirect"
+          ],
+          "examples": [
+            "serve"
+          ]
+        },
+        "options": {
+          "$ref": "#/$defs/routeOptions",
+          "description": "Proxy options of the domain. The whole table is one unit: present means it replaces the live option set.",
+          "examples": [
+            {
+              "force_https": true
+            }
+          ]
+        },
+        "preserve_path": {
+          "default": true,
+          "description": "Keep the path and query when redirecting.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "process": {
+          "description": "Process of a service with processes that this domain routes to. Absent means the service's own process, or the only process with a port. Apps only; stacks use component.",
+          "examples": [
+            "web"
+          ],
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,29}[a-z0-9])?$",
+          "type": "string"
+        },
+        "redirect_code": {
+          "default": 308,
+          "description": "HTTP status of a redirect.",
+          "enum": [
+            301,
+            302,
+            307,
+            308
+          ],
+          "examples": [
+            308
+          ]
+        },
+        "redirect_to": {
+          "description": "Target hostname of a redirect. Required when kind is redirect.",
+          "examples": [
+            "www.acme.com"
+          ],
+          "maxLength": 253,
+          "type": "string"
+        },
+        "strip_prefix": {
+          "default": false,
+          "description": "Remove the path prefix before forwarding.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "target_port": {
+          "description": "Port of the service this domain targets. Defaults to the service port, or to the port of the process the domain routes to.",
+          "examples": [
+            3000
+          ],
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tls": {
+          "default": "auto",
+          "description": "Certificate mode: auto, custom or none.",
+          "enum": [
+            "auto",
+            "custom",
+            "none"
+          ],
+          "examples": [
+            "auto"
+          ]
+        },
+        "www_redirect": {
+          "default": false,
+          "description": "Also serve www.<host> as a redirect to the host.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "domainKey": {
+      "maxLength": 300,
+      "pattern": "^(\\*\\.)?[a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+(/[^\\s]*)?$",
+      "type": "string"
+    },
+    "environment": {
+      "additionalProperties": false,
+      "properties": {
+        "secrets": {
+          "$ref": "#/$defs/secrets",
+          "description": "Names of environment-layer shared secrets.",
+          "examples": [
+            {
+              "keys": [
+                "STRIPE_SECRET_KEY"
+              ]
+            }
+          ]
+        },
+        "server": {
+          "description": "Default server, by name, of this environment. Overrides the root server.",
+          "examples": [
+            "fra-staging"
+          ],
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "services": {
+          "additionalProperties": {
+            "$ref": "#/$defs/serviceBody"
+          },
+          "description": "Overrides of services for this environment. Keys merge over the base service; the source key is optional.",
+          "examples": [
+            "environments.staging.services.web"
+          ],
+          "propertyNames": {
+            "$ref": "#/$defs/serviceSlug"
+          },
+          "type": "object"
+        },
+        "variables": {
+          "$ref": "#/$defs/variables",
+          "description": "Environment-layer shared variables. They override the project layer for this environment only.",
+          "examples": [
+            {
+              "APP_NAME": "Acme Shop (staging)"
+            }
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "file": {
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "required": [
+            "content"
+          ]
+        },
+        {
+          "required": [
+            "source"
+          ]
+        }
+      ],
+      "properties": {
+        "content": {
+          "description": "File text. Stored in the service config as plain text: never put secrets here. Exactly one of content and source.",
+          "examples": [
+            "listen = 8080\n"
+          ],
+          "maxLength": 65536,
+          "type": "string"
+        },
+        "mode": {
+          "default": "0644",
+          "description": "File mode as an octal string.",
+          "examples": [
+            "0644"
+          ],
+          "pattern": "^0?[0-7]{3,4}$",
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/relPath",
+          "description": "Path, relative to nebula.toml, of a file whose content is used; the caller supplies it as an attachment.",
+          "examples": [
+            "config/app.conf"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "git": {
+      "additionalProperties": false,
+      "properties": {
+        "auto_deploy": {
+          "default": true,
+          "description": "Deploy on every push to the branch. Needs connection. Applied immediately.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "branch": {
+          "description": "Branch to build.",
+          "examples": [
+            "main"
+          ],
+          "maxLength": 255,
+          "minLength": 1,
+          "type": "string"
+        },
+        "connection": {
+          "$ref": "#/$defs/name",
+          "description": "Name of a git connection (Team settings → Integrations). Credentials stay in the connection. Needs repo.",
+          "examples": [
+            "github-acme"
+          ]
+        },
+        "repo": {
+          "description": "Repository as owner/name on the connection.",
+          "examples": [
+            "acme/shop"
+          ],
+          "pattern": "^[A-Za-z0-9_.-]+(/[A-Za-z0-9_.-]+)+$",
+          "type": "string"
+        },
+        "submodules": {
+          "default": "auto",
+          "description": "How submodules are checked out: auto, on or off.",
+          "enum": [
+            "auto",
+            "on",
+            "off"
+          ],
+          "examples": [
+            "auto"
+          ]
+        },
+        "url": {
+          "description": "Clone URL (https, http, git, ssh or git@host:org/repo.git). Credentials in the URL are rejected. Exclusive with connection and repo.",
+          "examples": [
+            "https://github.com/acme/shop.git"
+          ],
+          "maxLength": 512,
+          "pattern": "^(https?://[^/@\\s]+(/\\S*)?|git://\\S+|ssh://[^@\\s]*@?\\S+|git@\\S+:\\S+)$",
+          "type": "string"
+        },
+        "watch_paths": {
+          "description": "Monorepo filter: only pushes touching these globs deploy; a leading ! excludes. Replaces the whole list. Needs connection. Applied immediately.",
+          "examples": [
+            [
+              "apps/web/**",
+              "!**/*.md"
+            ]
+          ],
+          "items": {
+            "maxLength": 255,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 50,
+          "type": "array"
+        }
+      },
+      "required": [
+        "branch"
+      ],
+      "type": "object"
+    },
+    "gitSource": {
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "required": [
+                "url"
+              ]
+            },
+            {
+              "required": [
+                "connection",
+                "repo"
+              ]
+            }
+          ]
+        },
+        {
+          "if": {
+            "required": [
+              "url"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "connection"
+                  ]
+                },
+                {
+                  "required": [
+                    "repo"
+                  ]
+                },
+                {
+                  "required": [
+                    "auto_deploy"
+                  ]
+                },
+                {
+                  "required": [
+                    "watch_paths"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "gpus": {
+      "additionalProperties": false,
+      "properties": {
+        "capabilities": {
+          "description": "Driver capabilities, for example compute and utility.",
+          "examples": [
+            [
+              "compute"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "count": {
+          "description": "Number of GPUs, or -1 for all.",
+          "examples": [
+            1
+          ],
+          "minimum": -1,
+          "type": "integer"
+        },
+        "driver": {
+          "const": "nvidia",
+          "description": "GPU driver. Only nvidia.",
+          "examples": [
+            "nvidia"
+          ]
+        }
+      },
+      "required": [
+        "count",
+        "driver"
+      ],
+      "type": "object"
+    },
+    "healthCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "description": "argv of an exec check; the first element is CMD or CMD-SHELL.",
+          "examples": [
+            [
+              "CMD",
+              "true"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "minItems": 2,
+          "type": "array"
+        },
+        "deadline_seconds": {
+          "default": 120,
+          "description": "Seconds the deploy waits for the service to become healthy.",
+          "examples": [
+            90
+          ],
+          "maximum": 3600,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "interval_seconds": {
+          "default": 2,
+          "description": "Seconds between probes.",
+          "examples": [
+            2
+          ],
+          "minimum": 1,
+          "type": "integer"
+        },
+        "path": {
+          "default": "/",
+          "description": "Path probed by an http check. Must start with /.",
+          "examples": [
+            "/healthz"
+          ],
+          "pattern": "^/",
+          "type": "string"
+        },
+        "port": {
+          "description": "Port probed by an http or tcp check. Defaults to the service port.",
+          "examples": [
+            3000
+          ],
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "start_period_seconds": {
+          "default": 0,
+          "description": "Seconds after start during which failures are ignored.",
+          "examples": [
+            0
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "success_threshold": {
+          "default": 2,
+          "description": "Consecutive successful probes needed.",
+          "examples": [
+            2
+          ],
+          "minimum": 1,
+          "type": "integer"
+        },
+        "timeout_seconds": {
+          "default": 3,
+          "description": "Seconds before one probe counts as failed.",
+          "examples": [
+            3
+          ],
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "description": "Probe type: http, tcp, docker, exec or none. Defaults to http when the service has a port, else none.",
+          "enum": [
+            "http",
+            "tcp",
+            "docker",
+            "exec",
+            "none"
+          ],
+          "examples": [
+            "http"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "hook": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/argv",
+          "description": "The command as an argv array, run without a shell.",
+          "examples": [
+            [
+              "bun",
+              "run",
+              "db:migrate"
+            ]
+          ],
+          "minItems": 1
+        },
+        "timeout_seconds": {
+          "default": 600,
+          "description": "Seconds before the command is killed. Needs command in the same table.",
+          "examples": [
+            300
+          ],
+          "maximum": 3600,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "command"
+      ],
+      "type": "object"
+    },
+    "name": {
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "process": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/argv",
+          "description": "The process command as an argv array, run without a shell in the service's image.",
+          "examples": [
+            [
+              "bundle",
+              "exec",
+              "sidekiq"
+            ]
+          ],
+          "minItems": 1
+        },
+        "cpus": {
+          "description": "CPU limit of the process in cores. 0 or absent means the service's limit.",
+          "examples": [
+            1.5
+          ],
+          "minimum": 0,
+          "type": "number"
+        },
+        "health_check": {
+          "$ref": "#/$defs/healthCheck",
+          "description": "How a new container of this process is judged healthy. Same keys as the service's health_check; the default port is the process's own.",
+          "examples": [
+            {
+              "type": "http"
+            }
+          ]
+        },
+        "memory_mb": {
+          "description": "Memory limit of the process in MiB. 0 or absent means the service's limit; otherwise at least 6.",
+          "examples": [
+            512
+          ],
+          "minimum": 0,
+          "not": {
+            "maximum": 5,
+            "minimum": 1
+          },
+          "type": "integer"
+        },
+        "port": {
+          "description": "TCP port the process listens on for HTTP. 0 or absent means no HTTP port. Ports are unique across the service's processes.",
+          "examples": [
+            3001
+          ],
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scale": {
+          "$ref": "#/$defs/scale",
+          "description": "Replicas and autoscaling of this process. Applied immediately.",
+          "examples": [
+            {
+              "replicas": 2
+            }
+          ]
+        },
+        "singleton": {
+          "default": false,
+          "description": "The process never runs two instances at once: the old container stops before the new one starts, and scaling is off.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "stop_grace_seconds": {
+          "description": "Seconds a container of this process gets to stop before it is killed. Absent means the service's value.",
+          "examples": [
+            120
+          ],
+          "maximum": 3600,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "rateLimit": {
+      "additionalProperties": false,
+      "properties": {
+        "average": {
+          "description": "Requests allowed per period on average.",
+          "examples": [
+            100
+          ],
+          "minimum": 1,
+          "type": "integer"
+        },
+        "burst": {
+          "description": "Maximum burst above the average.",
+          "examples": [
+            200
+          ],
+          "minimum": 1,
+          "type": "integer"
+        },
+        "period_seconds": {
+          "description": "Length of the period in seconds.",
+          "examples": [
+            1
+          ],
+          "minimum": 1,
+          "type": "integer"
+        },
+        "trusted_proxy_depth": {
+          "description": "Number of trusted proxies in front, so the real client IP is limited.",
+          "examples": [
+            0
+          ],
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "average",
+        "period_seconds",
+        "burst"
+      ],
+      "type": "object"
+    },
+    "redirect": {
+      "additionalProperties": false,
+      "properties": {
+        "permanent": {
+          "description": "Answer 301 instead of 302.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "regex": {
+          "description": "Go regular expression matched against the request URL.",
+          "examples": [
+            "^https://acme.com/old/(.*)"
+          ],
+          "type": "string"
+        },
+        "replacement": {
+          "description": "Replacement, with ${1} style groups.",
+          "examples": [
+            "https://acme.com/new/${1}"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "regex",
+        "replacement"
+      ],
+      "type": "object"
+    },
+    "relPath": {
+      "maxLength": 512,
+      "minLength": 1,
+      "not": {
+        "pattern": "(^|/)\\.\\.(/|$)"
+      },
+      "pattern": "^[^/]",
+      "type": "string"
+    },
+    "route": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_cidrs": {
+          "$ref": "#/$defs/cidrList",
+          "description": "CIDRs allowed to reach a tcp route. UDP routes cannot be restricted.",
+          "examples": [
+            [
+              "203.0.113.0/24"
+            ]
+          ]
+        },
+        "deny_cidrs": {
+          "$ref": "#/$defs/cidrList",
+          "description": "CIDRs refused even when allow_cidrs admits them.",
+          "examples": [
+            [
+              "198.51.100.0/24"
+            ]
+          ]
+        },
+        "health_path": {
+          "description": "Path probed to verify the upstream. Must start with /.",
+          "examples": [
+            "/"
+          ],
+          "maxLength": 200,
+          "pattern": "^/",
+          "type": "string"
+        },
+        "insecure_skip_verify": {
+          "default": false,
+          "description": "Do not verify the TLS certificate of https upstreams.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "listen_port": {
+          "description": "Host port a tcp or udp route listens on.",
+          "examples": [
+            25565
+          ],
+          "maximum": 65535,
+          "minimum": 1024,
+          "type": "integer"
+        },
+        "open_to_internet": {
+          "default": false,
+          "description": "Publish a tcp or udp route to everyone. Required when allow_cidrs is empty.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "pass_host": {
+          "default": true,
+          "description": "Forward the original Host header to the upstream.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "protocol": {
+          "description": "Route protocol: http, tcp or udp. Create-only.",
+          "enum": [
+            "http",
+            "tcp",
+            "udp"
+          ],
+          "examples": [
+            "http"
+          ]
+        },
+        "proxy_protocol": {
+          "default": 0,
+          "description": "PROXY protocol version sent to a tcp upstream: 0, 1 or 2.",
+          "enum": [
+            0,
+            1,
+            2
+          ],
+          "examples": [
+            0
+          ]
+        },
+        "scheme": {
+          "default": "http",
+          "description": "Upstream scheme of an http route.",
+          "enum": [
+            "http",
+            "https"
+          ],
+          "examples": [
+            "http"
+          ]
+        },
+        "server_name": {
+          "description": "TLS server name used to verify https upstreams.",
+          "examples": [
+            "printer.lan"
+          ],
+          "maxLength": 253,
+          "type": "string"
+        },
+        "upstreams": {
+          "description": "Upstreams, 1 to 20. Each is { address = \"host:port\" } or { service = \"slug\", port = 1234 }. Replaces the list.",
+          "examples": [
+            [
+              {
+                "address": "192.168.1.20:631"
+              }
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/upstream"
+          },
+          "maxItems": 20,
+          "minItems": 1,
+          "type": "array"
+        },
+        "verify_skip": {
+          "default": false,
+          "description": "Skip the post-apply verification of an upstream that legitimately answers with 5xx.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "protocol",
+        "upstreams"
+      ],
+      "type": "object"
+    },
+    "routeOptions": {
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/access",
+          "description": "IP allow and deny lists.",
+          "examples": [
+            {
+              "allow_cidrs": [
+                "203.0.113.0/24"
+              ]
+            }
+          ]
+        },
+        "basic_auth": {
+          "description": "Require basic authentication. Enables only: users and passwords are never in the file.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "compress": {
+          "description": "Compress responses.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "cors": {
+          "$ref": "#/$defs/cors",
+          "description": "Cross-origin response headers.",
+          "examples": [
+            {
+              "origins": [
+                "https://app.acme.com"
+              ]
+            }
+          ]
+        },
+        "force_https": {
+          "default": true,
+          "description": "Redirect plain HTTP to HTTPS.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "large_uploads": {
+          "description": "Allow request bodies that take minutes to send, for example container registry layer uploads.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "noindex": {
+          "description": "Send X-Robots-Tag: noindex, nofollow.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "rate_limit": {
+          "$ref": "#/$defs/rateLimit",
+          "description": "Request rate limit.",
+          "examples": [
+            {
+              "average": 100,
+              "burst": 200,
+              "period_seconds": 1
+            }
+          ]
+        },
+        "redirects": {
+          "description": "Ordered regex redirects.",
+          "examples": [
+            [
+              {
+                "regex": "^https://acme.com/old/(.*)",
+                "replacement": "https://acme.com/new/${1}"
+              }
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/redirect"
+          },
+          "maxItems": 50,
+          "type": "array"
+        },
+        "request_headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Headers added to requests, name = value.",
+          "examples": [
+            "X-Forwarded-Prefix = \"/app\""
+          ],
+          "type": "object"
+        },
+        "response_headers": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "Headers added to responses, name = value.",
+          "examples": [
+            "X-Frame-Options = \"DENY\""
+          ],
+          "type": "object"
+        },
+        "security_headers": {
+          "description": "Security header set: basic or strict (adds HSTS).",
+          "enum": [
+            "basic",
+            "strict"
+          ],
+          "examples": [
+            "strict"
+          ]
+        }
+      },
+      "type": "object"
+    },
+    "scale": {
+      "additionalProperties": false,
+      "properties": {
+        "autoscaling": {
+          "$ref": "#/$defs/autoscaling",
+          "description": "Autoscaling on CPU.",
+          "examples": [
+            {
+              "enabled": false
+            }
+          ]
+        },
+        "replicas": {
+          "default": 1,
+          "description": "Number of replicas.",
+          "examples": [
+            2
+          ],
+          "maximum": 10,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "secrets": {
+      "additionalProperties": false,
+      "properties": {
+        "keys": {
+          "description": "Variable names that are secret. The file has no value for them.",
+          "examples": [
+            [
+              "STRIPE_SECRET_KEY"
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/varName"
+          },
+          "maxItems": 500,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "scope": {
+          "default": "runtime",
+          "description": "Where the listed secrets are available: runtime, build or both.",
+          "enum": [
+            "runtime",
+            "build",
+            "both"
+          ],
+          "examples": [
+            "runtime"
+          ]
+        }
+      },
+      "required": [
+        "keys"
+      ],
+      "type": "object"
+    },
+    "service": {
+      "allOf": [
+        {
+          "$ref": "#/$defs/serviceBody"
+        },
+        {
+          "oneOf": [
+            {
+              "required": [
+                "image"
+              ]
+            },
+            {
+              "required": [
+                "git"
+              ]
+            },
+            {
+              "required": [
+                "database"
+              ]
+            },
+            {
+              "required": [
+                "route"
+              ]
+            },
+            {
+              "required": [
+                "stack"
+              ]
+            }
+          ]
+        },
+        {
+          "properties": {
+            "unset": false
+          }
+        },
+        {
+          "properties": {
+            "git": {
+              "$ref": "#/$defs/gitSource",
+              "description": "Source key: build the service from a git repository.",
+              "examples": [
+                {
+                  "branch": "main"
+                }
+              ]
+            },
+            "stack": {
+              "$ref": "#/$defs/stackSource",
+              "description": "Source key: a Docker Compose project run as one service.",
+              "examples": [
+                {
+                  "compose": "services:\n  web:\n    image: nginx"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "properties": {
+            "processes": {
+              "additionalProperties": {
+                "required": [
+                  "command"
+                ]
+              },
+              "description": "Additional processes that run from the same image, variables, volumes and release as the service, keyed by process name. The service's own port and command are its default process. A process is owned as a whole: a key you leave out takes its default. Processes deploy together; scale is applied immediately.",
+              "examples": [
+                "worker"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "database"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "port"
+                  ]
+                },
+                {
+                  "required": [
+                    "command"
+                  ]
+                },
+                {
+                  "required": [
+                    "health_check"
+                  ]
+                },
+                {
+                  "required": [
+                    "volumes"
+                  ]
+                },
+                {
+                  "required": [
+                    "domains"
+                  ]
+                },
+                {
+                  "required": [
+                    "pre_deploy"
+                  ]
+                },
+                {
+                  "required": [
+                    "post_deploy"
+                  ]
+                },
+                {
+                  "required": [
+                    "one_shot"
+                  ]
+                },
+                {
+                  "required": [
+                    "files"
+                  ]
+                },
+                {
+                  "required": [
+                    "tasks"
+                  ]
+                },
+                {
+                  "required": [
+                    "scale"
+                  ]
+                },
+                {
+                  "required": [
+                    "build"
+                  ]
+                },
+                {
+                  "required": [
+                    "generate_domain"
+                  ]
+                },
+                {
+                  "required": [
+                    "processes"
+                  ]
+                },
+                {
+                  "required": [
+                    "process_name"
+                  ]
+                },
+                {
+                  "required": [
+                    "singleton"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "not": {
+              "required": [
+                "database"
+              ]
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "backups"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "route"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "port"
+                  ]
+                },
+                {
+                  "required": [
+                    "command"
+                  ]
+                },
+                {
+                  "required": [
+                    "health_check"
+                  ]
+                },
+                {
+                  "required": [
+                    "memory_mb"
+                  ]
+                },
+                {
+                  "required": [
+                    "cpus"
+                  ]
+                },
+                {
+                  "required": [
+                    "stop_grace_seconds"
+                  ]
+                },
+                {
+                  "required": [
+                    "image_retention"
+                  ]
+                },
+                {
+                  "required": [
+                    "one_shot"
+                  ]
+                },
+                {
+                  "required": [
+                    "block_egress"
+                  ]
+                },
+                {
+                  "required": [
+                    "pre_deploy"
+                  ]
+                },
+                {
+                  "required": [
+                    "post_deploy"
+                  ]
+                },
+                {
+                  "required": [
+                    "docker"
+                  ]
+                },
+                {
+                  "required": [
+                    "files"
+                  ]
+                },
+                {
+                  "required": [
+                    "volumes"
+                  ]
+                },
+                {
+                  "required": [
+                    "build"
+                  ]
+                },
+                {
+                  "required": [
+                    "tasks"
+                  ]
+                },
+                {
+                  "required": [
+                    "scale"
+                  ]
+                },
+                {
+                  "required": [
+                    "backups"
+                  ]
+                },
+                {
+                  "required": [
+                    "processes"
+                  ]
+                },
+                {
+                  "required": [
+                    "process_name"
+                  ]
+                },
+                {
+                  "required": [
+                    "singleton"
+                  ]
+                },
+                {
+                  "required": [
+                    "variables"
+                  ]
+                },
+                {
+                  "required": [
+                    "secrets"
+                  ]
+                },
+                {
+                  "required": [
+                    "networks"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "stack"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "port"
+                  ]
+                },
+                {
+                  "required": [
+                    "command"
+                  ]
+                },
+                {
+                  "required": [
+                    "health_check"
+                  ]
+                },
+                {
+                  "required": [
+                    "memory_mb"
+                  ]
+                },
+                {
+                  "required": [
+                    "cpus"
+                  ]
+                },
+                {
+                  "required": [
+                    "stop_grace_seconds"
+                  ]
+                },
+                {
+                  "required": [
+                    "image_retention"
+                  ]
+                },
+                {
+                  "required": [
+                    "one_shot"
+                  ]
+                },
+                {
+                  "required": [
+                    "block_egress"
+                  ]
+                },
+                {
+                  "required": [
+                    "pre_deploy"
+                  ]
+                },
+                {
+                  "required": [
+                    "post_deploy"
+                  ]
+                },
+                {
+                  "required": [
+                    "docker"
+                  ]
+                },
+                {
+                  "required": [
+                    "files"
+                  ]
+                },
+                {
+                  "required": [
+                    "volumes"
+                  ]
+                },
+                {
+                  "required": [
+                    "build"
+                  ]
+                },
+                {
+                  "required": [
+                    "tasks"
+                  ]
+                },
+                {
+                  "required": [
+                    "scale"
+                  ]
+                },
+                {
+                  "required": [
+                    "backups"
+                  ]
+                },
+                {
+                  "required": [
+                    "processes"
+                  ]
+                },
+                {
+                  "required": [
+                    "process_name"
+                  ]
+                },
+                {
+                  "required": [
+                    "singleton"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "image"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "build"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "serviceBody": {
+      "additionalProperties": false,
+      "properties": {
+        "backups": {
+          "additionalProperties": {
+            "$ref": "#/$defs/backup"
+          },
+          "description": "Backup schedules of a database, keyed by a stable key. Applied immediately.",
+          "examples": [
+            "nightly"
+          ],
+          "maxProperties": 20,
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+          },
+          "type": "object"
+        },
+        "block_egress": {
+          "default": false,
+          "description": "Block outbound internet access. The service then only reaches its environment's internal network and cannot join shared networks.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "build": {
+          "$ref": "#/$defs/build",
+          "description": "How a git service is built.",
+          "examples": [
+            {
+              "type": "dockerfile"
+            }
+          ]
+        },
+        "command": {
+          "$ref": "#/$defs/argv",
+          "description": "Start command as an argv array, run without a shell. An empty array clears it and uses the image's CMD.",
+          "examples": [
+            [
+              "bun",
+              "run",
+              "worker"
+            ]
+          ]
+        },
+        "cpus": {
+          "description": "CPU limit in cores. 0 means no limit.",
+          "examples": [
+            1.5
+          ],
+          "minimum": 0,
+          "type": "number"
+        },
+        "database": {
+          "$ref": "#/$defs/database",
+          "description": "Source key: a managed database. The keys are create-only.",
+          "examples": [
+            {
+              "engine": "postgres"
+            }
+          ]
+        },
+        "depends_on": {
+          "description": "Slugs of services that deploy before this one. References in variables add dependencies on their own.",
+          "examples": [
+            [
+              "db"
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/serviceSlug"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "docker": {
+          "$ref": "#/$defs/docker",
+          "description": "Typed container options. Each key is owned individually. Devices, GPUs, runtime and host-level options need an unrestricted server.",
+          "examples": [
+            {
+              "cap_add": [
+                "NET_BIND_SERVICE"
+              ]
+            }
+          ]
+        },
+        "domains": {
+          "additionalProperties": {
+            "$ref": "#/$defs/domain"
+          },
+          "description": "Domains of the service, keyed by hostname or hostname/path-prefix.",
+          "examples": [
+            "\"shop.acme.com\""
+          ],
+          "maxProperties": 50,
+          "propertyNames": {
+            "$ref": "#/$defs/domainKey"
+          },
+          "type": "object"
+        },
+        "files": {
+          "additionalProperties": {
+            "$ref": "#/$defs/file"
+          },
+          "description": "Config files written into the container before it starts, keyed by absolute path.",
+          "examples": [
+            "\"/etc/app/app.conf\""
+          ],
+          "maxProperties": 16,
+          "propertyNames": {
+            "pattern": "^/.+"
+          },
+          "type": "object"
+        },
+        "generate_domain": {
+          "default": false,
+          "description": "Attach the platform-generated hostname on the server's base domain when the service has no domain.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "git": {
+          "$ref": "#/$defs/git",
+          "description": "Source key: build the service from a git repository.",
+          "examples": [
+            {
+              "branch": "main"
+            }
+          ]
+        },
+        "health_check": {
+          "$ref": "#/$defs/healthCheck",
+          "description": "How a new container is judged healthy. Each key is owned individually.",
+          "examples": [
+            {
+              "type": "http"
+            }
+          ]
+        },
+        "image": {
+          "description": "Source key: container image to run, as repo[:tag][@digest]. Registry credentials are never written in the file.",
+          "examples": [
+            "ghcr.io/acme/web:1.4.2"
+          ],
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^\\S+$",
+          "type": "string"
+        },
+        "image_retention": {
+          "default": 5,
+          "description": "How many previous images are kept on the server.",
+          "examples": [
+            5
+          ],
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "memory_mb": {
+          "description": "Memory limit in MiB. 0 means no limit; otherwise at least 6.",
+          "examples": [
+            512
+          ],
+          "minimum": 0,
+          "not": {
+            "maximum": 5,
+            "minimum": 1
+          },
+          "type": "integer"
+        },
+        "name": {
+          "description": "Display name of the service. Defaults to the slug.",
+          "examples": [
+            "Web"
+          ],
+          "maxLength": 120,
+          "minLength": 1,
+          "type": "string"
+        },
+        "networks": {
+          "description": "Names of shared networks to attach the service to. The file never creates networks.",
+          "examples": [
+            [
+              "backplane"
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/name"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "one_shot": {
+          "default": false,
+          "description": "Run the container to completion on every deploy. Excludes pre_deploy and post_deploy and a port.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "only_in": {
+          "description": "Environment slugs in which this service exists in the file. Absent means every environment. Not allowed in environment overrides.",
+          "examples": [
+            [
+              "production"
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/slug"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "port": {
+          "description": "TCP port the service listens on for HTTP. 0 or absent makes it a worker: no HTTP health check and no domain.",
+          "examples": [
+            3000
+          ],
+          "maximum": 65535,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "post_deploy": {
+          "$ref": "#/$defs/hook",
+          "description": "Command run after the new release is live. A failure only warns.",
+          "examples": [
+            {
+              "command": [
+                "bun",
+                "run",
+                "db:migrate"
+              ]
+            }
+          ]
+        },
+        "pre_deploy": {
+          "$ref": "#/$defs/hook",
+          "description": "Command run before the new release starts. A non-zero exit fails the deploy.",
+          "examples": [
+            {
+              "command": [
+                "bun",
+                "run",
+                "db:migrate"
+              ]
+            }
+          ]
+        },
+        "process_name": {
+          "default": "web",
+          "description": "Name of the service's own process (port, command, health_check, stop_grace_seconds, memory_mb, cpus). Only matters when the service has processes: it is the name logs, scaling and domains use for it.",
+          "examples": [
+            "web"
+          ],
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,29}[a-z0-9])?$",
+          "type": "string"
+        },
+        "processes": {
+          "additionalProperties": {
+            "$ref": "#/$defs/process"
+          },
+          "description": "Additional processes that run from the same image, variables, volumes and release as the service, keyed by process name. The service's own port and command are its default process. A process is owned as a whole: a key you leave out takes its default. Processes deploy together; scale is applied immediately.",
+          "examples": [
+            "worker"
+          ],
+          "maxProperties": 9,
+          "propertyNames": {
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,29}[a-z0-9])?$"
+          },
+          "type": "object"
+        },
+        "route": {
+          "$ref": "#/$defs/route",
+          "description": "Source key: an external route to an upstream the platform does not run, or a TCP/UDP exposure.",
+          "examples": [
+            {
+              "protocol": "http",
+              "upstreams": [
+                {
+                  "address": "192.168.1.20:631"
+                }
+              ]
+            }
+          ]
+        },
+        "scale": {
+          "$ref": "#/$defs/scale",
+          "description": "Replicas and autoscaling. Applied immediately.",
+          "examples": [
+            {
+              "replicas": 2
+            }
+          ]
+        },
+        "secrets": {
+          "$ref": "#/$defs/secrets",
+          "description": "Names of secret variables of this service. Values are never written in the file.",
+          "examples": [
+            {
+              "keys": [
+                "STRIPE_SECRET_KEY"
+              ]
+            }
+          ]
+        },
+        "server": {
+          "description": "Server, by name, the service runs on. Overrides the environment and root server. Required for route services.",
+          "examples": [
+            "fra-1"
+          ],
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "singleton": {
+          "default": false,
+          "description": "The service's own process never runs two instances at once: the old container stops before the new one starts, and scaling is off.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "stack": {
+          "$ref": "#/$defs/stack",
+          "description": "Source key: a Docker Compose project run as one service.",
+          "examples": [
+            {
+              "compose": "services:\n  web:\n    image: nginx"
+            }
+          ]
+        },
+        "stop_grace_seconds": {
+          "default": 30,
+          "description": "Seconds a container gets to stop before it is killed.",
+          "examples": [
+            30
+          ],
+          "maximum": 3600,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tasks": {
+          "additionalProperties": {
+            "$ref": "#/$defs/task"
+          },
+          "description": "Cron tasks that run in the service's image, keyed by task name. Applied immediately.",
+          "examples": [
+            "digest"
+          ],
+          "maxProperties": 20,
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,62}$"
+          },
+          "type": "object"
+        },
+        "unset": {
+          "description": "Environment overrides only: TOML key paths removed from the merged service. The removed keys are simply not managed by the file in that environment; nothing live is deleted.",
+          "examples": [
+            [
+              "scale",
+              "domains.\"shop.acme.com\""
+            ]
+          ],
+          "items": {
+            "maxLength": 300,
+            "type": "string"
+          },
+          "maxItems": 200,
+          "type": "array"
+        },
+        "uptime": {
+          "$ref": "#/$defs/uptime",
+          "description": "Uptime monitor settings. Applied immediately.",
+          "examples": [
+            {
+              "enabled": true
+            }
+          ]
+        },
+        "variables": {
+          "$ref": "#/$defs/variables",
+          "description": "Variables of the service, keyed by name. A value is a string using the variable macro grammar, or a table with metadata.",
+          "examples": [
+            {
+              "LOG_LEVEL": "info"
+            }
+          ]
+        },
+        "volumes": {
+          "additionalProperties": {
+            "pattern": "^/.+",
+            "type": "string"
+          },
+          "description": "Persistent volumes: name = absolute mount path. Detaching a volume never deletes its data.",
+          "examples": [
+            "uploads = \"/app/uploads\""
+          ],
+          "maxProperties": 32,
+          "propertyNames": {
+            "pattern": "^[a-z0-9][a-z0-9_.-]{0,62}$"
+          },
+          "type": "object"
+        }
+      },
+      "type": "object"
+    },
+    "serviceSlug": {
+      "not": {
+        "enum": [
+          "shared",
+          "team",
+          "vault",
+          "doppler"
+        ]
+      },
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+      "type": "string"
+    },
+    "slug": {
+      "pattern": "^[a-z0-9][a-z0-9-]{0,62}$",
+      "type": "string"
+    },
+    "stack": {
+      "additionalProperties": false,
+      "properties": {
+        "compose": {
+          "description": "The compose file as text. Exactly one of compose and compose_file.",
+          "examples": [
+            "services:\n  web:\n    image: nginx"
+          ],
+          "maxLength": 262144,
+          "minLength": 1,
+          "type": "string"
+        },
+        "compose_file": {
+          "$ref": "#/$defs/relPath",
+          "description": "Path of the compose file relative to nebula.toml; the caller supplies its content as an attachment.",
+          "examples": [
+            "docker-compose.yml"
+          ]
+        },
+        "resources": {
+          "additionalProperties": {
+            "$ref": "#/$defs/stackResource"
+          },
+          "description": "Per-component limits, keyed by the compose service name. The compose file's own limits win.",
+          "examples": [
+            {
+              "web": {
+                "cpus": 0.5,
+                "memory_mb": 256
+              }
+            }
+          ],
+          "type": "object"
+        },
+        "wait_seconds": {
+          "default": 300,
+          "description": "Seconds a deploy waits for every component to become healthy.",
+          "examples": [
+            300
+          ],
+          "maximum": 3600,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "stackResource": {
+      "additionalProperties": false,
+      "properties": {
+        "cpus": {
+          "description": "CPU limit of the component in cores.",
+          "examples": [
+            0.5
+          ],
+          "minimum": 0,
+          "type": "number"
+        },
+        "memory_mb": {
+          "description": "Memory limit of the component in MiB. 0 means no limit; otherwise at least 6.",
+          "examples": [
+            256
+          ],
+          "minimum": 0,
+          "not": {
+            "maximum": 5,
+            "minimum": 1
+          },
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "stackSource": {
+      "oneOf": [
+        {
+          "required": [
+            "compose"
+          ]
+        },
+        {
+          "required": [
+            "compose_file"
+          ]
+        }
+      ]
+    },
+    "task": {
+      "additionalProperties": false,
+      "properties": {
+        "command": {
+          "$ref": "#/$defs/argv",
+          "description": "The command as an argv array, run without a shell in the service's image.",
+          "examples": [
+            [
+              "bun",
+              "run",
+              "jobs:digest"
+            ]
+          ],
+          "minItems": 1
+        },
+        "concurrency": {
+          "default": "forbid",
+          "description": "forbid skips a run while the previous one is still running; allow starts it anyway.",
+          "enum": [
+            "forbid",
+            "allow"
+          ],
+          "examples": [
+            "forbid"
+          ]
+        },
+        "enabled": {
+          "default": true,
+          "description": "Run the task on schedule.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "schedule": {
+          "description": "Cron expression with 5 fields, or @hourly, @daily, @weekly, @monthly, @yearly.",
+          "examples": [
+            "0 7 * * 1-5"
+          ],
+          "maxLength": 200,
+          "minLength": 1,
+          "type": "string"
+        },
+        "timeout_seconds": {
+          "default": 1800,
+          "description": "Seconds before a run is killed.",
+          "examples": [
+            900
+          ],
+          "maximum": 86400,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "timezone": {
+          "default": "UTC",
+          "description": "IANA time zone of the schedule.",
+          "examples": [
+            "Europe/Berlin"
+          ],
+          "maxLength": 64,
+          "type": "string"
+        }
+      },
+      "required": [
+        "schedule",
+        "command"
+      ],
+      "type": "object"
+    },
+    "tmpfs": {
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "description": "Octal mode.",
+          "examples": [
+            "1777"
+          ],
+          "pattern": "^[0-7]{3,4}$",
+          "type": "string"
+        },
+        "size_mb": {
+          "description": "Size in MiB.",
+          "examples": [
+            64
+          ],
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ulimit": {
+      "additionalProperties": false,
+      "properties": {
+        "hard": {
+          "description": "Hard limit; -1 means unlimited.",
+          "examples": [
+            65536
+          ],
+          "minimum": -1,
+          "type": "integer"
+        },
+        "soft": {
+          "description": "Soft limit; -1 means unlimited.",
+          "examples": [
+            65536
+          ],
+          "minimum": -1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "soft",
+        "hard"
+      ],
+      "type": "object"
+    },
+    "upstream": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "description": "External upstream as host:port.",
+              "examples": [
+                "192.168.1.20:631"
+              ],
+              "maxLength": 300,
+              "type": "string"
+            }
+          },
+          "required": [
+            "address"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "port": {
+              "description": "Port of the managed service.",
+              "examples": [
+                3000
+              ],
+              "maximum": 65535,
+              "minimum": 1,
+              "type": "integer"
+            },
+            "service": {
+              "$ref": "#/$defs/serviceSlug",
+              "description": "Slug of a managed service of the same environment and server.",
+              "examples": [
+                "web"
+              ]
+            }
+          },
+          "required": [
+            "service",
+            "port"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "uptime": {
+      "additionalProperties": false,
+      "properties": {
+        "alerts": {
+          "default": true,
+          "description": "Send notifications for outages.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "enabled": {
+          "default": true,
+          "description": "Probe the service.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "failure_threshold": {
+          "default": 3,
+          "description": "Consecutive failed checks that open an outage.",
+          "examples": [
+            3
+          ],
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "recovery_threshold": {
+          "default": 2,
+          "description": "Consecutive successful checks that close an outage.",
+          "examples": [
+            2
+          ],
+          "maximum": 20,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "reminder_minutes": {
+          "default": 0,
+          "description": "Minutes between reminders of an ongoing outage. 0 disables reminders.",
+          "examples": [
+            60
+          ],
+          "maximum": 1440,
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "varName": {
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,254}$",
+      "type": "string"
+    },
+    "variableEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "comment": {
+          "description": "Free-text note shown next to the variable.",
+          "examples": [
+            "read by the bundler"
+          ],
+          "maxLength": 1000,
+          "type": "string"
+        },
+        "public": {
+          "default": false,
+          "description": "Asserts that a literal value is not a credential, which silences the literal_secret check for this variable. It is not stored.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "rotate_every_days": {
+          "description": "Reminder interval, in days, to rotate the value. 0 or absent means no reminder.",
+          "examples": [
+            90
+          ],
+          "minimum": 0,
+          "type": "integer"
+        },
+        "scope": {
+          "default": "runtime",
+          "description": "Where the variable is available: runtime, build or both (build and both need a git service).",
+          "enum": [
+            "runtime",
+            "build",
+            "both"
+          ],
+          "examples": [
+            "runtime"
+          ]
+        },
+        "value": {
+          "description": "The value, using the variable macro grammar: plain text, references like ${{db.DATABASE_URL}}, generators like ${{secret(32)}}.",
+          "examples": [
+            "production"
+          ],
+          "maxLength": 65536,
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "type": "object"
+    },
+    "variables": {
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "maxLength": 65536,
+            "type": "string"
+          },
+          {
+            "$ref": "#/$defs/variableEntry"
+          }
+        ]
+      },
+      "maxProperties": 500,
+      "propertyNames": {
+        "$ref": "#/$defs/varName"
+      },
+      "type": "object"
+    }
+  },
+  "$id": "https://origin.nebulactrl.invalid/schema/nebula.toml.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "NebulaCtrl project file. One file describes a project: services, databases, domains, variables (names and references only), tasks, uptime monitors, backup schedules and per-environment overrides.\n\nAuthoring guide:\n1. Start from `nebulactrl config export` of the live project, or `config init` for a new repository. Never write the file from memory.\n2. Always run validate, then plan, before apply. Read every diagnostic and fix errors by their path, line and suggestions. Apply only a plan with valid: true.\n3. Never write secret values. Use `secrets.keys = [\"NAME\"]`, a generator such as `${{secret(32)}}` or a reference such as `${{db.DATABASE_URL}}`. Never put tokens, passwords or private keys in the file or in URLs.\n4. Use only keys from this schema; unknown keys are errors. Keys are snake_case, units are in the key name, variable values are always strings.\n5. One source key per service (image, git, database, route or stack); the key decides the kind.\n6. Tables merge by key; scalars and arrays replace. Put per-environment values inside [environments.<slug>] and drop keys there with unset.\n7. A key you write is owned by the file and overwrites dashboard edits; a key you omit is left alone.\n8. Apply stages changes and never deploys; review and deploy them afterwards.",
+  "properties": {
+    "$schema": {
+      "description": "Editor hint pointing at the JSON Schema of this file. Ignored by NebulaCtrl.",
+      "examples": [
+        "https://nebula.example.com/schema/nebula.toml.json"
+      ],
+      "type": "string"
+    },
+    "environments": {
+      "additionalProperties": {
+        "$ref": "#/$defs/environment"
+      },
+      "description": "Per-environment overrides, keyed by environment slug. Environments are never created or deleted by the file.",
+      "examples": [
+        "environments.staging"
+      ],
+      "maxProperties": 32,
+      "propertyNames": {
+        "$ref": "#/$defs/slug"
+      },
+      "type": "object"
+    },
+    "project": {
+      "$ref": "#/$defs/slug",
+      "description": "Slug of the project this file describes. Checked against the project it is applied to; a mismatch is a blocker.",
+      "examples": [
+        "acme-shop"
+      ]
+    },
+    "schema": {
+      "const": 1,
+      "description": "Version of the nebula.toml format. Only 1 exists.",
+      "examples": [
+        1
+      ]
+    },
+    "secrets": {
+      "$ref": "#/$defs/secrets",
+      "description": "Names of project-layer shared secrets. Values are never written in the file.",
+      "examples": [
+        {
+          "keys": [
+            "STRIPE_SECRET_KEY"
+          ]
+        }
+      ]
+    },
+    "server": {
+      "description": "Default server, by name, for every service that does not name its own.",
+      "examples": [
+        "fra-1"
+      ],
+      "maxLength": 200,
+      "minLength": 1,
+      "type": "string"
+    },
+    "services": {
+      "additionalProperties": {
+        "$ref": "#/$defs/service"
+      },
+      "description": "The services of the project, keyed by service slug.",
+      "examples": [
+        "services.web"
+      ],
+      "maxProperties": 64,
+      "propertyNames": {
+        "$ref": "#/$defs/serviceSlug"
+      },
+      "type": "object"
+    },
+    "variables": {
+      "$ref": "#/$defs/variables",
+      "description": "Project-layer shared variables. Services read them as ${{shared.NAME}}. A value is a string using the variable macro grammar, or a table with metadata.",
+      "examples": [
+        "APP_NAME = \"Acme Shop\""
+      ]
+    }
+  },
+  "required": [
+    "schema"
+  ],
+  "title": "nebula.toml",
+  "type": "object"
+}

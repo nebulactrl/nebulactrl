@@ -1,0 +1,60 @@
+schema: 1
+id: memos
+revision: 1
+name: Memos
+summary: Lightweight, privacy-first note-taking and microblogging with Markdown, backed by a managed PostgreSQL database.
+description: Memos is a self-hosted note-taking service with a timeline of Markdown memos, tags, attachments and an API. This template runs it with a managed Postgres database and keeps uploaded attachments on a volume.
+category: productivity
+tags: [notes, markdown, microblog, productivity]
+icon: memos
+links:
+  website: https://www.usememos.com
+  docs: https://www.usememos.com/docs
+  source: https://github.com/usememos/memos
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/usememos/memos/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/memos.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: memos
+    name: Memos
+    kind: app
+    image: ghcr.io/usememos/memos:0.31.0
+    digest: sha256:24c2707ddd8fbd2ceaa7a61ecab86a53cdcde640b24ce572b73da14b00b5785f
+    port: 5230
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      MEMOS_INSTANCE_URL: ${{NEBULA_PUBLIC_URL}}
+      MEMOS_DRIVER: postgres
+      MEMOS_DSN: ${{db.DATABASE_URL}}?sslmode=disable
+    volumes:
+      - name: data
+        path: /var/opt/memos
+    resources:
+      memoryMb: 256
+  - key: db
+    name: Memos DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: memos
+group: Memos
+notes:
+  - "The first account you register becomes the host (administrator); create it right after the first deploy, before sharing the URL."
+  - "Attachments are stored on the data volume under /var/opt/memos."

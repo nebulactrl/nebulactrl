@@ -1,0 +1,96 @@
+# Vulnerability scans that look at things outside a pull request's diff: advisories
+# are published every day, so code that was clean yesterday can fail today. Nightly
+# on main, on demand (Actions -> security -> Run workflow) and on a push to main that
+# changes a lockfile.
+#
+#   govulncheck  vulnerabilities in Go code and the standard library that the code reaches
+#   osv-scanner  every package of bun.lock (the dependency graph has no Bun support) and go.mod
+#   image        ghcr.io/nebulactrl/nebulactrl:latest with Grype; findings go to code
+#                scanning (Security -> Code scanning). Skipped until the first release exists
+#
+# The release workflow scans each image before it is tagged (release.yml, `images`).
+name: security
+
+on:
+  schedule:
+    - cron: "41 4 * * *" # 04:41 UTC, on the default branch
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - bun.lock
+      - go.mod
+      - go.sum
+      - .github/workflows/security.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  # The scanner of the image job, pinned by digest. Keep equal to release.yml.
+  GRYPE_IMAGE: anchore/grype:v0.121.0@sha256:621d56d1d68106b787022c81546f7e0a36202a25d1239f0c20195fab8c16f7ea
+  IMAGE: ghcr.io/nebulactrl/nebulactrl
+
+jobs:
+  govulncheck:
+    name: govulncheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # Keep the version equal to ci.yml.
+      - name: govulncheck
+        run: go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+
+  osv-scanner:
+    name: osv-scanner (bun.lock, go.mod)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - name: osv-scanner
+        run: go run github.com/google/osv-scanner/v2/cmd/osv-scanner@v2.7.0 scan source --lockfile bun.lock --lockfile go.mod
+
+  image:
+    name: image scan (latest)
+    if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      security-events: write # upload the SARIF report to code scanning
+    steps:
+      - name: Look for the image
+        id: image
+        run: |
+          if docker buildx imagetools inspect "$IMAGE:latest" >/dev/null 2>&1; then
+            echo "found=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "found=false" >>"$GITHUB_OUTPUT"
+            echo "::notice::$IMAGE:latest does not exist (or is not public) yet, nothing to scan"
+          fi
+      - name: Scan with Grype
+        if: steps.image.outputs.found == 'true'
+        run: |
+          docker run --rm -v "$PWD:/out" "$GRYPE_IMAGE" "registry:$IMAGE:latest" \
+            --only-fixed -o table -o sarif=/out/grype.sarif
+      - name: Upload the report to code scanning
+        if: steps.image.outputs.found == 'true'
+        uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          sarif_file: grype.sarif
+          category: grype-image

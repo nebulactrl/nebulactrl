@@ -1,0 +1,11 @@
+# expect: derived_field
+# schema: reject
+# The platform derives the port of a managed database; writing it is an error.
+schema = 1
+server = "fra-1"
+
+[services.db]
+port = 5432
+
+[services.db.database]
+engine = "postgres"

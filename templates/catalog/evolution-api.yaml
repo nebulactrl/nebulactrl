@@ -1,0 +1,103 @@
+schema: 1
+id: evolution-api
+revision: 1
+name: Evolution API
+summary: Self-hosted REST API and manager UI for WhatsApp messaging with webhooks and chatbot integrations.
+description: Evolution API connects WhatsApp numbers (WhatsApp Web or the WhatsApp Business Cloud API) and exposes them over a REST API with webhooks, plus integrations such as Chatwoot, Typebot, n8n, Flowise, Dify and OpenAI. This template runs it with managed PostgreSQL and Valkey.
+category: devtools
+tags: [whatsapp, messaging, api, webhooks, chatbot]
+icon: evolutionapi
+links:
+  website: https://evolutionfoundation.com.br
+  docs: https://doc.evolution-api.com/v2/en/get-started/introduction
+  source: https://github.com/evolution-foundation/evolution-api
+upstream:
+  license: Apache-2.0 with additional conditions
+  licenseUrl: https://github.com/evolution-foundation/evolution-api/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/evolution-api.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: AUTHENTICATION_API_KEY, label: Global API key, description: Sent in the apikey header to create instances and call the API., secret: true, default: "${{secret(32)}}"}
+services:
+  - key: api
+    name: Evolution API
+    kind: app
+    image: evoapicloud/evolution-api:v2.3.7
+    digest: sha256:1bd8afc4a6cf48822e6cf02469aeae7bd35a12a6b616eacd1291926307f4d339
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      intervalSeconds: 10
+      timeoutSeconds: 5
+      startPeriodSeconds: 60
+      deadlineSeconds: 360
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      SERVER_URL: ${{NEBULA_PUBLIC_URL}}
+      AUTHENTICATION_API_KEY: ${input:AUTHENTICATION_API_KEY}
+      AUTHENTICATION_EXPOSE_IN_FETCH_INSTANCES: "true"
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: ${{db.DATABASE_URL}}
+      DATABASE_CONNECTION_CLIENT_NAME: evolution_v2
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "true"
+      DATABASE_SAVE_MESSAGE_UPDATE: "true"
+      DATABASE_SAVE_DATA_CONTACTS: "true"
+      DATABASE_SAVE_DATA_CHATS: "true"
+      DATABASE_SAVE_DATA_LABELS: "true"
+      DATABASE_SAVE_DATA_HISTORIC: "true"
+      DEL_INSTANCE: "false"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: ${{cache.REDIS_URL}}/6
+      CACHE_REDIS_PREFIX_KEY: evolution_v2
+      CACHE_REDIS_SAVE_INSTANCES: "false"
+      CACHE_LOCAL_ENABLED: "false"
+      CONFIG_SESSION_PHONE_CLIENT: Evolution API V2
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      QRCODE_LIMIT: "30"
+      LANGUAGE: en
+      WA_BUSINESS_TOKEN_WEBHOOK: ${{secret(24)}}
+      CHATWOOT_ENABLED: "true"
+      DIFY_ENABLED: "true"
+      FLOWISE_ENABLED: "true"
+      N8N_ENABLED: "true"
+      OPENAI_ENABLED: "true"
+      TYPEBOT_ENABLED: "true"
+      WEBSOCKET_ENABLED: "false"
+      RABBITMQ_ENABLED: "false"
+      SQS_ENABLED: "false"
+      S3_ENABLED: "false"
+    volumes:
+      - name: instances
+        path: /evolution/instances
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Evolution API DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: evolution
+  - key: cache
+    name: Evolution API Cache
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Evolution API
+notes:
+  - "Create and manage WhatsApp instances with the global API key from the install form (header `apikey`). The manager UI is served at /manager on the domain."
+  - "Evolution API drives WhatsApp through the unofficial WhatsApp Web protocol (Baileys) or the official Business Cloud API; the unofficial route can breach WhatsApp's terms of service and numbers can be banned, so use it at your own risk."
+  - "The licence adds conditions to Apache-2.0: the Evolution logo and copyright must stay in its frontend, and products built on it must show a notice that it is used."
+  - "Webhook, RabbitMQ, SQS, S3 and WebSocket settings can be added as extra variables on the service; see the environment variable reference in the docs."

@@ -1,0 +1,46 @@
+schema: 1
+id: commafeed
+revision: 1
+name: CommaFeed
+summary: Lightweight, multi-user RSS and Atom feed reader with OPML import and export.
+description: CommaFeed is a self-hosted feed reader and news aggregator. This template runs the official image with the embedded H2 database stored in a persistent volume.
+category: media
+tags: [rss, feed-reader, news, aggregator]
+links:
+  website: https://www.commafeed.com/
+  docs: https://athou.github.io/commafeed/documentation
+  source: https://github.com/Athou/commafeed
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/Athou/commafeed/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/commafeed
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: commafeed
+    name: CommaFeed
+    kind: app
+    image: athou/commafeed:7.4.1-h2
+    digest: sha256:59b59cf87cc2ab4501dfbd05079db77b0e0a3454bd17974fb733431d866223ee
+    port: 8082
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    volumes:
+      - name: data
+        path: /commafeed/data
+    resources:
+      memoryMb: 512
+group: CommaFeed
+notes:
+  - "Open the site and complete the first-run setup to create the administrator account."

@@ -1,0 +1,38 @@
+# CNCF Distribution of the built-in registry (mounted at /etc/distribution/config.yml).
+# Written by install.sh; a re-run of the installer overwrites it.
+#
+# Nothing talks to this registry but the control plane, on the internal network. The
+# control plane's tunnel forwarder checks every request against the team's repository
+# prefix and adds a short-lived token signed with the key whose public half is the JWKS
+# below; the realm is therefore never contacted and only has to be a valid URL.
+version: 0.1
+log:
+  level: info
+  formatter: text
+storage:
+  filesystem:
+    rootdirectory: /var/lib/registry
+  delete:
+    enabled: true
+  cache:
+    blobdescriptor: inmemory
+  maintenance:
+    uploadpurging:
+      enabled: true
+      age: 168h
+      interval: 24h
+      dryrun: false
+http:
+  addr: :5000
+  # The Location of an upload stays on the address the client used (127.0.0.1:18500 on its server).
+  relativeurls: true
+  # REGISTRY_HTTP_SECRET (from .env) overrides this: it signs upload state, and a restart must not invalidate it.
+  secret: replaced-by-REGISTRY_HTTP_SECRET
+auth:
+  token:
+    realm: http://registry.invalid/token
+    service: nebulactrl-registry
+    issuer: nebulactrl
+    jwks: /etc/distribution/auth/jwks.json
+    signingalgorithms:
+      - ES256

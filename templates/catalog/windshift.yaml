@@ -1,0 +1,70 @@
+schema: 1
+id: windshift
+revision: 1
+name: Windshift
+summary: Work management platform with boards, sprints, backlogs, roadmaps, workflows and a customer portal, as a Jira alternative.
+description: Windshift is a single Go binary with a built-in web app for planning and tracking work. This template runs the official image against a managed Postgres database, with a volume for attachments.
+category: productivity
+tags: [project-management, issues, sprints, kanban, jira-alternative]
+links:
+  website: https://windshift.sh/
+  docs: https://windshift.sh/docs
+  source: https://github.com/Windshiftapp/core
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/Windshiftapp/core/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/windshift
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 5
+services:
+  - key: windshift
+    name: Windshift
+    kind: app
+    image: ghcr.io/windshiftapp/windshift:v0.9.1
+    digest: sha256:4dcebe37a9ef3c3ae44351a9975842db384964ce5b883369842ecf010c9d1beb
+    port: 8080
+    healthcheck:
+      type: http
+      path: /readyz
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      USE_PROXY: "true"
+      SSO_SECRET: ${{randomBytes(32,"hex")}}
+      ATTACHMENT_PATH: /data/attachments
+      TMPDIR: /data
+      DB_TYPE: postgres
+      POSTGRES_HOST: ${{db.DATABASE_HOST}}
+      POSTGRES_PORT: ${{db.DATABASE_PORT}}
+      POSTGRES_DB: ${{db.DATABASE_NAME}}
+      POSTGRES_USER: ${{db.DATABASE_USER}}
+      POSTGRES_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      POSTGRES_SSLMODE: disable
+      WINDSHIFT_MEMORY_LIMIT_MB: "768"
+      LOG_LEVEL: info
+      LOG_FORMAT: json
+    volumes:
+      - name: windshift-data
+        path: /data
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Windshift DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: windshift
+group: Windshift
+notes:
+  - "Open the service address right after deploying: the first visit runs the setup wizard that creates the administrator account, so do it before sharing the link."

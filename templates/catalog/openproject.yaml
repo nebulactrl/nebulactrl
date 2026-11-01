@@ -1,0 +1,54 @@
+schema: 1
+id: openproject
+revision: 1
+name: OpenProject
+summary: Open-source project management with Gantt charts, work packages, boards, time tracking and wikis.
+description: OpenProject is a collaborative project management suite. This template runs the official all-in-one container, which bundles PostgreSQL and memcached with the application.
+category: productivity
+tags: [project-management, gantt, tasks, agile, collaboration]
+icon: openproject
+links:
+  website: https://www.openproject.org
+  docs: https://www.openproject.org/docs/installation-and-operations/installation/docker/
+  source: https://github.com/opf/openproject
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/opf/openproject/blob/dev/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/openproject
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 4096
+  diskGb: 10
+services:
+  - key: web
+    name: OpenProject
+    kind: app
+    image: openproject/openproject:17.9.4
+    digest: sha256:914bd92c537854ea1fea53b1bbdb0802b1998e3d21bd0942fcf4713e1262ade4
+    port: 80
+    healthcheck:
+      type: http
+      path: /health_checks/default
+      startPeriodSeconds: 180
+      deadlineSeconds: 900
+    domains:
+      - generate: true
+    env:
+      SECRET_KEY_BASE: ${{randomBytes(64,"hex")}}
+      OPENPROJECT_HOST__NAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      OPENPROJECT_HTTPS: "true"
+      OPENPROJECT_DEFAULT__LANGUAGE: en
+    volumes:
+      - {name: pgdata, path: /var/openproject/pgdata}
+      - {name: assets, path: /var/openproject/assets}
+    resources:
+      memoryMb: 4096
+group: OpenProject
+notes:
+  - "The first start seeds the database and takes several minutes. Sign in as admin with the password admin and change it immediately."
+  - "This is upstream's all-in-one container (PostgreSQL and memcached inside); upstream recommends its Compose setup for large production installs."

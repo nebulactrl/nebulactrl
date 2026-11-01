@@ -1,0 +1,53 @@
+schema: 1
+id: jean
+revision: 1
+name: Jean
+summary: Browser-based workspace for running and orchestrating AI coding agents on git worktrees.
+description: Jean is the headless server edition of the Jean agent client, with git, the GitHub CLI and terminals inside the container. This template runs the official jean-server image with token login and one persistent home volume.
+category: devtools
+tags: [ai, coding-agents, git, worktrees]
+links:
+  website: https://github.com/coollabsio/jean
+  docs: https://github.com/coollabsio/jean/blob/main/docs/headless-server.md
+  source: https://github.com/coollabsio/jean
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/coollabsio/jean/blob/main/LICENSE.md
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/jean.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - {key: JEAN_TOKEN, label: Login token, secret: true, default: "${{secret(48)}}"}
+services:
+  - key: jean
+    name: Jean
+    kind: app
+    image: ghcr.io/coollabsio/jean-server:v1.0.12
+    digest: sha256:c962f793ffa72a8f0bd3327a0c12d3fe52dba7e44cc3af966dbe97ee22f0d75e
+    port: 3456
+    healthcheck:
+      type: http
+      path: /readyz
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      JEAN_HEADLESS: "1"
+      JEAN_HOST: 0.0.0.0
+      JEAN_PORT: "3456"
+      JEAN_TOKEN: ${input:JEAN_TOKEN}
+    volumes:
+      - {name: home, path: /home/jean}
+    resources:
+      memoryMb: 1024
+group: Jean
+notes:
+  - "Open the site and sign in with the login token from the install form (it is also stored as JEAN_TOKEN in the service variables)."
+  - "Agent CLIs (Claude Code, Codex and others) are installed and signed in from Jean's onboarding and Settings; their credentials live in the home volume."

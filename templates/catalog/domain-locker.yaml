@@ -1,0 +1,58 @@
+schema: 1
+id: domain-locker
+revision: 1
+name: Domain Locker
+summary: Track the domains you own, watch expiry, DNS and certificate changes, and get renewal reminders.
+description: Domain Locker is a domain portfolio manager with change history and uptime checks. This template runs the official single-container image with its built-in scheduler and a SQLite database in a persistent volume, protected by a password.
+category: devtools
+tags: [domains, dns, whois, monitoring, reminders]
+links:
+  website: https://domain-locker.com/
+  docs: https://github.com/Lissy93/domain-locker#readme
+  source: https://github.com/lissy93/domain-locker
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/lissy93/domain-locker/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/domain-locker
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - key: ACCESS_PASSWORD
+    label: Access password
+    description: Password asked for when opening the app. Generated when left empty.
+    secret: true
+    default: "${{secret(24)}}"
+services:
+  - key: app
+    name: Domain Locker
+    kind: app
+    image: lissy93/domain-locker:0.3.5
+    digest: sha256:830bc2978462a36d4f9d4d09b33291369ae28e8b1c3ac947ece128fdb3683ad6
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      DL_ENV_TYPE: selfHosted
+      NODE_ENV: production
+      DL_AUTH_PASSWORD: ${input:ACCESS_PASSWORD}
+      DL_API_KEY: ${{secret(32)}}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 512
+group: Domain Locker
+notes:
+  - "Open the site and enter the access password (variable DL_AUTH_PASSWORD) to start adding domains."
+  - "Expiry reminders and domain refreshes run on the app's own scheduler; set NOTIFY_WEBHOOK_BASE and NOTIFY_WEBHOOK_TOPIC on the service to receive push notifications."

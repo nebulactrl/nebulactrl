@@ -1,0 +1,52 @@
+schema: 1
+id: pocket-id
+revision: 1
+name: Pocket ID
+summary: Simple OIDC identity provider that signs users in with passkeys only, no passwords.
+description: Pocket ID is a lightweight OpenID Connect provider for single sign-on to your self-hosted apps, using passkeys (WebAuthn). This template runs the official image with its SQLite database and a generated encryption key on one data volume.
+category: security
+tags: [oidc, sso, passkeys, webauthn, identity, authentication]
+links:
+  website: https://pocket-id.org
+  docs: https://pocket-id.org/docs
+  source: https://github.com/pocket-id/pocket-id
+upstream:
+  license: BSD-2-Clause
+  licenseUrl: https://github.com/pocket-id/pocket-id/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/pocket-id.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: pocket-id
+    name: Pocket ID
+    kind: app
+    image: ghcr.io/pocket-id/pocket-id:v2.19.1
+    digest: sha256:f085157f0b6ea4b2e8aa5ecfd99eada0d83a4960f3a3dcfd46014097d0ef7ab5
+    port: 1411
+    healthcheck:
+      type: exec
+      command: [CMD, /app/pocket-id, healthcheck]
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      TRUST_PROXY: "true"
+      ENCRYPTION_KEY: ${{randomBytes(32,"base64")}}
+    volumes:
+      - name: data
+        path: /app/data
+    resources:
+      memoryMb: 256
+group: Pocket ID
+notes:
+  - "Open /setup on the site's address straight after deploying to create the first admin account and register its passkey. Until then anyone who reaches the URL can do it."
+  - "Passkeys are bound to the domain: set up the final domain before registering. APP_URL follows the generated domain; change it if you attach a custom one."
+  - "The encryption key (ENCRYPTION_KEY) protects stored secrets: back it up together with the data volume."

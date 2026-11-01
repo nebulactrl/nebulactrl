@@ -1,0 +1,74 @@
+schema: 1
+id: my-links
+revision: 1
+name: MyLinks
+summary: Self-hosted bookmark manager to organise, search and share links, with a browser extension.
+description: MyLinks keeps bookmarks in collections with search, sharing, a browser extension and an API. This template runs the project's image from Docker Hub with a managed Postgres database and a persistent favicon cache.
+category: productivity
+tags: [bookmarks, links, collections, browser-extension]
+links:
+  website: https://www.mylinks.app
+  docs: https://docs.mylinks.app
+  source: https://github.com/my-links/my-links
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/my-links/my-links/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/my-links
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+  arch: [amd64]
+inputs:
+  - key: ADMIN_SETUP_TOKEN
+    label: Admin setup token
+    description: "Secret (at least 32 characters) that lets the first registration become the administrator. Leave the generated value."
+    secret: true
+    default: "${{secret(40)}}"
+services:
+  - key: my-links
+    name: MyLinks
+    kind: app
+    image: sonny93/my-links:5.6.0
+    digest: sha256:280456072952349a77c9460986f63dcd90a44379b094846939ed65e47acc279b
+    port: 3333
+    healthcheck:
+      type: http
+      path: /api/v1/health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [postgres]
+    env:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      LOG_LEVEL: info
+      APP_KEY: ${{randomBytes(32,"base64")}}
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      ADMIN_SETUP_TOKEN: ${input:ADMIN_SETUP_TOKEN}
+      DB_HOST: ${{postgres.DATABASE_HOST}}
+      DB_PORT: ${{postgres.DATABASE_PORT}}
+      DB_DATABASE: ${{postgres.DATABASE_NAME}}
+      DB_USER: ${{postgres.DATABASE_USER}}
+      DB_PASSWORD: ${{postgres.DATABASE_PASSWORD}}
+    volumes:
+      - name: favicons
+        path: /app/storage/favicons
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+  - key: postgres
+    name: MyLinks DB
+    kind: database
+    database:
+      engine: postgres
+      version: "18"
+      databaseName: mylinks
+group: MyLinks
+notes:
+  - "Create the administrator at <your site>/auth/register?setup_token=<ADMIN_SETUP_TOKEN>, using the value of the ADMIN_SETUP_TOKEN variable of the service. After the first account exists, registration closes."
+  - "Without SMTP (SMTP_HOST and MAIL_FROM_ADDRESS variables) there are no confirmation or password-reset emails."

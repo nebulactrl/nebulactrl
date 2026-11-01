@@ -1,0 +1,67 @@
+schema: 1
+id: mindsdb
+revision: 1
+name: MindsDB
+summary: SQL query engine that connects data sources and AI models, with knowledge bases for semantic search.
+description: MindsDB lets you query many databases and build AI-backed knowledge bases and jobs with SQL from a web editor. This template runs the official image with its metadata stored in a managed Postgres database and the editor protected by a login.
+category: ai
+tags: [sql, machine-learning, knowledge-base, data, llm]
+links:
+  website: https://mindsdb.com
+  docs: https://mindsdb.github.io/engine/
+  source: https://github.com/mindsdb/mindsdb
+upstream:
+  license: Elastic License 2.0
+  licenseUrl: https://github.com/mindsdb/engine/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/mindsdb.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 3072
+  diskGb: 10
+inputs:
+  - {key: ADMIN_USERNAME, label: Editor username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Editor password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: mindsdb
+    name: MindsDB
+    kind: app
+    image: mindsdb/mindsdb:v26.1.0
+    digest: sha256:163011c09299a95c97ce2e1b9f157683b3538c5b9167ddc258b95ac256c806bb
+    port: 47334
+    healthcheck:
+      type: http
+      path: /api/util/ping
+      timeoutSeconds: 10
+      startPeriodSeconds: 60
+      deadlineSeconds: 450
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      MINDSDB_DOCKER_ENV: "true"
+      MINDSDB_STORAGE_DIR: /mindsdb/var
+      MINDSDB_DB_CON: postgresql://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      MINDSDB_USERNAME: ${input:ADMIN_USERNAME}
+      MINDSDB_PASSWORD: ${input:ADMIN_PASSWORD}
+    secrets: [MINDSDB_DB_CON]
+    volumes:
+      - name: data
+        path: /mindsdb/var
+    resources:
+      memoryMb: 3072
+  - key: db
+    name: MindsDB DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: mindsdb
+group: MindsDB
+notes:
+  - "Open the service's domain and sign in with the editor username and password from the install form. The editor and HTTP API are protected by that login."
+  - "The MySQL API (port 47335) is not published; other services in the environment can reach it on the private network. Add model provider keys (for example OPENAI_API_KEY) as variables on the service."
+  - "MindsDB Core is licensed under the Elastic License 2.0 (integrations under MIT)."

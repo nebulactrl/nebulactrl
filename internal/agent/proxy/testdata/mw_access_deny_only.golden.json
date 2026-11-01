@@ -1,0 +1,98 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "middlewares": [
+          "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ipallow"
+        ],
+        "tls": {}
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`app.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-app-aaaaaaaa-0:8080"
+            }
+          ]
+        }
+      }
+    },
+    "middlewares": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-ipallow": {
+        "ipAllowList": {
+          "sourceRange": [
+            "0.0.0.0/1",
+            "128.0.0.0/2",
+            "224.0.0.0/3",
+            "208.0.0.0/4",
+            "192.0.0.0/5",
+            "204.0.0.0/6",
+            "200.0.0.0/7",
+            "202.0.0.0/8",
+            "203.128.0.0/9",
+            "203.64.0.0/10",
+            "203.32.0.0/11",
+            "203.16.0.0/12",
+            "203.8.0.0/13",
+            "203.4.0.0/14",
+            "203.2.0.0/15",
+            "203.1.0.0/16",
+            "203.0.128.0/17",
+            "203.0.0.0/18",
+            "203.0.64.0/19",
+            "203.0.96.0/20",
+            "203.0.120.0/21",
+            "203.0.116.0/22",
+            "203.0.114.0/23",
+            "203.0.112.0/24",
+            "::/0"
+          ]
+        }
+      },
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "permanent": true
+        }
+      }
+    }
+  }
+}

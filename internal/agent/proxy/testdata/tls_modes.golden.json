@@ -1,0 +1,108 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`plain.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111"
+      },
+      "nc-11111111-1111-1111-1111-111111111111-daaaaaaaa-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`plain.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`custom.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`custom.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "tls": {}
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dbbbbbbbb-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`custom.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`both.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111"
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`both.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-dcccccccc-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`both.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-app-aaaaaaaa-0:8080"
+            }
+          ]
+        }
+      }
+    },
+    "middlewares": {
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "permanent": true
+        }
+      }
+    }
+  }
+}

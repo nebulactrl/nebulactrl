@@ -1,0 +1,79 @@
+schema: 1
+id: postgres-pgadmin
+revision: 1
+name: PostgreSQL + pgAdmin
+summary: A managed PostgreSQL 18 database with the pgAdmin 4 web UI, pre-registered and password-protected.
+description: Creates a managed PostgreSQL 18 database and a pgAdmin 4 web interface (official image, server mode with an administrator login from the install form) that already lists the database as a server, so you can browse tables and run queries from the browser right after the first deploy.
+category: data
+tags: [postgres, postgresql, database, admin, pgadmin, sql]
+icon: postgresql
+links:
+  website: https://www.pgadmin.org
+  docs: https://www.pgadmin.org/docs/pgadmin4/latest/container_deployment.html
+  source: https://github.com/pgadmin-org/pgadmin4
+upstream:
+  license: PostgreSQL
+  licenseUrl: https://github.com/pgadmin-org/pgadmin4/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/postgres-pgadmin
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 5
+inputs:
+  - {key: PGADMIN_DEFAULT_EMAIL, format: email, label: "pgAdmin login email (must be a valid address)", required: true}
+  - {key: PGADMIN_DEFAULT_PASSWORD, label: pgAdmin login password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: postgres
+    name: PostgreSQL
+    kind: database
+    database:
+      engine: postgres
+      version: "18"
+      databaseName: app
+  - key: pgadmin
+    name: pgAdmin
+    kind: app
+    image: dpage/pgadmin4:9.18.0
+    digest: sha256:c332c5f6dfba995d9ebc4af261d93506d6876085d712eaaa3defc8dd1a3f26de
+    port: 80
+    healthcheck:
+      type: http
+      path: /misc/ping
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    env:
+      PGADMIN_DEFAULT_EMAIL: ${input:PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${input:PGADMIN_DEFAULT_PASSWORD}
+      PGADMIN_SERVER_JSON_FILE: /tmp/servers.json
+      DB_HOST: ${{postgres.DATABASE_HOST}}
+      DB_PORT: ${{postgres.DATABASE_PORT}}
+      DB_NAME: ${{postgres.DATABASE_NAME}}
+      DB_USER: ${{postgres.DATABASE_USER}}
+    volumes:
+      - {name: data, path: /var/lib/pgadmin}
+    files:
+      - path: /nebula-pgadmin-init.sh
+        mode: "0755"
+        content: |
+          #!/bin/sh
+          set -e
+          cat > /tmp/servers.json <<EOF
+          {"Servers": {"1": {"Name": "PostgreSQL", "Group": "Servers", "Host": "${DB_HOST}", "Port": ${DB_PORT}, "MaintenanceDB": "${DB_NAME}", "Username": "${DB_USER}", "SSLMode": "prefer"}}}
+          EOF
+          exec /entrypoint.sh
+    domains:
+      - generate: true
+    dependsOn: [postgres]
+    resources:
+      memoryMb: 512
+    docker:
+      entrypoint: [/nebula-pgadmin-init.sh]
+group: PostgreSQL + pgAdmin
+notes:
+  - "Sign in to pgAdmin on the generated domain with the email and password from the install form (the password is generated if left empty). The account is only created on the first start; later changes to these variables do not alter it."
+  - "The PostgreSQL server is already registered as `PostgreSQL`. When you first connect, enter the password of the `postgres` database service (its DATABASE_PASSWORD variable) and tick Save Password; the registration is imported only on the first start, so edit the server in the UI afterwards."
+  - "pgAdmin runs in server mode with a login: the web UI is open to the internet behind that password, so use a strong one. The database itself is only reachable on the project's private network."

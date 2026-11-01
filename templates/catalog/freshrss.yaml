@@ -1,0 +1,87 @@
+schema: 1
+id: freshrss
+revision: 1
+name: FreshRSS
+summary: Self-hosted RSS and Atom feed aggregator with a fast web reader, mobile-app API and a managed PostgreSQL database.
+description: FreshRSS is a multi-user feed reader with filtering, keyboard shortcuts, extensions and Google Reader / Fever compatible APIs for mobile apps. This template installs it non-interactively against a managed PostgreSQL database and creates the first account for you.
+category: media
+tags: [rss, feed-reader, news, aggregator]
+icon: freshrss
+links:
+  website: https://freshrss.org
+  docs: https://freshrss.github.io/FreshRSS/
+  source: https://github.com/FreshRSS/FreshRSS
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/FreshRSS/FreshRSS/blob/edge/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/freshrss.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USER, label: Admin username (letters and digits only), required: true, default: admin}
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+  - {key: API_PASSWORD, label: API password for mobile apps, secret: true, default: "${{secret(20)}}"}
+  - {key: TZ, label: Server timezone, default: UTC}
+services:
+  - key: freshrss
+    name: FreshRSS
+    kind: app
+    image: freshrss/freshrss:1.30.4
+    digest: sha256:af44385229541bee24aa9148d0ff8f3b40e095373c63a2c0f74e09a27d3c59df
+    port: 80
+    healthcheck:
+      type: exec
+      command: [CMD, cli/health.php]
+      intervalSeconds: 30
+      timeoutSeconds: 10
+      startPeriodSeconds: 60
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      TZ: ${input:TZ}
+      CRON_MIN: "1,31"
+      FRESHRSS_INSTALL: |-
+        --api-enabled
+        --base-url ${{NEBULA_PUBLIC_URL}}
+        --db-base ${{db.DATABASE_NAME}}
+        --db-host ${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}
+        --db-password ${{db.DATABASE_PASSWORD}}
+        --db-type pgsql
+        --db-user ${{db.DATABASE_USER}}
+        --default-user ${input:ADMIN_USER}
+        --language en
+      FRESHRSS_USER: |-
+        --api-password ${input:API_PASSWORD}
+        --email ${input:ADMIN_EMAIL}
+        --language en
+        --password ${input:ADMIN_PASSWORD}
+        --user ${input:ADMIN_USER}
+    secrets: [FRESHRSS_INSTALL, FRESHRSS_USER]
+    volumes:
+      - name: data
+        path: /var/www/FreshRSS/data
+      - name: extensions
+        path: /var/www/FreshRSS/extensions
+    resources:
+      memoryMb: 256
+  - key: db
+    name: FreshRSS DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: freshrss
+group: FreshRSS
+notes:
+  - "Sign in with the admin username and password from the install form. Feeds refresh automatically at minutes 1 and 31 of every hour."
+  - "For mobile apps, enable the API in Settings > Authentication and use the API password from the install form (endpoint: /api/greader.php)."
+  - "The first-run install only happens once: changing the admin inputs later does not alter the existing account. Change passwords in the FreshRSS UI."

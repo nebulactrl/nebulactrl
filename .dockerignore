@@ -1,0 +1,27 @@
+# Keep the build context small and free of local state/secrets.
+.git
+.github
+.env
+.env.*
+!.env.example
+*.local
+.DS_Store
+bin/
+tmp/
+coverage.out
+.omp/
+.claude/
+
+# Rebuilt inside the image.
+node_modules
+**/node_modules
+apps/site/dist
+apps/web/dist
+apps/web/test-results
+apps/web/playwright-report
+internal/webui/dist/*
+!internal/webui/dist/.keep
+
+# Not needed to build the binaries.
+tests/
+deploy/dev/

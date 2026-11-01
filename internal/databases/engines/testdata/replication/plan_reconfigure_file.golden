@@ -1,0 +1,4 @@
+argv: ["sh" "-c" "set -eu\numask 077\n[ -e \"$PGDATA/standby.signal\" ] || { echo \"not a replica: no standby.signal in $PGDATA\" >&2; exit 5; }\nf=\"$PGDATA/nebula.replica.conf\"\nprintf \"primary_conninfo = 'host=%s port=%s user=%s application_name=%s'\\nprimary_slot_name = '%s'\\n\" \"$NC_HOST\" \"$NC_PORT\" \"$NC_USER\" \"$NC_SLOT\" \"$NC_SLOT\" > \"$f.new\"\nmv \"$f.new\" \"$f\"\n"]
+env: ["NC_HOST=mesh-0a1b2c3d" "NC_PORT=15432" "NC_USER=nebula_r_0a1b2c3d" "NC_SLOT=nc_r_0a1b2c3d"]
+user: "postgres"
+stdin:

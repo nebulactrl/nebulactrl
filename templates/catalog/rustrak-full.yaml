@@ -1,0 +1,66 @@
+schema: 1
+id: rustrak-full
+revision: 1
+name: Rustrak
+summary: Self-hosted error tracking that accepts events from Sentry SDKs, with a built-in dashboard.
+description: Rustrak is a lightweight Sentry-compatible error tracker written in Rust. This template runs the official PostgreSQL build, which serves the API and the dashboard from one container, with a managed Postgres database.
+category: analytics
+tags: [error-tracking, sentry, monitoring, observability]
+links:
+  website: https://rustrak.dev
+  docs: https://rustrak.dev/getting-started/installation
+  source: https://github.com/rustrak/rustrak
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/rustrak/rustrak/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/rustrak-full
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 5
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: server
+    name: Rustrak
+    kind: app
+    image: rustrak/rustrak-server:v0.21.1-postgres
+    digest: sha256:23a0cd064e1a504315702af1af28919408be1924ec86192fab34eaeda557a5d4
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      SESSION_SECRET_KEY: ${{randomBytes(32,"hex")}}
+      CREATE_SUPERUSER: ${input:ADMIN_EMAIL}:${input:ADMIN_PASSWORD}
+      PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      SSL_PROXY: "true"
+      RUST_LOG: info
+      RUSTRAK_TELEMETRY: "off"
+    secrets: [CREATE_SUPERUSER]
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Rustrak DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: rustrak
+group: Rustrak
+notes:
+  - "Sign in at /login with the admin email and password from the install form. The account is only created while no user exists."
+  - "The project DSN shown in Rustrak carries the generated public address; point your Sentry SDKs at it."

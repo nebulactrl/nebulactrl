@@ -1,0 +1,12 @@
+# expect: invalid_reference
+# The shared layer is not a service: it cannot reference one.
+schema = 1
+server = "fra-1"
+
+[variables]
+DATABASE_URL = "${{db.DATABASE_URL}}"
+
+[services.db]
+
+[services.db.database]
+engine = "postgres"

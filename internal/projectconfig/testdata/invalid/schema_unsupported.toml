@@ -1,0 +1,8 @@
+# expect: schema_unsupported
+# schema: reject
+# Only format version 1 exists.
+schema = 2
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"

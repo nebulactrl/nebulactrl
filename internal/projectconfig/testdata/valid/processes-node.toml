@@ -1,0 +1,20 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+server = "fra-1"
+
+[services.api]
+port    = 3000
+command = ["node", "server.js"]
+
+[services.api.git]
+url    = "https://github.com/acme/api.git"
+branch = "main"
+
+[services.api.domains."api.acme.com"]
+
+[services.api.processes.worker]
+command            = ["node", "worker.js"]
+stop_grace_seconds = 60
+
+[services.api.processes.worker.scale]
+replicas = 3

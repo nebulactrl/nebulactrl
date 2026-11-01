@@ -1,0 +1,17 @@
+# The integration fixture: a small app that talks to Valkey.
+services:
+  app:
+    image: nebulactrl-test-app:dev
+    environment:
+      VERSION: compose-v1
+      KV_URL: redis://valkey:6379/0
+    ports:
+      - "8080:8080"
+    depends_on:
+      - valkey
+  valkey:
+    image: valkey/valkey:8
+    volumes:
+      - kvdata:/data
+volumes:
+  kvdata:

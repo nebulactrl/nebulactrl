@@ -1,0 +1,175 @@
+# Tier 3 of the test pyramid (tests/README.md): every Docker scenario (templates
+# sample, Railpack, backups, reconnect/partition, proxy tests ...) on the runner's
+# Docker. It contains the smoke tier. Runs nightly on main, on demand (Actions ->
+# full -> Run workflow; choose `templates: all` to deploy the whole template
+# catalog, or fill `run` for a focused repeat of chosen tests) and as a gate inside
+# release.yml.
+#
+# The tier runs as 4 parallel shards, each on its own runner with its own Postgres
+# and Docker daemon (tests/run.sh full --shard I/4). The shards are balanced by
+# tests/integration/durations.json (tools/shardtests) and together run every
+# top-level test exactly once.
+name: full
+
+on:
+  schedule:
+    - cron: "17 3 * * *" # 03:17 UTC, on the default branch
+  workflow_dispatch:
+    inputs:
+      templates:
+        description: "Templates to deploy-test: a rotating sample of 3 plus changed ones, or the whole catalog"
+        type: choice
+        options: [sample, all]
+        default: sample
+      run:
+        description: "Focus mode: a go test -run regex. Runs only these tests on one runner instead of the 4 shards"
+        type: string
+        default: ""
+      count:
+        description: "Focus mode: how many rounds to run (each a fresh test process, like a real shard)"
+        type: number
+        default: 1
+      logs:
+        description: "Focus mode: include control-plane and agent logs in the uploaded log"
+        type: boolean
+        default: true
+  workflow_call:
+    inputs:
+      templates:
+        description: "Templates to deploy-test: sample or all"
+        type: string
+        default: sample
+
+permissions:
+  contents: read
+
+# github.workflow is the caller's name when called from release.yml, so a manual
+# or nightly run of full can never cancel the gates of a release. A run is never
+# cancelled; a newer one waits for it.
+concurrency:
+  group: full-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  full:
+    if: ${{ !inputs.run }}
+    name: full (shard ${{ matrix.shard }}/4)
+    # fail-fast is off: a failing shard must not hide the others.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    env:
+      NEBULACTRL_TEST_DATABASE_URL: postgres://nebulactrl:nebulactrl@localhost:5432/nebulactrl_test?sslmode=disable
+      # The changed-templates part of the sample compares against origin/main,
+      # hence the full history below.
+      NEBULACTRL_TEST_TEMPLATES: ${{ inputs.templates || 'sample' }}
+    services:
+      postgres:
+        image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+        env:
+          POSTGRES_USER: nebulactrl
+          POSTGRES_PASSWORD: nebulactrl
+          POSTGRES_DB: nebulactrl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebulactrl -d nebulactrl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      # Railpack builds use a managed BuildKit builder through buildx.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # The images of this tier (Gitea, SeaweedFS, Postgres, Railpack, BuildKit, the
+      # template images) are pulled by the harness in parallel at the start of the
+      # run, and the template tests remove theirs again.
+      - name: Full tier (shard ${{ matrix.shard }}/4)
+        # tests/run.sh picks this shard's tests (tools/shardtests) and runs go test -count=1.
+        run: ./tests/run.sh full --shard "$SHARD" -v 2>&1 | tee full.log
+        shell: bash
+        env:
+          SHARD: ${{ matrix.shard }}/4
+      - name: Keep the log of a failed run
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: full-log-shard-${{ matrix.shard }}
+          path: full.log
+          retention-days: 3
+
+  # Race hunting: one runner, the chosen tests only, repeated, with the harness's
+  # control-plane and agent logs. Each round is a fresh tests/run.sh process: go
+  # test -count would reuse the shared stack and its database across rounds, which
+  # the tests do not expect. Keep count x test-size inside the timeout. Inputs
+  # exist only on workflow_dispatch, so release.yml and the nightly run never run
+  # this job.
+  focus:
+    name: focus (x${{ inputs.count }})
+    if: ${{ inputs.run }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      NEBULACTRL_TEST_DATABASE_URL: postgres://nebulactrl:nebulactrl@localhost:5432/nebulactrl_test?sslmode=disable
+      NEBULACTRL_TEST_TEMPLATES: sample
+    services:
+      postgres:
+        image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+        env:
+          POSTGRES_USER: nebulactrl
+          POSTGRES_PASSWORD: nebulactrl
+          POSTGRES_DB: nebulactrl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebulactrl -d nebulactrl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Focused tests
+        run: |
+          if [ "$LOGS" = "true" ]; then
+            export NEBULACTRL_TEST_CP_LOGS=1 NEBULACTRL_TEST_AGENT_LOGS=1
+          fi
+          { echo '### Focus run'; echo; echo "Rounds: $COUNT"; echo; echo '```'; echo "$RUN"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          failed=0
+          for i in $(seq "$COUNT"); do
+            echo "=== focus round $i/$COUNT" | tee -a full.log
+            # The step runs under bash -eo pipefail: test the pipeline in an
+            # if, so a failed round is counted instead of ending the step.
+            if ! ./tests/run.sh full -v -run "$RUN" 2>&1 | tee -a full.log; then
+              failed=$((failed + 1))
+            fi
+          done
+          echo "focus: $failed of $COUNT round(s) failed"
+          [ "$failed" -eq 0 ]
+        shell: bash
+        env:
+          RUN: ${{ inputs.run }}
+          COUNT: ${{ inputs.count }}
+          LOGS: ${{ inputs.logs }}
+      - name: Keep the log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: focus-log
+          path: full.log
+          retention-days: 3

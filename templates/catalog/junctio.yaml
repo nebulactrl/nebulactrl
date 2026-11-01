@@ -1,0 +1,54 @@
+schema: 1
+id: junctio
+revision: 1
+name: Junctio
+summary: Self-hosted MCP gateway that serves stdio and remote MCP servers behind one endpoint per client, with API key or OAuth auth.
+description: Junctio aggregates MCP servers behind a single authenticated endpoint and keeps upstream OAuth tokens refreshed. This template runs the project's own image with its SQLite data and package cache on persistent volumes.
+category: ai
+tags: [mcp, gateway, ai, oauth, developer-tools]
+links:
+  website: https://junctio.pages.dev
+  docs: https://junctio.pages.dev/docs/
+  source: https://github.com/k2so-dev/junctio
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/k2so-dev/junctio/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/junctio
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 3
+services:
+  - key: junctio
+    name: Junctio
+    kind: app
+    image: ghcr.io/k2so-dev/junctio:0.2.6
+    digest: sha256:2fdd95f574744aa25aba8a33db4bdf6389b6d2b2d3d86c71c682cb0674e793d3
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      JUNCTIO_SECRET: ${{secret(64)}}
+      JUNCTIO_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      JUNCTIO_TRUST_PROXY: "true"
+    volumes:
+      - name: data
+        path: /data
+      - name: cache
+        path: /cache
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Junctio
+notes:
+  - "Open the site and set the admin password on first visit, then add MCP servers, a namespace and an endpoint with an API key."
+  - "Servers of the Docker runtime need the host's Docker socket, which is not mounted here; use the npx, uvx or remote runtimes."
+  - "JUNCTIO_SECRET encrypts stored tokens and headers: keep it when moving the data volume."

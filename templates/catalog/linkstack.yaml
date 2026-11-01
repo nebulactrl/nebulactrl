@@ -1,0 +1,58 @@
+schema: 1
+id: linkstack
+revision: 1
+name: LinkStack
+summary: Self-hosted link-in-bio page builder with a customizable profile, themes and multiple users.
+description: LinkStack lets you publish a personal page with all your links, similar to Linktree. This template runs the official image with the built-in SQLite database on a volume; the web installer creates the admin account.
+category: web
+tags: [link-in-bio, linktree, profile, links]
+links:
+  website: https://linkstack.org
+  docs: https://docs.linkstack.org
+  source: https://github.com/LinkStackOrg/LinkStack
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/LinkStackOrg/LinkStack/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/linkstack
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: "Server admin email (Apache ServerAdmin)", required: true}
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: linkstack
+    name: LinkStack
+    kind: app
+    image: linkstackorg/linkstack:v4.8.8
+    digest: sha256:deba986fc1f7391af629c0bbcca67a1508284176bd3accf69d041ecc887dc7dd
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      HTTP_SERVER_NAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      HTTPS_SERVER_NAME: ${{NEBULA_PUBLIC_DOMAIN}}
+      SERVER_ADMIN: ${input:ADMIN_EMAIL}
+      TZ: ${input:TIMEZONE}
+      LOG_LEVEL: info
+      PHP_MEMORY_LIMIT: 256M
+      UPLOAD_MAX_FILESIZE: 8M
+    volumes:
+      - name: htdocs
+        path: /htdocs
+    resources:
+      memoryMb: 256
+group: LinkStack
+notes:
+  - "Open the site right after the first deploy and finish the web installer (choose SQLite, create the admin account). Until then anyone who reaches the URL can run it."
+  - "The whole application, including the SQLite database, uploads and the in-app updater, lives in the htdocs volume."

@@ -1,0 +1,74 @@
+schema: 1
+id: cockpit
+revision: 1
+name: Cockpit
+summary: Headless CMS with a content API (REST and GraphQL), custom content models and asset management.
+description: "Cockpit is a self-hosted headless content platform. You define content models in the admin UI and read them over a REST or GraphQL API. This template runs the open-source Core edition with a managed MongoDB database; uploads and caches live on a volume."
+category: web
+tags: [cms, headless, api, content-management, graphql]
+icon: cockpit
+links:
+  website: https://getcockpit.com
+  docs: https://getcockpit.com/documentation/
+  source: https://github.com/Cockpit-HQ/Cockpit
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/Cockpit-HQ/Cockpit/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/cockpit.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 3
+services:
+  - key: cockpit
+    name: Cockpit
+    kind: app
+    image: cockpithq/cockpit:core-2.14.1
+    digest: sha256:79fd16eee81bcb3015a10c64ffe03bc8ec06aa3d35c04253305e8f6c6e9cc239
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/system/healthcheck
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    dependsOn: [mongodb]
+    domains:
+      - generate: true
+    env:
+      COCKPIT_DATABASE_SERVER: ${{mongodb.MONGO_URL}}
+      COCKPIT_DATABASE_NAME: cockpit
+      COCKPIT_SEC_KEY: ${{secret(48)}}
+    secrets: [COCKPIT_DATABASE_SERVER]
+    volumes:
+      - name: storage
+        path: /var/www/html/storage
+    files:
+      - path: /var/www/html/config/config.php
+        mode: "0444"
+        content: |
+          <?php
+          // Reads the database connection and the security key from the container environment.
+          return [
+              'sec-key' => getenv('COCKPIT_SEC_KEY'),
+              'database' => [
+                  'server' => getenv('COCKPIT_DATABASE_SERVER'),
+                  'options' => ['db' => getenv('COCKPIT_DATABASE_NAME')],
+              ],
+          ];
+    resources:
+      memoryMb: 256
+  - key: mongodb
+    name: Cockpit DB
+    kind: database
+    database:
+      engine: mongodb
+      version: "8.0"
+      databaseName: cockpit
+group: Cockpit
+notes:
+  - "Open /install right after the first deploy and create the administrator account: whoever reaches that page first sets it up."
+  - "Cockpit stores its content in MongoDB; uploaded assets, caches and the search index are kept on the storage volume."

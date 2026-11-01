@@ -1,0 +1,11 @@
+# expect: invalid_unset_path
+# `healthcheck` is not a key of a service; the table is `health_check`.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[environments.staging.services.web]
+unset = ["healthcheck"]

@@ -1,0 +1,4 @@
+argv: ["sh" "-c" "exec pg_controldata \"$PGDATA\""]
+env: []
+user: ""
+stdin:

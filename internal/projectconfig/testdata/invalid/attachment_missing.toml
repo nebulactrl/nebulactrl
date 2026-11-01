@@ -1,0 +1,12 @@
+# expect: attachment_missing
+# `source` names a file next to nebula.toml; the caller must hand its content
+# in as an attachment, and none was supplied.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.files."/etc/nginx/conf.d/site.conf"]
+source = "config/site.conf"

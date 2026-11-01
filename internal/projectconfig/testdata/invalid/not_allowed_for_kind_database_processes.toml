@@ -1,0 +1,13 @@
+# expect: not_allowed_for_kind
+# schema: reject
+# Processes run an app's image; a managed database has none.
+schema = 1
+server = "fra-1"
+
+[services.db]
+
+[services.db.database]
+engine = "postgres"
+
+[services.db.processes.worker]
+command = ["run", "worker"]

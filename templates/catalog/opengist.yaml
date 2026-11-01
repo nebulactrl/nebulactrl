@@ -1,0 +1,52 @@
+schema: 1
+id: opengist
+revision: 1
+name: Opengist
+summary: Self-hosted pastebin powered by Git, a GitHub Gist alternative with revisions, forks and search.
+description: Opengist stores snippets as Git repositories and supports public, unlisted and private gists with syntax highlighting. This template runs the official image with its built-in SQLite database and search index on one data volume.
+category: devtools
+tags: [pastebin, snippets, gist, git]
+links:
+  website: https://opengist.io
+  docs: https://opengist.io/docs
+  source: https://github.com/thomiceli/opengist
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/thomiceli/opengist/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/opengist
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: opengist
+    name: Opengist
+    kind: app
+    image: ghcr.io/thomiceli/opengist:1.15.3
+    digest: sha256:f5dd39cc9409b4006f8b090e5f9ed042cdb736d28a06b4f985c674dacafc94d5
+    port: 6157
+    healthcheck:
+      type: http
+      path: /healthcheck
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      OG_EXTERNAL_URL: ${{NEBULA_PUBLIC_URL}}
+      OG_SECRET_KEY: ${{secret(32)}}
+      OG_SSH_GIT_ENABLED: "false"
+      OG_LOG_LEVEL: info
+    volumes:
+      - name: data
+        path: /opengist
+    resources:
+      memoryMb: 256
+group: Opengist
+notes:
+  - "Register the first account on the site: it becomes the administrator. Registration stays open until you disable it in the admin panel."
+  - "Git over HTTP works on the site's address. SSH cloning is turned off, because the SSH port is not published."

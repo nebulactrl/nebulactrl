@@ -1,0 +1,50 @@
+schema: 1
+id: arangodb
+revision: 1
+name: ArangoDB
+summary: Multi-model database for documents, graphs and key-values with the AQL query language and a web UI.
+description: Runs a single ArangoDB server (the official Docker image) with a generated root password and a persistent data volume. Community edition, licensed under the Business Source License.
+category: data
+tags: [database, graph, nosql, document, aql]
+icon: arangodb
+links:
+  website: https://arangodb.com
+  docs: https://docs.arangodb.com
+  source: https://github.com/arangodb/arangodb
+upstream:
+  license: BUSL-1.1
+  licenseUrl: https://github.com/arangodb/arangodb/blob/devel/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/arangodb
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: arangodb
+    name: ArangoDB
+    kind: app
+    image: arangodb:3.12.12
+    digest: sha256:ae1ce5af4783e008d359daaa963559aa4e32a5bd9ea54e2304f5b3adbc88c4aa
+    port: 8529
+    healthcheck:
+      type: http
+      path: /_admin/server/availability
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    env:
+      ARANGO_ROOT_PASSWORD: ${{secret(24)}}
+    volumes:
+      - name: data
+        path: /var/lib/arangodb3
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+group: ArangoDB
+notes:
+  - "Open the web UI and sign in as root. The password is the ARANGO_ROOT_PASSWORD variable of the service."
+  - "The community edition is under the Business Source License: free for internal production use, not for offering ArangoDB as a service to third parties."

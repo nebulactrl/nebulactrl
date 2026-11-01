@@ -1,0 +1,66 @@
+schema: 1
+id: ntfy
+revision: 1
+name: ntfy
+summary: "HTTP-based pub-sub notification service: send push notifications to phones and desktops from scripts with a plain PUT or POST."
+description: ntfy delivers notifications published over HTTP to its web app and to the Android and iOS apps. This template runs a private instance with login enabled and an access policy you choose, with the message cache, user database and attachments on one volume.
+category: automation
+tags: [notifications, push, pub-sub, alerting, api]
+icon: ntfy
+links:
+  website: https://ntfy.sh
+  docs: https://docs.ntfy.sh
+  source: https://github.com/binwiederhier/ntfy
+upstream:
+  license: Apache-2.0 OR GPL-2.0-only
+  licenseUrl: https://github.com/binwiederhier/ntfy/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/ntfy.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 128
+  diskGb: 2
+inputs:
+  - {key: DEFAULT_ACCESS, label: "Default access for anonymous users (deny-all, read-only, write-only or read-write)", default: deny-all}
+  - {key: UPSTREAM_BASE_URL, format: url, label: "Upstream server for iOS instant notifications (leave empty if you have no iOS users)", default: "https://ntfy.sh"}
+services:
+  - key: ntfy
+    name: ntfy
+    kind: app
+    image: binwiederhier/ntfy:v2.34.0
+    digest: sha256:901e14503d3f605f445be0e68f2ac71f0aa73391897ce6ceb599f8c48d8b3792
+    port: 80
+    command: [serve]
+    healthcheck:
+      type: http
+      path: /v1/health
+      startPeriodSeconds: 10
+      deadlineSeconds: 90
+    env:
+      NTFY_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      NTFY_BEHIND_PROXY: "true"
+      NTFY_CACHE_FILE: /var/lib/ntfy/cache.db
+      NTFY_CACHE_DURATION: 24h
+      NTFY_AUTH_FILE: /var/lib/ntfy/auth.db
+      NTFY_AUTH_DEFAULT_ACCESS: ${input:DEFAULT_ACCESS}
+      NTFY_ENABLE_LOGIN: "true"
+      NTFY_ATTACHMENT_CACHE_DIR: /var/lib/ntfy/attachments
+      NTFY_ATTACHMENT_TOTAL_SIZE_LIMIT: 1G
+      NTFY_ATTACHMENT_FILE_SIZE_LIMIT: 10M
+      NTFY_ATTACHMENT_EXPIRY_DURATION: 24h
+      NTFY_UPSTREAM_BASE_URL: ${input:UPSTREAM_BASE_URL}
+    volumes:
+      - name: data
+        path: /var/lib/ntfy
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 128
+group: ntfy
+notes:
+  - "The default access policy is deny-all, so create the first admin before using the instance: run `ntfy user add --role=admin <name>` inside the container (for example `docker exec -it <container> ntfy user add --role=admin admin`), then sign in from the web app."
+  - "Set the Default access input to read-write instead for an open instance without accounts (anyone who knows a topic name can publish and subscribe)."
+  - "iOS apps need the upstream server (ntfy.sh) to receive instant notifications; only a hash of the topic name is sent there. Android and the web app work without it."

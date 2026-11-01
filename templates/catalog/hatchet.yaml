@@ -1,0 +1,85 @@
+schema: 1
+id: hatchet
+revision: 1
+name: Hatchet
+summary: Task queue and workflow engine for background jobs, durable workflows and AI agent pipelines.
+description: Hatchet runs background tasks and workflows for workers written with its SDKs. This template runs the single-container Hatchet Lite image (dashboard, API and engine, with Postgres as message queue) with its own Postgres, and publishes the worker gRPC port 7077. Hatchet documents Lite for low-volume use.
+category: automation
+tags: [task-queue, workflows, background-jobs, scheduling, ai-agents]
+links:
+  website: https://hatchet.run
+  docs: https://docs.hatchet.run/self-hosting/hatchet-lite
+  source: https://github.com/hatchet-dev/hatchet
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/hatchet-dev/hatchet/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/hatchet.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1536
+  diskGb: 5
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: "Admin password (8-64 characters with an upper-case letter, a lower-case letter and a digit)", secret: true, required: true}
+services:
+  - key: hatchet
+    name: Hatchet
+    kind: app
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:v0.114.2
+    digest: sha256:a205018e4ec2c35af4df9c86cf1e36d4b74b36ebbc849c3b33ca18815cf22d6b
+    port: 8888
+    healthcheck:
+      type: http
+      path: /api/ready
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    ports:
+      - {name: grpc, port: 7077, protocol: tcp, publish: true}
+    env:
+      DATABASE_URL: postgresql://postgres:${{db.POSTGRES_PASSWORD}}@${{db.NEBULA_PRIVATE_HOST}}:5432/hatchet?sslmode=disable
+      ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      SERVER_URL: ${{NEBULA_PUBLIC_URL}}
+      SERVER_AUTH_COOKIE_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      SERVER_AUTH_COOKIE_INSECURE: "f"
+      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+      SERVER_GRPC_BIND_ADDRESS: 0.0.0.0
+      SERVER_GRPC_PORT: "7077"
+      SERVER_GRPC_INSECURE: "t"
+      SERVER_GRPC_BROADCAST_ADDRESS: ${{NEBULA_PUBLIC_DOMAIN}}:7077
+      SERVER_INTERNAL_CLIENT_INTERNAL_GRPC_BROADCAST_ADDRESS: localhost:7077
+    volumes:
+      - {name: config, path: /config}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Hatchet DB
+    kind: database
+    image: postgres:17-alpine
+    digest: sha256:266d3c257594e195b309ae9d1805e54c788f1d7b375f56bf6c367aac6c917e7b
+    command: [postgres, -c, max_connections=200]
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U postgres -d hatchet"]
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      POSTGRES_USER: postgres
+      POSTGRES_DB: hatchet
+      POSTGRES_PASSWORD: ${{secret(32)}}
+    volumes:
+      - {name: pgdata, path: /var/lib/postgresql/data}
+    resources:
+      memoryMb: 512
+group: Hatchet
+notes:
+  - "Sign in to the dashboard with the admin email and password from the install form, then create a tenant (the default tenant is created for you) and an API token for your workers."
+  - "Workers connect to <domain>:7077 over plaintext gRPC (set HATCHET_CLIENT_TLS_STRATEGY=none and the API token); the port is open to the internet, so keep tokens secret."
+  - "The generated keys live in the config volume; keep it, or existing API tokens stop working."

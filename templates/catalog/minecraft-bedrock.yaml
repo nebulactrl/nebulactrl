@@ -1,0 +1,104 @@
+schema: 1
+id: minecraft-bedrock
+revision: 1
+name: Minecraft Bedrock Server
+summary: Minecraft Bedrock Edition dedicated server for phones, consoles and Windows, with persistent world data.
+description: Runs the itzg/minecraft-bedrock-server image, which downloads the latest Bedrock Dedicated Server from Mojang at startup. Current Bedrock servers use the NetherNet transport - TCP 19132 for signalling plus a fixed UDP range (19140-19155, one port per player) - so this template publishes all of them. You must accept the Minecraft EULA (https://aka.ms/MinecraftEULA) to start the server. The image project is MIT; the Bedrock server software itself is downloaded from Mojang and is covered by the Minecraft EULA.
+category: games
+tags: [minecraft, bedrock, game-server]
+icon: minecraft
+links:
+  website: https://github.com/itzg/docker-minecraft-bedrock-server
+  docs: https://github.com/itzg/docker-minecraft-bedrock-server#readme
+  source: https://github.com/itzg/docker-minecraft-bedrock-server
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/itzg/docker-minecraft-bedrock-server/blob/master/LICENSE
+  class: permissive
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 3
+inputs:
+  - key: EULA
+    label: Accept the Minecraft EULA
+    description: Choose TRUE only if you accept the Minecraft End User License Agreement (https://aka.ms/MinecraftEULA). The server does not start with FALSE.
+    required: true
+    options: ["TRUE", "FALSE"]
+  - key: PUBLIC_IP
+    label: Public IP clients connect to
+    description: NetherNet tells clients which IP to use for gameplay. Keep <public_ip> to detect the server's public IP at startup, or enter a fixed IPv4/IPv6 address (not a hostname).
+    default: "<public_ip>"
+  - key: SERVER_NAME
+    label: Server name
+    default: Nebula Bedrock Server
+  - key: LEVEL_NAME
+    label: World name
+    default: Bedrock level
+  - key: GAMEMODE
+    label: Game mode
+    default: survival
+    options: [survival, creative, adventure]
+  - key: DIFFICULTY
+    label: Difficulty
+    default: normal
+    options: [peaceful, easy, normal, hard]
+  - key: ALLOW_LIST
+    label: Restrict to an allowlist
+    description: With true only the players in "Allowlist users" can join. With true and an empty list nobody can join.
+    default: "false"
+    options: ["false", "true"]
+  - key: ALLOW_LIST_USERS
+    label: Allowlist users
+    description: Comma-separated gamertag:XUID pairs, for example player1:1234567890,player2:0987654321. Only used when the allowlist is on.
+services:
+  - key: server
+    name: Minecraft Bedrock
+    kind: app
+    image: itzg/minecraft-bedrock-server:2026.10.2
+    digest: sha256:717eb60a3e9d461cb33588fc2a89ff2d7c60c11b61783a2d9f04040305e258c6
+    healthcheck:
+      type: docker
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    env:
+      EULA: ${input:EULA}
+      SERVER_NAME: ${input:SERVER_NAME}
+      LEVEL_NAME: ${input:LEVEL_NAME}
+      GAMEMODE: ${input:GAMEMODE}
+      DIFFICULTY: ${input:DIFFICULTY}
+      ALLOW_LIST: ${input:ALLOW_LIST}
+      ALLOW_LIST_USERS: ${input:ALLOW_LIST_USERS}
+      MAX_PLAYERS: "16"
+      SERVER_UDP_PORTS: ${input:PUBLIC_IP}:19140-19155:19140-19155
+    ports:
+      - {name: signal, port: 19132, protocol: tcp, publish: true}
+      - {name: udp-19140, port: 19140, protocol: udp, publish: true}
+      - {name: udp-19141, port: 19141, protocol: udp, publish: true}
+      - {name: udp-19142, port: 19142, protocol: udp, publish: true}
+      - {name: udp-19143, port: 19143, protocol: udp, publish: true}
+      - {name: udp-19144, port: 19144, protocol: udp, publish: true}
+      - {name: udp-19145, port: 19145, protocol: udp, publish: true}
+      - {name: udp-19146, port: 19146, protocol: udp, publish: true}
+      - {name: udp-19147, port: 19147, protocol: udp, publish: true}
+      - {name: udp-19148, port: 19148, protocol: udp, publish: true}
+      - {name: udp-19149, port: 19149, protocol: udp, publish: true}
+      - {name: udp-19150, port: 19150, protocol: udp, publish: true}
+      - {name: udp-19151, port: 19151, protocol: udp, publish: true}
+      - {name: udp-19152, port: 19152, protocol: udp, publish: true}
+      - {name: udp-19153, port: 19153, protocol: udp, publish: true}
+      - {name: udp-19154, port: 19154, protocol: udp, publish: true}
+      - {name: udp-19155, port: 19155, protocol: udp, publish: true}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 1536
+    stopGraceSeconds: 60
+group: Minecraft Bedrock
+notes:
+  - "In Minecraft Bedrock open Play, Servers, Add Server and enter the server's address and port 19132. The first start downloads the server from Mojang."
+  - "Gameplay uses the UDP ports 19140-19155 (one per connected player, so the player limit is 16). All of them are published together with TCP 19132."
+  - "Bedrock servers refuse everyone when the allowlist is on and empty; it is off by default here."
+  - "The server software updates itself from Mojang at every restart (VERSION=LATEST); the image tag only pins the launcher."

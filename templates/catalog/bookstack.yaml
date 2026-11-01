@@ -1,0 +1,67 @@
+schema: 1
+id: bookstack
+revision: 1
+name: BookStack
+summary: Self-hosted wiki and documentation platform organised into shelves, books, chapters and pages.
+description: BookStack is a simple, WYSIWYG-friendly wiki with a book-style hierarchy, full-text search, diagrams, roles and MFA. This template runs the app with a managed MariaDB database.
+category: productivity
+tags: [wiki, documentation, knowledge-base, notes]
+icon: bookstack
+links:
+  website: https://www.bookstackapp.com
+  docs: https://www.bookstackapp.com/docs/
+  source: https://github.com/BookStackApp/BookStack
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/BookStackApp/BookStack/blob/development/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/bookstack.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 3
+services:
+  - key: bookstack
+    name: BookStack
+    kind: app
+    image: lscr.io/linuxserver/bookstack:26.09.2
+    digest: sha256:2fdeeb1a2028ce7cb1274696237e32b9f849e16b6d77314d08c78356a6016fca
+    port: 80
+    healthcheck:
+      type: http
+      path: /status
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      APP_KEY: ${{secret(32)}}
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_DATABASE: ${{db.DATABASE_NAME}}
+      DB_USERNAME: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      PUID: "1000"
+      PGID: "1000"
+      TZ: UTC
+    volumes:
+      - name: config
+        path: /config
+    resources:
+      memoryMb: 512
+  - key: db
+    name: BookStack DB
+    kind: database
+    database:
+      engine: mariadb
+      version: "11.8"
+      databaseName: bookstack
+group: BookStack
+notes:
+  - "Sign in with the default account admin@admin.com / password and change both straight away."
+  - "To send email (invitations, password resets), add the MAIL_DRIVER, MAIL_HOST, MAIL_PORT, MAIL_USERNAME, MAIL_PASSWORD, MAIL_ENCRYPTION and MAIL_FROM variables to the BookStack service."

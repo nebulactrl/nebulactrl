@@ -1,0 +1,117 @@
+{
+  "http": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`app.example.com`) || Host(`www.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-11111111-1111-1111-1111-111111111111-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`app.example.com`) || Host(`www.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-11111111-1111-1111-1111-111111111111-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`app.example.com`) || Host(`www.example.com`)",
+        "service": "nc-11111111-1111-1111-1111-111111111111",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-22222222-2222-2222-2222-222222222222-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`whoami.localhost`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-22222222-2222-2222-2222-222222222222-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`whoami.localhost`)",
+        "service": "nc-22222222-2222-2222-2222-222222222222",
+        "tls": {}
+      },
+      "nc-22222222-2222-2222-2222-222222222222-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`whoami.localhost`)",
+        "service": "nc-22222222-2222-2222-2222-222222222222",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-42.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-app-aaaaaaaa-0:8080"
+            },
+            {
+              "url": "http://nc-app-aaaaaaaa-1:8080"
+            },
+            {
+              "url": "http://nc-app-aaaaaaaa-2:8080"
+            }
+          ],
+          "healthCheck": {
+            "path": "/healthz",
+            "interval": "5s",
+            "timeout": "3s",
+            "followRedirects": false
+          }
+        }
+      },
+      "nc-22222222-2222-2222-2222-222222222222": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nc-whoami-bbbbbbbb-0:80"
+            }
+          ]
+        }
+      }
+    },
+    "middlewares": {
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "port": "8443",
+          "permanent": true
+        }
+      }
+    }
+  }
+}

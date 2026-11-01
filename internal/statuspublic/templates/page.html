@@ -1,0 +1,106 @@
+{{define "icon"}}<svg class="icon" viewBox="0 0 16 16" aria-hidden="true" focusable="false">{{if eq . "operational"}}<circle cx="8" cy="8" r="6.25"/><path d="M5.2 8.2l1.9 1.9 3.7-4"/>{{else if eq . "degraded"}}<path d="M8 2.3l6.2 10.9H1.8z"/><path d="M8 6.6v2.8M8 11.4v.1"/>{{else if eq . "partial_outage"}}<circle cx="8" cy="8" r="6.25"/><path d="M8 4.7v4M8 11.2v.1"/>{{else if eq . "major_outage"}}<circle cx="8" cy="8" r="6.25"/><path d="M5.7 5.7l4.6 4.6M10.3 5.7l-4.6 4.6"/>{{else if eq . "maintenance"}}<circle cx="8" cy="8" r="6.25"/><path d="M8 4.6V8l2.3 1.4"/>{{else}}<circle cx="8" cy="8" r="6.25" stroke-dasharray="2.4 2.2"/><path d="M6.4 6.6a1.7 1.7 0 113.2.8c-.5.7-1.6.9-1.6 2M8 11.4v.1"/>{{end}}</svg>{{end}}
+
+{{define "incident"}}<article class="card event"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
+<header><h3>{{.Title}}</h3><span class="badge st-{{.Impact.Key}}">{{template "icon" .Impact.Key}}{{.Impact.Label}}</span></header>
+<p class="when">{{.Label}} · Started <time datetime="{{.StartedISO}}">{{.Started}}</time>{{if .Ended}} · Resolved <time datetime="{{.EndedISO}}">{{.Ended}}</time>{{end}}</p>
+{{if .Components}}<p class="affects">Affects: {{.Components}}</p>{{end}}
+{{if .Updates}}<ol class="timeline">{{range .Updates}}<li data-status="{{.Status}}"><strong>{{.Label}}</strong><time datetime="{{.AtISO}}">{{.At}}</time>{{if .Body}}<p>{{.Body}}</p>{{end}}</li>{{end}}</ol>{{end}}
+</article>{{end}}
+
+{{define "component"}}<li class="component">
+<div class="row"><span class="name">{{if .URL}}<a href="{{.URL}}" rel="noopener noreferrer nofollow">{{.Name}}</a>{{else}}{{.Name}}{{end}}</span><span class="meta">{{if .HasUptime}}<span class="uptime">{{if .Uptime24}}<span title="Last 24 hours">{{.Uptime24}} <small>24h</small></span>{{end}}{{if .Uptime90}}<span title="Last 90 days">{{.Uptime90}} <small>90d</small></span>{{end}}</span>{{end}}{{if .Incident}}<a class="incident-tag" href="#h-incidents">Incident in progress</a>{{end}}<span class="state st-{{.State.Key}}">{{template "icon" .State.Key}}{{.State.Label}}</span></span></div>
+{{with .Bar}}{{if .Cells}}<div class="bar"><svg viewBox="0 0 {{.Width}} 36" role="img" tabindex="0" aria-label="{{.Label}}" shape-rendering="crispEdges">{{range .Cells}}<rect x="{{.X}}" y="{{.Y}}" width="8" height="{{.H}}" class="c-{{.Key}}" data-date="{{.Date}}" data-state="{{.State}}"{{if .Uptime}} data-uptime="{{.Uptime}}"{{end}}{{if .Note}} data-note="{{.Note}}"{{end}}{{if .Incidents}} data-incidents="{{.Incidents}}"{{end}}><title>{{.Title}}</title></rect>{{end}}</svg></div>
+<div class="ago" aria-hidden="true"><span class="wide">{{.Days}} days ago</span><span class="narrow">30 days ago</span><span>Today</span></div>
+{{if $.Uptime90}}<p class="ago-note">The bar shows the last 30 days. The uptime figure covers 90 days.</p>{{end}}
+{{end}}{{end}}</li>
+{{end}}
+
+{{define "page"}}<!doctype html>
+<html lang="en" data-theme="{{.Theme}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="{{.ColorScheme}}">
+<noscript><meta http-equiv="refresh" content="{{.Refresh}}"></noscript>
+<title>{{.Title}}</title>
+<meta name="description" content="{{.MetaDescription}}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{.Title}}">
+<meta property="og:description" content="{{.MetaDescription}}">
+<link rel="alternate" type="application/atom+xml" title="{{.Title}} updates" href="/feed.atom">
+<link rel="icon" href="{{.Favicon}}">
+<link rel="stylesheet" href="{{.CSSHref}}">
+<script src="{{.JSHref}}" defer></script>
+</head>
+<body>
+{{.Sprite}}
+<div class="wrap">
+<header class="hero">
+<h1>{{.Title}}</h1>
+{{if .Description}}<p class="desc">{{.Description}}</p>{{end}}
+<div class="card banner st-{{.Overall.Key}}" role="status">{{template "icon" .Overall.Key}}<span>{{.Overall.Label}}</span></div>
+</header>
+<main>
+{{if .Incidents}}<section aria-labelledby="h-incidents">
+<h2 id="h-incidents">Active incidents</h2>
+{{range .Incidents}}{{template "incident" .}}
+{{end}}</section>
+{{end}}{{if .Maintenance}}<section aria-labelledby="h-maintenance">
+<h2 id="h-maintenance">Maintenance</h2>
+{{range .Maintenance}}<article class="card event"{{if .Anchor}} id="{{.Anchor}}"{{end}}>
+<header><h3>{{.Title}}</h3><span class="badge st-maintenance">{{template "icon" "maintenance"}}{{if .Active}}In progress{{else}}Scheduled{{end}}</span></header>
+<p class="when"><time datetime="{{.StartsISO}}">{{.Starts}}</time> to <time datetime="{{.EndsISO}}">{{.Ends}}</time></p>
+{{if .Components}}<p class="affects">Affects: {{.Components}}</p>{{end}}
+{{if .Description}}<p class="text">{{.Description}}</p>{{end}}
+</article>
+{{end}}</section>
+{{end}}<section aria-labelledby="h-components">
+<h2 id="h-components">Components</h2>
+{{range .Groups}}{{if .Name}}<details class="card group" open>
+<summary><h3>{{.Name}}</h3></summary>
+<ul class="list">
+{{range .Components}}{{template "component" .}}{{end}}</ul>
+</details>
+{{else}}<div class="card group">
+<ul class="list">
+{{range .Components}}{{template "component" .}}{{end}}</ul>
+</div>
+{{end}}{{else}}<div class="card"><p class="empty">No components to show yet.</p></div>
+{{end}}<ul class="legend" aria-label="Legend">{{range .Legend}}<li><svg viewBox="0 0 14 14" aria-hidden="true"><rect {{if .Stub}}y="9" height="5"{{else}}height="14"{{end}} width="14" class="c-{{.Key}}"/></svg>{{.Label}}</li>{{end}}</ul>
+</section>
+<section aria-labelledby="h-past">
+<h2 id="h-past">Past incidents</h2>
+{{range .Past}}{{template "incident" .}}
+{{else}}<div class="card"><p class="empty">No incidents in the last 30 days.</p></div>
+{{end}}</section>
+</main>
+<footer>
+{{if .Footer}}<p class="footer-text">{{.Footer}}</p>
+{{end}}<div class="foot">
+<span>Last updated <time datetime="{{.UpdatedISO}}">{{.Updated}}</time> (<span class="age">{{.Age}}</span>). This page refreshes every minute. <a href="/status.json">JSON</a> · <a href="/feed.atom">Atom feed</a></span>
+<span>Powered by <a href="https://nebulactrl.com" rel="noopener noreferrer">NebulaCtrl</a></span>
+</div>
+</footer>
+</div>
+</body>
+</html>
+{{end}}
+
+{{define "notfound"}}<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="robots" content="noindex">
+<title>Not found</title>
+<link rel="stylesheet" href="{{.CSSHref}}">
+</head>
+<body>
+<main class="notfound">
+<h1>Page not found</h1>
+<p>There is nothing at this address.</p>
+</main>
+</body>
+</html>
+{{end}}

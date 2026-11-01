@@ -1,0 +1,70 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema  = 1
+project = "envs"
+server  = "fra-1"
+
+# Project layer of the shared variables and secrets.
+[variables]
+REGION = "eu"
+
+[secrets]
+keys = ["SHARED_SIGNING_KEY"]
+
+# web names its own server: it wins over every environment's server.
+[services.web]
+image  = "ghcr.io/acme/web:1.0"
+port   = 3000
+server = "fra-web"
+
+[services.web.variables]
+LOG_LEVEL   = "info"
+FEATURE_X   = "off"
+REGION_NAME = "${{shared.REGION}}"
+
+[services.web.domains."web.acme.com"]
+
+[services.web.scale]
+replicas = 3
+
+# worker has no server of its own: the environment's server applies.
+[services.worker]
+image   = "ghcr.io/acme/worker:1"
+command = ["worker", "run"]
+
+# canary exists in the file only for staging.
+[services.canary]
+image   = "ghcr.io/acme/web:next"
+port    = 3000
+only_in = ["staging"]
+
+[environments.staging]
+server = "fra-staging"
+
+[environments.staging.variables]
+REGION = "eu-staging"
+
+[environments.staging.secrets]
+keys  = ["STAGING_ONLY_KEY"]
+scope = "runtime"
+
+[environments.staging.services.web]
+unset = ['domains."web.acme.com"', "variables.FEATURE_X", "scale"]
+
+[environments.staging.services.web.variables]
+LOG_LEVEL = "debug"
+
+# jobs is defined only inside the staging block, so it is complete on its own.
+[environments.staging.services.jobs]
+image   = "ghcr.io/acme/jobs:1"
+command = ["jobs", "run"]
+
+[environments.production]
+server = "fra-prod"
+
+[environments.production.services.web.scale]
+replicas = 5
+
+[environments.production.services.web.variables]
+LOG_LEVEL = "warn"
+
+[environments.production.services.web.domains."app.acme.com"]

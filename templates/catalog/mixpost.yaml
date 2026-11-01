@@ -1,0 +1,80 @@
+schema: 1
+id: mixpost
+revision: 1
+name: Mixpost
+summary: "Self-hosted social media management: plan, schedule and publish posts to several social networks from one dashboard."
+description: Mixpost Lite is a Laravel application for composing, scheduling and publishing social media posts with a calendar, media library and per-account settings. This template runs it with a managed MySQL database and a managed Valkey instance for the queue and cache.
+category: productivity
+tags: [social-media, scheduling, marketing, publishing]
+icon: mixpost
+links:
+  website: https://mixpost.app
+  docs: https://docs.mixpost.app/lite/
+  source: https://github.com/inovector/mixpost
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/inovector/mixpost/blob/main/LICENSE.md
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/mixpost
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: APP_NAME, label: Application name, default: Mixpost}
+services:
+  - key: app
+    name: Mixpost
+    kind: app
+    image: inovector/mixpost:v2.6.0
+    digest: sha256:36b22da97fa45a27edff9c619e3b36ec5f8e87edbc9f9c42689178c6078f8a96
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db, redis]
+    domains:
+      - generate: true
+    env:
+      APP_NAME: ${input:APP_NAME}
+      APP_KEY: base64:${{randomBytes(32,"base64")}}
+      APP_DEBUG: "false"
+      APP_DOMAIN: ${{NEBULA_PUBLIC_DOMAIN}}
+      APP_URL: ${{NEBULA_PUBLIC_URL}}
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_DATABASE: ${{db.DATABASE_NAME}}
+      DB_USERNAME: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      REDIS_HOST: ${{redis.REDIS_HOST}}
+      REDIS_PORT: ${{redis.REDIS_PORT}}
+      REDIS_PASSWORD: ${{redis.REDIS_PASSWORD}}
+    volumes:
+      - name: storage
+        path: /var/www/html/storage/app
+      - name: logs
+        path: /var/www/html/storage/logs
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Mixpost DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: mixpost
+  - key: redis
+    name: Mixpost Valkey
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Mixpost
+notes:
+  - "Sign in with the default account admin@example.com / changeme and change the email and password straight away."
+  - "Connect your social accounts under Services in the Mixpost dashboard; each network needs its own developer app credentials."

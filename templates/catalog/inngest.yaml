@@ -1,0 +1,69 @@
+schema: 1
+id: inngest
+revision: 1
+name: Inngest
+summary: Self-hosted durable workflow engine for event-driven background jobs, queues, retries and scheduled functions.
+description: Inngest runs your application's functions as durable, retryable steps triggered by events or schedules, and ships a dashboard to inspect runs. This template runs the single-node server with a managed Postgres database and a managed Valkey instance for the queue and run state.
+category: automation
+tags: [workflow, queue, background-jobs, events, durable-execution]
+icon: inngest
+links:
+  website: https://www.inngest.com
+  docs: https://www.inngest.com/docs/self-hosting
+  source: https://github.com/inngest/inngest
+upstream:
+  license: SSPL-1.0 (converts to Apache-2.0 after three years)
+  licenseUrl: https://github.com/inngest/inngest/blob/main/LICENSE.md
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/inngest.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: app
+    name: Inngest
+    kind: app
+    image: inngest/inngest:v1.49.0
+    digest: sha256:ad551e89e493e34db74d155be37dc5549930fcb6eb8382e502c17da9762821c7
+    port: 8288
+    command: [inngest, start, --host, 0.0.0.0]
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    dependsOn: [db, redis]
+    domains:
+      - generate: true
+    ports:
+      - {name: connect, port: 8289, protocol: tcp}
+    env:
+      INNGEST_EVENT_KEY: ${{randomBytes(16,"hex")}}
+      INNGEST_SIGNING_KEY: ${{randomBytes(32,"hex")}}
+      INNGEST_POSTGRES_URI: ${{db.DATABASE_URL}}
+      INNGEST_REDIS_URI: ${{redis.REDIS_URL}}
+    secrets: [INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY]
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Inngest DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: inngest
+  - key: redis
+    name: Inngest Redis
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Inngest
+notes:
+  - "Point your apps at the server with INNGEST_BASE_URL (the service URL), INNGEST_DEV=0 and the INNGEST_EVENT_KEY and INNGEST_SIGNING_KEY values from this service's variables."
+  - "The dashboard and API on the public domain have no login of their own; restrict access to the domain, or keep it private, if you do not want others to reach it."
+  - "Apps that use the Connect WebSocket gateway reach it on port 8289 of the service's private host."

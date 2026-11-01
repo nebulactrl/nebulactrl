@@ -1,0 +1,57 @@
+schema: 1
+id: silo
+revision: 1
+name: Silo
+summary: S3-compatible object storage server, a community-maintained fork of MinIO.
+description: Silo (PGSTY Silo) is an independent fork that keeps the MinIO server line alive with fixes and multi-arch images. This template runs a single node with one data volume and exposes the S3 API on the service domain.
+category: storage
+tags: [s3, object-storage, minio, buckets]
+links:
+  website: https://silo.pgsty.com
+  docs: https://silo.pgsty.com/docs/
+  source: https://github.com/pgsty/silo
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/pgsty/silo/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/silo
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 10
+inputs:
+  - {key: ROOT_USER, label: Root access key (3+ characters), default: silo-admin, required: true}
+  - {key: ROOT_PASSWORD, label: Root secret key (8+ characters), secret: true, default: "${{secret(32)}}"}
+services:
+  - key: silo
+    name: Silo
+    kind: app
+    image: pgsty/silo:RELEASE.2026-10-26T00-00-00Z
+    digest: sha256:7bb2aff6b89efe1cb1303c10fc21d579447434ed06649ac9ec05a5e2dbf30ad7
+    port: 9000
+    command: [server, /data, --console-address, ":9001"]
+    healthcheck:
+      type: http
+      path: /minio/health/live
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      MINIO_ROOT_USER: ${input:ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${input:ROOT_PASSWORD}
+    ports:
+      - {name: console, port: 9001, protocol: tcp}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 512
+group: Silo
+notes:
+  - "Use the service domain as the S3 endpoint (path-style addressing) with the root access key and secret key from the install form. Create dedicated users and keys for applications."
+  - "The web console (port 9001) stays private to the stack because a service can only have one public domain. Manage buckets and users with the bundled client: run `mcli alias set local http://127.0.0.1:9000 <access key> <secret key>` inside the container."
+  - "Silo is an independent fork of MinIO (not affiliated with MinIO, Inc.); data stays compatible with the MinIO storage format."

@@ -1,0 +1,58 @@
+schema: 1
+id: open-design
+revision: 1
+name: Open Design
+summary: Web workspace that turns prompts into design systems, prototypes and slide decks using the AI model API you provide.
+description: Open Design is a local-first design tool with a library of design systems and plugins. This template runs the official self-hosted image behind a sign-in; add your own model API key in the app (the image bundles no coding-agent CLIs).
+category: ai
+tags: [design, prototyping, ai, ui, self-hosted]
+links:
+  website: https://open-design.ai
+  docs: https://github.com/nexu-io/open-design/blob/main/deploy/README.md
+  source: https://github.com/nexu-io/open-design
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/nexu-io/open-design/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/open-design
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 384
+  diskGb: 2
+inputs:
+  - {key: OD_API_TOKEN, label: Access token (browser sign-in password for user open-design), secret: true, default: "${{secret(32)}}"}
+services:
+  - key: open-design
+    name: Open Design
+    kind: app
+    image: ghcr.io/nexu-io/od:0.26.1
+    digest: sha256:5fc38ad9dd67dceb89a332c52ded43745be1071816c6683607f7032200693643
+    port: 7456
+    healthcheck:
+      type: exec
+      command: [CMD, node, -e, "fetch('http://127.0.0.1:7456/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      intervalSeconds: 30
+      timeoutSeconds: 5
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    env:
+      NODE_ENV: production
+      NODE_OPTIONS: --max-old-space-size=192
+      OD_BIND_HOST: 0.0.0.0
+      OD_PORT: "7456"
+      OD_ALLOWED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+      OD_API_TOKEN: ${input:OD_API_TOKEN}
+    volumes:
+      - name: open-design-data
+        path: /app/.od
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 384
+group: Open Design
+notes:
+  - "Open the service address: the browser asks for a sign-in. Use the user name open-design and the access token from the install form as the password."
+  - "Add a model provider (base URL, API key, model) in the app settings to start generating designs; the image contains no Claude, Codex or Gemini CLIs."

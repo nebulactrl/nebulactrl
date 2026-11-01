@@ -1,0 +1,14 @@
+{
+  "id": "00000000-0000-4000-8000-000000000001",
+  "type": "server.online",
+  "severity": "info",
+  "title": "edge-1 is back online",
+  "body": "",
+  "url": "",
+  "fields": {},
+  "projectId": "",
+  "serverId": "",
+  "serviceId": "",
+  "timestamp": "2026-10-26T14:30:05Z",
+  "test": false
+}

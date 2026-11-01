@@ -1,0 +1,47 @@
+schema: 1
+id: otterwiki
+revision: 1
+name: An Otter Wiki
+summary: Lightweight Markdown wiki with Git-backed page history, built with Python and Flask.
+description: An Otter Wiki stores pages as Markdown files in a Git repository and offers a simple web editor, search and user management. This template runs the official image; the repository and settings live on a persistent volume.
+category: web
+tags: [wiki, markdown, documentation, knowledge-base, git]
+links:
+  website: https://otterwiki.com
+  docs: https://otterwiki.com/Installation
+  source: https://github.com/redimp/otterwiki
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/redimp/otterwiki/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/otterwiki
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: otterwiki
+    name: An Otter Wiki
+    kind: app
+    image: redimp/otterwiki:2.26.1
+    digest: sha256:8728fb97719414be4790bf8e9eabc345d794876dcdf55dddd164fc9eb8e0cbcb
+    port: 80
+    healthcheck:
+      type: http
+      path: /-/healthz
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    volumes:
+      - name: data
+        path: /app-data
+    resources:
+      memoryMb: 256
+group: An Otter Wiki
+notes:
+  - "Register your account on the service's domain right after deploying: the first account becomes the administrator and gets the Settings tab. Until then anyone can register first."
+  - "Set access rules (who can read, edit or register) under Settings once you are signed in."

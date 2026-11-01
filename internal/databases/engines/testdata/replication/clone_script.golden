@@ -1,0 +1,10 @@
+set -eu
+[ ! -s "$PGDATA/PG_VERSION" ] || { echo "data directory is not empty" >&2; exit 4; }
+install -d -o postgres -g postgres -m 0700 "$PGDATA"
+PGCONNECT_TIMEOUT=15 psql "host=$NC_HOST port=$NC_PORT user=$NC_USER dbname=postgres replication=true" -X -q -c "DROP_REPLICATION_SLOT $NC_SLOT" >/dev/null 2>&1 || true
+gosu postgres pg_basebackup -h "$NC_HOST" -p "$NC_PORT" -U "$NC_USER" -D "$PGDATA" -X stream -C -S "$NC_SLOT" --checkpoint=fast --no-password -v
+: > "$PGDATA/standby.signal"
+printf "primary_conninfo = 'host=%s port=%s user=%s application_name=%s'\nprimary_slot_name = '%s'\n" "$NC_HOST" "$NC_PORT" "$NC_USER" "$NC_SLOT" "$NC_SLOT" > "$PGDATA/nebula.replica.conf"
+grep -q nebula.replica.conf "$PGDATA/postgresql.conf" || echo "include_if_exists = 'nebula.replica.conf'" >> "$PGDATA/postgresql.conf"
+chown postgres:postgres "$PGDATA/standby.signal" "$PGDATA/nebula.replica.conf" "$PGDATA/postgresql.conf"
+chmod 0600 "$PGDATA/nebula.replica.conf"

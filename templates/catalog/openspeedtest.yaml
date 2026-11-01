@@ -1,0 +1,44 @@
+schema: 1
+id: openspeedtest
+revision: 1
+name: OpenSpeedTest
+summary: Self-hosted HTML5 network speed test that measures download, upload and ping from any browser.
+description: OpenSpeedTest serves a static speed-test page from a small Nginx-based image. Results measure the path between the visitor's browser and this server.
+category: homelab
+tags: [speedtest, network, bandwidth, latency]
+links:
+  website: https://openspeedtest.com
+  docs: https://github.com/openspeedtest/Speed-Test#self-hosted-on-premise--docker-imagesource-code
+  source: https://github.com/openspeedtest/Speed-Test
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/openspeedtest/Speed-Test/blob/main/License.md
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/openspeedtest
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 1
+services:
+  - key: openspeedtest
+    name: OpenSpeedTest
+    kind: app
+    image: openspeedtest/latest:v2.0.8
+    digest: sha256:1127de0693c36bcf8c297c73d09891df8ec243680d027a6b6fab13fa0954ff46
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 128
+group: OpenSpeedTest
+notes:
+  - "Open the public address in a browser and press Start. The result reflects the connection between that browser and the server, including any proxy or CDN in between."
+  - "The upload test posts large bodies; if you put another reverse proxy in front, allow request bodies of at least 35 MB."

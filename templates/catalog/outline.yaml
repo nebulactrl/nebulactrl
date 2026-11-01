@@ -1,0 +1,83 @@
+schema: 1
+id: outline
+revision: 1
+name: Outline
+summary: Fast, collaborative team wiki and knowledge base with real-time editing.
+description: Outline is a modern team knowledge base with markdown, real-time collaboration and powerful search. This template runs Outline with managed Postgres and Valkey, and stores uploads on a local volume. Outline has no password login, so you must connect an OpenID Connect provider during install.
+category: productivity
+tags: [wiki, knowledge-base, documentation, collaboration]
+icon: outline
+links:
+  website: https://www.getoutline.com
+  docs: https://docs.getoutline.com
+  source: https://github.com/outline/outline
+upstream:
+  license: BUSL-1.1
+  licenseUrl: https://github.com/outline/outline/blob/main/LICENSE
+  class: source-available
+origin:
+  type: original
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: OIDC_CLIENT_ID, label: OIDC client ID, required: true}
+  - {key: OIDC_CLIENT_SECRET, label: OIDC client secret, required: true, secret: true}
+  - {key: OIDC_AUTH_URI, format: url, label: OIDC authorization endpoint (e.g. https://idp.example.com/authorize), required: true}
+  - {key: OIDC_TOKEN_URI, format: url, label: OIDC token endpoint, required: true}
+  - {key: OIDC_USERINFO_URI, format: url, label: OIDC userinfo endpoint, required: true}
+  - {key: OIDC_DISPLAY_NAME, label: Sign-in button label, required: true, default: OpenID Connect}
+services:
+  - key: app
+    name: Outline
+    kind: app
+    image: outlinewiki/outline:1.12.0
+    digest: sha256:25d6a2ced2f1f0cf03c09abd776d87ba31941ed96d3a99992aa84b3bd0afc074
+    port: 3000
+    healthcheck:
+      type: http
+      path: /_health
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db, cache]
+    domains:
+      - generate: true
+    env:
+      URL: ${{NEBULA_PUBLIC_URL}}
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      PGSSLMODE: disable
+      REDIS_URL: ${{cache.REDIS_URL}}
+      SECRET_KEY: ${{randomBytes(32,"hex")}}
+      UTILS_SECRET: ${{randomBytes(32,"hex")}}
+      FORCE_HTTPS: "false"
+      FILE_STORAGE: local
+      FILE_STORAGE_LOCAL_ROOT_DIR: /var/lib/outline/data
+      OIDC_CLIENT_ID: ${input:OIDC_CLIENT_ID}
+      OIDC_CLIENT_SECRET: ${input:OIDC_CLIENT_SECRET}
+      OIDC_AUTH_URI: ${input:OIDC_AUTH_URI}
+      OIDC_TOKEN_URI: ${input:OIDC_TOKEN_URI}
+      OIDC_USERINFO_URI: ${input:OIDC_USERINFO_URI}
+      OIDC_DISPLAY_NAME: ${input:OIDC_DISPLAY_NAME}
+      OIDC_SCOPES: openid profile email
+    volumes:
+      - {name: data, path: /var/lib/outline/data}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Outline DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: outline
+  - key: cache
+    name: Outline Cache
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+group: Outline
+notes:
+  - "Outline has no built-in password login: the OIDC inputs are required. Register a client at your identity provider (Keycloak, Authentik, Zitadel, Google, ...) with the redirect URI <your Outline URL>/auth/oidc.callback, then enter its client ID, secret and endpoints."
+  - "The first person to sign in creates the workspace and becomes its admin."
+  - "Uploads and attachments are stored on the data volume; back it up together with the database."

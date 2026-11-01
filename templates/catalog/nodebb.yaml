@@ -1,0 +1,66 @@
+schema: 1
+id: nodebb
+revision: 1
+name: NodeBB
+summary: Modern forum software with real-time notifications, plugins and themes.
+description: Runs the official NodeBB image with a managed Postgres database. The database and site URL are preconfigured, so the web installer on first visit only asks for the administrator account.
+category: web
+tags: [forum, community, discussion, nodejs]
+icon: nodebb
+links:
+  website: https://nodebb.org
+  docs: https://docs.nodebb.org
+  source: https://github.com/NodeBB/NodeBB
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/NodeBB/NodeBB/blob/develop/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/nodebb.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: nodebb
+    name: NodeBB
+    kind: app
+    image: ghcr.io/nodebb/nodebb:4.15.2
+    digest: sha256:80e60a49ab1e600ad707cbdf96432150092e9d190c8b362a4d49cabbb845a752
+    port: 4567
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      url: ${{NEBULA_PUBLIC_URL}}
+      secret: ${{secret(32)}}
+      database: postgres
+      postgres__host: ${{db.DATABASE_HOST}}
+      postgres__port: ${{db.DATABASE_PORT}}
+      postgres__username: ${{db.DATABASE_USER}}
+      postgres__password: ${{db.DATABASE_PASSWORD}}
+      postgres__database: ${{db.DATABASE_NAME}}
+    volumes:
+      - {name: build, path: /usr/src/app/build}
+      - {name: uploads, path: /usr/src/app/public/uploads}
+      - {name: config, path: /opt/config}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: NodeBB DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: nodebb
+group: NodeBB
+notes:
+  - "Open the site once the service is healthy: the web installer asks only for the administrator username, email and password. When it finishes the container restarts by itself and NodeBB comes up (a minute or two)."
+  - "The site URL is fixed to the generated domain through the url variable. If you attach a custom domain, change that variable and redeploy."

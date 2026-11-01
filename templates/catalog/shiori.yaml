@@ -1,0 +1,49 @@
+schema: 1
+id: shiori
+revision: 1
+name: Shiori
+summary: Simple self-hosted bookmark manager with offline page archives, tags and a browser extension.
+description: Shiori saves bookmarks with readable text content and an offline archive of each page. This template runs the official image with its SQLite database and archives on a persistent volume.
+category: productivity
+tags: [bookmarks, read-it-later, archive, tags, notes]
+links:
+  website: https://github.com/go-shiori/shiori
+  docs: https://github.com/go-shiori/shiori/tree/master/docs
+  source: https://github.com/go-shiori/shiori
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/go-shiori/shiori/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/shiori
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 2
+services:
+  - key: shiori
+    name: Shiori
+    kind: app
+    image: ghcr.io/go-shiori/shiori:v1.8.0
+    digest: sha256:d3bdfc1b68b8f267a04cf74d73b8a0e1d99ac71c3a9047375e97202f079eb1f6
+    port: 8080
+    healthcheck:
+      type: http
+      path: /system/liveness
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      SHIORI_DIR: /shiori
+      SHIORI_HTTP_SECRET_KEY: ${{secret(48)}}
+    volumes:
+      - name: data
+        path: /shiori
+    resources:
+      memoryMb: 256
+group: Shiori
+notes:
+  - "Sign in with the default account shiori / gopher, then change the password immediately under Settings: the default credentials are public."

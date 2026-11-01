@@ -1,0 +1,35 @@
+{
+	"name": "@nebulactrl/docs",
+	"private": true,
+	"license": "AGPL-3.0-only",
+	"type": "module",
+	"version": "0.0.0",
+	"description": "The docs pipeline shared by apps/web (in-app docs) and apps/site (public docs): markdown to HTML, search index, OpenAPI reference, llms.txt.",
+	"exports": {
+		"./types": "./src/types.ts",
+		"./search": "./src/search.ts",
+		"./build": "./src/build/index.ts",
+		"./plugin": "./src/build/plugin.ts",
+		"./docs.css": "./src/docs.css",
+		"./api-reference": "./src/api-reference.tsx"
+	},
+	"scripts": {
+		"test": "bun test src",
+		"lint": "biome check ."
+	},
+	"dependencies": {
+		"cn": "0.5.0",
+		"highlight.js": "11.12.0",
+		"markdown-it": "15.0.3"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.6.3",
+		"@types/bun": "1.4.4",
+		"@types/react": "19.3.0",
+		"typescript": "7.0.2",
+		"vite": "8.3.5"
+	},
+	"peerDependencies": {
+		"react": "19.3.1"
+	}
+}

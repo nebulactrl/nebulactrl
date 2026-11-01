@@ -1,0 +1,55 @@
+schema: 1
+id: navidrome
+revision: 1
+name: Navidrome
+summary: Self-hosted music server and streamer with a web player and Subsonic-compatible API for mobile and desktop clients.
+description: Navidrome scans a music library, serves it through a modern web player and speaks the Subsonic API, so most Subsonic apps can stream from it. The library lives in a named volume that you fill with your music files.
+category: media
+tags: [music, streaming, subsonic, media-server, audio]
+icon: navidrome
+links:
+  website: https://www.navidrome.org
+  docs: https://www.navidrome.org/docs/
+  source: https://github.com/navidrome/navidrome
+upstream:
+  license: GPL-3.0-only
+  licenseUrl: https://github.com/navidrome/navidrome/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/navidrome.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 5
+services:
+  - key: navidrome
+    name: Navidrome
+    kind: app
+    image: deluan/navidrome:0.64.2
+    digest: sha256:38dc2727bfcfd5ede290f8ada114fc90368146f265ae4701ddddbcbe2a44ee52
+    port: 4533
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 10
+      deadlineSeconds: 90
+    env:
+      ND_SCANSCHEDULE: 1h
+      ND_LOGLEVEL: info
+      ND_SESSIONTIMEOUT: 24h
+      ND_ENABLEINSIGHTSCOLLECTOR: "false"
+    volumes:
+      - name: data
+        path: /data
+      - name: music
+        path: /music
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Navidrome
+notes:
+  - "Open the generated domain and create the first (admin) account on the first visit; do this right after deploying."
+  - "Copy your music files into the music volume (mounted at /music in the container). The library is rescanned hourly."

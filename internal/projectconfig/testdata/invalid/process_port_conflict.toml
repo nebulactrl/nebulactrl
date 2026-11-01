@@ -1,0 +1,12 @@
+# expect: process_port_conflict
+# Ports are unique across the service's own process and its processes, so a domain's target port names one process.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 3000
+
+[services.web.processes.admin]
+command = ["run", "admin"]
+port = 3000

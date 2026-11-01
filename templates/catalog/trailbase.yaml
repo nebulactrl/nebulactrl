@@ -1,0 +1,49 @@
+schema: 1
+id: trailbase
+revision: 1
+name: TrailBase
+summary: Single-executable backend with SQLite, auth, record APIs, realtime subscriptions and an admin dashboard.
+description: TrailBase is a fast application server written in Rust that serves type-safe APIs over SQLite, with built-in authentication, file storage and WebAssembly extensions. This template runs the official image with all state on one volume.
+category: devtools
+tags: [backend, sqlite, api, auth, baas]
+links:
+  website: https://trailbase.io
+  docs: https://trailbase.io/documentation
+  source: https://github.com/trailbaseio/trailbase
+upstream:
+  license: OSL-3.0
+  licenseUrl: https://github.com/trailbaseio/trailbase/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/trailbase.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 2
+services:
+  - key: trailbase
+    name: TrailBase
+    kind: app
+    image: trailbase/trailbase:0.35.5
+    digest: sha256:edfcc98b93af25c802753c023a41d00ce73806ffeada4e47d03bc9401a7af440
+    port: 4000
+    healthcheck:
+      type: http
+      path: /api/healthcheck
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      RUST_BACKTRACE: "1"
+    volumes:
+      - name: traildepot
+        path: /app/traildepot
+    resources:
+      memoryMb: 256
+group: TrailBase
+notes:
+  - "On the first start TrailBase creates an admin user (admin@localhost) with a random password and prints it once to the service logs: copy it from the logs, then sign in at /_/admin/ and change it."
+  - "Configuration, the SQLite databases, uploads and WebAssembly components all live in the traildepot volume. The admin UI is reachable on the public domain, so change the generated password right away."

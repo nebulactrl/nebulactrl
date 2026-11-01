@@ -1,0 +1,60 @@
+schema: 1
+id: wikijs
+revision: 1
+name: Wiki.js
+summary: Extensible wiki with a visual and Markdown editor, page history, search and many authentication providers.
+description: Wiki.js is a modern wiki engine for teams and documentation. This template runs the stable 2.x image against a managed Postgres database; the administrator is created in the setup wizard on first visit.
+category: web
+tags: [wiki, documentation, knowledge-base, markdown, collaboration]
+icon: wikidotjs
+links:
+  website: https://js.wiki
+  docs: https://docs.requarks.io
+  source: https://github.com/requarks/wiki
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/requarks/wiki/blob/scarlett/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/wikijs.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+services:
+  - key: wikijs
+    name: Wiki.js
+    kind: app
+    image: ghcr.io/requarks/wiki:2.5.317
+    digest: sha256:e4708eed80c014449c0c8426c8d466c7a52a62131555bb44372fa48378b448b8
+    port: 3000
+    healthcheck:
+      type: http
+      path: /healthz
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      DB_TYPE: postgres
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASS: ${{db.DATABASE_PASSWORD}}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: Wiki.js DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: wiki
+group: Wiki.js
+notes:
+  - "Open the service's domain right after deploying: the setup wizard asks for the administrator email and password and the site URL. Until it is completed, anyone who reaches the page can do it."
+  - "Use the generated https domain as the site URL in the wizard."

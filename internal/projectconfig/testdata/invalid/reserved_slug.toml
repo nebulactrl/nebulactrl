@@ -1,0 +1,8 @@
+# expect: reserved_slug
+# `shared` names the shared variable layer in references (${{shared.KEY}}), so
+# no service can use it as a slug.
+schema = 1
+server = "fra-1"
+
+[services.shared]
+image = "nginx:1.27"

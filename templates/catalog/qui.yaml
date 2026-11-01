@@ -1,0 +1,47 @@
+schema: 1
+id: qui
+revision: 1
+name: qui
+summary: Fast web interface for managing one or many qBittorrent instances, with automations, cross-seed and backups.
+description: qui is a single-binary web UI from the autobrr project that connects to existing qBittorrent instances. This template runs the official image with its config and SQLite data on a volume.
+category: media
+tags: [qbittorrent, torrent, download, automation]
+links:
+  website: https://getqui.com
+  docs: https://getqui.com/docs/getting-started/installation/
+  source: https://github.com/autobrr/qui
+upstream:
+  license: GPL-2.0-or-later
+  licenseUrl: https://github.com/autobrr/qui/blob/develop/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/qui
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: qui
+    name: qui
+    kind: app
+    image: ghcr.io/autobrr/qui:v1.33.1
+    digest: sha256:c83ce0370ab372c931ccb3f0ddd0eb1bc850026ce9eafc13ce94443f6f2a2cd3
+    port: 7476
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    volumes:
+      - name: config
+        path: /config
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: qui
+notes:
+  - "Open the site right after deploying and create the single account on the setup screen: whoever opens it first becomes the owner."
+  - "qui does not include qBittorrent: add your existing qBittorrent Web UI address under Instances after signing in."

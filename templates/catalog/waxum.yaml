@@ -1,0 +1,54 @@
+schema: 1
+id: waxum
+revision: 1
+name: Waxum
+summary: WhatsApp REST API gateway written in Rust, with multi-session support, webhooks and a web console.
+description: Waxum exposes WhatsApp sessions (multi-device protocol or the official Cloud API) through a REST API with webhooks and an ops dashboard. This template runs it with SQLite storage on a persistent volume; the dashboard and API are protected by a superadmin token.
+category: automation
+tags: [whatsapp, messaging, api, webhooks, gateway]
+links:
+  website: https://waxum.imtaqin.id
+  docs: https://waxum.imtaqin.id/docs/getting-started
+  source: https://github.com/imtaqin/waxum
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/imtaqin/waxum/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/waxum
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 2
+inputs:
+  - {key: SUPERADMIN_TOKEN, label: Superadmin token, description: Bearer token for the API and the sign-in token of the web console., secret: true, default: "${{secret(32)}}"}
+services:
+  - key: waxum
+    name: Waxum
+    kind: app
+    image: fdciabdul/waxum:0.16.1
+    digest: sha256:49ea5b8aabe98a4be2ecb2fa05bf804c6a42614250e641ccc6f275b7832d230a
+    port: 3451
+    healthcheck:
+      type: http
+      path: /livez
+      startPeriodSeconds: 20
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      SUPERADMIN_TOKEN: ${input:SUPERADMIN_TOKEN}
+      JWT_SECRET: ${{secret(48)}}
+      WHATSAPP_STORAGE_PATH: /app/whatsapp_sessions
+      SQLITE_PATH: /app/whatsapp_sessions/waxum.db
+      PUBLIC_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - {name: sessions, path: /app/whatsapp_sessions}
+    resources:
+      memoryMb: 256
+group: Waxum
+notes:
+  - "Open the public URL and sign in to the console with the superadmin token from the install form, then create a session and scan the QR code with WhatsApp."
+  - "This talks to WhatsApp through an unofficial multi-device client; using it on a personal number can violate WhatsApp's terms. The official Cloud API provider is also supported per session."

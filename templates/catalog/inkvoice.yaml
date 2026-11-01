@@ -1,0 +1,56 @@
+schema: 1
+id: inkvoice
+revision: 1
+name: Inkvoice
+summary: Self-hosted invoicing for freelancers and small teams with expenses, multi-currency, reports and optional Stripe or PayPal payments.
+description: Inkvoice is a single-container invoicing app with a built-in SQLite database on a persistent volume. The admin account is created from the install form on first boot.
+category: productivity
+tags: [invoicing, billing, finance, accounting]
+links:
+  website: https://inkvoice.app
+  docs: https://docs.inkvoice.app
+  source: https://github.com/pigontech/inkvoice
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/pigontech/inkvoice/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/inkvoice
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USER, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: inkvoice
+    name: Inkvoice
+    kind: app
+    image: ghcr.io/pigontech/inkvoice:0.3.1
+    digest: sha256:0abe633bdc518e41ef07e3911b6e116d383c6c04a094958da29d9b1c13c4bbd4
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      ADMIN_USER: ${input:ADMIN_USER}
+      ADMIN_PASS: ${input:ADMIN_PASSWORD}
+      JWT_SECRET: ${{secret(48)}}
+      DATABASE_PATH: /app/data/invoice.db
+      ENABLE_HSTS: "true"
+    volumes:
+      - name: data
+        path: /app/data
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Inkvoice
+notes:
+  - "Sign in with the admin username and password from the install form; the account is only created on the first boot with an empty database."
+  - "Invoice emails, Stripe and PayPal are off until you set the SMTP_*, STRIPE_* or PAYPAL_* variables on the service (see the project docs)."

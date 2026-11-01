@@ -1,0 +1,63 @@
+schema: 1
+id: yourls
+revision: 1
+name: YOURLS
+summary: Self-hosted URL shortener with click statistics, a REST API and plugins.
+description: YOURLS (Your Own URL Shortener) runs your own short-link service with full control over the data. This template runs the Docker Official Image with a managed MySQL database and sets the admin login from the install form.
+category: web
+tags: [url-shortener, links, analytics, php]
+links:
+  website: https://yourls.org
+  docs: https://yourls.org/docs
+  source: https://github.com/YOURLS/YOURLS
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/YOURLS/YOURLS/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/yourls
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USER, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: yourls
+    name: YOURLS
+    kind: app
+    image: yourls:1.10.6
+    digest: sha256:3e113767d6d7197707a4f213d533c94dd698606fce9e9194b26c4ee1d0d02282
+    port: 80
+    healthcheck:
+      type: http
+      path: /admin/install.php
+      startPeriodSeconds: 20
+      deadlineSeconds: 240
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      YOURLS_DB_HOST: ${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}
+      YOURLS_DB_NAME: ${{db.DATABASE_NAME}}
+      YOURLS_DB_USER: ${{db.DATABASE_USER}}
+      YOURLS_DB_PASS: ${{db.DATABASE_PASSWORD}}
+      YOURLS_SITE: ${{NEBULA_PUBLIC_URL}}
+      YOURLS_USER: ${input:ADMIN_USER}
+      YOURLS_PASS: ${input:ADMIN_PASSWORD}
+    resources:
+      memoryMb: 256
+  - key: db
+    name: YOURLS DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: yourls
+group: YOURLS
+notes:
+  - "After the first deploy open <public URL>/admin/install.php once and press Install YOURLS to create the tables, then sign in at /admin/ with the username and password from the install form."
+  - "The login and the site URL are written to the image's config when the container starts: change them through the service variables, not in the config file."

@@ -1,0 +1,43 @@
+schema: 1
+id: networking-toolbox
+revision: 1
+name: Networking Toolbox
+summary: Collection of 100+ networking tools such as subnet and DNS calculators, converters and diagnostics in one web app.
+description: Runs the official Networking Toolbox image, a stateless SvelteKit app with no database or volumes.
+category: homelab
+tags: [networking, tools, dns, subnet, utilities]
+links:
+  website: https://networkingtoolbox.net
+  docs: https://github.com/Lissy93/networking-toolbox#readme
+  source: https://github.com/Lissy93/networking-toolbox
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/Lissy93/networking-toolbox/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/networking-toolbox
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+services:
+  - key: app
+    name: Networking Toolbox
+    kind: app
+    image: lissy93/networking-toolbox:1.6.0
+    digest: sha256:4e97330fb310e1a5fbe185b1bf859270902ddef7934b88cecc6b3def98d21eaa
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Networking Toolbox
+notes:
+  - "There is no login: anyone who can open the site can use the tools."

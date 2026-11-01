@@ -1,0 +1,50 @@
+schema: 1
+id: once-campfire
+revision: 1
+name: Campfire
+summary: Simple self-hosted group chat from 37signals with rooms, direct messages, file sharing, search and a bot API.
+description: Runs the official Campfire image (Rails app, background jobs and SQLite in one container) with all data in a single persistent volume. TLS is terminated by the platform proxy.
+category: productivity
+tags: [chat, team, messaging, 37signals, rails]
+links:
+  website: https://once.com
+  docs: https://github.com/basecamp/once-campfire/blob/main/docs/self-hosting.md
+  source: https://github.com/basecamp/once-campfire
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/basecamp/once-campfire/blob/main/MIT-LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/once-campfire.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 5
+services:
+  - key: campfire
+    name: Campfire
+    kind: app
+    image: ghcr.io/basecamp/once-campfire:1.5.6
+    digest: sha256:cd6cd7e1d4cb22a70db4c13b9f99fd4284a80a404f52e56fdf64deb4d6ecdcc7
+    port: 80
+    healthcheck:
+      type: http
+      path: /up
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    env:
+      SECRET_KEY_BASE: ${{secret(64)}}
+      DISABLE_SSL: "true"
+      SKIP_TELEMETRY: "true"
+    volumes:
+      - {name: storage, path: /rails/storage}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 512
+group: Campfire
+notes:
+  - "Open the site: a first-run wizard creates the admin account. The admin email is shown on the sign-in page for people who need help."
+  - "Web Push notifications need a VAPID key pair: generate one with `script/admin/generate-secrets` in the container and set VAPID_PUBLIC_KEY and VAPID_PRIVATE_KEY on the service."

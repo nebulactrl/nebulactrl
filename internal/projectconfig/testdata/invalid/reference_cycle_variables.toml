@@ -1,0 +1,19 @@
+# expect: reference_cycle
+# References between variables add dependencies; these two services read each
+# other, which no deploy order can satisfy.
+schema = 1
+server = "fra-1"
+
+[services.a]
+image = "nginx:1.27"
+
+[services.a.variables]
+PEER_URL = "${{b.SELF_URL}}"
+SELF_URL = "http://a.internal"
+
+[services.b]
+image = "nginx:1.27"
+
+[services.b.variables]
+PEER_URL = "${{a.SELF_URL}}"
+SELF_URL = "http://b.internal"

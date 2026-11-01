@@ -1,0 +1,51 @@
+schema: 1
+id: vaultwarden
+revision: 1
+name: Vaultwarden
+summary: Lightweight, Bitwarden-compatible password manager server written in Rust.
+description: Vaultwarden is an unofficial, resource-efficient implementation of the Bitwarden server API. It works with all official Bitwarden clients and stores everything in an embedded SQLite database on a volume.
+category: security
+tags: [passwords, security, bitwarden, secrets]
+icon: vaultwarden
+links:
+  website: https://github.com/dani-garcia/vaultwarden
+  docs: https://github.com/dani-garcia/vaultwarden/wiki
+  source: https://github.com/dani-garcia/vaultwarden
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/dani-garcia/vaultwarden/blob/main/LICENSE.txt
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 128
+  diskGb: 1
+inputs:
+  - {key: SIGNUPS_ALLOWED, label: Allow new user sign-ups (true/false), default: "true"}
+services:
+  - key: app
+    name: Vaultwarden
+    kind: app
+    image: vaultwarden/server:1.37.4
+    digest: sha256:efb3cde962015fcc036b2ea625242248611943b27212ebf4392841fb30fad055
+    port: 80
+    healthcheck:
+      type: http
+      path: /alive
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      DOMAIN: ${{NEBULA_PUBLIC_URL}}
+      ADMIN_TOKEN: ${{secret(48)}}
+      SIGNUPS_ALLOWED: ${input:SIGNUPS_ALLOWED}
+    volumes:
+      - {name: data, path: /data}
+    resources:
+      memoryMb: 256
+group: Vaultwarden
+notes:
+  - "Vaultwarden needs HTTPS: Bitwarden clients and browsers' crypto APIs refuse to work over plain HTTP. Use the generated domain or attach your own domain with TLS."
+  - "Create your account at the public URL, then set SIGNUPS_ALLOWED to false (or invite users from the admin page) so strangers cannot register."
+  - "The admin page is at /admin; the token is the ADMIN_TOKEN variable of this service (a plain-text token: Vaultwarden logs a hint to switch to an Argon2 hash)."

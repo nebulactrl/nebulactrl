@@ -1,0 +1,55 @@
+schema: 1
+id: go-whatsapp-web-multidevice
+revision: 1
+name: GoWA (WhatsApp Web Multi-Device API)
+summary: REST API and web dashboard for sending and receiving WhatsApp messages through a linked device.
+description: go-whatsapp-web-multidevice is an unofficial WhatsApp Web multi-device gateway built on whatsmeow, with a REST API, webhooks and a web dashboard. This template runs the official image behind HTTP basic auth.
+category: automation
+tags: [whatsapp, messaging, api, webhooks]
+icon: whatsapp
+links:
+  website: https://github.com/aldinokemal/go-whatsapp-web-multidevice
+  docs: https://github.com/aldinokemal/go-whatsapp-web-multidevice#readme
+  source: https://github.com/aldinokemal/go-whatsapp-web-multidevice
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/aldinokemal/go-whatsapp-web-multidevice/blob/main/LICENCE.txt
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/go-whatsapp-web-multidevice
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 384
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USERNAME, label: Basic-auth username, default: admin, required: true}
+  - {key: ADMIN_PASSWORD, label: Basic-auth password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: whatsapp
+    name: GoWA
+    kind: app
+    image: aldinokemal2104/go-whatsapp-web-multidevice:v9.7.0
+    digest: sha256:f48200a5ed799fc802cc65426f34c75ce2d5e69fc5d7a0a6e3852d2ac00d79ca
+    port: 3000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      APP_PORT: "3000"
+      APP_BASIC_AUTH: ${input:ADMIN_USERNAME}:${input:ADMIN_PASSWORD}
+      APP_OS: Chrome
+    secrets: [APP_BASIC_AUTH]
+    volumes:
+      - {name: storages, path: /app/storages}
+    resources:
+      memoryMb: 384
+group: GoWA
+notes:
+  - "Sign in to the dashboard with the basic-auth username and password from the install form, then scan the QR code with WhatsApp (Linked devices) to link an account."
+  - "This is an unofficial client: WhatsApp can restrict accounts that use it. Do not expose the API without the basic-auth credentials."

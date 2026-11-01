@@ -1,0 +1,59 @@
+schema: 1
+id: bulwark
+revision: 1
+name: Bulwark Webmail
+summary: Self-hosted JMAP webmail client for Stalwart and other JMAP mail servers, with mail, calendar and contacts.
+description: Bulwark Webmail is a web client that signs users in against an existing JMAP mail server. This template runs the official image with persistent settings and admin data; it needs the URL of a JMAP server you already operate.
+category: productivity
+tags: [webmail, email, jmap, stalwart, calendar]
+links:
+  website: https://bulwarkmail.org
+  docs: https://bulwarkmail.org/docs
+  source: https://github.com/bulwarkmail/webmail
+upstream:
+  license: AGPL-3.0-only
+  licenseUrl: https://github.com/bulwarkmail/webmail/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/bulwark.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - key: JMAP_SERVER_URL
+    format: url
+    label: JMAP server URL
+    description: Address of your JMAP mail server (for example https://mail.example.com). It must be reachable from this server.
+    required: true
+services:
+  - key: bulwark
+    name: Bulwark Webmail
+    kind: app
+    image: ghcr.io/bulwarkmail/webmail:1.18.0
+    digest: sha256:a985e7e40eccc70f7c7dc5d6eceaf3429ab3b644a6cf58deb240a04d39a77738
+    port: 3000
+    healthcheck:
+      type: http
+      path: /api/health
+      startPeriodSeconds: 15
+      deadlineSeconds: 180
+    env:
+      JMAP_SERVER_URL: ${input:JMAP_SERVER_URL}
+      SESSION_SECRET: ${{randomBytes(32,"hex")}}
+    volumes:
+      - name: settings
+        path: /app/data/settings
+      - name: admin
+        path: /app/data/admin
+      - name: admin-state
+        path: /app/data/admin-state
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: Bulwark Webmail
+notes:
+  - "Sign in with an account of your JMAP server. The server's CORS and certificate settings must allow this site; self-signed certificates need NODE_EXTRA_CA_CERTS."

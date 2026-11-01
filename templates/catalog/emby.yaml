@@ -1,0 +1,62 @@
+schema: 1
+id: emby
+revision: 1
+name: Emby
+summary: Personal media server for your movies, shows, music and photos, with apps for most devices.
+description: Emby organizes your own media library and streams it to browsers, phones and TVs, transcoding on the fly when needed. This template runs the official image with persistent config and media volumes.
+category: media
+tags: [media, streaming, video, music]
+icon: emby
+links:
+  website: https://emby.media
+  docs: https://emby.media/support/articles/Home.html
+  source: https://github.com/MediaBrowser/Emby
+upstream:
+  license: Proprietary
+  licenseUrl: https://emby.media/terms.html
+  class: proprietary
+origin:
+  type: coolify
+  path: templates/compose/emby.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 10
+inputs:
+  - key: TZ
+    label: Time zone
+    description: IANA time zone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: app
+    name: Emby
+    kind: app
+    image: emby/embyserver:4.10.2.0
+    digest: sha256:7082c63b10a2fcb3805a7eaebba407d5723bc57c085c9f0b29b7d0a702765cc1
+    port: 8096
+    healthcheck:
+      type: http
+      path: /System/Info/Public
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    domains:
+      - generate: true
+    env:
+      UID: "1000"
+      GID: "1000"
+      GIDLIST: "1000"
+      TZ: ${input:TZ}
+    volumes:
+      - name: config
+        path: /config
+      - name: media
+        path: /mnt/media
+    resources:
+      memoryMb: 1024
+group: Emby
+notes:
+  - "Emby is closed-source freeware; the image is published by Emby itself. Some features (hardware transcoding, mobile sync, DVR) need an Emby Premiere licence."
+  - "Open the domain and finish the setup wizard to create the admin account, then add /mnt/media as a library folder."
+  - "Put your media into the `media` volume (mounted at /mnt/media). To use existing files on the host, mount that folder into the service in addition to the volume."
+  - "DLNA and automatic discovery on the local network need host networking, which NebulaCtrl does not support. Clients connect through the domain instead."

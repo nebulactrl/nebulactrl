@@ -1,0 +1,27 @@
+{
+  "text": "Success: edge-1 is back online",
+  "attachments": [
+    {
+      "color": "#4cc38a",
+      "blocks": [
+        {
+          "type": "header",
+          "text": {
+            "type": "plain_text",
+            "text": "edge-1 is back online",
+            "emoji": false
+          }
+        },
+        {
+          "type": "context",
+          "elements": [
+            {
+              "type": "mrkdwn",
+              "text": "NebulaCtrl · server.online · 2026-10-26 14:30 UTC"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

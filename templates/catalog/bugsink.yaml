@@ -1,0 +1,85 @@
+schema: 1
+id: bugsink
+revision: 1
+name: Bugsink
+summary: Self-hosted error tracking that is compatible with the Sentry SDKs.
+description: Bugsink collects crash reports from applications that use a Sentry SDK, groups them into issues and sends alerts. This template runs the app against a managed MySQL database.
+category: devtools
+tags: [error-tracking, sentry, monitoring, debugging]
+icon: bugsink
+links:
+  website: https://www.bugsink.com
+  docs: https://www.bugsink.com/docs/
+  source: https://github.com/bugsink/bugsink
+upstream:
+  license: PolyForm-Shield-1.0.0
+  licenseUrl: https://github.com/bugsink/bugsink/blob/main/LICENSE
+  class: source-available
+origin:
+  type: coolify
+  path: templates/compose/bugsink.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+  - {key: SITE_TITLE, label: Site title, default: Bugsink}
+  - {key: TIME_ZONE, label: Time zone, default: UTC}
+  - {key: EMAIL_HOST, format: hostname, label: SMTP host (leave empty to disable email)}
+  - {key: EMAIL_PORT, format: number, label: SMTP port, default: "587"}
+  - {key: EMAIL_HOST_USER, label: SMTP user}
+  - {key: EMAIL_HOST_PASSWORD, label: SMTP password, secret: true}
+  - {key: EMAIL_USE_TLS, label: SMTP STARTTLS (True or False), default: "True"}
+  - {key: EMAIL_USE_SSL, label: SMTP implicit TLS (True or False), default: "False"}
+  - {key: DEFAULT_FROM_EMAIL, label: From address, default: "Bugsink <bugsink@example.org>"}
+services:
+  - key: web
+    name: Bugsink
+    kind: app
+    image: bugsink/bugsink:2.6.2
+    digest: sha256:a013fe0da745b753d65f9816020d36f91620e6d1c62ac22d82463b3a6ec2d71e
+    port: 8000
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, 'python -c ''import requests; requests.get("http://localhost:8000/health/ready").raise_for_status()''']
+      intervalSeconds: 10
+      timeoutSeconds: 20
+      startPeriodSeconds: 30
+      deadlineSeconds: 180
+    dependsOn: [mysql]
+    domains:
+      - generate: true
+    env:
+      BASE_URL: ${{NEBULA_PUBLIC_URL}}
+      BEHIND_HTTPS_PROXY: "True"
+      CREATE_SUPERUSER: ${input:ADMIN_EMAIL}:${input:ADMIN_PASSWORD}
+      DATABASE_URL: ${{mysql.DATABASE_URL}}
+      SECRET_KEY: ${{secret(64)}}
+      SITE_TITLE: ${input:SITE_TITLE}
+      TIME_ZONE: ${input:TIME_ZONE}
+      PHONEHOME: "False"
+      EMAIL_HOST: ${input:EMAIL_HOST}
+      EMAIL_PORT: ${input:EMAIL_PORT}
+      EMAIL_HOST_USER: ${input:EMAIL_HOST_USER}
+      EMAIL_HOST_PASSWORD: ${input:EMAIL_HOST_PASSWORD}
+      EMAIL_USE_TLS: ${input:EMAIL_USE_TLS}
+      EMAIL_USE_SSL: ${input:EMAIL_USE_SSL}
+      DEFAULT_FROM_EMAIL: ${input:DEFAULT_FROM_EMAIL}
+    secrets: [CREATE_SUPERUSER]
+    resources:
+      memoryMb: 512
+  - key: mysql
+    name: Bugsink DB
+    kind: database
+    database:
+      engine: mysql
+      version: "8.4"
+      databaseName: bugsink
+group: Bugsink
+notes:
+  - "Sign in with the admin email and password from the install form."
+  - "Fill in the SMTP settings (or edit the variables later) to receive alert emails; with the SMTP host empty, emails are only logged."
+  - "Bugsink is source-available under the PolyForm Shield licence: free to self-host, but you may not offer it as a competing service."

@@ -1,0 +1,53 @@
+schema: 1
+id: ontime
+revision: 1
+name: Ontime
+summary: Browser-based event rundown, scheduling and cueing tool for live shows, with shareable timer and cue views.
+description: Ontime manages rundowns for live events and broadcasts and serves timers, cuesheets and countdowns to any browser. This template runs the official image with a persistent data volume and the editor protected by a password.
+category: productivity
+tags: [events, rundown, scheduling, live, timer]
+links:
+  website: https://getontime.no
+  docs: https://docs.getontime.no
+  source: https://github.com/cpvalente/ontime
+upstream:
+  license: GPL-3.0-or-later
+  licenseUrl: https://github.com/cpvalente/ontime/blob/master/LICENSE.md
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/ontime
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 1
+inputs:
+  - {key: SESSION_PASSWORD, label: Password required to open Ontime, secret: true, default: "${{secret(20)}}"}
+  - {key: TZ, label: Timezone (IANA name), default: UTC}
+services:
+  - key: ontime
+    name: Ontime
+    kind: app
+    image: getontime/ontime:v4.15.0
+    digest: sha256:598b9c4a0cdfe5e169108cb15ae946fba95803159e6aa8c958043bb91745db93
+    port: 4001
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 15
+      deadlineSeconds: 120
+    domains:
+      - generate: true
+    env:
+      SESSION_PASSWORD: ${input:SESSION_PASSWORD}
+      TZ: ${input:TZ}
+    volumes:
+      - name: data
+        path: /data
+    resources:
+      memoryMb: 256
+group: Ontime
+notes:
+  - "Open the service's domain: Ontime asks for the password from the install form (variable SESSION_PASSWORD) before showing the editor."
+  - "The OSC (UDP 8888 input / 9999 output) ports are not published; other services on the private network can reach them."

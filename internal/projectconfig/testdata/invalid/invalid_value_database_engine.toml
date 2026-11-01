@@ -1,0 +1,10 @@
+# expect: invalid_value
+# schema: reject
+# An engine the platform does not offer; the diagnostic suggests postgres.
+schema = 1
+server = "fra-1"
+
+[services.db]
+
+[services.db.database]
+engine = "postgress"

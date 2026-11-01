@@ -1,0 +1,71 @@
+schema: 1
+id: langflow
+revision: 1
+name: Langflow
+summary: Visual low-code builder for AI agents and RAG workflows, with an API and MCP server for every flow.
+description: Langflow is a drag-and-drop builder for LLM-powered agents and retrieval pipelines built on Python. This template runs the server with a managed Postgres database and a persistent config directory.
+category: ai
+tags: [ai, llm, agents, rag, workflow, low-code]
+icon: langflow
+links:
+  website: https://www.langflow.org
+  docs: https://docs.langflow.org
+  source: https://github.com/langflow-ai/langflow
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/langflow-ai/langflow/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/langflow.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 5
+inputs:
+  - {key: ADMIN_USER, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: langflow
+    name: Langflow
+    kind: app
+    image: langflowai/langflow:1.13.0
+    digest: sha256:ff2716e017f4a4bbb9e83556bf66c3d5d70a1d3eb7cffd893312600ba84e303f
+    port: 7860
+    healthcheck:
+      type: http
+      path: /health_check
+      intervalSeconds: 10
+      timeoutSeconds: 10
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      LANGFLOW_DATABASE_URL: ${{db.DATABASE_URL}}
+      LANGFLOW_CONFIG_DIR: /app/langflow
+      LANGFLOW_SECRET_KEY: ${{secret(48)}}
+      LANGFLOW_AUTO_LOGIN: "false"
+      LANGFLOW_SUPERUSER: ${input:ADMIN_USER}
+      LANGFLOW_SUPERUSER_PASSWORD: ${input:ADMIN_PASSWORD}
+      LANGFLOW_HOST: 0.0.0.0
+      DO_NOT_TRACK: "true"
+    volumes:
+      - name: config
+        path: /app/langflow
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: Langflow DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: langflow
+group: Langflow
+notes:
+  - "Sign in with the admin username and password from the install form. Auto-login is disabled."
+  - "Add your model provider API keys as global variables inside Langflow (Settings > Global Variables)."
+  - "Langflow is memory hungry on first start while it loads its component index; allow a minute or two for the first deploy."

@@ -1,0 +1,38 @@
+{
+  "http": {
+    "routers": {
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {}
+  },
+  "udp": {
+    "routers": {
+      "nc-11111111-1111-1111-1111-111111111111-udp": {
+        "entryPoints": [
+          "udp-51820"
+        ],
+        "service": "nc-11111111-1111-1111-1111-111111111111-udp"
+      }
+    },
+    "services": {
+      "nc-11111111-1111-1111-1111-111111111111-udp": {
+        "loadBalancer": {
+          "servers": [
+            {
+              "address": "192.168.1.9:51820"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

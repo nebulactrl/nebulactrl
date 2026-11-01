@@ -1,0 +1,7 @@
+{
+  "name": "nebulactrl-fixture-node",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Test fixture: a dependency-free Node HTTP server with no Dockerfile, built by Railpack.",
+  "scripts": { "start": "node server.js" }
+}

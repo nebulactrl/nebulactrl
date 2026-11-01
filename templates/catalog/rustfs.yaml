@@ -1,0 +1,61 @@
+schema: 1
+id: rustfs
+revision: 1
+name: RustFS
+summary: S3-compatible object storage server written in Rust, with generated root credentials.
+description: RustFS is a high-performance S3-compatible object store with a web console. This template runs the official single-node image on a persistent volume and publishes the S3 API on the service's domain; the console (port 9001) stays on the private network.
+category: storage
+tags: [s3, object-storage, storage, rust, minio-alternative]
+icon: rustfs
+links:
+  website: https://rustfs.com
+  docs: https://docs.rustfs.com
+  source: https://github.com/rustfs/rustfs
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/rustfs/rustfs/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/rustfs
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 10
+inputs:
+  - {key: ACCESS_KEY, label: Root access key, required: true, default: "rustfs${{randomBytes(6,\"hex\")}}"}
+  - {key: SECRET_KEY, label: Root secret key, secret: true, default: "${{secret(32)}}"}
+services:
+  - key: rustfs
+    name: RustFS
+    kind: app
+    image: rustfs/rustfs:1.0.4
+    digest: sha256:ed9210d6411d77ffceb70d94b964a3cb7d225983368bc25bebe01e995293dcc2
+    port: 9000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_ACCESS_KEY: ${input:ACCESS_KEY}
+      RUSTFS_SECRET_KEY: ${input:SECRET_KEY}
+    volumes:
+      - name: data
+        path: /data
+    ports:
+      - name: console
+        port: 9001
+        protocol: tcp
+    resources:
+      memoryMb: 512
+group: RustFS
+notes:
+  - "Use the root access key and secret key from the install form with any S3 client, endpoint = the service's domain (path-style addressing), for example aws --endpoint-url https://<domain> s3 mb s3://my-bucket."
+  - "The web console listens on port 9001 inside the private network (not published); it needs the S3 endpoint reachable from your browser to upload files."

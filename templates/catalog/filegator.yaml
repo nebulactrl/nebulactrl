@@ -1,0 +1,49 @@
+schema: 1
+id: filegator
+revision: 1
+name: FileGator
+summary: Self-hosted web file manager with multi-user accounts, permissions and upload/download in the browser.
+description: FileGator is a multi-user PHP file manager. This template runs the official image with persistent volumes for the managed files and for the user database.
+category: storage
+tags: [files, file-manager, uploads, multi-user]
+links:
+  website: https://filegator.io
+  docs: https://docs.filegator.io
+  source: https://github.com/filegator/filegator
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/filegator/filegator/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/filegator
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 256
+  diskGb: 5
+  arch: [amd64]
+services:
+  - key: filegator
+    name: FileGator
+    kind: app
+    image: filegator/filegator:v7.16.8
+    digest: sha256:1c8e795bb147db03c251bec127fc879aef16c45887a386c23be077ee6963da2e
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    volumes:
+      - name: repository
+        path: /var/www/filegator/repository
+      - name: private
+        path: /var/www/filegator/private
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 256
+group: FileGator
+notes:
+  - "Sign in with the default account admin / admin123 and change the password immediately: the service is public as soon as it is deployed."

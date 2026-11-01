@@ -1,0 +1,11 @@
+# expect: not_allowed_for_kind
+# schema: reject
+# build belongs to git services; an image service runs a prebuilt image.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+
+[services.web.build]
+type = "dockerfile"

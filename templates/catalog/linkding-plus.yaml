@@ -1,0 +1,54 @@
+schema: 1
+id: linkding-plus
+revision: 1
+name: linkding Plus
+summary: linkding bookmark manager, plus-variant image that can also archive pages as HTML snapshots.
+description: The official linkding "plus" image adds a headless Chromium on top of linkding, so bookmarks can be archived as self-contained HTML snapshots. This template runs it with the built-in SQLite database on a persistent volume.
+category: homelab
+tags: [bookmarks, links, archive, snapshots]
+links:
+  website: https://linkding.link
+  docs: https://linkding.link/installation/
+  source: https://github.com/sissbruecker/linkding
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/sissbruecker/linkding/blob/master/LICENSE.txt
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/linkding-plus.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: ADMIN_USER, label: Admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: linkding
+    name: linkding Plus
+    kind: app
+    image: sissbruecker/linkding:1.47.0-plus
+    digest: sha256:1ba3d9ebb8be8944f771acd9bdf75d3a5d192e1fca779fe005a02fe2b798958a
+    port: 9090
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      LD_SUPERUSER_NAME: ${input:ADMIN_USER}
+      LD_SUPERUSER_PASSWORD: ${input:ADMIN_PASSWORD}
+      LD_CSRF_TRUSTED_ORIGINS: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - {name: data, path: /etc/linkding/data}
+    resources:
+      memoryMb: 1024
+group: linkding Plus
+notes:
+  - "Sign in with the admin username and password from the install form. The account is only created on the first start."
+  - "Enable HTML snapshots under Settings > General; the plus image bundles the browser they need."
+  - "If you attach a custom domain, update LD_CSRF_TRUSTED_ORIGINS to its https:// URL and redeploy."

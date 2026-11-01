@@ -1,0 +1,126 @@
+schema: 1
+id: hyperdx
+revision: 1
+name: HyperDX
+summary: Open-source observability platform that searches logs, traces, metrics and session replays stored in ClickHouse.
+description: HyperDX (ClickStack) is an observability UI on top of ClickHouse. This template runs the app with a ClickHouse server, MongoDB and the ClickStack OpenTelemetry collector that accepts OTLP data.
+category: analytics
+tags: [observability, logs, traces, opentelemetry, clickhouse]
+links:
+  website: https://www.hyperdx.io
+  docs: https://clickhouse.com/docs/use-cases/observability/clickstack
+  source: https://github.com/hyperdxio/hyperdx
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/hyperdxio/hyperdx/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/hyperdx
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 4096
+  diskGb: 10
+services:
+  - key: hyperdx
+    name: HyperDX
+    kind: app
+    image: hyperdx/hyperdx:2.38.0
+    digest: sha256:7ebf0b1bd14a1be522246244bcc2584c70c52bcf193a00f190e5cf26923b99ab
+    port: 8080
+    healthcheck:
+      type: http
+      path: /api/ready
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [mongodb, clickhouse]
+    domains:
+      - generate: true
+    env:
+      DEFAULT_CONNECTIONS: '[{"name":"Local ClickHouse","host":"http://${{clickhouse.NEBULA_PRIVATE_HOST}}:8123","username":"hyperdx","password":"${{clickhouse.CLICKHOUSE_PASSWORD}}"}]'
+      DEFAULT_SOURCES: '[{"from":{"databaseName":"default","tableName":"otel_logs"},"kind":"log","timestampValueExpression":"Timestamp","name":"Logs","displayedTimestampValueExpression":"Timestamp","implicitColumnExpression":"Body","serviceNameExpression":"ServiceName","bodyExpression":"Body","eventAttributesExpression":"LogAttributes","resourceAttributesExpression":"ResourceAttributes","defaultTableSelectExpression":"Timestamp,ServiceName,SeverityText,Body","severityTextExpression":"SeverityText","traceIdExpression":"TraceId","spanIdExpression":"SpanId","metadataMaterializedViews":{"keyRollupTable":"otel_logs_key_rollup_15m","kvRollupTable":"otel_logs_kv_rollup_15m","granularity":"15 minute"},"connection":"Local ClickHouse","traceSourceId":"Traces","sessionSourceId":"Sessions","metricSourceId":"Metrics"},{"from":{"databaseName":"default","tableName":"otel_traces"},"kind":"trace","timestampValueExpression":"Timestamp","name":"Traces","displayedTimestampValueExpression":"Timestamp","implicitColumnExpression":"SpanName","serviceNameExpression":"ServiceName","eventAttributesExpression":"SpanAttributes","resourceAttributesExpression":"ResourceAttributes","defaultTableSelectExpression":"Timestamp,ServiceName,StatusCode,round(Duration/1e6),SpanName","traceIdExpression":"TraceId","spanIdExpression":"SpanId","durationExpression":"Duration","durationPrecision":9,"parentSpanIdExpression":"ParentSpanId","spanNameExpression":"SpanName","spanKindExpression":"SpanKind","statusCodeExpression":"StatusCode","statusMessageExpression":"StatusMessage","metadataMaterializedViews":{"keyRollupTable":"otel_traces_key_rollup_15m","kvRollupTable":"otel_traces_kv_rollup_15m","granularity":"15 minute"},"connection":"Local ClickHouse","logSourceId":"Logs","sessionSourceId":"Sessions","metricSourceId":"Metrics"},{"from":{"databaseName":"default","tableName":""},"kind":"metric","timestampValueExpression":"TimeUnix","name":"Metrics","resourceAttributesExpression":"ResourceAttributes","metricTables":{"gauge":"otel_metrics_gauge","histogram":"otel_metrics_histogram","sum":"otel_metrics_sum","exponential histogram":"otel_metrics_exponential_histogram","_id":"682586a8b1f81924e628e808","id":"682586a8b1f81924e628e808"},"connection":"Local ClickHouse","logSourceId":"Logs","traceSourceId":"Traces","sessionSourceId":"Sessions"},{"from":{"databaseName":"default","tableName":"hyperdx_sessions"},"kind":"session","timestampValueExpression":"TimestampTime","name":"Sessions","displayedTimestampValueExpression":"Timestamp","implicitColumnExpression":"Body","serviceNameExpression":"ServiceName","bodyExpression":"Body","eventAttributesExpression":"LogAttributes","resourceAttributesExpression":"ResourceAttributes","defaultTableSelectExpression":"Timestamp,ServiceName,SeverityText,Body","severityTextExpression":"SeverityText","traceIdExpression":"TraceId","spanIdExpression":"SpanId","connection":"Local ClickHouse","logSourceId":"Logs","traceSourceId":"Traces","metricSourceId":"Metrics"}]'
+      EXPRESS_SESSION_SECRET: ${{secret(64)}}
+      FRONTEND_URL: ${{NEBULA_PUBLIC_URL}}
+      HYPERDX_APP_URL: ${{NEBULA_PUBLIC_URL}}
+      HYPERDX_APP_PORT: "8080"
+      HYPERDX_API_PORT: "8000"
+      SERVER_URL: http://127.0.0.1:8000
+      OPAMP_PORT: "4320"
+      MONGO_URI: ${{mongodb.MONGO_URL}}
+      HYPERDX_LOG_LEVEL: info
+      USAGE_STATS_ENABLED: "false"
+      NEXT_TELEMETRY_DISABLED: "1"
+    resources:
+      memoryMb: 1024
+  - key: mongodb
+    name: HyperDX MongoDB
+    kind: database
+    database:
+      engine: mongodb
+      version: "8.0"
+      databaseName: hyperdx
+  - key: clickhouse
+    name: HyperDX ClickHouse
+    kind: database
+    image: clickhouse/clickhouse-server:26.5.7.64-alpine
+    digest: sha256:35b419db86eed71ab1c41c03b4fd1f39be26f41eb38b0866268e2ca162445105
+    healthcheck:
+      type: http
+      path: /ping
+      port: 8123
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    env:
+      CLICKHOUSE_USER: hyperdx
+      CLICKHOUSE_PASSWORD: ${{secret(32)}}
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - {name: clickhouse-data, path: /var/lib/clickhouse}
+      - {name: clickhouse-logs, path: /var/log/clickhouse-server}
+    files:
+      - path: /etc/clickhouse-server/config.d/hyperdx.xml
+        content: |
+          <clickhouse>
+            <logger>
+              <level>warning</level>
+            </logger>
+            <custom_settings_prefixes>hyperdx</custom_settings_prefixes>
+            <max_server_memory_usage>2147483648</max_server_memory_usage>
+            <mark_cache_size>134217728</mark_cache_size>
+            <uncompressed_cache_size>67108864</uncompressed_cache_size>
+          </clickhouse>
+    resources:
+      memoryMb: 2304
+  - key: otel-collector
+    name: HyperDX OTel Collector
+    kind: worker
+    image: clickhouse/clickstack-otel-collector:2.38.0
+    digest: sha256:8c1ce77061c5b56caa1b5ab7dd8b7d512c529a774e63d67d43870cedd104aa6f
+    healthcheck:
+      type: http
+      path: /
+      port: 13133
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [clickhouse, hyperdx]
+    ports:
+      - {name: otlp-grpc, port: 4317, protocol: tcp, publish: true}
+      - {name: otlp-http, port: 4318, protocol: tcp, publish: true}
+    env:
+      CLICKHOUSE_ENDPOINT: tcp://${{clickhouse.NEBULA_PRIVATE_HOST}}:9000?dial_timeout=10s
+      CLICKHOUSE_USER: hyperdx
+      CLICKHOUSE_PASSWORD: ${{clickhouse.CLICKHOUSE_PASSWORD}}
+      HYPERDX_OTEL_EXPORTER_CLICKHOUSE_DATABASE: default
+      HYPERDX_OTEL_EXPORTER_CREATE_LEGACY_SCHEMA: "true"
+      HYPERDX_LOG_LEVEL: info
+      OPAMP_SERVER_URL: http://${{hyperdx.NEBULA_PRIVATE_HOST}}:4320
+    volumes:
+      - {name: otel-supervisor, path: /etc/otel/supervisor-data}
+    resources:
+      memoryMb: 512
+group: HyperDX
+notes:
+  - "Open the site and register the first user; that account owns the team. Copy the ingestion API key from Team Settings."
+  - "Send OpenTelemetry data to this server on TCP 4318 (OTLP/HTTP) or 4317 (OTLP/gRPC) with the ingestion key as the Authorization header."

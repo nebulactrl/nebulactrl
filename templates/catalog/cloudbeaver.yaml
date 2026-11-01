@@ -1,0 +1,55 @@
+schema: 1
+id: cloudbeaver
+revision: 1
+name: CloudBeaver
+summary: Web-based database client for browsing and querying SQL and NoSQL databases from the browser.
+description: CloudBeaver is the web version of DBeaver with connection management, a SQL editor and a data viewer. This template runs the official Community Edition image with an admin account created on first start.
+category: devtools
+tags: [database, sql, dbeaver, admin, data-management]
+icon: dbeaver
+links:
+  website: https://dbeaver.com
+  docs: https://dbeaver.com/docs/cloudbeaver/
+  source: https://github.com/dbeaver/cloudbeaver
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/dbeaver/cloudbeaver/blob/devel/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/cloudbeaver.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 2
+inputs:
+  - {key: ADMIN_NAME, label: Admin username, required: true, default: cbadmin}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: cloudbeaver
+    name: CloudBeaver
+    kind: app
+    image: dbeaver/cloudbeaver:26.2.3
+    digest: sha256:0c875296f85ffd7c0ffaaaeff678cd2f383890050297585318d7cf8f49024d1f
+    port: 8978
+    healthcheck:
+      type: http
+      path: /status
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    domains:
+      - generate: true
+    env:
+      CB_SERVER_NAME: CloudBeaver
+      CB_ADMIN_NAME: ${input:ADMIN_NAME}
+      CB_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    volumes:
+      - name: workspace
+        path: /opt/cloudbeaver/workspace
+    resources:
+      memoryMb: 1024
+group: CloudBeaver
+notes:
+  - "Sign in with the admin username and password from the install form, then add connections to your databases."
+  - "The admin account is created only on the first start; change the password inside CloudBeaver afterwards."

@@ -1,0 +1,109 @@
+schema: 1
+id: immich
+revision: 1
+name: Immich
+summary: High-performance self-hosted photo and video backup with search, face recognition and mobile apps.
+description: Immich runs the server, the machine-learning service, a Valkey cache and the vector-enabled Postgres image published by the Immich project. The database must be Immich's own image, so it is an image service instead of a managed database.
+category: media
+tags: [photos, backup, gallery, ai]
+icon: immich
+links:
+  website: https://immich.app
+  docs: https://docs.immich.app
+  source: https://github.com/immich-app/immich
+upstream:
+  license: AGPL-3.0-only
+  licenseUrl: https://github.com/immich-app/immich/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: original
+heavy: true
+requires:
+  memoryMb: 4096
+  diskGb: 20
+inputs:
+  - key: TZ
+    label: Time zone
+    description: IANA time zone name, for example Europe/Berlin.
+    default: UTC
+services:
+  - key: server
+    name: Immich
+    kind: app
+    image: ghcr.io/immich-app/immich-server:v3.3.5
+    digest: sha256:485d546a2e31d6a8b4db8423fcba5c109de8c218d93410af115fd1ccfc4352a6
+    port: 2283
+    healthcheck:
+      type: http
+      path: /api/server/ping
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    dependsOn: [db, cache, ml]
+    domains:
+      - generate: true
+    env:
+      TZ: ${input:TZ}
+      DB_HOSTNAME: ${{db.NEBULA_PRIVATE_HOST}}
+      DB_PORT: "5432"
+      DB_USERNAME: immich
+      DB_PASSWORD: ${{db.POSTGRES_PASSWORD}}
+      DB_DATABASE_NAME: immich
+      REDIS_HOSTNAME: ${{cache.REDIS_HOST}}
+      REDIS_PORT: ${{cache.REDIS_PORT}}
+      REDIS_PASSWORD: ${{cache.REDIS_PASSWORD}}
+      IMMICH_MACHINE_LEARNING_URL: http://${{ml.NEBULA_PRIVATE_HOST}}:3003
+    volumes:
+      - name: upload
+        path: /data
+    resources:
+      memoryMb: 2048
+  - key: ml
+    name: Immich Machine Learning
+    kind: worker
+    image: ghcr.io/immich-app/immich-machine-learning:v3.3.5
+    digest: sha256:5b28c9352c8374b8a1ed96fbdd8d6755fea6e43510ec43fdf6538aa02ea40f56
+    port: 3003
+    healthcheck:
+      type: http
+      path: /ping
+      startPeriodSeconds: 60
+      deadlineSeconds: 420
+    env:
+      TZ: ${input:TZ}
+    volumes:
+      - name: model-cache
+        path: /cache
+    resources:
+      memoryMb: 2048
+  - key: cache
+    name: Immich Cache
+    kind: database
+    database:
+      engine: valkey
+      version: "9"
+  - key: db
+    name: Immich DB
+    kind: database
+    image: ghcr.io/immich-app/postgres:14-vectorchord0.4.3-pgvectors0.2.0
+    digest: sha256:bcf63357191b76a916ae5eb93464d65c07511da41e3bf7a8416db519b40b1c23
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "pg_isready -U immich -d immich"]
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    env:
+      POSTGRES_USER: immich
+      POSTGRES_PASSWORD: ${{secret(32)}}
+      POSTGRES_DB: immich
+      POSTGRES_INITDB_ARGS: --data-checksums
+    volumes:
+      - name: pgdata
+        path: /var/lib/postgresql/data
+    resources:
+      memoryMb: 1024
+group: Immich
+notes:
+  - "Open the domain and register the first account: it becomes the administrator. Then install the Immich mobile app and enter the domain as the server URL."
+  - "Photos and videos are stored in the `upload` volume of the Immich service; the database lives in the `pgdata` volume of Immich DB. Back up both (see Backups)."
+  - "The database image is the vector-enabled Postgres build pinned by the Immich release. Do not replace it with plain Postgres, and follow the release notes before upgrading the Immich version."
+  - "Machine learning (smart search, faces) downloads its models on first use and needs about 2 GB of RAM. Hardware acceleration is not configured by this template."

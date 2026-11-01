@@ -1,0 +1,112 @@
+schema: 1
+id: healthchecks
+revision: 1
+name: Healthchecks
+summary: "Cron job and scheduled task monitoring: your jobs ping a URL and you get alerted when a ping is late or missing."
+description: Healthchecks listens for HTTP pings from cron jobs and scheduled tasks and sends alerts through email, chat and webhook integrations when they stop arriving. This template runs the official image with a managed PostgreSQL database and creates the first superuser with a one-shot job.
+category: analytics
+tags: [monitoring, cron, alerting, uptime]
+icon: healthchecks
+links:
+  website: https://healthchecks.io
+  docs: https://healthchecks.io/docs/
+  source: https://github.com/healthchecks/healthchecks
+upstream:
+  license: BSD-3-Clause
+  licenseUrl: https://github.com/healthchecks/healthchecks/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/healthchecks.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ADMIN_EMAIL, format: email, label: Superuser email (used to sign in), required: true}
+  - {key: ADMIN_PASSWORD, label: Superuser password, secret: true, default: "${{secret(20)}}"}
+  - {key: REGISTRATION_OPEN, label: Allow visitors to register, default: "False", options: ["False", "True"]}
+  - {key: DEFAULT_FROM_EMAIL, label: Sender address for outgoing email, default: healthchecks@example.org}
+  - {key: EMAIL_HOST, format: hostname, label: SMTP host (leave empty to disable email)}
+  - {key: EMAIL_PORT, format: number, label: SMTP port, default: "587"}
+  - {key: EMAIL_HOST_USER, label: SMTP username}
+  - {key: EMAIL_HOST_PASSWORD, label: SMTP password, secret: true}
+  - {key: EMAIL_USE_TLS, label: SMTP STARTTLS (True or False), default: "True", options: ["True", "False"]}
+  - {key: EMAIL_USE_SSL, label: SMTP implicit TLS (True or False), default: "False", options: ["True", "False"]}
+services:
+  - key: install
+    name: Healthchecks setup
+    kind: worker
+    image: healthchecks/healthchecks:v5.0.2
+    digest: sha256:2785de4d59a0bcad8bef05e72cf31f20f871cc0b917bfe7441cbc5932f043239
+    oneshot: true
+    command:
+      - bash
+      - -c
+      - |
+        set -e
+        ./manage.py migrate
+        if ! ./manage.py shell -c "import os, sys; from django.contrib.auth import get_user_model; sys.exit(0 if get_user_model().objects.filter(email=os.environ['SUPERUSER_EMAIL'].strip().lower()).exists() else 1)"; then
+          ./manage.py createsuperuser --email "$SUPERUSER_EMAIL" --password "$SUPERUSER_PASSWORD"
+        fi
+    dependsOn: [db]
+    env:
+      DB: postgres
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      SECRET_KEY: ${{secret(50)}}
+      DEBUG: "False"
+      SUPERUSER_EMAIL: ${input:ADMIN_EMAIL}
+      SUPERUSER_PASSWORD: ${input:ADMIN_PASSWORD}
+    resources:
+      memoryMb: 256
+  - key: app
+    name: Healthchecks
+    kind: app
+    image: healthchecks/healthchecks:v5.0.2
+    digest: sha256:2785de4d59a0bcad8bef05e72cf31f20f871cc0b917bfe7441cbc5932f043239
+    port: 8000
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [install, db]
+    domains:
+      - generate: true
+    env:
+      DB: postgres
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      SECRET_KEY: ${{install.SECRET_KEY}}
+      DEBUG: "False"
+      SITE_ROOT: ${{NEBULA_PUBLIC_URL}}
+      SECURE_PROXY_SSL_HEADER: HTTP_X_FORWARDED_PROTO,https
+      REGISTRATION_OPEN: ${input:REGISTRATION_OPEN}
+      DEFAULT_FROM_EMAIL: ${input:DEFAULT_FROM_EMAIL}
+      EMAIL_HOST: ${input:EMAIL_HOST}
+      EMAIL_PORT: ${input:EMAIL_PORT}
+      EMAIL_HOST_USER: ${input:EMAIL_HOST_USER}
+      EMAIL_HOST_PASSWORD: ${input:EMAIL_HOST_PASSWORD}
+      EMAIL_USE_TLS: ${input:EMAIL_USE_TLS}
+      EMAIL_USE_SSL: ${input:EMAIL_USE_SSL}
+    resources:
+      memoryMb: 384
+  - key: db
+    name: Healthchecks DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: healthchecks
+group: Healthchecks
+notes:
+  - "Sign in with the superuser email and password from the install form (the Account menu then has Site Administration). The superuser is created once; later changes to the inputs do not alter the account."
+  - "Without an SMTP host Healthchecks cannot send email alerts or sign-in links; fill in the SMTP inputs (or the matching variables) to enable them. Registration is closed by default."

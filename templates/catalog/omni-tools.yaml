@@ -1,0 +1,41 @@
+schema: 1
+id: omni-tools
+revision: 1
+name: Omni-Tools
+summary: Collection of everyday file, image, text and data tools that run in the browser.
+description: Omni-Tools is a self-hosted web app with many small utilities (image and video converters, text and JSON helpers, calculators). It is a static site served by nginx and needs no database.
+category: productivity
+tags: [tools, utilities, converters, toolbox, browser]
+links:
+  website: https://omnitools.app
+  docs: https://github.com/iib0011/omni-tools#readme
+  source: https://github.com/iib0011/omni-tools
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/iib0011/omni-tools/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/omni-tools
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 128
+  diskGb: 1
+services:
+  - key: omni-tools
+    name: Omni-Tools
+    kind: app
+    image: iib0011/omni-tools:0.7.0
+    digest: sha256:85f0e052a97326396c753e39de0ef74631c0783999ccca81ebc36262903ec9fa
+    port: 80
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 128
+group: Omni-Tools

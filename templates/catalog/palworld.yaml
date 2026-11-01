@@ -1,0 +1,93 @@
+schema: 1
+id: palworld
+revision: 1
+name: Palworld Dedicated Server
+summary: Dedicated Palworld game server with automatic backups, installed and updated through SteamCMD.
+description: Runs the community palworld-server-docker image (thijsvanloef/palworld-server-docker, the de-facto Palworld server container; Pocketpair publishes no image). The game server files are downloaded from Steam on first start, which takes several GB and a few minutes, and the world is kept in a persistent volume.
+category: games
+tags: [palworld, game-server, steam, survival, multiplayer]
+icon: palworld
+links:
+  website: https://palworld-server-docker.loef.dev/
+  docs: https://palworld-server-docker.loef.dev/
+  source: https://github.com/thijsvanloef/palworld-server-docker
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/thijsvanloef/palworld-server-docker/blob/main/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/palworld.yaml
+  commit: 1d28642
+  license: Apache-2.0
+heavy: true
+requires:
+  memoryMb: 16384
+  diskGb: 20
+inputs:
+  - key: SERVER_NAME
+    label: Server name
+    default: Palworld server
+    required: true
+  - key: SERVER_DESCRIPTION
+    label: Server description
+    default: A Nebula Palworld server
+  - key: SERVER_PASSWORD
+    label: Server password
+    description: Password players enter to join. Leave empty for an open server.
+    secret: true
+  - key: ADMIN_PASSWORD
+    label: Admin password
+    description: Password for in-game admin commands and RCON/REST access. Generated when left empty.
+    secret: true
+    default: "${{secret(20)}}"
+  - key: PLAYERS
+    label: Max players
+    default: "16"
+  - key: TZ
+    label: Timezone
+    description: IANA timezone name used for backup timestamps.
+    default: UTC
+services:
+  - key: palworld
+    name: Palworld
+    kind: app
+    image: thijsvanloef/palworld-server-docker:v2.8.1
+    digest: sha256:86fc7470949f6fcc931cb6443f61facc79bacc09e3f40d46e628d9e1ef6e56cd
+    healthcheck:
+      type: docker
+      startPeriodSeconds: 300
+      deadlineSeconds: 1800
+    env:
+      PUID: "1000"
+      PGID: "1000"
+      QUERY_PORT: "27015"
+      PLAYERS: ${input:PLAYERS}
+      SERVER_NAME: ${input:SERVER_NAME}
+      SERVER_DESCRIPTION: ${input:SERVER_DESCRIPTION}
+      SERVER_PASSWORD: ${input:SERVER_PASSWORD}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      TZ: ${input:TZ}
+      COMMUNITY: "false"
+      UPDATE_ON_BOOT: "true"
+      BACKUP_ENABLED: "true"
+    ports:
+      - name: game
+        port: 8211
+        protocol: udp
+        publish: true
+      - name: query
+        port: 27015
+        protocol: udp
+        publish: true
+    volumes:
+      - name: data
+        path: /palworld
+    resources:
+      memoryMb: 20480
+    stopGraceSeconds: 30
+group: Palworld
+notes:
+  - "Palworld needs at least 16 GB of RAM (32 GB recommended). The first start downloads the game server from Steam and can take 10 minutes or more."
+  - "Players connect with the server's address on UDP port 8211 and the server password. The REST API on port 8212 and RCON stay inside the private network."
+  - "To list the server in the community browser, set COMMUNITY to true on the service and use a server password."

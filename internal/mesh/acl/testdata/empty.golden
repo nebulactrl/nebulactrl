@@ -1,0 +1,21 @@
+{
+  "tagOwners": {
+    "tag:nebula-mesh": [
+      "nebulactrl@"
+    ],
+    "tag:nebula-svc": [
+      "nebulactrl@"
+    ]
+  },
+  "acls": [
+    {
+      "action": "accept",
+      "src": [
+        "autogroup:member"
+      ],
+      "dst": [
+        "tag:nebula-svc:*"
+      ]
+    }
+  ]
+}

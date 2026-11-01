@@ -1,0 +1,59 @@
+schema: 1
+id: azuracast
+revision: 1
+name: AzuraCast
+summary: Self-hosted web radio suite with station management, AutoDJ, live broadcasting and listener statistics.
+description: AzuraCast manages one or more internet radio stations from a web interface. This template runs the official all-in-one image, which bundles its own MariaDB, Redis, Icecast and Liquidsoap.
+category: media
+tags: [radio, streaming, music, broadcasting, icecast]
+links:
+  website: https://www.azuracast.com
+  docs: https://www.azuracast.com/docs/
+  source: https://github.com/AzuraCast/AzuraCast
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/AzuraCast/AzuraCast/blob/main/LICENSE.md
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/azuracast
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 2048
+  diskGb: 10
+services:
+  - key: azuracast
+    name: AzuraCast
+    kind: app
+    image: ghcr.io/azuracast/azuracast:0.24.0
+    digest: sha256:2a4aa1e0b2fdc93170ef1dbc51ae2ea036053f0a74931692b23d0d7c072e5c06
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/status
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    domains:
+      - generate: true
+    env:
+      APPLICATION_ENV: production
+      MYSQL_PASSWORD: ${{secret(24)}}
+      LANG: en_US.UTF-8
+    volumes:
+      - {name: stations, path: /var/azuracast/stations}
+      - {name: backups, path: /var/azuracast/backups}
+      - {name: db, path: /var/lib/mysql}
+      - {name: uploads, path: /var/azuracast/storage/uploads}
+      - {name: shoutcast2, path: /var/azuracast/storage/shoutcast2}
+      - {name: stereo-tool, path: /var/azuracast/storage/stereo_tool}
+      - {name: geoip, path: /var/azuracast/storage/geoip}
+      - {name: sftpgo, path: /var/azuracast/storage/sftpgo}
+    resources:
+      memoryMb: 2048
+    stopGraceSeconds: 60
+group: AzuraCast
+notes:
+  - "Open the domain and complete the setup wizard to create the administrator account and your first station."
+  - "Listeners can tune in through the web address (/listen/<station>/...). Live DJ (source) connections and SFTP need the station ports (8000-8499, 2022) published on the server; this template does not publish them."

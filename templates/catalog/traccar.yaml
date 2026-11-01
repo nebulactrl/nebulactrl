@@ -1,0 +1,63 @@
+schema: 1
+id: traccar
+revision: 1
+name: Traccar
+summary: GPS tracking server with a web app for live maps, trip history, geofences and alerts.
+description: Traccar receives positions from GPS trackers and the Traccar Client phone app and shows them on a map. This template runs the official image with a managed Postgres database and publishes the OsmAnd/Traccar Client port 5055.
+category: analytics
+tags: [gps, tracking, fleet, maps]
+icon: traccar
+links:
+  website: https://www.traccar.org
+  docs: https://www.traccar.org/documentation/
+  source: https://github.com/traccar/traccar
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/traccar/traccar/blob/master/LICENSE.txt
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/traccar.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: traccar
+    name: Traccar
+    kind: app
+    image: traccar/traccar:6.16
+    digest: sha256:03ebb7ed2b219d4f25c326873bd022f5062f80bcae622a9d9422846b51951eda
+    port: 8082
+    healthcheck:
+      type: http
+      path: /api/server
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    ports:
+      - {name: osmand, port: 5055, protocol: tcp, publish: true}
+    env:
+      CONFIG_USE_ENVIRONMENT_VARIABLES: "true"
+      DATABASE_DRIVER: org.postgresql.Driver
+      DATABASE_URL: jdbc:postgresql://${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      DATABASE_USER: ${{db.DATABASE_USER}}
+      DATABASE_PASSWORD: ${{db.DATABASE_PASSWORD}}
+    volumes:
+      - {name: data, path: /opt/traccar/data}
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Traccar DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: traccar
+group: Traccar
+notes:
+  - "Open the site and register: the first account created becomes the administrator. Disable open registration afterwards under Server settings."
+  - "Phones using the Traccar Client app report to http://<server address>:5055. Hardware trackers use other protocol ports; add them as ports on the Traccar service (see the Traccar device list for each model's port)."

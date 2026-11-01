@@ -1,0 +1,84 @@
+{
+  "http": {
+    "routers": {
+      "nc-5eed0000-0000-8000-8000-00000000da5b-d5eed0000-http": {
+        "entryPoints": [
+          "web"
+        ],
+        "rule": "Host(`nebula.example.com`)",
+        "service": "noop@internal",
+        "middlewares": [
+          "nc-https-redirect"
+        ]
+      },
+      "nc-5eed0000-0000-8000-8000-00000000da5b-d5eed0000-https": {
+        "entryPoints": [
+          "websecure"
+        ],
+        "rule": "Host(`nebula.example.com`)",
+        "service": "nc-5eed0000-0000-8000-8000-00000000da5b",
+        "middlewares": [
+          "nc-5eed0000-0000-8000-8000-00000000da5b-d5eed0000-headers"
+        ],
+        "tls": {
+          "certResolver": "le"
+        }
+      },
+      "nc-5eed0000-0000-8000-8000-00000000da5b-d5eed0000-probe": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`nebula.example.com`)",
+        "service": "nc-5eed0000-0000-8000-8000-00000000da5b",
+        "observability": {
+          "accessLogs": false
+        }
+      },
+      "nc-gen": {
+        "entryPoints": [
+          "probe"
+        ],
+        "rule": "Host(`gen-1.nc.invalid`)",
+        "service": "ping@internal",
+        "observability": {
+          "accessLogs": false
+        }
+      }
+    },
+    "services": {
+      "nc-5eed0000-0000-8000-8000-00000000da5b": {
+        "loadBalancer": {
+          "passHostHeader": true,
+          "servers": [
+            {
+              "url": "http://nebulactrl:8080"
+            }
+          ],
+          "healthCheck": {
+            "path": "/healthz",
+            "interval": "5s",
+            "timeout": "3s",
+            "followRedirects": false
+          }
+        }
+      }
+    },
+    "middlewares": {
+      "nc-5eed0000-0000-8000-8000-00000000da5b-d5eed0000-headers": {
+        "headers": {
+          "contentTypeNosniff": true,
+          "frameDeny": true,
+          "referrerPolicy": "strict-origin-when-cross-origin",
+          "stsSeconds": 31536000,
+          "stsIncludeSubdomains": true
+        }
+      },
+      "nc-https-redirect": {
+        "redirectScheme": {
+          "scheme": "https",
+          "permanent": true
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,52 @@
+schema: 1
+id: librespeed
+revision: 1
+name: LibreSpeed
+summary: Lightweight self-hosted speed test for measuring download, upload, ping and jitter to your own server.
+description: LibreSpeed is a small HTML5 speed test with no Flash, Java or accounts. This template runs it in standalone mode with telemetry disabled.
+category: homelab
+tags: [speedtest, network, bandwidth, monitoring]
+icon: librespeed
+links:
+  website: https://librespeed.org
+  docs: https://github.com/librespeed/speedtest/blob/master/doc_docker.md
+  source: https://github.com/librespeed/speedtest
+upstream:
+  license: LGPL-3.0-only
+  licenseUrl: https://github.com/librespeed/speedtest/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/librespeed.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 128
+  diskGb: 1
+inputs:
+  - {key: TITLE, label: Page title, default: LibreSpeed}
+services:
+  - key: librespeed
+    name: LibreSpeed
+    kind: app
+    image: ghcr.io/librespeed/speedtest:6.3.1
+    digest: sha256:bc34bf69b6c102b23ab81b6e77beb7cce321fb0d3be33ec6e80edef3e9dd8bab
+    port: 8080
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 5
+      deadlineSeconds: 60
+    domains:
+      - generate: true
+    env:
+      MODE: standalone
+      TELEMETRY: "false"
+      DISABLE_IPINFO: "true"
+      TITLE: ${input:TITLE}
+    resources:
+      memoryMb: 128
+group: LibreSpeed
+notes:
+  - "Run the test from a device that reaches the server over the network you want to measure. Results depend on the path through the reverse proxy, not just the server's uplink."
+  - "Telemetry is disabled, so results are not stored. Enable it with TELEMETRY=true, a stats PASSWORD and GDPR_EMAIL, and mount a volume at /database to keep the SQLite file."

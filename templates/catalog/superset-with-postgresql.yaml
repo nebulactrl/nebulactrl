@@ -1,0 +1,68 @@
+schema: 1
+id: superset-with-postgresql
+revision: 1
+name: Apache Superset
+summary: Business intelligence and data exploration platform with SQL lab, charts and dashboards over many databases.
+description: Runs the official Apache Superset image with a managed Postgres database for its metadata. On every start the container applies database migrations, creates the admin account if it does not exist and initialises roles before serving the web app.
+category: analytics
+tags: [bi, dashboards, sql, visualization, analytics]
+icon: apachesuperset
+links:
+  website: https://superset.apache.org
+  docs: https://superset.apache.org/docs/intro
+  source: https://github.com/apache/superset
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/apache/superset/blob/master/LICENSE.txt
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/superset-with-postgresql.yaml
+  commit: 1d28642
+  license: Apache-2.0
+requires:
+  memoryMb: 2048
+  diskGb: 10
+inputs:
+  - {key: ADMIN_USERNAME, label: Admin username, default: admin}
+  - {key: ADMIN_EMAIL, format: email, label: Admin email, required: true}
+  - {key: ADMIN_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: superset
+    name: Superset
+    kind: app
+    image: apache/superset:6.1.0
+    digest: sha256:16b50bbef6648912a79e3293d418fefa743ce555d36c5af6b85d859119ed7f88
+    port: 8088
+    command:
+      - /bin/bash
+      - -c
+      - 'superset db upgrade && { superset fab create-admin --username "$ADMIN_USERNAME" --firstname Superset --lastname Admin --email "$ADMIN_EMAIL" --password "$ADMIN_PASSWORD" || true; } && superset init && exec /app/docker/entrypoints/run-server.sh'
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 120
+      deadlineSeconds: 900
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      SUPERSET_SECRET_KEY: ${{secret(64)}}
+      SUPERSET__SQLALCHEMY_DATABASE_URI: postgresql+psycopg2://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+      ADMIN_USERNAME: ${input:ADMIN_USERNAME}
+      ADMIN_EMAIL: ${input:ADMIN_EMAIL}
+      ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+    secrets: [SUPERSET__SQLALCHEMY_DATABASE_URI]
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: Superset DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: superset
+group: Superset
+notes:
+  - "The first start runs database migrations and can take a few minutes. Sign in with the admin username and password from the install form; changing those variables later does not alter an existing account."
+  - "Add the databases you want to analyse under Settings > Database Connections. Superset keeps only its own metadata in the managed Postgres."

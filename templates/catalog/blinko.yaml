@@ -1,0 +1,59 @@
+schema: 1
+id: blinko
+revision: 1
+name: Blinko
+summary: Self-hosted AI-assisted note-taking app for capturing and organizing quick thoughts.
+description: Blinko is a card-style note app with Markdown and optional AI search. This template runs the official image with a managed Postgres database.
+category: productivity
+tags: [notes, knowledge, ai, markdown]
+links:
+  website: https://blinko.space
+  docs: https://docs.blinko.space
+  source: https://github.com/blinkospace/blinko
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/blinkospace/blinko/blob/main/LICENSE
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/blinko
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 768
+  diskGb: 2
+services:
+  - key: blinko
+    name: Blinko
+    kind: app
+    image: blinkospace/blinko:1.8.8
+    digest: sha256:31c3bc9f4fc00c82328c098c0c1120fe7fe43152a9f3cbc04b0303c32a2e60d3
+    port: 1111
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{db.DATABASE_URL}}
+      NEXTAUTH_SECRET: ${{secret(32)}}
+      NEXTAUTH_URL: ${{NEBULA_PUBLIC_URL}}
+      NEXT_PUBLIC_BASE_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - {name: data, path: /app/.blinko}
+    resources:
+      memoryMb: 768
+  - key: db
+    name: Blinko DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: blinko
+group: Blinko
+notes:
+  - "The first account you register becomes the super admin; there is no default login."

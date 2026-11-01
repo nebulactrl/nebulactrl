@@ -1,0 +1,3 @@
+# BEGIN nebulactrl-replication
+host replication nebula_r_0a1b2c3d samenet scram-sha-256
+# END nebulactrl-replication

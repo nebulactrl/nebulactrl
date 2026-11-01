@@ -1,0 +1,74 @@
+schema: 1
+id: keycloak
+revision: 1
+name: Keycloak
+summary: Open-source identity and access management with single sign-on, OpenID Connect, OAuth 2.0, SAML and user federation.
+description: Keycloak provides single sign-on, identity brokering, user federation and fine-grained authorization for applications and services. This template runs it in production mode behind the proxy with a managed Postgres database.
+category: security
+tags: [identity, sso, oidc, oauth2, saml, authentication, iam]
+icon: keycloak
+links:
+  website: https://www.keycloak.org
+  docs: https://www.keycloak.org/documentation
+  source: https://github.com/keycloak/keycloak
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/keycloak/keycloak/blob/main/LICENSE.txt
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/keycloak.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 2
+inputs:
+  - {key: ADMIN_USER, label: Initial admin username, required: true, default: admin}
+  - {key: ADMIN_PASSWORD, label: Initial admin password, secret: true, default: "${{secret(24)}}"}
+services:
+  - key: keycloak
+    name: Keycloak
+    kind: app
+    image: quay.io/keycloak/keycloak:26.8.1
+    digest: sha256:a78d6b79572168cb25886b80a8b5b8d4ed4390743e3eecb810538683e209dd6b
+    port: 8080
+    command: [start]
+    healthcheck:
+      type: exec
+      command: [CMD-SHELL, "exec 3<>/dev/tcp/127.0.0.1/9000; echo -e 'GET /health/ready HTTP/1.1\\r\\nHost: localhost:9000\\r\\nConnection: close\\r\\n\\r\\n' >&3; cat <&3 | grep -q '\"status\": \"UP\"'"]
+      intervalSeconds: 10
+      timeoutSeconds: 10
+      startPeriodSeconds: 60
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${input:ADMIN_USER}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${input:ADMIN_PASSWORD}
+      KC_DB: postgres
+      KC_DB_URL_HOST: ${{db.DATABASE_HOST}}
+      KC_DB_URL_PORT: ${{db.DATABASE_PORT}}
+      KC_DB_URL_DATABASE: ${{db.DATABASE_NAME}}
+      KC_DB_USERNAME: ${{db.DATABASE_USER}}
+      KC_DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      KC_HOSTNAME: ${{NEBULA_PUBLIC_URL}}
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY_HEADERS: xforwarded
+      KC_HEALTH_ENABLED: "true"
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Keycloak DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: keycloak
+group: Keycloak
+notes:
+  - "Sign in at the admin console with the initial admin username and password from the install form."
+  - "The bootstrap account is temporary: create a permanent administrator in the master realm and delete the bootstrap user."
+  - "Keycloak builds its configuration on first start, so the first deploy takes a minute or two."
+  - "The public URL is taken from the generated domain. If you attach a custom domain, update KC_HOSTNAME to match and redeploy."

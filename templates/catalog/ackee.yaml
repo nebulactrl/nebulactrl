@@ -1,0 +1,60 @@
+schema: 1
+id: ackee
+revision: 1
+name: Ackee
+summary: Self-hosted, privacy-friendly web analytics with a minimal dashboard and a tiny tracking script.
+description: Ackee is a Node.js analytics server for your websites. This template runs Ackee with a managed MongoDB database and a login account created from the install form.
+category: analytics
+tags: [analytics, privacy, statistics, tracking, mongodb]
+links:
+  website: https://ackee.electerious.com/
+  docs: https://docs.ackee.electerious.com/
+  source: https://github.com/electerious/Ackee
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/electerious/Ackee/blob/master/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/ackee
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: ACKEE_USERNAME, label: Admin username, required: true, default: admin}
+  - {key: ACKEE_PASSWORD, label: Admin password, secret: true, default: "${{secret(20)}}"}
+services:
+  - key: ackee
+    name: Ackee
+    kind: app
+    image: electerious/ackee:3.7.1
+    digest: sha256:ad7ef00b9552971177ef9deea02846aea512a6f28bbb32782fc66e62f13fac62
+    port: 3000
+    healthcheck:
+      type: http
+      path: /
+      startPeriodSeconds: 45
+      deadlineSeconds: 240
+    dependsOn: [mongo]
+    domains:
+      - generate: true
+    env:
+      ACKEE_MONGODB: ${{mongo.DATABASE_URL}}
+      ACKEE_USERNAME: ${input:ACKEE_USERNAME}
+      ACKEE_PASSWORD: ${input:ACKEE_PASSWORD}
+      ACKEE_ALLOW_ORIGIN: "*"
+    resources:
+      memoryMb: 512
+  - key: mongo
+    name: Ackee MongoDB
+    kind: database
+    database:
+      engine: mongodb
+      version: "8.0"
+      databaseName: ackee
+group: Ackee
+notes:
+  - "Sign in with the username and password from the install form, then add your site under Domains and copy its tracking snippet."
+  - "ACKEE_ALLOW_ORIGIN is set to * so tracked sites can report; restrict it to your site origins under the service variables."

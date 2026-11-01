@@ -1,0 +1,40 @@
+{
+  "tagOwners": {
+    "tag:nebula-mesh": [
+      "nebulactrl@"
+    ],
+    "tag:nebula-svc": [
+      "nebulactrl@"
+    ]
+  },
+  "acls": [
+    {
+      "action": "accept",
+      "src": [
+        "autogroup:member"
+      ],
+      "dst": [
+        "tag:nebula-svc:*"
+      ]
+    },
+    {
+      "action": "accept",
+      "src": [
+        "100.64.0.10"
+      ],
+      "dst": [
+        "100.64.0.2:8080"
+      ]
+    },
+    {
+      "action": "accept",
+      "src": [
+        "100.64.0.11"
+      ],
+      "dst": [
+        "100.64.0.2:15001",
+        "100.64.0.2:8080"
+      ]
+    }
+  ]
+}

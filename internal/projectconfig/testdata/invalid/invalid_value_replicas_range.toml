@@ -1,0 +1,12 @@
+# expect: invalid_value
+# schema: reject
+# At most 10 replicas.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.scale]
+replicas = 11

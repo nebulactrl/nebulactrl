@@ -1,0 +1,34 @@
+# Secret scanning config for gitleaks (https://github.com/gitleaks/gitleaks).
+# Run: go run github.com/zricethezav/gitleaks/v8@v8.28.0 git --log-opts="--all" .
+#
+# Only test fixtures and documentation are allowlisted: canary values, fake
+# tokens and the self-signed test key under testdata exist to prove that real
+# secrets are masked, encrypted and never leaked. Product code is still scanned.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Test fixtures, canaries and generated test keys"
+paths = [
+  '''_test\.go$''',
+  '''\.test\.ts$''',
+  '''(^|/)testdata/''',
+  '''^apps/web/e2e/''',
+  '''^tests/''',
+  '''^internal/.+/[a-z]+test/''',
+]
+
+[[allowlists]]
+description = "PEM-detection regexes, template health checks that read a password from the env, and docs prose"
+paths = [
+  '''^apps/web/src/features/proxy/lib/cert\.ts$''',
+  '''^templates/catalog/elasticsearch\.yaml$''',
+  '''^docs/decisions/0006-railpack-default-builder\.md$''',
+]
+
+[[allowlists]]
+description = "ClickHouse table names in the HyperDX template (otel_*_key_rollup_15m), not keys"
+regexTarget = "match"
+regexes = [
+  '''otel_(logs|traces)_key_rollup_15m''',
+]

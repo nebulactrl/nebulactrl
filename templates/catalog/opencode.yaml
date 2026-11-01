@@ -1,0 +1,80 @@
+schema: 1
+id: opencode
+revision: 1
+name: OpenCode
+summary: Open source AI coding agent with a password-protected web UI, optionally starting from a cloned Git repository.
+description: OpenCode is an open source AI coding agent that reads, edits and runs code in a workspace using the model provider of your choice. This template runs `opencode serve` (the web UI and API) behind HTTP basic authentication, with a persistent workspace, configuration and session volume. At start-up it installs a small toolchain with apk and can clone a repository into the workspace, so you can chat with and run an agent against your code from the browser.
+category: ai
+tags: [ai, coding, agent, development, self-hosted]
+icon: opencode
+links:
+  website: https://opencode.ai
+  docs: https://opencode.ai/docs
+  source: https://github.com/anomalyco/opencode
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/anomalyco/opencode/blob/dev/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/opencode
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 1024
+  diskGb: 5
+inputs:
+  - {key: OPENCODE_SERVER_USERNAME, label: Web UI username, default: opencode, required: true}
+  - {key: OPENCODE_SERVER_PASSWORD, label: Web UI password, secret: true, default: "${{secret(32)}}"}
+  - {key: TOOLCHAIN_PACKAGES, label: "Alpine packages to install at start-up (empty to skip)", default: "git nodejs npm python3"}
+  - {key: GIT_REPO_URL, label: "Repository to clone into /workspace on start-up (optional, https URL)", format: url}
+  - {key: GIT_TOKEN, label: "Access token for a private repository (optional)", secret: true}
+services:
+  - key: opencode
+    name: OpenCode
+    kind: app
+    image: ghcr.io/anomalyco/opencode:1.18.32
+    digest: sha256:b3ce2a73474c57d19abb8c1e9d955c66066b4263e8f15167ba6e6c5ddf9a7ee0
+    port: 4096
+    command:
+      - -c
+      - |
+        set -e
+        apk add --no-cache ${TOOLCHAIN_PACKAGES} >/dev/null 2>&1 || true
+        if [ -n "${GIT_TOKEN}" ] && [ -n "${GIT_REPO_URL}" ]; then
+          host=$(printf '%s' "${GIT_REPO_URL}" | sed -E 's#^https?://([^/]+)/.*#\1#')
+          git config --global credential.helper store
+          printf 'https://x-access-token:%s@%s\n' "${GIT_TOKEN}" "$host" > /root/.git-credentials
+        fi
+        if [ -n "${GIT_REPO_URL}" ]; then
+          dir="/workspace/$(basename "${GIT_REPO_URL}" .git)"
+          [ -d "$dir/.git" ] || git clone "${GIT_REPO_URL}" "$dir" || true
+        fi
+        cd /workspace
+        exec opencode serve --hostname 0.0.0.0 --port 4096
+    healthcheck:
+      type: tcp
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    env:
+      OPENCODE_SERVER_USERNAME: ${input:OPENCODE_SERVER_USERNAME}
+      OPENCODE_SERVER_PASSWORD: ${input:OPENCODE_SERVER_PASSWORD}
+      TOOLCHAIN_PACKAGES: ${input:TOOLCHAIN_PACKAGES}
+      GIT_REPO_URL: ${input:GIT_REPO_URL}
+      GIT_TOKEN: ${input:GIT_TOKEN}
+    volumes:
+      - {name: data, path: /root/.local/share/opencode}
+      - {name: config, path: /root/.config/opencode}
+      - {name: workspace, path: /workspace}
+    domains:
+      - generate: true
+    resources:
+      memoryMb: 1024
+    docker:
+      entrypoint: [sh]
+group: OpenCode
+notes:
+  - "Open the generated domain and sign in with the web UI username and password from the install form (the password is generated if left empty). The agent can run shell commands in the container, so keep that password secret."
+  - "Add your model provider (API key or OAuth) from the OpenCode UI after signing in; credentials are stored on the data volume, nothing is preconfigured."
+  - "The image is minimal: at every start the packages in TOOLCHAIN_PACKAGES are installed with apk (this needs outbound internet and adds some seconds to start-up; clear the variable to skip it). If GIT_REPO_URL is set the repository is cloned once into /workspace; GIT_TOKEN is written to a credentials file inside the container at start-up so private repositories work."
+  - "The health check only proves the port is open: the first start can take a minute while packages install and the repository is cloned."

@@ -1,0 +1,59 @@
+schema: 1
+id: mage-ai
+revision: 1
+name: Mage
+summary: Data pipeline tool for building, running and scheduling ETL, streaming and dbt workflows, with a managed PostgreSQL metadata database.
+description: Mage is a notebook-style data pipeline tool for extracting, transforming and loading data in Python, SQL and R, with scheduling, monitoring and dbt integration. This template runs it with user authentication enabled and a managed Postgres database for pipeline metadata.
+category: automation
+tags: [data, etl, pipelines, dbt, orchestration]
+icon: mageai
+links:
+  website: https://www.mage.ai
+  docs: https://docs.mage.ai
+  source: https://github.com/mage-ai/mage-ai
+upstream:
+  license: Apache-2.0
+  licenseUrl: https://github.com/mage-ai/mage-ai/blob/master/LICENSE
+  class: permissive
+origin:
+  type: coolify
+  path: templates/compose/mage-ai.yaml
+  commit: 5d66fb7
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+services:
+  - key: mage
+    name: Mage
+    kind: app
+    image: mageai/mageai:0.9.80
+    digest: sha256:73c8e808070ef55ffe263544809197820f38ca621349b5a8ed7d6366cb861cc8
+    port: 6789
+    healthcheck:
+      type: http
+      path: /api/status
+      startPeriodSeconds: 30
+      deadlineSeconds: 300
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      REQUIRE_USER_AUTHENTICATION: "1"
+      MAGE_DATABASE_CONNECTION_URL: postgresql+psycopg2://${{db.DATABASE_USER}}:${{db.DATABASE_PASSWORD}}@${{db.DATABASE_HOST}}:${{db.DATABASE_PORT}}/${{db.DATABASE_NAME}}
+    volumes:
+      - name: project
+        path: /home/src
+    resources:
+      memoryMb: 1024
+  - key: db
+    name: Mage DB
+    kind: database
+    database:
+      engine: postgres
+      version: "17"
+      databaseName: mage
+group: Mage
+notes:
+  - "Sign in with the default account admin@admin.com / admin, then change the email and password under Settings > Users straight away."
+  - "The pipeline project lives on the project volume (/home/src/default_repo); Mage can run arbitrary code, so keep authentication enabled."

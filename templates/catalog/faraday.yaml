@@ -1,0 +1,81 @@
+schema: 1
+id: faraday
+revision: 1
+name: Faraday
+summary: Open-source vulnerability management platform that collects, deduplicates and tracks findings from over 80 security scanners.
+description: Faraday (Community edition) is a web-based vulnerability management and pentest collaboration tool. It imports reports from scanners such as Nmap, Burp, Nessus or ZAP, normalizes and deduplicates the findings per workspace and gives teams one place to triage them. This template runs the Faraday server with a managed Postgres; report processing runs inside the server (Celery workers are disabled).
+category: security
+tags: [vulnerability-management, pentest, scanners, security, reports]
+links:
+  website: https://faradaysec.com
+  docs: https://docs.faradaysec.com
+  source: https://github.com/infobyte/faraday
+upstream:
+  license: GPL-3.0
+  licenseUrl: https://github.com/infobyte/faraday/blob/master/LICENSE
+  class: copyleft
+origin:
+  type: coolify
+  path: templates/compose/faraday.yaml
+  commit: 69bc72a
+  license: Apache-2.0
+requires:
+  memoryMb: 1024
+  diskGb: 5
+  arch: [amd64]
+inputs:
+  - {key: FARADAY_PASSWORD, label: "Password of the initial admin user (username faraday)", secret: true, default: "${{secret(20)}}"}
+services:
+  - key: faraday
+    name: Faraday
+    kind: app
+    image: faradaysec/faraday:5.25.2
+    digest: sha256:50b9b5c9fdbb5cc358c7fc5d059b6285312cc33b907e2fa99482a99d2ce35022
+    port: 5985
+    healthcheck:
+      type: http
+      path: /_api/config
+      startPeriodSeconds: 30
+      deadlineSeconds: 240
+    dependsOn: [postgres]
+    domains:
+      - generate: true
+    env:
+      PGSQL_HOST: ${{postgres.DATABASE_HOST}}
+      PGSQL_DBNAME: ${{postgres.DATABASE_NAME}}
+      PGSQL_USER: ${{postgres.DATABASE_USER}}
+      PGSQL_PASSWD: ${{postgres.DATABASE_PASSWORD}}
+      FARADAY_PASSWORD: ${input:FARADAY_PASSWORD}
+      FQDN: ${{NEBULA_PUBLIC_DOMAIN}}
+    files:
+      - path: /docker_server.ini
+        mode: "0444"
+        content: |
+          [faraday_server]
+          port = 5985
+          bind_address = 0.0.0.0
+          api_token_expiration = 604800
+          session_timeout = 24
+          delete_report_after_process = true
+          celery_enabled = false
+
+          [storage]
+          path = /home/faraday/.faraday/storage
+
+          [database]
+          connection_string = postgresql+psycopg2://USER:PASSWORD@HOST/DB
+    volumes:
+      - name: faraday
+        path: /home/faraday/.faraday
+    resources:
+      memoryMb: 1024
+  - key: postgres
+    name: Faraday Postgres
+    kind: database
+    database: {engine: postgres, version: "17", databaseName: faraday}
+group: Faraday
+notes:
+  - "First login: open the generated domain and sign in as user faraday with the FARADAY_PASSWORD you set at install (a generated one is shown in the service's variables). Change it after the first login."
+  - "The admin user is created on the very first start only; changing FARADAY_PASSWORD later does not change the password. Use the Faraday UI (or `faraday-manage change-password`) instead."
+  - "Celery workers are turned off through /docker_server.ini (`celery_enabled = false`): reports and bulk imports are processed inside the server process, which is enough for a small team. The upstream compose runs separate worker and beat containers that share the server's data volume, which a template cannot express."
+  - "The image is published for amd64 only."

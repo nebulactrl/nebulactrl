@@ -1,0 +1,52 @@
+schema: 1
+id: jellyseerr
+revision: 1
+name: Seerr (Jellyseerr)
+summary: Media request and discovery manager for Jellyfin, Plex and Emby, the successor of Jellyseerr and Overseerr.
+description: Seerr lets users browse and request movies and shows and passes approved requests to Sonarr and Radarr. This template runs the official Seerr image, the continuation of Jellyseerr, with its SQLite database on a volume.
+category: media
+tags: [media, requests, jellyfin, plex, emby, sonarr, radarr]
+links:
+  website: https://seerr.dev
+  docs: https://docs.seerr.dev
+  source: https://github.com/seerr-team/seerr
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/seerr-team/seerr/blob/develop/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/jellyseerr
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: seerr
+    name: Seerr
+    kind: app
+    image: ghcr.io/seerr-team/seerr:v3.5.1
+    digest: sha256:d8fab675b55ad293ded98fd71efcfd46054cbad9746534ae1cc4794a88c0b3be
+    port: 5055
+    healthcheck:
+      type: http
+      path: /api/v1/settings/public
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    domains:
+      - generate: true
+    env:
+      LOG_LEVEL: info
+      TZ: ${input:TIMEZONE}
+    volumes:
+      - name: config
+        path: /app/config
+    resources:
+      memoryMb: 512
+group: Seerr
+notes:
+  - "Open the site and follow the setup wizard: sign in with your Jellyfin, Emby or Plex server, then add Sonarr and Radarr. The media server must be reachable from this server."
+  - "Migrating from Jellyseerr or Overseerr: follow https://docs.seerr.dev/migration-guide and restore your old config into the config volume."

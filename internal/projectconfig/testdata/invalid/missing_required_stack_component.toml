@@ -1,0 +1,16 @@
+# expect: missing_required
+# A domain of a stack says which compose service it serves.
+schema = 1
+server = "fra-1"
+
+[services.shop]
+
+[services.shop.stack]
+compose = '''
+services:
+  web:
+    image: nginx:1.27-alpine
+'''
+
+[services.shop.domains."shop.acme.com"]
+target_port = 80

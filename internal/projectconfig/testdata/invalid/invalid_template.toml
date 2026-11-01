@@ -1,0 +1,11 @@
+# expect: invalid_template
+# The expression is never closed. A literal ${{ is written $${{.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "nginx:1.27"
+port = 80
+
+[services.web.variables]
+SESSION_TOKEN_SOURCE = "${{secret(32"

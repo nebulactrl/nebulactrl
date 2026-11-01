@@ -1,0 +1,65 @@
+schema: 1
+id: wuzapi
+revision: 1
+name: WuzAPI
+summary: RESTful WhatsApp API server with multi-device support, concurrent sessions and webhooks.
+description: WuzAPI wraps the WhatsApp multi-device protocol in a REST API with per-user tokens, webhooks and a small web UI. This template runs it with a managed Postgres database for sessions and users.
+category: automation
+tags: [whatsapp, messaging, api, webhooks, multi-device]
+links:
+  website: https://www.wuzapi.app
+  docs: https://github.com/asternic/wuzapi/blob/main/README.md
+  source: https://github.com/asternic/wuzapi
+upstream:
+  license: MIT
+  licenseUrl: https://github.com/asternic/wuzapi/blob/main/LICENSE
+  class: permissive
+origin:
+  type: dokploy
+  path: blueprints/wuzapi
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 512
+  diskGb: 2
+inputs:
+  - {key: WUZAPI_ADMIN_TOKEN, label: Admin token, description: "Token for the /admin/users API, used to create the users that own WhatsApp sessions.", secret: true, default: "${{secret(32)}}"}
+  - {key: TIMEZONE, label: "Timezone (IANA name)", default: UTC}
+services:
+  - key: wuzapi
+    name: WuzAPI
+    kind: app
+    image: asternic/wuzapi:1.1.0
+    digest: sha256:d9139ddcd5b3293e7ba7cd9af210b39adc6eafb16a0e23e84f4fea0f385395be
+    port: 8080
+    healthcheck:
+      type: http
+      path: /health
+      startPeriodSeconds: 20
+      deadlineSeconds: 180
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      WUZAPI_ADMIN_TOKEN: ${input:WUZAPI_ADMIN_TOKEN}
+      WUZAPI_GLOBAL_ENCRYPTION_KEY: ${{secret(32)}}
+      DB_HOST: ${{db.DATABASE_HOST}}
+      DB_PORT: ${{db.DATABASE_PORT}}
+      DB_NAME: ${{db.DATABASE_NAME}}
+      DB_USER: ${{db.DATABASE_USER}}
+      DB_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      DB_SSLMODE: "false"
+      TZ: ${input:TIMEZONE}
+    resources:
+      memoryMb: 512
+  - key: db
+    name: WuzAPI DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: wuzapi
+group: WuzAPI
+notes:
+  - "Create a user with POST /admin/users (Authorization header = the admin token from the install form), then open /login or /dashboard with that user's token to scan the WhatsApp QR code."
+  - "This uses an unofficial multi-device client; using it on a personal number can violate WhatsApp's terms. Do not change WUZAPI_GLOBAL_ENCRYPTION_KEY after the first start: stored data would become unreadable."

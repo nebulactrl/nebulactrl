@@ -1,0 +1,63 @@
+schema: 1
+id: baserow
+revision: 1
+name: Baserow
+summary: No-code database and Airtable alternative with spreadsheet views, forms, an API and automations.
+description: Runs the Baserow all-in-one image (web, API, workers, embedded Redis) with a managed Postgres database for your tables.
+category: data
+tags: [database, no-code, spreadsheet, airtable, api]
+icon: baserow
+links:
+  website: https://baserow.io
+  docs: https://baserow.io/docs/index
+  source: https://github.com/baserow/baserow
+upstream:
+  license: MIT (core); premium/ and enterprise/ directories under Baserow's own licences
+  licenseUrl: https://github.com/baserow/baserow/blob/develop/LICENSE
+  class: source-available
+origin:
+  type: dokploy
+  path: blueprints/baserow
+  commit: e44418a
+  license: MIT
+requires:
+  memoryMb: 2048
+  diskGb: 5
+services:
+  - key: baserow
+    name: Baserow
+    kind: app
+    image: baserow/baserow:2.4.1
+    digest: sha256:2229bc0ad9c8e1c3c44cef3324ff0501639d44a7b6f64026ebaa44f61cfb038e
+    port: 80
+    healthcheck:
+      type: http
+      path: /api/_health/
+      startPeriodSeconds: 60
+      deadlineSeconds: 600
+    dependsOn: [db]
+    domains:
+      - generate: true
+    env:
+      BASEROW_PUBLIC_URL: ${{NEBULA_PUBLIC_URL}}
+      DATABASE_HOST: ${{db.DATABASE_HOST}}
+      DATABASE_PORT: ${{db.DATABASE_PORT}}
+      DATABASE_NAME: ${{db.DATABASE_NAME}}
+      DATABASE_USER: ${{db.DATABASE_USER}}
+      DATABASE_PASSWORD: ${{db.DATABASE_PASSWORD}}
+      SECRET_KEY: ${{secret(50)}}
+    volumes:
+      - {name: data, path: /baserow/data}
+    resources:
+      memoryMb: 2048
+  - key: db
+    name: Baserow DB
+    kind: database
+    database:
+      engine: postgres
+      version: "16"
+      databaseName: baserow
+group: Baserow
+notes:
+  - "The first account you sign up on the site becomes the instance administrator."
+  - "BASEROW_PUBLIC_URL must equal the address in your browser. If you attach a custom domain, update that variable and redeploy."

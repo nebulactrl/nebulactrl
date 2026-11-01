@@ -1,0 +1,48 @@
+schema: 1
+id: steedos
+revision: 1
+name: Steedos
+summary: Low-code platform for building enterprise apps such as CRM, an open-source Salesforce alternative.
+description: Runs the official all-in-one Steedos community image (application, database and cache bundled in one container) with its storage on a persistent volume. It needs about 4 GB of memory.
+category: automation
+tags: [low-code, crm, no-code, platform, business]
+links:
+  website: https://www.steedos.com
+  docs: https://docs.steedos.com
+  source: https://github.com/steedos/steedos-platform
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://github.com/steedos/steedos-platform/blob/3.0/LICENSE.txt
+  class: copyleft
+origin:
+  type: dokploy
+  path: blueprints/steedos
+  commit: e44418a
+  license: MIT
+heavy: true
+requires:
+  memoryMb: 4096
+  diskGb: 10
+services:
+  - key: steedos
+    name: Steedos
+    kind: app
+    image: steedos/steedos-community:3.0.14
+    digest: sha256:f8bcd584dc698ae252c33f7a791e54b4a4f1dea2d6b7cdb318a9ceba4bd8faa8
+    port: 80
+    healthcheck:
+      type: docker
+      startPeriodSeconds: 120
+      deadlineSeconds: 600
+    domains:
+      - generate: true
+    env:
+      ROOT_URL: ${{NEBULA_PUBLIC_URL}}
+    volumes:
+      - name: storage
+        path: /steedos-storage
+    resources:
+      memoryMb: 4096
+group: Steedos
+notes:
+  - "The first start generates base metadata and can take a few minutes. Then open the site and register the first account on the welcome page."
