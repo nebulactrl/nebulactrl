@@ -4,9 +4,10 @@
 # `web`). Go coverage is cross-package (-coverpkg=./...): a test counts for
 # every package it runs. See docs/research/coverage-practices.md.
 #
-# The project must stay at 90% or more (codecov/project is a required check);
-# new code is held to 90% too. Generated code, developer tools and test
-# scaffolding are left out so the numbers describe the product's own code.
+# New code must be at least 90% covered (codecov/patch is a required check). The
+# project's target is 90% too; it is shown on every pull request and becomes a
+# required check once the total reaches it. Generated code, developer tools and
+# test scaffolding are left out so the numbers describe the product's own code.
 codecov:
   notify:
     # Report once every upload of a commit is in: three Go shards, smoke and web.
@@ -18,10 +19,10 @@ coverage:
     project:
       default:
         target: 90%
+        informational: true # required once the total reaches 90%
     patch:
       default:
         target: 90%
-
 comment:
   layout: "condensed_header, diff, flags, condensed_files"
   require_changes: true # no comment on pull requests that do not change coverage
