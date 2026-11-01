@@ -142,15 +142,21 @@ export function ServiceMetrics({ serviceId }: { serviceId: string }) {
 		labelFor = (index) => processReplicaLabel(process, index);
 	}
 	const processViews = service.data?.processes ?? [];
+	// The total is what the agent observed; before its first report, the
+	// running processes' settings (a pending one is not running yet).
+	const observed = service.data?.observed;
+	const running = processViews.filter((p) => !p.pending);
 	const scaling = withProcesses
 		? process === undefined
-			? {
-					ready: processViews.reduce((sum, p) => sum + p.scaling.ready, 0),
-					replicas: processViews.reduce(
-						(sum, p) => sum + p.scaling.replicas,
-						0,
-					),
-				}
+			? observed
+				? {
+						ready: observed.replicasReady,
+						replicas: observed.replicasDesired,
+					}
+				: {
+						ready: running.reduce((sum, p) => sum + p.scaling.ready, 0),
+						replicas: running.reduce((sum, p) => sum + p.scaling.replicas, 0),
+					}
 			: processViews.find((p) => p.name === process)?.scaling
 		: service.data?.scaling;
 	const resources = service.data

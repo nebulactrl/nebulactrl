@@ -669,16 +669,43 @@ describe("processes in the settings draft", () => {
 		const config = buildConfig(baseline, "image");
 		expect(config.processName).toBe("app");
 		expect(config.singleton).toBe(true);
+		// The default check of a portless process is left to the control plane.
 		expect(config.processes).toEqual([
 			{
 				name: "worker",
 				startCommand: ["bin/jobs", "--queue", "default"],
-				healthcheck: check,
 				stopGraceSeconds: 90,
 			},
 		]);
 		expect(buildPatch(baseline, { ...baseline }, "image")).toBeNull();
 		expect(isDirty(baseline, { ...baseline }, "image")).toBe(false);
+	});
+
+	test("a customized process health check is sent", () => {
+		const [row] = baseline.processes;
+		if (!row) throw new Error("expected a process row");
+		const config = buildConfig(
+			{
+				...baseline,
+				processes: [
+					{
+						...row,
+						health: {
+							...row.health,
+							custom: true,
+							type: "exec",
+							command: 'CMD-SHELL "pgrep jobs"',
+						},
+					},
+				],
+			},
+			"image",
+		);
+		expect(config.processes?.[0]?.healthcheck).toEqual({
+			...check,
+			type: "exec",
+			command: ["CMD-SHELL", "pgrep jobs"],
+		});
 	});
 
 	test("a service without processes sends none of the process keys", () => {

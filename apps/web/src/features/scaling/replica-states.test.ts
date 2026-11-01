@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test";
+import type { ObservedProcess, Service } from "#/api/models";
+import { makeObserved, makeService } from "#/features/canvas/lib/fixtures";
 import {
 	groupProcessReplicas,
 	groupReplicas,
 	type ObservedReplica,
 	PIP_LIMIT,
 	type ReplicaStripInput,
+	replicaStrip,
 } from "./replica-states";
 
 const up = (index: number): ObservedReplica => ({
@@ -246,5 +249,117 @@ describe("groupProcessReplicas", () => {
 		});
 		expect(strip.total).toBe(2);
 		expect(strip.pips.every((pip) => pip.process === "worker")).toBe(true);
+	});
+});
+
+describe("replicaStrip", () => {
+	const baseScaling = makeService().scaling;
+	const watch = (
+		replicasDesired: number,
+		replicasReady: number,
+		name: string,
+	): ObservedProcess => ({
+		name,
+		replicasDesired,
+		replicasReady,
+		health: "healthy",
+		state: "running",
+	});
+	const entry = (
+		name: string,
+		over: Partial<Service["processes"][number]> = {},
+		replicas = 1,
+	): Service["processes"][number] => ({
+		name,
+		default: name === "web",
+		port: 0,
+		command: [],
+		singleton: false,
+		stopGraceSeconds: 30,
+		scaling: { ...baseScaling, replicas, ready: 0 },
+		observed: null,
+		pending: false,
+		removed: false,
+		...over,
+	});
+	const running = (process: string, index: number) => ({
+		component: "",
+		index,
+		process,
+		containerId: `${process}-${index}`,
+		state: "running",
+		health: "healthy",
+		startedAt: null,
+		restartCount: 0,
+	});
+
+	test("a staged process that is not running adds no slots", () => {
+		const strip = replicaStrip(
+			makeService({
+				processes: [
+					entry("web", { observed: watch(1, 1, "web") }),
+					entry("ssr", { pending: true }),
+				],
+				observed: makeObserved({ replicas: [running("web", 0)] }),
+			}),
+		);
+		expect(strip.total).toBe(1);
+		expect(strip.summary).toBe("1 of 1 replica ready");
+		expect(strip.counts.stopped).toBe(0);
+		expect(strip.pips.map((pip) => pip.process)).toEqual(["web"]);
+	});
+
+	test("a staged process that already runs still counts its slots", () => {
+		const strip = replicaStrip(
+			makeService({
+				processes: [
+					entry("web", { observed: watch(1, 1, "web") }),
+					entry(
+						"worker",
+						{ pending: true, observed: watch(2, 2, "worker") },
+						2,
+					),
+				],
+				observed: makeObserved({
+					replicas: [
+						running("web", 0),
+						running("worker", 0),
+						running("worker", 1),
+					],
+				}),
+			}),
+		);
+		expect(strip.total).toBe(3);
+		expect(strip.counts.ready).toBe(3);
+	});
+
+	test("a removed process keeps the slots it still runs", () => {
+		const strip = replicaStrip(
+			makeService({
+				processes: [
+					entry("web", { observed: watch(1, 1, "web") }),
+					entry("old", { removed: true, observed: watch(2, 2, "old") }),
+				],
+				observed: makeObserved({
+					replicas: [running("web", 0), running("old", 0), running("old", 1)],
+				}),
+			}),
+		);
+		expect(strip.total).toBe(3);
+		expect(strip.counts.ready).toBe(3);
+		expect(strip.pips.filter((pip) => pip.process === "old")).toHaveLength(2);
+	});
+
+	test("a removed process that never ran is not drawn", () => {
+		const strip = replicaStrip(
+			makeService({
+				processes: [
+					entry("web", { observed: watch(1, 1, "web") }),
+					entry("old", { removed: true }),
+				],
+				observed: makeObserved({ replicas: [running("web", 0)] }),
+			}),
+		);
+		expect(strip.total).toBe(1);
 	});
 });

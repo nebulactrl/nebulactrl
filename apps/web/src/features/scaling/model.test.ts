@@ -12,6 +12,7 @@ import {
 	scaleSubject,
 	scalingOfProcess,
 	scalingSummary,
+	serviceCanScale,
 	toFormState,
 	usesServiceScaling,
 	validateScaling,
@@ -179,7 +180,7 @@ describe("processes", () => {
 	});
 	const service = makeService({
 		name: "shop",
-		scaling: scaling({ replicas: 2, ready: 2 }),
+		scaling: scaling({ replicas: 2, ready: 4 }),
 		processes: [
 			process("web", true, { replicas: 2, ready: 2 }),
 			process("worker", false, { replicas: 3, ready: 1 }),
@@ -223,10 +224,65 @@ describe("processes", () => {
 		expect(usesServiceScaling(service, "worker")).toBe(false);
 	});
 
-	test("a named process reads its own scaling", () => {
+	test("a process reads its own scaling, the default one included", () => {
 		expect(scalingOfProcess(service, "worker").replicas).toBe(3);
-		expect(scalingOfProcess(service, "web")).toBe(service.scaling);
-		expect(scalingOfProcess(service).replicas).toBe(2);
+		const web = scalingOfProcess(service, "web");
+		const webProcess = service.processes[0];
+		if (!webProcess) throw new Error("fixture");
+		expect(web).toBe(webProcess.scaling);
+		// The service's own ready counts every process; the default reads its own.
+		expect(service.scaling.ready).toBe(4);
+		expect(web.ready).toBe(2);
+		expect(web.replicas).toBe(2);
+	});
+
+	test("no name or an unknown name reads the service's own scaling", () => {
+		expect(scalingOfProcess(service)).toBe(service.scaling);
+		expect(scalingOfProcess(service, "gone")).toBe(service.scaling);
+	});
+
+	test("the dialog skips a process that cannot scale while another can", () => {
+		const onlyClock = makeService({
+			processes: [
+				process("web", true, { eligible: false }),
+				process("clock", false, { eligible: false }),
+			],
+		});
+		expect(initialScaleProcess(service, "clock")).toBe("web");
+		expect(initialScaleProcess(onlyClock, "clock")).toBe("clock");
+		const defaultBlocked = makeService({
+			processes: [
+				process("web", true, { eligible: false }),
+				process("worker", false),
+			],
+		});
+		expect(initialScaleProcess(defaultBlocked)).toBe("worker");
+	});
+
+	test("a service can scale when any process that stays can", () => {
+		expect(serviceCanScale(service)).toBe(true);
+		expect(serviceCanScale(plain)).toBe(true);
+		const blockedPlain = makeService({
+			scaling: scaling({ eligible: false }),
+		});
+		expect(serviceCanScale(blockedPlain)).toBe(false);
+		// A service whose own scaling is eligible still reads its processes.
+		const allBlocked = makeService({
+			scaling: scaling({ eligible: true }),
+			processes: [
+				process("web", true, { eligible: false }),
+				process("clock", false, { eligible: false }),
+				process("old", false, {}, true),
+			],
+		});
+		expect(serviceCanScale(allBlocked)).toBe(false);
+		const onlyRemovedEligible = makeService({
+			processes: [
+				process("web", true, { eligible: false }),
+				process("old", false, { eligible: true }, true),
+			],
+		});
+		expect(serviceCanScale(onlyRemovedEligible)).toBe(false);
 	});
 
 	test("a process scales by its own eligibility", () => {
