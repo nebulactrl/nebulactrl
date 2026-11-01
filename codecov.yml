@@ -1,22 +1,26 @@
-# Codecov (https://app.codecov.io/gh/nebulactrl/nebulactrl). ci.yml uploads the
-# coverage of the three Go test shards (flag `go`) and of the web unit tests
-# (flag `web`) through OIDC, no token.
+# Codecov (https://app.codecov.io/gh/nebulactrl/nebulactrl). ci.yml uploads,
+# through OIDC (no token), the coverage of the three Go test shards (flag `go`),
+# of the Docker smoke scenarios (flag `smoke`) and of the web unit tests (flag
+# `web`). Go coverage is cross-package (-coverpkg=./...): a test counts for
+# every package it runs. See docs/research/coverage-practices.md.
 #
-# Coverage is informational: the status checks report, they never fail a pull
-# request. Generated code is left out so the numbers describe code people write.
+# The project must stay at 90% or more (codecov/project is a required check);
+# new code is held to 90% too. Generated code, developer tools and test
+# scaffolding are left out so the numbers describe the product's own code.
 codecov:
   notify:
-    # Report once every upload of a commit is in: three Go shards and web.
-    after_n_builds: 4
+    # Report once every upload of a commit is in: three Go shards, smoke and web.
+    # Keep this equal to the number of upload steps in ci.yml.
+    after_n_builds: 5
 
 coverage:
   status:
     project:
       default:
-        informational: true
+        target: 90%
     patch:
       default:
-        informational: true
+        target: 90%
 
 comment:
   layout: "condensed_header, diff, flags, condensed_files"
@@ -24,7 +28,7 @@ comment:
 
 flag_management:
   default_rules:
-    # A run that skips a flag (the web job did not run) keeps its last numbers.
+    # A run that skips a flag keeps its last numbers.
     carryforward: true
 
 # Go reports module paths; map them onto the repository.
@@ -32,6 +36,7 @@ fixes:
   - "github.com/nebulactrl/nebulactrl/::"
 
 ignore:
+  # Generated code.
   - "internal/db/*.sql.go"
   - "internal/db/db.go"
   - "internal/db/models.go"
@@ -39,3 +44,12 @@ ignore:
   - "pkg/agentprotocol/dns_lego_catalog.go"
   - "apps/web/src/api/gen/**"
   - "apps/web/src/routeTree.gen.ts"
+  # Developer tools (not shipped) and test scaffolding: the integration harness,
+  # fixtures, installer tests and the test-support packages (the same set
+  # scripts/ci/deadcode.sh treats as support code).
+  - "tools/**"
+  - "tests/**"
+  - "internal/testutil/**"
+  - "internal/templates/testsample/**"
+  - "internal/*test/**"
+  - "internal/**/*test/**"
