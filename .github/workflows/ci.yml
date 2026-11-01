@@ -4,9 +4,9 @@
 #
 #   go     go vet + go test ./...              (unit + DB tests, Postgres service),
 #          3 parallel shards of packages, balanced by scripts/ci/go-durations.json;
-#          go vet runs in shard 1; each shard uploads its coverage to Codecov
+#          go vet runs in shard 1; each shard uploads its cross-package coverage to Codecov
 #   web    typecheck, biome, knip, bun test (coverage to Codecov), build
-#   smoke  tests/run.sh smoke                  (~8 Docker scenarios, runner's Docker)
+#   smoke  tests/run.sh smoke                  (~8 Docker scenarios, runner's Docker; coverage to Codecov)
 #
 # Alongside them, the checks that keep the supply chain and the workflows honest:
 #
@@ -153,18 +153,24 @@ jobs:
         run: go vet ./...
       - name: go test (this shard's packages)
         shell: bash
+        # -coverpkg=./... credits a test with every package it runs (the HTTP tests
+        # in internal/app cover internal/api, auth, teams, ...). The counters go to a
+        # directory and covdata merges them into one profile: a -coverprofile per
+        # package would repeat every block of the module once per package.
         run: |
           list="$(go list ./... | go run ./tools/shardtests -packages -shard "$SHARD" -preload-first 90 -durations scripts/ci/go-durations.json -summary)"
           mapfile -t pkgs <<<"$list"
           echo "shard $SHARD: ${#pkgs[@]} packages"
-          go test -count=1 -coverprofile=coverage.out "${pkgs[@]}"
+          mkdir -p covdata
+          go test -count=1 -cover -coverpkg=./... "${pkgs[@]}" -args -test.gocoverdir="$PWD/covdata"
+          go tool covdata textfmt -i=covdata -o coverage.out
       - name: Upload coverage
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: coverage.out
           flags: go
           use_oidc: true
-          fail_ci_if_error: false # coverage is informational; a Codecov outage never fails CI
+          fail_ci_if_error: false # an upload hiccup never fails CI; Codecov's own status does
 
   web:
     name: web typecheck, lint, test, build
@@ -201,7 +207,7 @@ jobs:
           files: apps/web/coverage/lcov.info
           flags: web
           use_oidc: true
-          fail_ci_if_error: false # coverage is informational; a Codecov outage never fails CI
+          fail_ci_if_error: false # an upload hiccup never fails CI; Codecov's own status does
       - run: bun run build
 
   smoke:
@@ -210,7 +216,10 @@ jobs:
     # pull requests always run it.
     if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' || inputs.smoke }}
     runs-on: ubuntu-24.04
-    timeout-minutes: 8
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      id-token: write # Codecov upload through OIDC, no token secret
     services:
       postgres:
         image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
@@ -245,7 +254,19 @@ jobs:
         if: steps.images.outputs.cache-hit == 'true'
         run: docker load -i ~/docker-images.tar
       - name: Smoke tests
-        run: ./tests/run.sh smoke -v # runs go test -count=1
+        # The harness runs the control plane and agent in the test process, so the
+        # scenarios' coverage is collected like the unit tests' (see the go job).
+        run: |
+          mkdir -p covdata-smoke
+          ./tests/run.sh smoke -v -cover -coverpkg=./... -args -test.gocoverdir="$PWD/covdata-smoke"
+          go tool covdata textfmt -i=covdata-smoke -o smoke-coverage.out
+      - name: Upload coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: smoke-coverage.out
+          flags: smoke
+          use_oidc: true
+          fail_ci_if_error: false # an upload hiccup never fails CI; Codecov's own status does
       - name: Save Docker images for the cache
         if: success() && steps.images.outputs.cache-hit != 'true'
         run: |
