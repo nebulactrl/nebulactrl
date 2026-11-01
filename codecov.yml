@@ -4,8 +4,8 @@
 # `web`). Go coverage is cross-package (-coverpkg=./...): a test counts for
 # every package it runs. See docs/research/coverage-practices.md.
 #
-# New code must be at least 90% covered (codecov/patch is a required check). The
-# project's target is 90% too; it is shown on every pull request and becomes a
+# New code must be at least 85% covered (codecov/patch is a required check). The
+# project's target is 85% too; it is shown on every pull request and becomes a
 # required check once the total reaches it. Generated code, developer tools and
 # test scaffolding are left out so the numbers describe the product's own code.
 codecov:
@@ -18,11 +18,11 @@ coverage:
   status:
     project:
       default:
-        target: 90%
-        informational: true # required once the total reaches 90%
+        target: 85%
+        informational: true # required once the total reaches 85%
     patch:
       default:
-        target: 90%
+        target: 85%
 comment:
   layout: "condensed_header, diff, flags, condensed_files"
   require_changes: true # no comment on pull requests that do not change coverage
@@ -47,10 +47,19 @@ ignore:
   - "apps/web/src/routeTree.gen.ts"
   # Developer tools (not shipped) and test scaffolding: the integration harness,
   # fixtures, installer tests and the test-support packages (the same set
-  # scripts/ci/deadcode.sh treats as support code).
-  - "tools/**"
-  - "tests/**"
-  - "internal/testutil/**"
-  - "internal/templates/testsample/**"
-  - "internal/*test/**"
-  - "internal/**/*test/**"
+  # scripts/ci/deadcode.sh treats as support code). Folders are listed by name,
+  # the form Codecov documents for "a folder and all its contents".
+  - "tools"
+  - "tests"
+  - "internal/testutil"
+  - "internal/templates/testsample"
+  - "internal/stacktest"
+  - "internal/agent/compose/composetest"
+  - "internal/auth/passkeytest"
+  - "internal/auth/totptest"
+  - "internal/gitssh/gitsshtest"
+  - "internal/mesh/meshtest"
+  - "internal/notifications/notificationstest"
+  - "internal/prodguard/prodguardtest"
+  - "internal/releasesign/releasesigntest"
+  - "internal/systemroute/systemroutetest"

@@ -1,6 +1,7 @@
 # NebulaCtrl
 
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nebulactrl/nebulactrl/badge)](https://scorecard.dev/viewer/?uri=github.com/nebulactrl/nebulactrl)
+[![Coverage](https://codecov.io/gh/nebulactrl/nebulactrl/graph/badge.svg)](https://app.codecov.io/gh/nebulactrl/nebulactrl)
 
 **Railway's developer experience for infrastructure you own.**
 

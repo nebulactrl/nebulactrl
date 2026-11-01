@@ -5,7 +5,7 @@
 #   go     go vet + go test ./...              (unit + DB tests, Postgres service),
 #          3 parallel shards of packages, balanced by scripts/ci/go-durations.json;
 #          go vet runs in shard 1; each shard uploads its cross-package coverage to Codecov
-#   web    typecheck, biome, knip, bun test (coverage to Codecov), build
+#   web    typecheck, biome, knip, bun test of apps/web and packages/{dither,ascii,tokens,docs} (coverage to Codecov), build
 #   smoke  tests/run.sh smoke                  (~8 Docker scenarios, runner's Docker; coverage to Codecov)
 #
 # Alongside them, the checks that keep the supply chain and the workflows honest:
@@ -201,10 +201,22 @@ jobs:
         working-directory: .
         run: scripts/ci/knip.sh
       - run: bun test src --coverage --coverage-reporter=lcov --coverage-dir=coverage
+      - name: Package tests (dither, ascii, tokens, docs)
+        working-directory: .
+        shell: bash
+        # Bun writes lcov paths relative to where it ran; rewrite them relative to
+        # the repository so Codecov maps every file (apps/web's ../../packages/...
+        # included) to one path.
+        run: |
+          for pkg in dither ascii tokens docs; do
+            (cd "packages/$pkg" && bun test src --coverage --coverage-reporter=lcov --coverage-dir=coverage)
+            sed -i -E "s#^SF:#SF:packages/$pkg/#" "packages/$pkg/coverage/lcov.info"
+          done
+          sed -i -E 's#^SF:#SF:apps/web/#; s#^SF:apps/web/\.\./\.\./#SF:#' apps/web/coverage/lcov.info
       - name: Upload coverage
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
-          files: apps/web/coverage/lcov.info
+          files: apps/web/coverage/lcov.info,packages/dither/coverage/lcov.info,packages/ascii/coverage/lcov.info,packages/tokens/coverage/lcov.info,packages/docs/coverage/lcov.info
           flags: web
           use_oidc: true
           fail_ci_if_error: false # an upload hiccup never fails CI; Codecov's own status does
