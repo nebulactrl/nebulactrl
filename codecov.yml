@@ -10,9 +10,10 @@
 # test scaffolding are left out so the numbers describe the product's own code.
 codecov:
   notify:
-    # Report once every upload of a commit is in: three Go shards, smoke and web.
+    # Report once every upload of a commit is in: three Go shards, smoke, the web
+    # packages and the three web-test shards.
     # Keep this equal to the number of upload steps in ci.yml.
-    after_n_builds: 5
+    after_n_builds: 8
 
 coverage:
   status:
@@ -63,3 +64,11 @@ ignore:
   - "internal/prodguard/prodguardtest"
   - "internal/releasesign/releasesigntest"
   - "internal/systemroute/systemroutetest"
+  # Dev-only web pages. The dither catalogue is a knob gallery behind
+  # import.meta.env.DEV (routes/dev.dither.tsx 404s in a production build and
+  # the lazy import is dropped, so these folders never reach the bundle). They
+  # are reachable from no other route; the components they show are
+  # packages/dither, which has its own tests. The route file itself ships and
+  # stays counted (routes/redirects.test.tsx covers its guard).
+  - "apps/web/src/features/dev"
+  - "apps/web/src/components/dither"

@@ -6,14 +6,15 @@ COMPOSE      := docker compose $(if $(wildcard .env),--env-file .env) -f deploy/
 VERSION      ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS      := -s -w -X main.version=$(VERSION)
 OAPI_CODEGEN_VERSION ?= v2.8.0
+SQLC_VERSION ?= v1.30.0
 GOLANGCI_LINT_VERSION ?= v2.15.0
 AGENT_ARCHES := amd64 arm64
 
 # Source .env (if present) so tests see NEBULACTRL_TEST_DATABASE_URL etc.
 LOAD_ENV := set -a; if [ -f .env ]; then . ./.env; fi; set +a;
 
-.PHONY: help setup keygen dev-deps dev dev-agent dev-down dev-reset generate test test-db \
-        test-smoke test-full lint lint-go lint-dead lint-workflows test-release-rules build build-web build-agents \
+.PHONY: help setup keygen dev-deps dev dev-agent dev-down dev-reset generate check-generated test test-db \
+        test-smoke test-full test-e2e lint lint-go lint-dead lint-workflows test-release-rules build build-web build-agents \
         release-binaries e2e site-dev site-build
 
 help: ## List targets
@@ -65,6 +66,12 @@ generate: ## sqlc, OpenAPI spec, web API client, Go API client, CLI reference do
 	else echo "skip oapi-codegen: internal/apiclient/oapi-codegen.yaml not present yet"; fi
 	go run ./cmd/cli docs --out docs/reference/cli.md
 
+check-generated: generate ## Regenerate everything, then fail if a generated file differs from the commit (CI's drift check)
+	@if [ -n "$$(git status --porcelain)" ]; then \
+	  echo "generated files are out of date; run 'make generate' and commit:"; \
+	  git status --porcelain; git --no-pager diff --stat; exit 1; \
+	fi
+
 test: ## Tier 1: Go unit + DB tests and web unit tests (every change, 1-2 min)
 	@$(LOAD_ENV) go test ./...
 	cd apps/web && bun run test
@@ -83,6 +90,14 @@ test-smoke: test-db ## Tier 2: ~8 core Docker scenarios, shared control plane + 
 
 test-full: test-db ## Tier 3: every Docker scenario incl. templates sample, Railpack, backups, reconnect (pauses dev agent1; NEBULACTRL_TEST_MULTI=1 adds multi-server)
 	@./tests/run.sh full
+
+test-e2e: ## Tier 4: Playwright flows in a real browser against a fresh stack (control plane + built web app, Postgres, an agent on a private docker-in-docker daemon; ~10 min, see tests/README.md)
+	@caller="$${NEBULACTRL_TEST_DATABASE_URL-}"; \
+	[ -n "$$caller" ] || $(MAKE) --no-print-directory test-db; \
+	$(LOAD_ENV) \
+	[ -z "$$caller" ] || NEBULACTRL_TEST_DATABASE_URL="$$caller"; \
+	export NEBULACTRL_TEST_DATABASE_URL; \
+	exec tests/e2e/run.sh
 
 lint: lint-go lint-dead ## golangci-lint (includes go vet), deadcode, knip and biome
 	cd apps/web && bun run lint
@@ -135,5 +150,5 @@ site-build: ## Marketing site into apps/site/dist (needs SITE_URL=https://... an
 	@[ -n "$(SITE_URL)" ] || { echo "SITE_URL is required, e.g. make site-build SITE_URL=https://nebulactrl.example"; exit 1; }
 	cd apps/site && SITE_URL="$(SITE_URL)" bun run build
 
-e2e: ## Playwright smoke test (needs `make dev` + agent1 running; see .env.example)
+e2e: ## The Playwright flows against a running dev stack (`make dev` + the agent1 dev profile; E2E_* in .env.example). `make test-e2e` starts its own stack instead
 	@$(LOAD_ENV) cd apps/web && bunx playwright test
