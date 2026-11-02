@@ -3,6 +3,7 @@ import {
 	type DitherColorName,
 	ditherColorVar,
 } from "../../lib/colors";
+import { parseCssColor } from "../../lib/gl/palette";
 import { type DitherPalette, toRGB } from "../../lib/tokens";
 import type { TextRgba } from "./fills";
 
@@ -38,7 +39,13 @@ function probeCss(css: string): TextRgba {
 	const computed = getComputedStyle(span).color;
 	span.remove();
 	const [r, g, b] = toRGB(computed || css);
-	return [r, g, b, 255];
+	return [r, g, b, alphaOf(computed || css)];
+}
+
+/** Alpha 0..255 of a CSS colour the parser understands; opaque for the rest. */
+function alphaOf(css: string): number {
+	const parsed = parseCssColor(css);
+	return parsed ? Math.round(parsed[3] * 255) : 255;
 }
 
 /**
@@ -65,5 +72,5 @@ export function resolveTextRgba(
 		return probeCss(ditherColorVar(value));
 	}
 	const [r, g, b] = toRGB(value);
-	return [r, g, b, 255];
+	return [r, g, b, alphaOf(value)];
 }

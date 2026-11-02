@@ -402,7 +402,6 @@ void main() {
   vec4 s = texelFetch(u_cells, ivec2(cell), 0);
 
   float steps = max(u_levels - 1.0, 1.0);
-  float q = floor(s.a * steps + 0.5) / steps;
 
   // Anchor the matrix to the top-left so resizing never shifts the pattern.
   vec2 bc = vec2(cell.x, u_grid.y - 1.0 - cell.y);
@@ -416,6 +415,21 @@ void main() {
     thr = texelFetch(u_blue, b, 0).r + 0.001953125;
   }
 
+  // Ordered quantisation onto the levels with one threshold. It picks the lower
+  // or upper neighbouring level (the lower one for thr < 1 - frac), and the part
+  // of the threshold inside that interval, stretched back to 0..1 as v, makes
+  // the second choice between palette stops. v stays uniform, so the mean
+  // tone is kept at any level count and the matrix still shapes the output.
+  // quantise-begin
+  float p = clamp(s.a, 0.0, 1.0) * steps;
+  float lo = floor(p);
+  float fr = p - lo;
+  float cut = 1.0 - fr;
+  bool up = fr > 0.0 && thr >= cut;
+  float v = up ? (thr - cut) / fr : thr / cut;
+  float q = min(lo + (up ? 1.0 : 0.0), steps) / steps;
+  // quantise-end
+
   bool inside = true;
   if (u_shape > 0.5 && u_sub > 1.5) {
     vec2 f = (mod(frag, u_sub) + 0.5) / u_sub - 0.5;
@@ -424,12 +438,12 @@ void main() {
 
   vec4 col;
   if (u_hasColor > 0.5) {
-    col = (q > thr && inside) ? vec4(s.rgb, 1.0) : u_pal[0];
+    col = (q > v && inside) ? vec4(s.rgb, 1.0) : u_pal[0];
   } else {
     float pos = q * float(u_palN - 1);
     int i = min(int(floor(pos)), u_palN - 2);
     float f = pos - float(i);
-    col = (f > thr && inside) ? u_pal[i + 1] : u_pal[i];
+    col = (f > v && inside) ? u_pal[i + 1] : u_pal[i];
   }
   o_color = vec4(col.rgb * col.a, col.a);
 }

@@ -208,7 +208,9 @@ function Plan({
 			serverId: planned.serverId,
 			inputs: planned.inputs,
 		}),
-		enabled: missing.length === 0,
+		// Only once the debounce has caught up: right after the last required input
+		// is filled, the debounced form would still have it empty.
+		enabled: missing.length === 0 && settledFingerprint === fingerprint,
 		placeholderData: keepPreviousData,
 	});
 

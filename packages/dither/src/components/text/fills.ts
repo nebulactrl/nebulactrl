@@ -230,22 +230,25 @@ export function rampColor(
 /**
  * Paint a `w × h` grid of RGBA: inked glyph cells in `ink`, the other glyph
  * cells in `ink` at `ghost` alpha (so letters keep their shape), everything
- * outside the glyphs transparent. `glyph` is coverage 0..255 per cell. With a
- * `palette` (lightest tone first, at least two colours) the ramp replaces
- * `ink` and `ghost`.
+ * outside the glyphs transparent. `glyph` is coverage 0..255 per cell. An
+ * `ink` alpha below 255 scales the ink and the ghost, so alpha 0 paints
+ * nothing. With a `palette` (lightest tone first, at least two colours) the
+ * ramp replaces `ink` and `ghost`.
  */
 export function paintTextGrid(
 	glyph: Uint8ClampedArray,
 	w: number,
 	h: number,
 	spec: FillSpec,
-	ink: readonly [number, number, number],
+	ink: readonly [number, number, number, number?],
 	ghost: number,
 	t: number,
 	out: Uint8ClampedArray<ArrayBuffer> = new Uint8ClampedArray(w * h * 4),
 	palette?: readonly TextRgba[],
 ): Uint8ClampedArray<ArrayBuffer> {
-	const ghostAlpha = Math.round(clamp01(ghost) * 255);
+	const inkAlpha = clamp01((ink[3] ?? 255) / 255);
+	const solidAlpha = Math.round(inkAlpha * 255);
+	const ghostAlpha = Math.round(clamp01(ghost) * inkAlpha * 255);
 	const ramp = palette && palette.length >= 2 ? palette : null;
 	for (let y = 0; y < h; y += 1) {
 		for (let x = 0; x < w; x += 1) {
@@ -270,7 +273,7 @@ export function paintTextGrid(
 			out[o] = ink[0];
 			out[o + 1] = ink[1];
 			out[o + 2] = ink[2];
-			out[o + 3] = fillInk(spec, x, y, w, h, t) ? 255 : ghostAlpha;
+			out[o + 3] = fillInk(spec, x, y, w, h, t) ? solidAlpha : ghostAlpha;
 		}
 	}
 	return out;

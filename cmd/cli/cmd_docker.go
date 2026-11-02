@@ -195,8 +195,10 @@ func newServicesDockerCmd(c *cli) *cobra.Command {
 		Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fs := cmd.Flags()
+			// Only this command's own flags are changes: --json, --idempotency-key
+			// and the other root flags are inherited and also in fs.
 			changed := false
-			fs.Visit(func(*pflag.Flag) { changed = true })
+			cmd.LocalNonPersistentFlags().VisitAll(func(f *pflag.Flag) { changed = changed || f.Changed })
 			if err := c.connect(); err != nil {
 				return err
 			}

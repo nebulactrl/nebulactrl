@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { environmentsQuery, projectsQuery } from "#/api/hooks";
 import { type Environment, type Project, productionFirst } from "#/api/models";
 
@@ -31,8 +32,12 @@ export function useProjectContext(): ProjectContext | undefined {
 		...environmentsQuery(projectId ?? ""),
 		enabled: projectId !== undefined,
 	});
+	// The same array until the environments change: hooks key their memos on it.
+	const environments = useMemo(
+		() => productionFirst(environmentsResult.data ?? []),
+		[environmentsResult.data],
+	);
 	if (projectId === undefined) return undefined;
-	const environments = productionFirst(environmentsResult.data ?? []);
 	return {
 		projectId,
 		project: projects.data?.find((project) => project.id === projectId),

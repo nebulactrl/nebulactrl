@@ -27,7 +27,7 @@ func newTeamsCmd(c *cli) *cobra.Command {
 			if err := check(r, err); err != nil {
 				return err
 			}
-			items := deref(r.JSON200.Items)
+			items := itemsOrEmpty(r.JSON200.Items)
 			if c.asJSON {
 				return c.printJSON(items)
 			}
@@ -122,7 +122,7 @@ func newMembersCmd(c *cli) *cobra.Command {
 				return err
 			}
 			if c.asJSON {
-				return c.printJSON(deref(r.JSON200.Items))
+				return c.printJSON(itemsOrEmpty(r.JSON200.Items))
 			}
 			var rows [][]string
 			for _, m := range deref(r.JSON200.Items) {

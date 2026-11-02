@@ -184,7 +184,13 @@ func newTemplatesPlanCmd(c *cli) *cobra.Command {
 			}
 			p := r.JSON200
 			if c.asJSON {
-				return c.printJSON(p)
+				if err := c.printJSON(p); err != nil {
+					return err
+				}
+				if !p.Installable {
+					return &exitError{code: 1}
+				}
+				return nil
 			}
 			rows := [][]string{}
 			for _, s := range deref(p.Services) {

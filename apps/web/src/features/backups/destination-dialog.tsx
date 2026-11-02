@@ -132,10 +132,10 @@ export function DestinationDialog({
 								secretKey: d.secretKey,
 							}
 						: {
+								// The directory form has no key prefix: one typed on the bucket form stays there.
 								name: d.name.trim(),
 								kind: "local",
 								localDir: d.localDir.trim(),
-								prefix: d.prefix.trim(),
 							},
 			});
 		},

@@ -1,12 +1,11 @@
 import type { Deployment } from "#/api/models";
-import { shortSHA256 } from "#/lib/format";
+import { releaseLabel } from "#/features/deployments/labels";
 import type { DeployMarker } from "./ui/time-chart";
 
-/** "a1b2c3d" for a commit, "sha256:01234567" for an image, else the id's head. */
-function releaseLabel(deployment: Deployment): string {
+/** The release's label ("a1b2c3d", "sha256:01234567"), or the id's head without a source. */
+function markerLabel(deployment: Deployment): string {
 	const source = deployment.release?.source;
-	if (source?.commitSha) return source.commitSha.slice(0, 7);
-	if (source?.digest) return shortSHA256(source.digest);
+	if (source?.commitSha || source?.digest) return releaseLabel(source);
 	return deployment.id.slice(0, 7);
 }
 
@@ -23,7 +22,7 @@ export function deploymentMarkers(
 		if (!deployment.startedAt) continue;
 		const at = Date.parse(deployment.startedAt);
 		if (!Number.isFinite(at)) continue;
-		markers.push({ id: deployment.id, at, label: releaseLabel(deployment) });
+		markers.push({ id: deployment.id, at, label: markerLabel(deployment) });
 	}
 	return markers;
 }
