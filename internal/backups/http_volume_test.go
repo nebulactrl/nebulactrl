@@ -202,10 +202,10 @@ func TestHTTPVolumeBackupFilesListAndDownload(t *testing.T) {
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code, rec.Body.String())
 }
 
-func (f *fixture) count(query string, args ...any) int {
+func (f *fixture) count(query string) int {
 	f.t.Helper()
 	var n int
-	require.NoError(f.t, f.pool.QueryRow(context.Background(), query, args...).Scan(&n))
+	require.NoError(f.t, f.pool.QueryRow(context.Background(), query).Scan(&n))
 	return n
 }
 

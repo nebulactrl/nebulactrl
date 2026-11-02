@@ -226,17 +226,20 @@ func TestEnvironmentSelectorForms(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, f.stg.ID, got.ID)
 
-	for sel, want := range map[string]uuid.UUID{
-		"shop":              f.prod.ID, // the single production environment
-		"shop/":             f.prod.ID,
-		"shop/staging":      f.stg.ID,
-		"SHOP/Staging":      f.stg.ID,
-		" shop / staging  ": f.stg.ID,
-		"shop/production":   f.prod.ID,
+	for _, c := range []struct {
+		sel  string
+		want uuid.UUID
+	}{
+		{"shop", f.prod.ID}, // the single production environment
+		{"shop/", f.prod.ID},
+		{"shop/staging", f.stg.ID},
+		{"SHOP/Staging", f.stg.ID},
+		{" shop / staging  ", f.stg.ID},
+		{"shop/production", f.prod.ID},
 	} {
-		got, err := f.r.Environment(f.ctx, sel)
-		require.NoError(t, err, sel)
-		require.Equal(t, want, got.ID, sel)
+		got, err := f.r.Environment(f.ctx, c.sel)
+		require.NoError(t, err, c.sel)
+		require.Equal(t, c.want, got.ID, c.sel)
 	}
 
 	_, err = f.r.Environment(f.ctx, "")

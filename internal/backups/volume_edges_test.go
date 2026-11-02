@@ -197,9 +197,8 @@ func TestVolumeResultsRecordWhatTheAgentReportedAndKeepRestoredDataReachable(t *
 		require.NoError(t, f.pool.QueryRow(bg, "SELECT command_id FROM volume_backups WHERE id = $1", v.ID).Scan(&cmdID))
 		return v
 	}
-	result := func(outcome, msg string, data agentprotocol.VolumeBackupResult) VolumeBackupView {
+	result := func(outcome, msg string, data agentprotocol.VolumeBackupResult) {
 		require.NoError(t, f.svc.HandleResult(f.ctx, cmdID, f.result(cmdID, outcome, msg, data)))
-		return VolumeBackupView{}
 	}
 	get := func(id uuid.UUID) VolumeBackupView {
 		v, err := f.svc.GetVolumeBackup(f.ctx, id)

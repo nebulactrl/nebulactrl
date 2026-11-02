@@ -812,7 +812,6 @@ type githubServer struct {
 	userStatus  int
 	emailStatus int
 	tokenOK     bool
-	challenge   string
 }
 
 func newGithub(t *testing.T) *githubServer {

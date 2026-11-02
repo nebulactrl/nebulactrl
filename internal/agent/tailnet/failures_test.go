@@ -122,14 +122,13 @@ func (f *failEngine) ContainerExec(ctx context.Context, id string, argv []string
 	return f.fakeEngine.ContainerExec(ctx, id, argv, spec, o, e)
 }
 
-func (f *failEngine) seedSidecar(spec agentprotocol.ServiceTailnetSpec, mutate func(*docker.ContainerInfo)) *docker.ContainerInfo {
+func (f *failEngine) seedSidecar(spec agentprotocol.ServiceTailnetSpec, mutate func(*docker.ContainerInfo)) {
 	want := ContainerSpec(spec, "")
 	c := &docker.ContainerInfo{ID: "id-old", Name: want.Name, Running: true, Labels: want.Labels}
 	if mutate != nil {
 		mutate(c)
 	}
 	f.containers[want.Name] = c
-	return c
 }
 
 func TestEnsureReportsFailuresToSetUpTheNode(t *testing.T) {

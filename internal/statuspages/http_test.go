@@ -529,14 +529,14 @@ func TestMaintenanceEndpointsLifecycle(t *testing.T) {
 
 func TestOptionalUUID(t *testing.T) {
 	id := uuid.New()
-	got, err := optionalUUID("page_id", id.String())
+	got, err := optionalPageID(id.String())
 	require.NoError(t, err)
 	require.Equal(t, id, *got)
 
-	got, err = optionalUUID("page_id", "")
+	got, err = optionalPageID("")
 	require.NoError(t, err)
 	require.Nil(t, got, "absent means no filter")
 
-	_, err = optionalUUID("page_id", "nope")
+	_, err = optionalPageID("nope")
 	requireAPIError(t, err, 400, "invalid_page_id")
 }

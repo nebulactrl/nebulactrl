@@ -3,6 +3,7 @@ package teams
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -157,7 +158,7 @@ func (f *tf) roleOf(user uuid.UUID) string {
 func (f *tf) isMember(user, team uuid.UUID) bool {
 	f.t.Helper()
 	_, err := f.q.GetMembership(context.Background(), db.GetMembershipParams{UserID: user, WorkspaceID: team})
-	if err == pgx.ErrNoRows {
+	if errors.Is(err, pgx.ErrNoRows) {
 		return false
 	}
 	require.NoError(f.t, err)

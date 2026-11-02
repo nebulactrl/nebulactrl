@@ -151,7 +151,7 @@ func TestBackupsCreateWaitFollowsTheBackupToItsEnd(t *testing.T) {
 	f := newCfgFake(t)
 	f.reply("GET", bkDestinaties, 200, bkDestinations())
 	f.reply("POST", bkSvcBackups, 202, bkView("queued", nil))
-	f.replySeq("GET", bkOne, 200, bkView("queued", nil), bkView("running", nil), bkView("running", nil), bkView("succeeded", nil))
+	f.replySeq(bkOne, bkView("queued", nil), bkView("running", nil), bkView("running", nil), bkView("succeeded", nil))
 
 	r := f.run("backups", "create", fakeSvcID, "--destination", "Offsite", "--wait")
 	require.Equal(t, 0, r.code, r.all())
@@ -236,7 +236,7 @@ func TestBackupsRestoreWaitReportsTheNewDatabaseOrTheFailure(t *testing.T) {
 	path := cfgAPI + "/backups/" + bkID + "/restore"
 	one := cfgAPI + "/backup-restores/" + bkRestID
 	f.reply("POST", path, 202, map[string]any{"id": bkRestID, "mode": "new", "status": "queued"})
-	f.replySeq("GET", one, 200,
+	f.replySeq(one,
 		map[string]any{"id": bkRestID, "mode": "new", "status": "restoring"},
 		map[string]any{"id": bkRestID, "mode": "new", "status": "succeeded", "targetServiceId": fakeSvc2ID})
 

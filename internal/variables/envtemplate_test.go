@@ -568,9 +568,9 @@ func TestPreviewTemplatesOnTheAgent(t *testing.T) {
 	require.Equal(t, "The server is offline.", scan.Message)
 }
 
-func (f *fx) jobCount(kind string) int {
+func (f *fx) jobCount() int {
 	f.t.Helper()
-	return f.count("SELECT count(*) FROM river_job WHERE kind = $1", kind)
+	return f.count("SELECT count(*) FROM river_job WHERE kind = 'scan_env_templates'")
 }
 
 func TestGitSourceChangedSchedulesOneDelayedScan(t *testing.T) {
@@ -588,13 +588,13 @@ func TestGitSourceChangedSchedulesOneDelayedScan(t *testing.T) {
 
 	before := time.Now()
 	f.svc.GitSourceChanged(f.ctx, scopeOf(app.ID))
-	require.Equal(t, 1, f.jobCount("scan_env_templates"))
+	require.Equal(t, 1, f.jobCount())
 	// A second trigger while the first is pending is folded into it.
 	f.svc.GitSourceChanged(f.ctx, scopeOf(app.ID))
-	require.Equal(t, 1, f.jobCount("scan_env_templates"))
+	require.Equal(t, 1, f.jobCount())
 	// Another service has its own job.
 	f.svc.GitSourceChanged(f.ctx, scopeOf(other.ID))
-	require.Equal(t, 2, f.jobCount("scan_env_templates"))
+	require.Equal(t, 2, f.jobCount())
 
 	var (
 		args     []byte
@@ -611,7 +611,7 @@ func TestGitSourceChangedSchedulesOneDelayedScan(t *testing.T) {
 	sc, err := services.LoadScopeInternal(context.Background(), g.q, g.addGitSvc(g.env, "app", "https://github.com/acme/shop.git", "", false).ID)
 	require.NoError(t, err)
 	g.svc.GitSourceChanged(g.ctx, sc)
-	require.Zero(t, g.jobCount("scan_env_templates"))
+	require.Zero(t, g.jobCount())
 }
 
 func TestTemplateScanJob(t *testing.T) {

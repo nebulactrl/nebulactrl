@@ -76,14 +76,11 @@ func TestIssuedViaTellsTheStoreFromItsDomainNames(t *testing.T) {
 
 // storeManager is a manager whose proxy container runs and whose ACME storage
 // files answer with the given contents (a missing key: no such file).
-func storeManager(t *testing.T, files map[string]string, execErr error) (*Manager, *fleetEngine) {
+func storeManager(t *testing.T, files map[string]string) (*Manager, *fleetEngine) {
 	t.Helper()
 	eng := newFleetEngine()
 	eng.ctrs[agentprotocol.ProxyContainer] = &fleetCtr{info: docker.ContainerInfo{ID: "px1", Running: true, State: "running"}}
 	eng.execFn = func(_ string, argv []string) (string, int, error) {
-		if execErr != nil {
-			return "", 0, execErr
-		}
 		require.Len(t, argv, 2)
 		require.Equal(t, "cat", argv[0], "the agent only reads the storage files")
 		out, ok := files[argv[1]]
@@ -110,7 +107,7 @@ func TestHeartbeatReportsWhichStoreHoldsEachHostsCertificate(t *testing.T) {
 	m, _ := storeManager(t, map[string]string{
 		leFile: acmeJSON("le", []string{"old.example.com"}),
 		cfFile: acmeJSON("nc-dns-cloudflare", []string{"new.example.com"}),
-	}, nil)
+	})
 	cfg := agentprotocol.ProxyConfig{DNSResolvers: cfResolver()}
 	targets := storeTargets()[:3] // store-only: no TLS handshake, no log read
 	m.refreshAcme(context.Background(), cfg, targets)
@@ -133,7 +130,7 @@ func TestHeartbeatReportsWhichStoreHoldsEachHostsCertificate(t *testing.T) {
 
 func TestHeartbeatKeepsTheLastReadingWhileTheFilesCannotBeRead(t *testing.T) {
 	files := map[string]string{leFile: acmeJSON("le", []string{"old.example.com"})}
-	m, eng := storeManager(t, files, nil)
+	m, eng := storeManager(t, files)
 	cfg := agentprotocol.ProxyConfig{DNSResolvers: cfResolver()}
 	targets := storeTargets()[:1]
 	m.refreshAcme(context.Background(), cfg, targets)

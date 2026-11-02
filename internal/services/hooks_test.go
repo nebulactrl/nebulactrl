@@ -618,10 +618,10 @@ func TestLogDownloadWritesTextAndNDJSON(t *testing.T) {
 	require.JSONEq(t, `{"note":"cut","lines":1}`, lines[1])
 
 	require.Equal(t, "web-logs-20250304T050607Z.txt", services.DownloadFilename("web", "logs", at, "txt"))
-	for in, want := range map[string]string{"": services.DownloadText, "TXT": services.DownloadText, " ndjson ": services.DownloadNDJSON} {
-		got, err := services.ParseDownloadFormat(in)
-		require.NoError(t, err, in)
-		require.Equal(t, want, got, in)
+	for _, c := range []struct{ in, want string }{{"", services.DownloadText}, {"TXT", services.DownloadText}, {" ndjson ", services.DownloadNDJSON}} {
+		got, err := services.ParseDownloadFormat(c.in)
+		require.NoError(t, err, c.in)
+		require.Equal(t, c.want, got, c.in)
 	}
 	_, err := services.ParseDownloadFormat("csv")
 	requireCode(t, err, "validation_failed")

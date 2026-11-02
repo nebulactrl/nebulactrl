@@ -19,12 +19,9 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
-func (f *importFixture) stackPlan(src composeimport.ComposeSource, choices ...composeimport.ComposeChoices) composeimport.ComposePlan {
+func (f *importFixture) stackPlan(src composeimport.ComposeSource) composeimport.ComposePlan {
 	f.t.Helper()
 	req := composeimport.ComposePlanRequest{Source: src, ServerID: &f.srv.ID, Mode: composeimport.ModeStack}
-	if len(choices) > 0 {
-		req.Choices = choices[0]
-	}
 	p, err := f.svc.Plan(f.ctx, f.env.ID, req)
 	require.NoError(f.t, err)
 	return p

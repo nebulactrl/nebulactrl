@@ -41,13 +41,13 @@ type frame = struct {
 func stdoutFrame(s string) frame { return frame{stdcopy.Stdout, s} }
 func stderrFrame(s string) frame { return frame{stdcopy.Stderr, s} }
 
-func fakeInspectTTY(d *fakeDaemon, id string, tty bool) {
-	d.onJSON("GET /containers/"+id+"/json", 200, obj{"Id": id, "Config": obj{"Tty": tty}})
+func fakeInspectTTY(d *fakeDaemon, tty bool) {
+	d.onJSON("GET /containers/c1/json", 200, obj{"Id": "c1", "Config": obj{"Tty": tty}})
 }
 
 func TestContainerLogsDemultiplexesStdoutAndStderr(t *testing.T) {
 	d, e := newFakeDaemon(t)
-	fakeInspectTTY(d, "c1", false)
+	fakeInspectTTY(d, false)
 	payload := muxed(t,
 		stdoutFrame("2025-01-02T03:04:05.000000001Z hello\n"),
 		stderrFrame("2025-01-02T03:04:06Z oops\n"),
@@ -73,7 +73,7 @@ func TestContainerLogsDemultiplexesStdoutAndStderr(t *testing.T) {
 
 func TestContainerLogsOptionVariants(t *testing.T) {
 	d, e := newFakeDaemon(t)
-	fakeInspectTTY(d, "c1", false)
+	fakeInspectTTY(d, false)
 	d.on("GET /containers/c1/logs", func(w http.ResponseWriter, _ *http.Request) {})
 
 	for _, o := range []LogOptions{{Tail: -1, StdoutOnly: true}, {Tail: 0}} {
@@ -96,7 +96,7 @@ func TestContainerLogsOptionVariants(t *testing.T) {
 
 func TestContainerLogsTTYStreamIsPassedThrough(t *testing.T) {
 	d, e := newFakeDaemon(t)
-	fakeInspectTTY(d, "c1", true)
+	fakeInspectTTY(d, true)
 	raw := "2025-01-02T03:04:05Z line one\r\n"
 	d.on("GET /containers/c1/logs", func(w http.ResponseWriter, _ *http.Request) { _, _ = w.Write([]byte(raw)) })
 	rc, err := e.ContainerLogs(context.Background(), "c1", LogOptions{Tail: -1})
@@ -117,7 +117,7 @@ func TestContainerLogsErrors(t *testing.T) {
 	})
 	t.Run("logs endpoint fails", func(t *testing.T) {
 		d, e := newFakeDaemon(t)
-		fakeInspectTTY(d, "c1", false)
+		fakeInspectTTY(d, false)
 		d.onError("GET /containers/c1/logs", 500, "log driver does not support reading")
 		_, err := e.ContainerLogs(context.Background(), "c1", LogOptions{})
 		require.Error(t, err)
@@ -126,7 +126,7 @@ func TestContainerLogsErrors(t *testing.T) {
 	})
 	t.Run("bad frame header surfaces on read", func(t *testing.T) {
 		d, e := newFakeDaemon(t)
-		fakeInspectTTY(d, "c1", false)
+		fakeInspectTTY(d, false)
 		d.on("GET /containers/c1/logs", func(w http.ResponseWriter, _ *http.Request) {
 			_, _ = w.Write([]byte{9, 0, 0, 0, 0, 0, 0, 1, 'x'})
 		})
@@ -140,7 +140,7 @@ func TestContainerLogsErrors(t *testing.T) {
 
 func TestContainerLogsCloseUnblocksAFollowingReader(t *testing.T) {
 	d, e := newFakeDaemon(t)
-	fakeInspectTTY(d, "c1", false)
+	fakeInspectTTY(d, false)
 	first := muxed(t, stdoutFrame("first\n"))
 	d.on("GET /containers/c1/logs", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write(first)

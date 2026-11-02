@@ -167,12 +167,15 @@ func TestHealthcheckFailsWhenNothingAnswersOrItIsTooSlow(t *testing.T) {
 }
 
 func TestForceUpgradeReadsTheEnvironment(t *testing.T) {
-	for value, want := range map[string]bool{
-		"": false, "0": false, "false": false, "no": false, "off": false, "maybe": false,
-		"1": true, "true": true, " TRUE ": true, "Yes": true, "on": true,
+	for _, c := range []struct {
+		value string
+		want  bool
+	}{
+		{"", false}, {"0", false}, {"false", false}, {"no", false}, {"off", false}, {"maybe", false},
+		{"1", true}, {"true", true}, {" TRUE ", true}, {"Yes", true}, {"on", true},
 	} {
-		t.Setenv("NEBULACTRL_FORCE_UPGRADE", value)
-		require.Equal(t, want, forceUpgrade(), "NEBULACTRL_FORCE_UPGRADE=%q", value)
+		t.Setenv("NEBULACTRL_FORCE_UPGRADE", c.value)
+		require.Equal(t, c.want, forceUpgrade(), "NEBULACTRL_FORCE_UPGRADE=%q", c.value)
 	}
 }
 

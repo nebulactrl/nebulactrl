@@ -94,7 +94,7 @@ func TestCombineRetryWithoutWaitPrintsTheNewState(t *testing.T) {
 func TestCombineRetryWaitFollowsTheStatesToDone(t *testing.T) {
 	f := newCfgFake(t)
 	f.reply("POST", cbRetry, 202, cbView("deploying", nil))
-	f.replySeq("GET", cbOne, 200, cbView("deploying", nil), cbView("cutover", nil), cbView("done", nil))
+	f.replySeq(cbOne, cbView("deploying", nil), cbView("cutover", nil), cbView("done", nil))
 
 	r := f.run("services", "combine", "retry", cbID, "--wait")
 	require.Equal(t, 0, r.code, r.all())
@@ -103,7 +103,7 @@ func TestCombineRetryWaitFollowsTheStatesToDone(t *testing.T) {
 	require.Contains(t, r.err, "Combine "+cbID+": cutover\n")
 	require.Equal(t, 1, strings.Count(r.err, "Combine "+cbID+": deploying"), "an unchanged state is reported once")
 
-	f.replySeq("GET", cbOne, 200, cbView("done", nil))
+	f.replySeq(cbOne, cbView("done", nil))
 	r = f.run("--json", "services", "combine", "retry", cbID, "--wait")
 	require.Equal(t, 0, r.code, r.all())
 	require.Equal(t, "done", decode[map[string]any](t, r.stdout)["state"])

@@ -461,11 +461,11 @@ func TestApplyOfARemoveSpec(t *testing.T) {
 	_, err := f.q.GetServiceTailnet(bg, sv.ID)
 	require.ErrorIs(t, err, pgx.ErrNoRows)
 	require.Empty(t, f.disp.kinds())
-	require.Len(t, f.riverArgs("tailnet_delete_device"), 1)
+	require.Len(t, f.riverArgs(), 1)
 
 	// A second report finds nothing to remove.
 	f.apply(remove, agentprotocol.ServiceTailnetStatus{Removed: true}, f.server.ID)
-	require.Len(t, f.riverArgs("tailnet_delete_device"), 1)
+	require.Len(t, f.riverArgs(), 1)
 }
 
 func TestApplyRemovedOnAnotherServerAlsoRemovesTheSidecarWhereItRuns(t *testing.T) {
@@ -522,7 +522,7 @@ func TestServiceDeletionOfANodeWithoutAServerOnlyRemovesTheDevice(t *testing.T) 
 
 	require.NoError(t, db.InTx(bg, f.pool, func(tx pgx.Tx) error { return f.svc.ServiceDeleted(bg, tx, f.scope(sv.ID)) }))
 	require.Empty(t, f.disp.kinds())
-	require.Len(t, f.riverArgs("tailnet_delete_device"), 1)
+	require.Len(t, f.riverArgs(), 1)
 }
 
 func TestConfigChangedOnlyAuditsRealTransitions(t *testing.T) {

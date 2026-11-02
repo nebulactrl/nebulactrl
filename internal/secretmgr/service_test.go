@@ -50,8 +50,8 @@ func (f *scopeFixture) asMember() context.Context {
 	return auth.WithPrincipal(context.Background(), &auth.Principal{Type: auth.TypeToken, UserID: uuid.New(), TokenID: new(uuid.New()), WorkspaceID: f.ws.ID, Scopes: scopes})
 }
 
-func (f *scopeFixture) input(name string) Input {
-	return Input{Name: name, Kind: KindDoppler, Config: SecretManagerConfig{SiteURL: f.fd.srv.URL}, Secret: dopplerServiceToken}
+func (f *scopeFixture) input() Input {
+	return Input{Name: "dp", Kind: KindDoppler, Config: SecretManagerConfig{SiteURL: f.fd.srv.URL}, Secret: dopplerServiceToken}
 }
 
 func TestCreateRefusals(t *testing.T) {
@@ -75,19 +75,19 @@ func TestCreateRefusals(t *testing.T) {
 			in.Scope, in.Grants = ScopeSelected, []ScopeGrant{{ProjectID: uuid.New()}}
 		}, "invalid_grant"},
 	} {
-		in := f.input("dp")
+		in := f.input()
 		tc.mut(&in)
 		_, err := f.svc.Create(f.ctx, in)
 		require.Equal(t, tc.code, f.code(err), name)
 	}
 	require.Zero(t, f.count(`SELECT count(*) FROM secret_integrations`), "nothing refused was stored")
 
-	_, err := f.svc.Create(f.asMember(), f.input("dp"))
+	_, err := f.svc.Create(f.asMember(), f.input())
 	require.Equal(t, "forbidden", f.code(err), "credentials are the admin's")
 
 	// An environment that is not in the granted project.
 	_, err = f.svc.Create(f.ctx, func() Input {
-		in := f.input("dp")
+		in := f.input()
 		in.Scope, in.Grants = ScopeSelected, []ScopeGrant{{ProjectID: f.projA.ID, EnvironmentID: &f.envB.ID}}
 		return in
 	}())
@@ -98,7 +98,7 @@ func TestCreateRefusals(t *testing.T) {
 	for i := range many {
 		many[i] = ScopeGrant{ProjectID: f.projA.ID}
 	}
-	in := f.input("dp")
+	in := f.input()
 	in.Scope, in.Grants = ScopeSelected, many
 	_, err = f.svc.Create(f.ctx, in)
 	require.Equal(t, "invalid_grants", f.code(err))
@@ -106,7 +106,7 @@ func TestCreateRefusals(t *testing.T) {
 
 func TestCreateStoresTheCredentialSealedAndAuditsNeverItsValue(t *testing.T) {
 	f := newScopeFixture(t)
-	m, err := f.svc.Create(f.ctx, f.input("dp"))
+	m, err := f.svc.Create(f.ctx, f.input())
 	require.NoError(t, err)
 	require.Equal(t, ScopeTeam, m.Scope, "a new integration is for the whole team unless limited")
 	require.True(t, m.SecretSet)
@@ -124,7 +124,7 @@ func TestCreateStoresTheCredentialSealedAndAuditsNeverItsValue(t *testing.T) {
 	require.Equal(t, dopplerServiceToken, got)
 	require.Equal(t, 1, f.count(`SELECT count(*) FROM audit_events WHERE action = 'secret_manager.create' AND metadata::text NOT LIKE '%' || $1 || '%'`, dopplerServiceToken))
 
-	_, err = f.svc.Create(f.ctx, f.input("dp"))
+	_, err = f.svc.Create(f.ctx, f.input())
 	require.Equal(t, "name_taken", f.code(err))
 }
 

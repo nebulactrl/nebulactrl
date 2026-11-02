@@ -33,13 +33,12 @@ func (f *cfgFake) runStdin(stdin string, args ...string) result {
 	return result{code: code, stdout: out.String(), err: errOut.String()}
 }
 
-// replySeq answers successive requests with the given bodies (all with
-// status); the last body repeats once the list is used up.
-func (f *cfgFake) replySeq(method, path string, status int, bodies ...any) {
+// replySeq answers successive GET requests with the given bodies (all 200); the last body repeats once the list is used up.
+func (f *cfgFake) replySeq(path string, bodies ...any) {
 	var n atomic.Int64
-	f.handle(method, path, func(cfgReq) cfgReply {
+	f.handle("GET", path, func(cfgReq) cfgReply {
 		i := int(n.Add(1)) - 1
-		return jsonReply(status, bodies[min(i, len(bodies)-1)])
+		return jsonReply(200, bodies[min(i, len(bodies)-1)])
 	})
 }
 

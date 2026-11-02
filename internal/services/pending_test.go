@@ -14,13 +14,13 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/services"
 )
 
-// release builds a release row of svc carrying snap, its source type and the
+// release builds an image-sourced release row of svc carrying snap and the
 // sealed environment env (nil: no environment frozen).
-func (f *txFixture) release(serviceID uuid.UUID, snap services.Snapshot, sourceType string, env *services.EnvSnapshot) db.Release {
+func (f *txFixture) release(serviceID uuid.UUID, snap services.Snapshot, env *services.EnvSnapshot) db.Release {
 	f.t.Helper()
 	cfg, err := json.Marshal(snap)
 	require.NoError(f.t, err)
-	src, err := json.Marshal(services.ReleaseSource{Type: sourceType})
+	src, err := json.Marshal(services.ReleaseSource{Type: services.SourceImage})
 	require.NoError(f.t, err)
 	rel := db.Release{ID: uuid.New(), ServiceID: serviceID, Config: cfg, Source: src}
 	if env != nil {
@@ -44,7 +44,7 @@ func TestDiffReleaseListsVariableChangesAndMasksSecrets(t *testing.T) {
 	f := newTxFixture(t)
 	sv := f.imageService(f.prod.ID, "web")
 	cfg := services.DecodeConfig(sv.Config)
-	rel := f.release(sv.ID, services.Snapshot{Config: cfg}, services.SourceImage, &services.EnvSnapshot{
+	rel := f.release(sv.ID, services.Snapshot{Config: cfg}, &services.EnvSnapshot{
 		Vars: map[string]string{},
 		Raw: map[string]services.RawVar{
 			"LOG":    {Value: "info"},
@@ -86,7 +86,7 @@ func TestDiffReleaseReportsVariablesThatResolveDifferentlyEvenWhenTheirTextIsUnc
 	f := newTxFixture(t)
 	sv := f.imageService(f.prod.ID, "web")
 	cfg := services.DecodeConfig(sv.Config)
-	rel := f.release(sv.ID, services.Snapshot{Config: cfg}, services.SourceImage, &services.EnvSnapshot{
+	rel := f.release(sv.ID, services.Snapshot{Config: cfg}, &services.EnvSnapshot{
 		Vars: map[string]string{"DATABASE_URL": "postgres://old", "PLAIN": "p", "HIDDEN": "old"},
 		Raw:  map[string]services.RawVar{"DATABASE_URL": {Value: "${{team.DB}}"}, "PLAIN": {Value: "p"}, "HIDDEN": {Value: "${{team.KEY}}", Secret: true}},
 	})
@@ -126,7 +126,7 @@ func TestDiffReleaseServerEnvironmentAndSourceChanges(t *testing.T) {
 	cfg := services.DecodeConfig(sv.Config)
 	gone := uuid.New()
 
-	rel := f.release(sv.ID, services.Snapshot{Config: cfg, ServerID: &a.ID, EnvironmentID: &f.prod.ID}, services.SourceImage, nil)
+	rel := f.release(sv.ID, services.Snapshot{Config: cfg, ServerID: &a.ID, EnvironmentID: &f.prod.ID}, nil)
 	cur := services.CurrentState{Config: cfg, SourceType: services.SourceImage, ServerID: &b.ID, EnvironmentID: f.staging.ID}
 	changes, err := services.DiffRelease(f.ctx, f.q, f.box(), rel, cur)
 	require.NoError(t, err)
@@ -135,7 +135,7 @@ func TestDiffReleaseServerEnvironmentAndSourceChanges(t *testing.T) {
 	require.Equal(t, services.FieldChange{Field: "environment", From: "Shop / production", To: "Shop / staging"}, by["environment"])
 
 	// A server that no longer exists is shown by id; no server at all by an empty name.
-	rel = f.release(sv.ID, services.Snapshot{Config: cfg, ServerID: &gone, EnvironmentID: &gone}, services.SourceImage, nil)
+	rel = f.release(sv.ID, services.Snapshot{Config: cfg, ServerID: &gone, EnvironmentID: &gone}, nil)
 	cur = services.CurrentState{Config: cfg, SourceType: services.SourceImage, EnvironmentID: f.staging.ID}
 	changes, err = services.DiffRelease(f.ctx, f.q, f.box(), rel, cur)
 	require.NoError(t, err)
@@ -146,7 +146,7 @@ func TestDiffReleaseServerEnvironmentAndSourceChanges(t *testing.T) {
 	// Switching the source collapses the image and repository fields into one change.
 	imgCfg := services.Config{Image: "traefik/whoami:latest", Port: 80}
 	gitCfg := services.Config{GitURL: "https://git.example.com/acme/shop.git", GitBranch: "main", Port: 80}
-	rel = f.release(sv.ID, services.Snapshot{Config: imgCfg.WithDefaults()}, services.SourceImage, nil)
+	rel = f.release(sv.ID, services.Snapshot{Config: imgCfg.WithDefaults()}, nil)
 	cur = services.CurrentState{Config: gitCfg.WithDefaults(), SourceType: services.SourceGit}
 	changes, err = services.DiffRelease(f.ctx, f.q, f.box(), rel, cur)
 	require.NoError(t, err)
@@ -182,7 +182,7 @@ func TestDiffReleaseVolumesNetworksAndDomains(t *testing.T) {
 			{Hostname: "locked.example.com", TargetPort: 80, AuthUsers: []string{"bob", "alice"}},
 		},
 	}
-	rel := f.release(sv.ID, snap, services.SourceImage, nil)
+	rel := f.release(sv.ID, snap, nil)
 	cur := services.CurrentState{
 		Config: cfg, SourceType: services.SourceImage, EnvironmentID: f.prod.ID,
 		Volumes: []db.Volume{
@@ -235,7 +235,7 @@ func TestReleaseEnvAndRawHandleMissingAndCorruptSnapshots(t *testing.T) {
 	sv := f.imageService(f.prod.ID, "web")
 	cfg := services.DecodeConfig(sv.Config)
 
-	bare := f.release(sv.ID, services.Snapshot{Config: cfg}, services.SourceImage, nil)
+	bare := f.release(sv.ID, services.Snapshot{Config: cfg}, nil)
 	env, err := services.ReleaseEnv(box, bare)
 	require.NoError(t, err)
 	require.Nil(t, env, "a release without a frozen environment has none")
@@ -243,7 +243,7 @@ func TestReleaseEnvAndRawHandleMissingAndCorruptSnapshots(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, raw)
 
-	full := f.release(sv.ID, services.Snapshot{Config: cfg}, services.SourceImage, &services.EnvSnapshot{
+	full := f.release(sv.ID, services.Snapshot{Config: cfg}, &services.EnvSnapshot{
 		Vars: map[string]string{"A": "1"}, Raw: map[string]services.RawVar{"A": {Value: "1"}},
 	})
 	env, err = services.ReleaseEnv(box, full)

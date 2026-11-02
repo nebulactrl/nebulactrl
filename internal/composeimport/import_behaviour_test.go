@@ -129,8 +129,8 @@ func checkOf(plan composeimport.ComposePlan, id string) (composeimport.ComposeCh
 	return composeimport.ComposeCheck{}, false
 }
 
-func domainChoice(key string, d composeimport.ComposeDomainChoice) composeimport.ComposeChoices {
-	return composeimport.ComposeChoices{Services: map[string]composeimport.ComposeServiceChoice{key: {Domain: &d}}}
+func domainChoice(d composeimport.ComposeDomainChoice) composeimport.ComposeChoices {
+	return composeimport.ComposeChoices{Services: map[string]composeimport.ComposeServiceChoice{"app": {Domain: &d}}}
 }
 
 // ---- the server the services would run on ----
@@ -206,7 +206,7 @@ func TestPlanChecksDomainsAgainstTheProxyAndTheHostnamesInUse(t *testing.T) {
 	}
 
 	// A generated hostname needs a base domain or a public IP: the server has neither.
-	p := plan(domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true}))
+	p := plan(domainChoice(composeimport.ComposeDomainChoice{Enabled: true}))
 	c, ok := checkOf(p, "domain")
 	require.True(t, ok)
 	require.Equal(t, composeimport.CheckWarn, c.Status)
@@ -214,18 +214,18 @@ func TestPlanChecksDomainsAgainstTheProxyAndTheHostnamesInUse(t *testing.T) {
 	require.True(t, p.Installable, "a missing base domain only warns")
 
 	// A hostname that is not valid.
-	p = plan(domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true, Host: "not a host!"}))
+	p = plan(domainChoice(composeimport.ComposeDomainChoice{Enabled: true, Host: "not a host!"}))
 	c, ok = checkOf(p, "domain")
 	require.True(t, ok)
 	require.Equal(t, composeimport.CheckFail, c.Status)
 	require.True(t, strings.HasPrefix(c.Message, "app: "), c.Message)
 	require.False(t, p.Installable)
-	_, err := f.svc.Import(f.ctx, f.env.ID, composeimport.ComposeImportRequest{Source: src, ServerID: f.srv.ID, Choices: domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true, Host: "not a host!"})})
+	_, err := f.svc.Import(f.ctx, f.env.ID, composeimport.ComposeImportRequest{Source: src, ServerID: f.srv.ID, Choices: domainChoice(composeimport.ComposeDomainChoice{Enabled: true, Host: "not a host!"})})
 	require.Equal(t, "preflight_failed", apiCode(t, err))
 
 	// The proxy of the server is down.
 	f.setServer(t, "proxy_status = 'error'")
-	named := domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true, Host: "app.example.com"})
+	named := domainChoice(composeimport.ComposeDomainChoice{Enabled: true, Host: "app.example.com"})
 	p = plan(named)
 	c, ok = checkOf(p, "proxy")
 	require.True(t, ok)
@@ -262,7 +262,7 @@ func TestImportAttachesTheChosenHostnameToTheServicePort(t *testing.T) {
 	f := newImportFixture(t)
 	src := readFixture(t, "kv")
 	res, err := f.svc.Import(f.ctx, f.env.ID, composeimport.ComposeImportRequest{
-		Source: src, ServerID: f.srv.ID, Choices: domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true, Host: "App.Example.COM"}),
+		Source: src, ServerID: f.srv.ID, Choices: domainChoice(composeimport.ComposeDomainChoice{Enabled: true, Host: "App.Example.COM"}),
 	})
 	require.NoError(t, err)
 	require.Empty(t, res.Warnings)
@@ -313,7 +313,7 @@ func (f *importFixture) holdHosts(hosts ...string) {
 func TestGeneratedHostnameIsServiceEnvironmentProjectUnderTheBaseDomain(t *testing.T) {
 	f := newImportFixture(t)
 	f.setServer(t, "base_domain = 'example.test'")
-	choice := domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true})
+	choice := domainChoice(composeimport.ComposeDomainChoice{Enabled: true})
 	res, err := f.svc.Import(f.ctx, f.env.ID, composeimport.ComposeImportRequest{Source: readFixture(t, "kv"), ServerID: f.srv.ID, Choices: choice})
 	require.NoError(t, err)
 	require.Empty(t, res.Warnings)
@@ -328,7 +328,7 @@ func TestGeneratedHostnameTakesTheNextFreeSuffix(t *testing.T) {
 	f := newImportFixture(t)
 	f.setServer(t, "base_domain = 'example.test'")
 	f.holdHosts("app-production-shop.example.test", "app-production-shop-2.example.test")
-	choice := domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true})
+	choice := domainChoice(composeimport.ComposeDomainChoice{Enabled: true})
 	_, err := f.svc.Import(f.ctx, f.env.ID, composeimport.ComposeImportRequest{Source: readFixture(t, "kv"), ServerID: f.srv.ID, Choices: choice})
 	require.NoError(t, err)
 	doms := f.domainsOf(f.services()["app"].ID)
@@ -344,7 +344,7 @@ func TestImportFailsAsAWholeWhenNoGeneratedHostnameIsFree(t *testing.T) {
 		hosts = append(hosts, fmt.Sprintf("app-production-shop-%d.example.test", i))
 	}
 	f.holdHosts(hosts...)
-	choice := domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true})
+	choice := domainChoice(composeimport.ComposeDomainChoice{Enabled: true})
 	_, err := f.svc.Import(f.ctx, f.env.ID, composeimport.ComposeImportRequest{Source: readFixture(t, "kv"), ServerID: f.srv.ID, Choices: choice})
 	require.Equal(t, "domain_conflict", apiCode(t, err))
 	e, _ := apierr.As(err)
@@ -355,7 +355,7 @@ func TestImportFailsAsAWholeWhenNoGeneratedHostnameIsFree(t *testing.T) {
 
 func TestNoHostnameIsGeneratedWithoutABaseDomainOrPublicIP(t *testing.T) {
 	f := newImportFixture(t)
-	choice := domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true})
+	choice := domainChoice(composeimport.ComposeDomainChoice{Enabled: true})
 	res, err := f.svc.Import(f.ctx, f.env.ID, composeimport.ComposeImportRequest{Source: readFixture(t, "kv"), ServerID: f.srv.ID, Choices: choice})
 	require.NoError(t, err)
 	require.Equal(t, []string{"No hostname was generated for app: the server has neither a base domain nor a public IP. Add a domain in its settings."}, res.Warnings)
@@ -366,7 +366,7 @@ func TestNoHostnameIsGeneratedWithoutABaseDomainOrPublicIP(t *testing.T) {
 func TestGeneratedHostnameUsesThePublicIPWhenThereIsNoBaseDomain(t *testing.T) {
 	f := newImportFixture(t)
 	f.setServer(t, "public_ip = '203.0.113.9'")
-	choice := domainChoice("app", composeimport.ComposeDomainChoice{Enabled: true})
+	choice := domainChoice(composeimport.ComposeDomainChoice{Enabled: true})
 	_, err := f.svc.Import(f.ctx, f.env.ID, composeimport.ComposeImportRequest{Source: readFixture(t, "kv"), ServerID: f.srv.ID, Choices: choice})
 	require.NoError(t, err)
 	doms := f.domainsOf(f.services()["app"].ID)

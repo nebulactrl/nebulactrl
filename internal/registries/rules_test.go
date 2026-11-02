@@ -65,17 +65,17 @@ func TestNormalizeHostRefusals(t *testing.T) {
 			require.Contains(t, err.Error(), want, raw)
 		}
 	}
-	for raw, want := range map[string]string{
-		" GHCR.io ":        "ghcr.io",
-		"registry:5000":    "registry:5000",
-		"[::1]:5000":       "[::1]:5000",
-		"[2001:db8::1]":    "[2001:db8::1]",
-		"127.0.0.1:5000":   "127.0.0.1:5000",
-		"a.b-c.example.io": "a.b-c.example.io",
+	for _, c := range []struct{ raw, want string }{
+		{" GHCR.io ", "ghcr.io"},
+		{"registry:5000", "registry:5000"},
+		{"[::1]:5000", "[::1]:5000"},
+		{"[2001:db8::1]", "[2001:db8::1]"},
+		{"127.0.0.1:5000", "127.0.0.1:5000"},
+		{"a.b-c.example.io", "a.b-c.example.io"},
 	} {
-		got, err := NormalizeHost(raw)
-		require.NoError(t, err, raw)
-		require.Equal(t, want, got)
+		got, err := NormalizeHost(c.raw)
+		require.NoError(t, err, c.raw)
+		require.Equal(t, c.want, got)
 	}
 }
 

@@ -174,8 +174,8 @@ func TestUpgradeFailsWhenTheStateCannotBeWritten(t *testing.T) {
 func TestWriteFileAtomicReplacesWholeFilesOnly(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "state.json")
-	require.NoError(t, writeFileAtomic(path, []byte("one"), 0o600))
-	require.NoError(t, writeFileAtomic(path, []byte("two"), 0o600))
+	require.NoError(t, writeFileAtomic(path, []byte("one")))
+	require.NoError(t, writeFileAtomic(path, []byte("two")))
 	b, err := os.ReadFile(path)
 	require.NoError(t, err)
 	require.Equal(t, "two", string(b))
@@ -187,10 +187,10 @@ func TestWriteFileAtomicReplacesWholeFilesOnly(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, ents, 1, "no temporary file stays behind")
 
-	require.Error(t, writeFileAtomic(filepath.Join(dir, "missing", "x"), []byte("x"), 0o600))
+	require.Error(t, writeFileAtomic(filepath.Join(dir, "missing", "x"), []byte("x")))
 	// Renaming a file over a directory fails and cleans up its temporary file.
 	require.NoError(t, os.Mkdir(filepath.Join(dir, "target"), 0o700))
-	require.ErrorContains(t, writeFileAtomic(filepath.Join(dir, "target"), []byte("x"), 0o600), "rename")
+	require.ErrorContains(t, writeFileAtomic(filepath.Join(dir, "target"), []byte("x")), "rename")
 	ents, _ = os.ReadDir(dir)
 	require.Len(t, ents, 2)
 }

@@ -26,11 +26,11 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/varexpr"
 )
 
-func requireClone(t *testing.T, err error, status int, code string) {
+func requireClone(t *testing.T, err error, code string) {
 	t.Helper()
 	var ae *apierr.Error
 	require.ErrorAs(t, err, &ae)
-	require.Equal(t, status, ae.Status, ae.Message)
+	require.Equal(t, http.StatusUnprocessableEntity, ae.Status, ae.Message)
 	require.Equal(t, code, ae.Code)
 }
 
@@ -48,11 +48,11 @@ func TestCloneServiceRefusesWhatItCannotCopy(t *testing.T) {
 	})
 
 	_, err := f.cl.CloneService(f.ctx, stack.ID, clone.ServiceInput{})
-	requireClone(t, err, http.StatusUnprocessableEntity, "not_applicable")
+	requireClone(t, err, "not_applicable")
 	require.ErrorContains(t, err, "Compose stacks are not cloned")
 
 	_, err = f.cl.CloneService(f.ctx, replica.ID, clone.ServiceInput{})
-	requireClone(t, err, http.StatusUnprocessableEntity, "not_applicable")
+	requireClone(t, err, "not_applicable")
 	require.ErrorContains(t, err, "read replica")
 }
 
@@ -67,7 +67,7 @@ func TestCloneServiceValidatesItsInput(t *testing.T) {
 		"suffix with a space":      {Domains: clone.DomainsSuffix, DomainSuffix: "x y"},
 	} {
 		_, err := f.cl.CloneService(f.ctx, f.api.ID, in)
-		requireClone(t, err, http.StatusUnprocessableEntity, "validation_failed")
+		requireClone(t, err, "validation_failed")
 	}
 	require.Equal(t, before, f.count("SELECT count(*) FROM services"))
 
@@ -101,15 +101,15 @@ func TestCloningFromOrIntoThePlatformProjectIsRefused(t *testing.T) {
 	f.exec(`UPDATE projects SET system = true WHERE id = $1`, other.ID)
 
 	_, err = f.cl.CloneService(f.ctx, sys.ID, clone.ServiceInput{})
-	requireClone(t, err, http.StatusUnprocessableEntity, "not_applicable")
+	requireClone(t, err, "not_applicable")
 	_, err = f.cl.CloneService(f.ctx, f.web.ID, clone.ServiceInput{EnvironmentID: &otherEnv.ID})
-	requireClone(t, err, http.StatusUnprocessableEntity, "not_applicable")
+	requireClone(t, err, "not_applicable")
 	_, err = f.cl.CloneEnvironment(f.ctx, otherEnv.ID, clone.EnvironmentInput{Name: "copy"})
-	requireClone(t, err, http.StatusUnprocessableEntity, "not_applicable")
+	requireClone(t, err, "not_applicable")
 	_, err = f.cl.MoveService(f.ctx, sys.ID, clone.MoveInput{EnvironmentID: f.staging.ID})
-	requireClone(t, err, http.StatusUnprocessableEntity, "not_applicable")
+	requireClone(t, err, "not_applicable")
 	_, err = f.cl.MoveService(f.ctx, f.web.ID, clone.MoveInput{EnvironmentID: otherEnv.ID})
-	requireClone(t, err, http.StatusUnprocessableEntity, "not_applicable")
+	requireClone(t, err, "not_applicable")
 }
 
 func TestCloneEnvironmentValidatesItsInput(t *testing.T) {
@@ -127,13 +127,13 @@ func TestCloneEnvironmentValidatesItsInput(t *testing.T) {
 		"bad suffix":          {clone.EnvironmentInput{Name: "QA", Domains: clone.DomainsSuffix, DomainSuffix: "a b"}, "validation_failed"},
 	} {
 		_, err := f.cl.CloneEnvironment(f.ctx, f.prod.ID, tc.in)
-		requireClone(t, err, http.StatusUnprocessableEntity, tc.code)
+		requireClone(t, err, tc.code)
 	}
 	require.Equal(t, envs, f.count("SELECT count(*) FROM environments"), "a refused clone leaves no half-made environment")
 
 	f.exec(`UPDATE environments SET kind = 'preview' WHERE id = $1`, f.staging.ID)
 	_, err := f.cl.CloneEnvironment(f.ctx, f.staging.ID, clone.EnvironmentInput{Name: "QA"})
-	requireClone(t, err, http.StatusUnprocessableEntity, "preview_environment")
+	requireClone(t, err, "preview_environment")
 }
 
 func TestCloneEnvironmentListsEveryServiceItLeavesOut(t *testing.T) {

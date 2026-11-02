@@ -164,7 +164,7 @@ func resticSub(argv []string) string {
 
 func setupFail() (*Runner, *failDocker, *fakeHost, *docker.ContainerInfo) {
 	d := newFake()
-	svc := d.addService("nc-app-1", svcID, true)
+	svc := d.addService("nc-app-1", svcID)
 	h := &fakeHost{d: d, service: svcID}
 	fd := &failDocker{fakeDocker: d}
 	return &Runner{Docker: fd, Host: h, BackupDir: "/var/lib/agent/backups", MkdirAll: func(string, os.FileMode) error { return nil }}, fd, h, svc

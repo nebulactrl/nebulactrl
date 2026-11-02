@@ -67,7 +67,7 @@ func (h *hx) asToken(user, team uuid.UUID, role string, scopes ...string) {
 	h.as = p
 }
 
-func (h *hx) do(method, path string, body any) (int, []byte, http.Header) {
+func (h *hx) do(method, path string, body any) (int, []byte) {
 	h.t.Helper()
 	var rd io.Reader = bytes.NewReader(nil)
 	if body != nil {
@@ -87,12 +87,12 @@ func (h *hx) do(method, path string, body any) (int, []byte, http.Header) {
 	if cs := rec.Result().Cookies(); len(cs) > 0 {
 		h.cookies = cs
 	}
-	return rec.Code, rec.Body.Bytes(), rec.Header()
+	return rec.Code, rec.Body.Bytes()
 }
 
 func (h *hx) call(want int, method, path string, body any) map[string]any {
 	h.t.Helper()
-	code, raw, _ := h.do(method, path, body)
+	code, raw := h.do(method, path, body)
 	require.Equal(h.t, want, code, "%s %s: %s", method, path, raw)
 	var m map[string]any
 	if len(raw) > 0 && raw[0] == '{' {
@@ -262,7 +262,7 @@ func TestMemberEndpoints(t *testing.T) {
 	h.failure(http.StatusUnprocessableEntity, "own_password", http.MethodPost, base+bob.String()+"/password-reset", nil)
 
 	// Remove and leave answer 204.
-	code, raw, _ := h.do(http.MethodDelete, base+cy.String(), nil)
+	code, raw := h.do(http.MethodDelete, base+cy.String(), nil)
 	require.Equal(t, http.StatusNoContent, code, string(raw))
 	require.False(t, f.isMember(cy, f.team))
 	h.failure(http.StatusNotFound, "not_found", http.MethodDelete, base+cy.String(), nil)
@@ -270,7 +270,7 @@ func TestMemberEndpoints(t *testing.T) {
 	h.asUser(f.ada.ID, f.team)
 	h.failure(http.StatusConflict, "last_owner", http.MethodDelete, base+f.ada.ID.String(), nil)
 	h.asUser(bob, f.team)
-	code, _, _ = h.do(http.MethodDelete, base+bob.String(), nil)
+	code, _ = h.do(http.MethodDelete, base+bob.String(), nil)
 	require.Equal(t, http.StatusNoContent, code)
 	require.False(t, f.isMember(bob, f.team))
 	// No longer a member: the team is gone from their point of view.
@@ -322,7 +322,7 @@ func TestInviteEndpointsWithSignedInAcceptance(t *testing.T) {
 
 	// An admin revokes the other invite.
 	h.asUser(f.ada.ID, f.team)
-	code, raw, _ := h.do(http.MethodDelete, base+"/"+list[1]["id"].(string), nil)
+	code, raw := h.do(http.MethodDelete, base+"/"+list[1]["id"].(string), nil)
 	require.Equal(t, http.StatusNoContent, code, string(raw))
 	h.failure(http.StatusNotFound, "not_found", http.MethodDelete, base+"/"+uuid.NewString(), nil)
 	require.Len(t, items(t, h.call(http.StatusOK, http.MethodGet, base, nil)), 1)
@@ -361,14 +361,14 @@ func TestInviteRoutesAreRateLimitedPerClient(t *testing.T) {
 	c := f.invite(InviteInput{Role: auth.RoleViewer})
 
 	for i := range 60 {
-		code, raw, _ := h.do(http.MethodGet, "/invites/"+c.Token, nil)
+		code, raw := h.do(http.MethodGet, "/invites/"+c.Token, nil)
 		require.Equal(t, http.StatusOK, code, "preview %d: %s", i, raw)
 	}
 	h.failure(http.StatusTooManyRequests, "rate_limited", http.MethodGet, "/invites/"+c.Token, nil)
 
 	// Accepting is limited much tighter (an attempt each, signed in or not).
 	for i := range 10 {
-		code, raw, _ := h.do(http.MethodPost, "/invites/"+c.Token+"/accept", nil)
+		code, raw := h.do(http.MethodPost, "/invites/"+c.Token+"/accept", nil)
 		require.Equal(t, http.StatusUnauthorized, code, "accept %d: %s", i, raw)
 	}
 	h.failure(http.StatusTooManyRequests, "rate_limited", http.MethodPost, "/invites/"+c.Token+"/accept", nil)

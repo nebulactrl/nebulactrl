@@ -254,7 +254,7 @@ func TestFetchServedCert(t *testing.T) {
 }
 
 func TestTLSAddrs(t *testing.T) {
-	m, eng := storeManager(t, nil, nil)
+	m, eng := storeManager(t, nil)
 	m.cfg.HTTPSPort = 8443
 
 	// No edge IP known: the container's DNS name and the published port.
@@ -284,7 +284,7 @@ func TestResolverErrors(t *testing.T) {
 		`{broken json`,
 		"",
 	}, "\n")
-	m, eng := storeManager(t, nil, nil)
+	m, eng := storeManager(t, nil)
 	fe := &faultEngine{fleetEngine: eng, logs: logs}
 	m.cfg.Engine = fe
 
@@ -340,7 +340,7 @@ func newACMEObserver(t *testing.T, srv *fakeProxyTLS, httpsPort int) *acmeObserv
 	files := map[string]string{
 		cfFile: acmeJSON("nc-dns-cloudflare", []string{"own.other.net"}),
 	}
-	m, inner := storeManager(t, files, nil)
+	m, inner := storeManager(t, files)
 	o := &acmeObserver{srv: srv}
 	base := inner.execFn
 	inner.execFn = func(id string, argv []string) (string, int, error) {
@@ -470,7 +470,7 @@ func TestRefreshAcmeWaitsForTheDefaultCertificate(t *testing.T) {
 }
 
 func TestRefreshAcmeIfDueClearsTheStateWithoutTargets(t *testing.T) {
-	m, _ := storeManager(t, nil, nil)
+	m, _ := storeManager(t, nil)
 	m.acme = acmeState{statuses: []agentprotocol.AcmeCertStatus{{Kind: agentprotocol.AcmeKindWildcard, ID: "gone"}}, pending: true}
 	require.Len(t, m.AcmeStatuses(), 1)
 
@@ -489,7 +489,7 @@ func TestRefreshAcmeIfDueSkipsWhileARefreshRuns(t *testing.T) {
 }
 
 func TestAcmeStatusesIsACopy(t *testing.T) {
-	m, _ := storeManager(t, nil, nil)
+	m, _ := storeManager(t, nil)
 	m.acme = acmeState{statuses: []agentprotocol.AcmeCertStatus{{ID: "a", Status: "active"}}}
 	got := m.AcmeStatuses()
 	got[0].Status = "tampered"

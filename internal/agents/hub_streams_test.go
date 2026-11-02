@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"sync"
 	"testing"
 	"time"
 
@@ -29,9 +28,9 @@ func (a *agentConn) writeID(typ, id string, body any) {
 }
 
 // connected enrolls a server, dials it and waits until the hub sees it online.
-func (h *harness) connected(name string) (enrollment, *agentConn) {
+func (h *harness) connected() (enrollment, *agentConn) {
 	h.t.Helper()
-	e := h.enroll(name)
+	e := h.enroll("edge-1")
 	a := h.dial(e, false)
 	a.next(agentprotocol.TypeReconcile)
 	require.Eventually(h.t, func() bool { return h.hub.Online(e.serverID) }, 5*time.Second, 10*time.Millisecond)
@@ -61,7 +60,7 @@ func waitDone(t *testing.T, s *agents.Stream) {
 
 func TestStreamsRouteFramesBothWaysAndOnlyForTheirOwner(t *testing.T) {
 	h := newHarness(t)
-	e, a := h.connected("edge-1")
+	e, a := h.connected()
 
 	_, err := h.hub.OpenStream(uuid.New(), "nobody-home")
 	require.ErrorIs(t, err, agents.ErrNotConnected, "a server that is offline has no streams")
@@ -117,7 +116,7 @@ func TestStreamsRouteFramesBothWaysAndOnlyForTheirOwner(t *testing.T) {
 
 func TestStreamsEndAsLostWhenTheConnectionDropsOrTheAgentOverrunsThem(t *testing.T) {
 	h := newHarness(t)
-	e, a := h.connected("edge-1")
+	e, a := h.connected()
 
 	// An agent that never stops sending overruns the queue: the stream ends, lost.
 	flood, err := h.hub.OpenStream(e.serverID, "flood")
@@ -166,7 +165,6 @@ func TestInstallerScriptsAreServedAsShell(t *testing.T) {
 }
 
 type scanSink struct {
-	mu    sync.Mutex
 	err   error
 	scans chan agentprotocol.SourceScan
 	srv   chan uuid.UUID
@@ -184,7 +182,7 @@ func TestSourceScansReachEverySinkAndAFailingSinkDoesNotDropTheConnection(t *tes
 	bad := &scanSink{scans: make(chan agentprotocol.SourceScan, 4), srv: make(chan uuid.UUID, 4), err: errors.New("boom")}
 	h.hub.AddSourceScanSink(bad)
 	h.hub.AddSourceScanSink(ok)
-	e, a := h.connected("edge-1")
+	e, a := h.connected()
 
 	scan := agentprotocol.SourceScan{ServiceID: "svc-1", Commit: "abc123", Files: []agentprotocol.EnvFileScan{
 		{Path: ".env.example", Vars: []agentprotocol.EnvVarHint{{Key: "A", Value: "1"}}},
@@ -216,7 +214,7 @@ func TestHelloHooksRunWithTheAgentsHello(t *testing.T) {
 	ch := make(chan seen, 4)
 	h.hub.OnHello(func(_ context.Context, id uuid.UUID, hello agentprotocol.Hello) { ch <- seen{id, hello} })
 	h.hub.OnHello(func(context.Context, uuid.UUID, agentprotocol.Hello) { ch <- seen{} })
-	e, _ := h.connected("edge-1")
+	e, _ := h.connected()
 
 	got := []seen{recv(t, ch, "the first hook"), recv(t, ch, "the second hook")}
 	var real seen
@@ -246,7 +244,7 @@ func TestHeartbeatsHandTheMeshStatusToTheMesh(t *testing.T) {
 	h := newHarness(t)
 	obs := &meshObserver{ch: make(chan meshSeen, 4)}
 	h.hub.SetMeshObserver(obs)
-	e, a := h.connected("edge-1")
+	e, a := h.connected()
 
 	a.write(agentprotocol.TypeHeartbeat, agentprotocol.Heartbeat{Mesh: &agentprotocol.MeshStatus{TunDevice: true}})
 	got := recv(t, obs.ch, "the mesh status")
@@ -262,7 +260,7 @@ func TestHeartbeatsHandTheMeshStatusToTheMesh(t *testing.T) {
 
 func TestResultsOfCommandsThatAreNotQueuedOrNotTheirs(t *testing.T) {
 	h := newHarness(t)
-	e, a := h.connected("edge-1")
+	e, a := h.connected()
 	other := h.enroll("edge-2")
 
 	// A result for a command that is not persisted (a log subscription) is

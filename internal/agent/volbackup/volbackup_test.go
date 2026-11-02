@@ -47,7 +47,7 @@ func payload() agentprotocol.VolumeBackupPayload {
 
 func setup() (*Runner, *fakeDocker, *fakeHost, *docker.ContainerInfo) {
 	d := newFake()
-	svc := d.addService("nc-app-1", svcID, true)
+	svc := d.addService("nc-app-1", svcID)
 	h := &fakeHost{d: d, service: svcID}
 	return &Runner{Docker: d, Host: h, BackupDir: "/var/lib/agent/backups", MkdirAll: func(string, os.FileMode) error { return nil }}, d, h, svc
 }
@@ -480,7 +480,7 @@ func TestLocalDestinationOnTheBareHost(t *testing.T) {
 
 func TestLocalDestinationOfAContainerizedAgent(t *testing.T) {
 	r, d, h, _ := setup()
-	self := d.addService("nebulactrl-agent", "", true)
+	self := d.addService("nebulactrl-agent", "")
 	d.mu.Lock()
 	delete(self.Labels, agentprotocol.LabelManaged)
 	self.Mounts = []docker.MountInfo{
@@ -512,7 +512,7 @@ func TestLocalDestinationOfAContainerizedAgent(t *testing.T) {
 
 func TestLocalDestinationOutsideAnyMountIsRefused(t *testing.T) {
 	r, d, h, _ := setup()
-	self := d.addService("nebulactrl-agent", "", true)
+	self := d.addService("nebulactrl-agent", "")
 	h.self = self.ID
 	p := payload()
 	p.Repo.Destination = agentprotocol.BackupDestination{Kind: agentprotocol.DestLocal}

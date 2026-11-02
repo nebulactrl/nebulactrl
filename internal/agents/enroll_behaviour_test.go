@@ -44,12 +44,12 @@ func newKey(t *testing.T) ed25519.PublicKey {
 	return pub
 }
 
-func (h *harness) tokenUsed(token string) (used, revoked bool) {
+func (h *harness) tokenUsed(token string) (used bool) {
 	h.t.Helper()
 	require.NoError(h.t, h.pool.QueryRow(h.ctx,
-		"SELECT used_at IS NOT NULL, revoked_at IS NOT NULL FROM enrollment_tokens WHERE token_hash = $1",
-		agents.HashEnrollmentToken(token)).Scan(&used, &revoked))
-	return used, revoked
+		"SELECT used_at IS NOT NULL FROM enrollment_tokens WHERE token_hash = $1",
+		agents.HashEnrollmentToken(token)).Scan(&used))
+	return used
 }
 
 func (h *harness) identities(serverID uuid.UUID) (n int) {
@@ -94,7 +94,7 @@ func TestEnrollRejectsBadRequestsAndLeavesTheTokenUsable(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode, "a token without the enrollment prefix is refused")
 	require.Equal(t, "invalid_enrollment_token", code)
 
-	used, _ := h.tokenUsed(tok)
+	used := h.tokenUsed(tok)
 	require.False(t, used, "none of the refusals consumed the token")
 	require.Zero(t, h.identities(sid))
 
@@ -114,7 +114,7 @@ func TestARevokedEnrollmentTokenCannotEnroll(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	require.Equal(t, "invalid_enrollment_token", code)
 	require.Zero(t, h.identities(sid), "no agent was registered")
-	used, _ := h.tokenUsed(tok)
+	used := h.tokenUsed(tok)
 	require.False(t, used)
 }
 
@@ -128,7 +128,7 @@ func TestAnEnrollmentTokenOfARevokedServerCannotEnroll(t *testing.T) {
 	require.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 	require.Equal(t, "invalid_enrollment_token", code)
 	require.Zero(t, h.identities(sid))
-	used, _ := h.tokenUsed(tok)
+	used := h.tokenUsed(tok)
 	require.False(t, used, "the refused redemption did not burn the token")
 }
 
@@ -153,7 +153,7 @@ func TestASecondTokenCannotEnrollASecondAgentForTheSameServer(t *testing.T) {
 	var keyNow []byte
 	require.NoError(t, h.pool.QueryRow(h.ctx, "SELECT public_key FROM agent_identities WHERE server_id = $1", e.serverID).Scan(&keyNow))
 	require.Equal(t, firstKey, keyNow, "the enrolled agent's key is untouched")
-	used, _ := h.tokenUsed(tok)
+	used := h.tokenUsed(tok)
 	require.False(t, used, "the failed enrolment rolled back completely")
 }
 
@@ -181,7 +181,7 @@ func TestEnrollRegistersTheAgentRecordsFactsAuditsAndAnnouncesTheServer(t *testi
 	require.NoError(t, json.Unmarshal(srv.Facts, &facts))
 	require.Equal(t, agentprotocol.Facts{OS: "linux", Arch: "arm64", CPUs: 8}, facts)
 
-	used, _ := h.tokenUsed(tok)
+	used := h.tokenUsed(tok)
 	require.True(t, used)
 	var stored []byte
 	var agentID uuid.UUID
@@ -221,7 +221,7 @@ func TestEnrollmentAttemptsAreRateLimitedPerAddressWithoutConsumingTokens(t *tes
 	require.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
 	require.Equal(t, "60", resp.Header.Get("Retry-After"))
 	require.NotEmpty(t, code)
-	used, _ := h.tokenUsed(tok)
+	used := h.tokenUsed(tok)
 	require.False(t, used, "a throttled request never reaches the token")
 	require.Zero(t, h.identities(sid))
 }

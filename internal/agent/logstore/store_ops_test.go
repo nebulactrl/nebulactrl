@@ -14,9 +14,9 @@ import (
 
 var t0 = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 
-func segFiles(t *testing.T, dir, svc string) []string {
+func segFiles(t *testing.T, dir string) []string {
 	t.Helper()
-	files, err := filepath.Glob(filepath.Join(dir, svc, "*.seg"))
+	files, err := filepath.Glob(filepath.Join(dir, "svc1", "*.seg"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -34,11 +34,11 @@ func TestRunWritesIdleLinesAndFlushesOnShutdown(t *testing.T) {
 	if err := st.Append("svc1", lines(3, t0, "idle")); err != nil { // below BlockMaxLines: stays in memory
 		t.Fatal(err)
 	}
-	if len(segFiles(t, dir, "svc1")) != 0 {
+	if len(segFiles(t, dir)) != 0 {
 		t.Fatal("lines below the block size are held in memory")
 	}
 	ck.advance(time.Second) // they have now waited longer than FlushInterval
-	eventually(t, "idle lines written by the background flush", func() bool { return len(segFiles(t, dir, "svc1")) == 1 })
+	eventually(t, "idle lines written by the background flush", func() bool { return len(segFiles(t, dir)) == 1 })
 
 	// Lines that arrive just before shutdown are written by Run's final close.
 	if err := st.Append("svc1", lines(2, t0.Add(time.Minute), "late")); err != nil {
@@ -74,7 +74,7 @@ func TestSetRetentionAppliesNewLimitsAtOnce(t *testing.T) {
 	if err := st.Flush(); err != nil {
 		t.Fatal(err)
 	}
-	if n := len(segFiles(t, dir, "svc1")); n != 2 {
+	if n := len(segFiles(t, dir)); n != 2 {
 		t.Fatalf("%d segments, want 2", n)
 	}
 	ck.advance(72 * time.Hour)
@@ -84,7 +84,7 @@ func TestSetRetentionAppliesNewLimitsAtOnce(t *testing.T) {
 		t.Fatalf("zero fields take their defaults: %+v", r)
 	}
 	// The old segment is sealed and older than a day: gone. The one still open for writing stays.
-	files := segFiles(t, dir, "svc1")
+	files := segFiles(t, dir)
 	if len(files) != 1 {
 		t.Fatalf("%d segments after the new retention, want 1: %v", len(files), files)
 	}
@@ -370,7 +370,7 @@ func TestFailedWritesKeepLinesPendingUntilTheDiskRecovers(t *testing.T) {
 	if err := st.Flush(); err != nil {
 		t.Fatalf("flush after the disk recovered: %v", err)
 	}
-	if len(segFiles(t, dir, "svc1")) != 1 {
+	if len(segFiles(t, dir)) != 1 {
 		t.Fatal("the stuck lines were not written")
 	}
 	got, _ = collect(t, st, "svc1", ScanOptions{})
@@ -405,7 +405,7 @@ func TestSegmentsRollWhenTheyReachTheirSizeLimit(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	if n := len(segFiles(t, dir, "svc1")); n != 3 {
+	if n := len(segFiles(t, dir)); n != 3 {
 		t.Fatalf("%d segments, want one per block when the limit is tiny", n)
 	}
 	got, _ := collect(t, st, "svc1", ScanOptions{})

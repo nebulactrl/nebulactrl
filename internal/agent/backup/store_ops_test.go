@@ -53,7 +53,7 @@ func TestLocalStoreGetAndSize(t *testing.T) {
 		require.Error(t, err, bad)
 	}
 
-	info, err := os.Stat(filepath.Join(dir, "a/b/obj.dump"))
+	info, err := os.Stat(filepath.Join(dir, "a", "b", "obj.dump"))
 	require.NoError(t, err)
 	require.Equal(t, os.FileMode(0o600), info.Mode().Perm(), "dumps are private to the agent user")
 }
@@ -78,9 +78,9 @@ func TestLocalStoreDeletePrunesEmptyDirectoriesUpToRoot(t *testing.T) {
 	require.NoError(t, st.Put(ctx, "a/keep", strings.NewReader("k")))
 
 	require.NoError(t, st.Delete(ctx, "a/b/c/one"))
-	_, err := os.Stat(filepath.Join(dir, "a/b"))
+	_, err := os.Stat(filepath.Join(dir, "a", "b"))
 	require.ErrorIs(t, err, os.ErrNotExist, "emptied parents are removed")
-	_, err = os.Stat(filepath.Join(dir, "a/keep"))
+	_, err = os.Stat(filepath.Join(dir, "a", "keep"))
 	require.NoError(t, err, "a non-empty parent stays")
 
 	require.NoError(t, st.Delete(ctx, "a/keep"))
@@ -100,7 +100,7 @@ func TestLocalStoreDeleteRejectsBadKeysAndNonEmptyDirectories(t *testing.T) {
 	require.NoError(t, st.Put(ctx, "d/inner", strings.NewReader("x")))
 	err := st.Delete(ctx, "d")
 	require.Error(t, err, "a key that names a non-empty directory is not an object")
-	_, statErr := os.Stat(filepath.Join(dir, "d/inner"))
+	_, statErr := os.Stat(filepath.Join(dir, "d", "inner"))
 	require.NoError(t, statErr)
 }
 
@@ -125,7 +125,7 @@ func TestLocalStorePutFailures(t *testing.T) {
 	require.Empty(t, entries)
 
 	// the destination of the rename is a directory: Put fails and removes its temp file
-	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub/target/child"), 0o700))
+	require.NoError(t, os.MkdirAll(filepath.Join(dir, "sub", "target", "child"), 0o700))
 	err = st.Put(ctx, "sub/target", strings.NewReader("x"))
 	require.Error(t, err)
 	entries, readErr = os.ReadDir(filepath.Join(dir, "sub"))

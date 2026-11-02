@@ -140,13 +140,13 @@ func TestDeploymentsCancelDistinguishesCanceledFromRequested(t *testing.T) {
 	require.Equal(t, 2, r.code)
 }
 
-func dpRollbackReply(status string) map[string]any {
-	return dpView(dpNew, status, map[string]any{"disclaimer": "Databases and volumes are not rolled back.", "rolledBackFrom": dpID1})
+func dpRollbackReply() map[string]any {
+	return dpView(dpNew, "pending", map[string]any{"disclaimer": "Databases and volumes are not rolled back.", "rolledBackFrom": dpID1})
 }
 
 func TestDeploymentsRollbackAcceptsAndWarnsAboutWhatIsNotRolledBack(t *testing.T) {
 	f := newCfgFake(t)
-	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply("pending"))
+	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply())
 
 	r := f.run("--idempotency-key", "rb-key", "deployments", "rollback", dpID1)
 	require.Equal(t, 0, r.code, r.all())
@@ -168,8 +168,8 @@ func TestDeploymentsRollbackAcceptsAndWarnsAboutWhatIsNotRolledBack(t *testing.T
 func TestDeploymentsRollbackWaitFollowsTheNewDeployment(t *testing.T) {
 	f := newCfgFake(t)
 	newOne := cfgAPI + "/deployments/" + dpNew
-	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply("pending"))
-	f.replySeq("GET", newOne, 200,
+	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply())
+	f.replySeq(newOne,
 		dpView(dpNew, "pending", nil),
 		dpView(dpNew, "waiting", map[string]any{"statusMessage": "server offline", "waitingFor": map[string]any{"serverId": dbSrvID, "serverName": "edge-1"}}),
 		dpView(dpNew, "succeeded", nil))
@@ -185,7 +185,7 @@ func TestDeploymentsRollbackWaitFollowsTheNewDeployment(t *testing.T) {
 func TestDeploymentsRollbackWaitFailsWithTheDeploymentsOutcome(t *testing.T) {
 	f := newCfgFake(t)
 	newOne := cfgAPI + "/deployments/" + dpNew
-	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply("pending"))
+	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply())
 	f.reply("GET", newOne, 200, dpView(dpNew, "rollback_failed", map[string]any{"statusMessage": "health check failed"}))
 
 	r := f.run("deployments", "rollback", dpID1, "--wait")
@@ -205,7 +205,7 @@ func TestDeploymentsRollbackWaitFailsWithTheDeploymentsOutcome(t *testing.T) {
 
 func TestDeploymentsRollbackWaitTimesOutButLeavesTheDeploymentRunning(t *testing.T) {
 	f := newCfgFake(t)
-	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply("pending"))
+	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply())
 	f.reply("GET", cfgAPI+"/deployments/"+dpNew, 200, dpView(dpNew, "deploying", nil))
 
 	r := f.run("deployments", "rollback", dpID1, "--wait", "--timeout", "100ms")
@@ -216,7 +216,7 @@ func TestDeploymentsRollbackWaitTimesOutButLeavesTheDeploymentRunning(t *testing
 func TestDeploymentsRollbackWaitToleratesThreeServerErrorsButNotMore(t *testing.T) {
 	f := newCfgFake(t)
 	newOne := cfgAPI + "/deployments/" + dpNew
-	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply("pending"))
+	f.reply("POST", dpOne+"/rollback", 202, dpRollbackReply())
 
 	var calls atomic.Int64
 	failFirst := func(n int64) func(cfgReq) cfgReply {
