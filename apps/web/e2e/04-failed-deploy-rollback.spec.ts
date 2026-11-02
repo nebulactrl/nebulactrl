@@ -37,14 +37,18 @@ test("a failing deploy keeps the previous release serving, then roll back from t
 		await closeInspector(page);
 		await deployStaged(page);
 		await expectLive(page, service);
-		await expect.poll(answers, { timeout: 60_000 }).toContain("Name: release-one");
+		await expect
+			.poll(answers, { timeout: 60_000 })
+			.toContain("Name: release-one");
 
 		// Release two.
 		await openService(page, service);
 		await setVariable(page, "WHOAMI_NAME", "release-two");
 		await closeInspector(page);
 		await deployStaged(page);
-		await expect.poll(answers, { timeout: 120_000 }).toContain("Name: release-two");
+		await expect
+			.poll(answers, { timeout: 120_000 })
+			.toContain("Name: release-two");
 		await expectLive(page, service);
 
 		// Release three cannot start: its image tag does not exist. The deployment
@@ -52,9 +56,9 @@ test("a failing deploy keeps the previous release serving, then roll back from t
 		await openService(page, service);
 		await page.getByRole("tab", { name: /^Settings/ }).click();
 		await page.getByRole("tab", { name: "General" }).click();
-		await page.getByRole("textbox", { name: "Image", exact: true }).fill(
-			`${WHOAMI.split(":")[0]}:e2e-no-such-tag`,
-		);
+		await page
+			.getByRole("textbox", { name: "Image", exact: true })
+			.fill(`${WHOAMI.split(":")[0]}:e2e-no-such-tag`);
 		await page.getByRole("button", { name: "Save changes" }).click();
 		await expect(page.getByText("All changes saved")).toBeVisible();
 		await closeInspector(page);
@@ -63,7 +67,9 @@ test("a failing deploy keeps the previous release serving, then roll back from t
 		await openService(page, service);
 		await page.getByRole("tab", { name: "Deployments" }).click();
 		await expect(
-			page.getByText("Deployment failed: the previous release is still serving"),
+			page.getByText(
+				"Deployment failed: the previous release is still serving",
+			),
 		).toBeVisible({ timeout: 180_000 });
 		// One row per deployment; the opened row has its own list of steps, which
 		// getByRole("listitem") would count too.
@@ -84,10 +90,14 @@ test("a failing deploy keeps the previous release serving, then roll back from t
 			.click();
 		const confirm = page.getByRole("alertdialog");
 		await expect(confirm).toContainText(`Roll back ${service} in production`);
-		await confirm.getByRole("button", { name: "Lift production guard" }).click();
+		await confirm
+			.getByRole("button", { name: "Lift production guard" })
+			.click();
 		await confirm.getByRole("button", { name: "Roll back" }).click();
 
-		await expect.poll(answers, { timeout: 120_000 }).toContain("Name: release-one");
+		await expect
+			.poll(answers, { timeout: 120_000 })
+			.toContain("Name: release-one");
 		await expect(rows).toHaveCount(4);
 		await expect(rows.first()).toContainText("Rollback");
 		await expect(rows.first()).toContainText("Live");

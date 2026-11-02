@@ -92,9 +92,9 @@ test("a viewer reads the project, every change is refused, the UI says so", asyn
 				(await list(viewer.request, "/projects")).map((p) => p.name),
 			).toContain(project);
 			expect(
-				(await list(viewer.request, `/environments/${environmentId}/services`)).map(
-					(s) => s.name,
-				),
+				(
+					await list(viewer.request, `/environments/${environmentId}/services`)
+				).map((s) => s.name),
 			).toEqual([service]);
 			await viewer.getByText(project).first().click();
 			await expect(viewer).toHaveURL(/\/p\/[^/]+\/production/);
@@ -173,7 +173,9 @@ test("a viewer reads the project, every change is refused, the UI says so", asyn
 				.getByRole("button", { name: "Lift production guard" })
 				.click();
 			await viewer.getByRole("button", { name: /^Deploy · \d+$/ }).click();
-			await expect(viewer.getByText("Could not deploy the changes")).toBeVisible();
+			await expect(
+				viewer.getByText("Could not deploy the changes"),
+			).toBeVisible();
 			await expect(viewer.getByText(FORBIDDEN).first()).toBeVisible();
 
 			// A new project: the dialog stays open with the refusal.
@@ -181,13 +183,17 @@ test("a viewer reads the project, every change is refused, the UI says so", asyn
 			await viewer.getByRole("button", { name: "New project" }).first().click();
 			const projectDialog = viewer.getByRole("dialog", { name: "New project" });
 			await projectDialog.getByLabel("Name").fill(uniqueName("intruder"));
-			await projectDialog.getByRole("button", { name: "Create project" }).click();
+			await projectDialog
+				.getByRole("button", { name: "Create project" })
+				.click();
 			await expect(projectDialog.getByRole("alert")).toContainText(FORBIDDEN);
 
 			// Nothing changed: the owner still sees one project of theirs and its
 			// one staged service.
 			const projects: Item[] = await list(page.request, "/projects");
-			expect(projects.map((p) => p.name).filter((n) => n.includes("intruder"))).toEqual([]);
+			expect(
+				projects.map((p) => p.name).filter((n) => n.includes("intruder")),
+			).toEqual([]);
 			expect(
 				(await projectServices(page.request, projectId)).map((s) => s.name),
 			).toEqual([service]);

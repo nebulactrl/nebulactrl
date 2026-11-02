@@ -44,7 +44,10 @@ export async function projectServices(
 	projectId: string,
 ): Promise<Item[]> {
 	const services: Item[] = [];
-	for (const env of await list(request, `/projects/${projectId}/environments`)) {
+	for (const env of await list(
+		request,
+		`/projects/${projectId}/environments`,
+	)) {
 		services.push(...(await list(request, `/environments/${env.id}/services`)));
 	}
 	return services;

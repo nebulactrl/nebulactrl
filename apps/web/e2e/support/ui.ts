@@ -101,7 +101,9 @@ export async function addDomain(page: Page, domain: string): Promise<void> {
 /** Closes the service inspector. */
 export async function closeInspector(page: Page): Promise<void> {
 	await page.getByRole("button", { name: "Close inspector" }).click();
-	await expect(page.getByRole("button", { name: "Close inspector" })).toBeHidden();
+	await expect(
+		page.getByRole("button", { name: "Close inspector" }),
+	).toBeHidden();
 }
 
 /** Inspector, Variables tab: adds a plain variable (staged). */
@@ -117,9 +119,9 @@ export async function addVariable(
 	await dialog.getByLabel("Value").fill(value);
 	await dialog.getByRole("button", { name: "Add variable" }).click();
 	await expect(dialog).toBeHidden();
-	await expect(page.getByRole("list", { name: "Service variables" })).toContainText(
-		key,
-	);
+	await expect(
+		page.getByRole("list", { name: "Service variables" }),
+	).toContainText(key);
 }
 
 /** Inspector, Variables tab: changes the value of an existing variable (staged). */

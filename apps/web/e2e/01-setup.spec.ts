@@ -100,7 +100,10 @@ test("the enrolled server shows online with its host facts", async ({
 			.getByRole("textbox", { name: "Install command" })
 			.inputValue();
 		const token = /nct_enroll_[A-Za-z0-9_-]+/.exec(command)?.[0];
-		expect(token, "the install command carries an enrollment token").toBeTruthy();
+		expect(
+			token,
+			"the install command carries an enrollment token",
+		).toBeTruthy();
 		await expect(dialog.getByText("Waiting for the agent")).toBeVisible();
 
 		// The launcher starts the real agent (a container on the stack's Docker

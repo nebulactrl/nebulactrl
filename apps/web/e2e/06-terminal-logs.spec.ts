@@ -48,7 +48,7 @@ test("live logs follow requests and a shell runs commands in the container", asy
 			.poll(
 				async () => {
 					await getService(domain, marker);
-					return logs.innerText();
+					return (await logs.textContent()) ?? "";
 				},
 				{ timeout: 60_000, intervals: [1000] },
 			)

@@ -30,7 +30,7 @@ for (const [path, item] of Object.entries(spec.paths)) {
 	for (const method of METHODS) {
 		if (item[method] === undefined) continue;
 		keys.push(
-			`${method.toUpperCase()} ${path.replace(/\{[^}]+\}/g, "${string}")}`,
+			`${method.toUpperCase()} ${path.replace(/\{[^}]+\}/g, `\${string}`)}`,
 		);
 	}
 }

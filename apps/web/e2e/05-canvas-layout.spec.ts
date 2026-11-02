@@ -79,7 +79,9 @@ test("add and move a service, reload, the layout persists", async ({
 		const zoomOf = () =>
 			page
 				.locator(".react-flow__viewport")
-				.evaluate((el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).a);
+				.evaluate(
+					(el) => new DOMMatrixReadOnly(getComputedStyle(el).transform).a,
+				);
 		const before = {
 			alpha: await settled(page, "alpha"),
 			bravo: await settled(page, "bravo"),
@@ -96,9 +98,13 @@ test("add and move a service, reload, the layout persists", async ({
 		await page.mouse.move(bravo.x + bravo.width / 2 + 120, bravo.y + 80, {
 			steps: 8,
 		});
-		await page.mouse.move(bravo.x + bravo.width / 2 + DRAG.x, bravo.y + 20 + DRAG.y, {
-			steps: 12,
-		});
+		await page.mouse.move(
+			bravo.x + bravo.width / 2 + DRAG.x,
+			bravo.y + 20 + DRAG.y,
+			{
+				steps: 12,
+			},
+		);
 		await page.mouse.up();
 		expect((await saved).ok(), "the layout is saved").toBe(true);
 
@@ -109,8 +115,12 @@ test("add and move a service, reload, the layout persists", async ({
 		const zoom = await zoomOf();
 		const offsetX = moved.x - alphaNow.x;
 		const offsetY = moved.y - alphaNow.y;
-		expect(Math.abs(offsetX - (before.bravo.x - before.alpha.x) - DRAG.x)).toBeLessThan(TOLERANCE);
-		expect(Math.abs(offsetY - (before.bravo.y - before.alpha.y) - DRAG.y)).toBeLessThan(TOLERANCE);
+		expect(
+			Math.abs(offsetX - (before.bravo.x - before.alpha.x) - DRAG.x),
+		).toBeLessThan(TOLERANCE);
+		expect(
+			Math.abs(offsetY - (before.bravo.y - before.alpha.y) - DRAG.y),
+		).toBeLessThan(TOLERANCE);
 
 		// Saved: the control plane has both cards, and bravo is where the drag put
 		// it: its offset from alpha in canvas units, times the zoom, is what the
@@ -134,13 +144,23 @@ test("add and move a service, reload, the layout persists", async ({
 						Math.abs(saved.y - offsetY),
 					);
 				},
-				{ message: "the layout the control plane saved matches the cards on screen", timeout: 15_000 },
+				{
+					message:
+						"the layout the control plane saved matches the cards on screen",
+					timeout: 15_000,
+				},
 			)
 			.toBeLessThan(TOLERANCE);
 		const { nodes, x: savedX, y: savedY } = await saveOffset();
-		expect(Object.keys(nodes)).toEqual(expect.arrayContaining([alphaId, bravoId]));
-		expect(Math.abs(savedX - (before.bravo.x - before.alpha.x) - DRAG.x)).toBeLessThan(TOLERANCE);
-		expect(Math.abs(savedY - (before.bravo.y - before.alpha.y) - DRAG.y)).toBeLessThan(TOLERANCE);
+		expect(Object.keys(nodes)).toEqual(
+			expect.arrayContaining([alphaId, bravoId]),
+		);
+		expect(
+			Math.abs(savedX - (before.bravo.x - before.alpha.x) - DRAG.x),
+		).toBeLessThan(TOLERANCE);
+		expect(
+			Math.abs(savedY - (before.bravo.y - before.alpha.y) - DRAG.y),
+		).toBeLessThan(TOLERANCE);
 		const dx = savedX / zoom;
 		const dy = savedY / zoom;
 
@@ -151,8 +171,12 @@ test("add and move a service, reload, the layout persists", async ({
 		const afterAlpha = await settled(page, "alpha");
 		const afterBravo = await settled(page, "bravo");
 		const zoomAfter = await zoomOf();
-		expect(Math.abs(afterBravo.x - afterAlpha.x - dx * zoomAfter)).toBeLessThan(TOLERANCE);
-		expect(Math.abs(afterBravo.y - afterAlpha.y - dy * zoomAfter)).toBeLessThan(TOLERANCE);
+		expect(Math.abs(afterBravo.x - afterAlpha.x - dx * zoomAfter)).toBeLessThan(
+			TOLERANCE,
+		);
+		expect(Math.abs(afterBravo.y - afterAlpha.y - dy * zoomAfter)).toBeLessThan(
+			TOLERANCE,
+		);
 		expect(await layout()).toEqual(nodes);
 	} finally {
 		await deleteProject(page.request, project);

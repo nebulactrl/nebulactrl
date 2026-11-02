@@ -31,7 +31,9 @@ test("export, plan shows the diff, apply stages it as set by nebula.toml", async
 		// Export from the environment menu: the file names the project and the service.
 		await page.getByRole("button", { name: /^production/ }).click();
 		await page.getByRole("menuitem", { name: /Export nebula\.toml/ }).click();
-		const exportDialog = page.getByRole("dialog", { name: "Export nebula.toml" });
+		const exportDialog = page.getByRole("dialog", {
+			name: "Export nebula.toml",
+		});
 		const exported = exportDialog.getByRole("textbox", { name: "nebula.toml" });
 		await expect(exported).toHaveValue(/schema = 1/);
 		await expect(exported).toHaveValue(new RegExp(`project = "${project}"`));

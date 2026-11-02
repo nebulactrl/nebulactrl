@@ -148,7 +148,9 @@ test("create a database, back it up to a local directory, restore it over itself
 		await row.getByRole("button", { name: "Restore", exact: true }).click();
 		const restore = page.getByRole("dialog", { name: "Restore backup" });
 		await restore.getByRole("button", { name: "Over this database" }).click();
-		const overwrite = restore.getByRole("button", { name: "Overwrite database" });
+		const overwrite = restore.getByRole("button", {
+			name: "Overwrite database",
+		});
 		await expect(overwrite).toBeDisabled();
 		await restore.getByLabel(/^Type .* to confirm/).fill(DB);
 		await overwrite.click();
@@ -171,7 +173,10 @@ test("create a database, back it up to a local directory, restore it over itself
 				`/services/${serviceId}/backup-restores`,
 			)
 		).items;
-		expect(restored?.preBackupId, "a safety backup was taken first").toBeTruthy();
+		expect(
+			restored?.preBackupId,
+			"a safety backup was taken first",
+		).toBeTruthy();
 		expect((await backups()).map((b) => b.trigger).sort()).toEqual([
 			"manual",
 			"pre_restore",
