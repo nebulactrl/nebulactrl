@@ -174,3 +174,67 @@ describe("a context without a public repository (repoUrl: null)", () => {
 		});
 	});
 });
+
+describe("resolveLink with absolute docs paths", () => {
+	test("/docs/<slug>#anchor is a page link, and /docs alone is the landing page", () => {
+		expect(
+			resolveLink("/docs/operations/variables#syntax", ctx("a.md")),
+		).toEqual({
+			kind: "page",
+			href: "/docs/operations/variables#syntax",
+			slug: "operations/variables",
+			anchor: "syntax",
+		});
+		expect(resolveLink("/docs", ctx("a.md"))).toEqual({
+			kind: "page",
+			href: "/docs",
+			slug: "",
+			anchor: "",
+		});
+		expect(resolveLink("/docs/", ctx("a.md"))).toMatchObject({
+			kind: "page",
+			slug: "",
+		});
+	});
+
+	test("a percent-encoded anchor is decoded, and a malformed one is kept as written", () => {
+		expect(resolveLink("#caf%C3%A9", ctx("a.md"))).toMatchObject({
+			anchor: "café",
+		});
+		expect(resolveLink("#50%", ctx("a.md"))).toMatchObject({ anchor: "50%" });
+		expect(
+			resolveLink("/docs/installing#bad%E0%A4%A", ctx("a.md")),
+		).toMatchObject({
+			kind: "page",
+			anchor: "bad%E0%A4%A",
+		});
+	});
+
+	test("the paths the control plane serves next to /docs are site links, with their anchor", () => {
+		expect(resolveLink("/llms.txt", ctx("a.md"))).toEqual({
+			kind: "site",
+			href: "/llms.txt",
+		});
+		expect(resolveLink("/api/v1/openapi.json#paths", ctx("a.md"))).toEqual({
+			kind: "site",
+			href: "/api/v1/openapi.json#paths",
+		});
+	});
+});
+
+describe("Slugger", () => {
+	test("repeated headings get -1, -2, and a heading already named like a suffix is skipped over", () => {
+		const slugger = new Slugger();
+		expect(slugger.next("Setup")).toBe("setup");
+		expect(slugger.next("Setup 1")).toBe("setup-1");
+		// "setup-1" is taken by the heading above, so the second "Setup" moves on.
+		expect(slugger.next("Setup")).toBe("setup-2");
+		expect(slugger.next("Setup")).toBe("setup-3");
+	});
+
+	test("a heading with no letters or digits becomes 'section'", () => {
+		const slugger = new Slugger();
+		expect(slugger.next("???")).toBe("section");
+		expect(slugger.next("!!!")).toBe("section-1");
+	});
+});

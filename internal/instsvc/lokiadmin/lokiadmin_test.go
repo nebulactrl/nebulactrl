@@ -69,3 +69,10 @@ func TestHealth(t *testing.T) {
 	code = http.StatusServiceUnavailable
 	require.ErrorContains(t, b.Health(context.Background()), "not ready")
 }
+
+func TestNewAcceptsOnlyHTTPAddresses(t *testing.T) {
+	for _, bad := range []string{"ftp://loki", "loki:3100", "http://", ""} {
+		_, err := New(Config{URL: bad})
+		require.ErrorContains(t, err, "is not an http(s) URL", bad)
+	}
+}

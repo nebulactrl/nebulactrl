@@ -112,3 +112,17 @@ describe("packSearch", () => {
 		expect(unpackSearch(packed)).toEqual(records);
 	});
 });
+
+describe("unpackSearch", () => {
+	test("rows naming a page the index does not hold are dropped", () => {
+		expect(
+			unpackSearch({
+				pages: [["a", "A", "Applications"]],
+				rows: [
+					[0, "intro", "Intro", "text"],
+					[7, "ghost", "Ghost", "lost"],
+				],
+			} as never),
+		).toEqual([["a", "intro", "A", "Intro", "Applications", "text"]]);
+	});
+});

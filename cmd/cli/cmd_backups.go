@@ -61,6 +61,10 @@ func (c *cli) waitBackup(parent context.Context, id string, timeout time.Duratio
 	for {
 		r, err := c.api.GetBackupWithResponse(ctx, id)
 		if err := check(r, err); err != nil {
+			if ctx.Err() != nil {
+				// The wait's own deadline passed during the request.
+				return &exitError{1, fmt.Errorf("timed out after %s waiting for backup %s (last status %s); it may still be running", timeout, id, last)}
+			}
 			return err
 		}
 		b := r.JSON200
@@ -95,6 +99,10 @@ func (c *cli) waitRestore(parent context.Context, id string, timeout time.Durati
 	for {
 		r, err := c.api.GetBackupRestoreWithResponse(ctx, id)
 		if err := check(r, err); err != nil {
+			if ctx.Err() != nil {
+				// The wait's own deadline passed during the request.
+				return &exitError{1, fmt.Errorf("timed out after %s waiting for restore %s (last status %s); it may still be running", timeout, id, last)}
+			}
 			return err
 		}
 		rs := r.JSON200

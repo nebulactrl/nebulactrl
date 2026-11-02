@@ -47,7 +47,7 @@ func payload() agentprotocol.VolumeBackupPayload {
 
 func setup() (*Runner, *fakeDocker, *fakeHost, *docker.ContainerInfo) {
 	d := newFake()
-	svc := d.addService("nc-app-1", svcID, true)
+	svc := d.addService("nc-app-1", svcID)
 	h := &fakeHost{d: d, service: svcID}
 	return &Runner{Docker: d, Host: h, BackupDir: "/var/lib/agent/backups", MkdirAll: func(string, os.FileMode) error { return nil }}, d, h, svc
 }
@@ -86,13 +86,14 @@ func TestBackupFreezeFlow(t *testing.T) {
 
 func TestBackupFreezeBudgetExceededThawsAndFails(t *testing.T) {
 	r, d, _, svc := setup()
-	d.copyDelay = 5 * time.Second
+	r.secondUnit = 20 * time.Millisecond // a budget of one "second" is 20 ms here
+	d.copyDelay = 10 * time.Second
 	p := payload()
 	p.FreezeBudgetSeconds = 1
 	started := time.Now()
 	res, err := r.Backup(context.Background(), p, secrets(), nil)
 	require.Error(t, err)
-	assert.Less(t, time.Since(started), 4*time.Second, "the copy must be cut off at the budget")
+	assert.Less(t, time.Since(started), time.Second, "the copy must be cut off at the budget")
 	assert.Equal(t, agentprotocol.OutcomeFailed, res.Outcome)
 	assert.Equal(t, "Snapshot took longer than 1 s; use Stop mode or a pre-backup hook", res.Message)
 	assert.True(t, d.has("pause nc-app-1"))
@@ -479,7 +480,7 @@ func TestLocalDestinationOnTheBareHost(t *testing.T) {
 
 func TestLocalDestinationOfAContainerizedAgent(t *testing.T) {
 	r, d, h, _ := setup()
-	self := d.addService("nebulactrl-agent", "", true)
+	self := d.addService("nebulactrl-agent", "")
 	d.mu.Lock()
 	delete(self.Labels, agentprotocol.LabelManaged)
 	self.Mounts = []docker.MountInfo{
@@ -511,7 +512,7 @@ func TestLocalDestinationOfAContainerizedAgent(t *testing.T) {
 
 func TestLocalDestinationOutsideAnyMountIsRefused(t *testing.T) {
 	r, d, h, _ := setup()
-	self := d.addService("nebulactrl-agent", "", true)
+	self := d.addService("nebulactrl-agent", "")
 	h.self = self.ID
 	p := payload()
 	p.Repo.Destination = agentprotocol.BackupDestination{Kind: agentprotocol.DestLocal}

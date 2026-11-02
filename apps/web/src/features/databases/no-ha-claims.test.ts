@@ -14,7 +14,7 @@ const NEGATION =
 	/\b(no|not|never|without|neither|nor|none|cannot|can't|isn't|aren't|doesn't|don't|won't|nothing)\b/i;
 
 /** The lines of a text that claim availability the product does not give. */
-export function findClaims(text: string): { line: number; text: string }[] {
+function findClaims(text: string): { line: number; text: string }[] {
 	const claims: { line: number; text: string }[] = [];
 	text.split("\n").forEach((line, index) => {
 		if (!CLAIM_UPPER.test(line) && !CLAIM_WORDS.test(line)) return;

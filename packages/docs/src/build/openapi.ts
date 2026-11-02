@@ -91,13 +91,17 @@ class Converter {
 
 		if (schema.properties && typeof schema.properties === "object") {
 			const required = new Set<string>(schema.required ?? []);
-			out.props = Object.entries(schema.properties).map(
-				([name, value]): ApiProperty => ({
-					name,
-					required: required.has(name),
-					schema: this.convert(value),
-				}),
-			);
+			// After any properties allOf contributed, not instead of them.
+			out.props = [
+				...(out.props ?? []),
+				...Object.entries(schema.properties).map(
+					([name, value]): ApiProperty => ({
+						name,
+						required: required.has(name),
+						schema: this.convert(value),
+					}),
+				),
+			];
 			out.type ??= "object";
 		}
 		if (

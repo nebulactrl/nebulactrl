@@ -73,14 +73,17 @@ func TestProbesFramesTravelAndTheAckReachesTheHandler(t *testing.T) {
 		// An ack of another kind never reaches the probes handler.
 		other, _ := agentprotocol.Encode(agentprotocol.TypeTrafficAck, "", agentprotocol.TrafficAck{Seq: 9})
 		_ = ws.Write(ctx, websocket.MessageText, other)
-		time.Sleep(500 * time.Millisecond)
+		wsFrames(ctx, ws, func(agentprotocol.Frame) bool { return false }) // until the agent hangs up
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	go func() { _ = c.Run(ctx) }()
-	<-done
+	// Frames are handled in order: once the traffic ack arrived, a probes ack
+	// wrongly routed from the same frame would already have been delivered.
+	require.Equal(t, uint64(9), recv(t, trafficAcked))
 	cancel()
+	<-done
 
 	require.Len(t, received, 2)
 	first, second := <-received, <-received
@@ -92,5 +95,4 @@ func TestProbesFramesTravelAndTheAckReachesTheHandler(t *testing.T) {
 	require.Equal(t, uint64(1), <-acked)
 	require.Equal(t, uint64(2), <-acked)
 	require.Empty(t, acked, "traffic acks are not probe acks")
-	require.Equal(t, uint64(9), <-trafficAcked)
 }

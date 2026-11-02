@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
 // Dither shader states on the dev catalogue (`/dev/dither`, dev server only).
-// Runs against the same running stack as smoke.spec.ts (`make dev`); only the
+// Runs against the same running stack as the other flows (`make dev`); only the
 // sign-in (E2E_EMAIL / E2E_PASSWORD) is shared with it.
 //
 //   cd apps/web && bunx playwright test e2e/dither-states.spec.ts

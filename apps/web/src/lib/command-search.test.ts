@@ -48,6 +48,23 @@ describe("fuzzyMatch", () => {
 	});
 });
 
+describe("fuzzyMatch with a long needle", () => {
+	test("a needle past 32 characters must appear as a plain substring, and highlights exactly it", () => {
+		const needle = "restart the production api server now please";
+		expect(needle.length).toBeGreaterThan(32);
+		const match = fuzzyMatch(needle, `Quick action: ${needle.toUpperCase()}`);
+		expect(match?.positions).toEqual(
+			Array.from({ length: needle.length }, (_, i) => 14 + i),
+		);
+		expect(match?.score).toBeGreaterThan(0);
+	});
+
+	test("a long needle that only matches as scattered letters does not match", () => {
+		const needle = "a".repeat(33);
+		expect(fuzzyMatch(needle, `${"ab".repeat(40)}`)).toBeNull();
+	});
+});
+
 describe("searchCommands", () => {
 	const items: SearchableCommand[] = [
 		{ id: "a", label: "Deployments of api" },
@@ -128,6 +145,14 @@ describe("searchCommands", () => {
 		expect(labels(searchCommands(rows, "import"))).toEqual([
 			"Import from Coolify",
 		]);
+	});
+
+	test("a word that only appears inside another word does not count as a word start", () => {
+		const rows: SearchableCommand[] = [
+			{ label: "Import from Coolify" },
+			{ label: "Portal" },
+		];
+		expect(labels(searchCommands(rows, "port"))).toEqual(["Portal"]);
 	});
 
 	test("with no word-start answer the query still reads as an abbreviation", () => {

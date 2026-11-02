@@ -80,7 +80,12 @@ import {
 	useFilesReplica,
 	useFilesTarget,
 } from "./store";
-import { replicaProcesses, replicasOfProcess, startProcess } from "./targets";
+import {
+	replicaProcesses,
+	replicasOfProcess,
+	startProcess,
+	startReplica,
+} from "./targets";
 
 function EntryIcon({ type }: { type: FileEntry["type"] }) {
 	if (type === "dir")
@@ -215,7 +220,18 @@ export function FilesSheet() {
 			? ""
 			: (pickedProcess ?? startProcess(everyReplica, preselectedProcess));
 	const ofProcess = replicasOfProcess(everyReplica, process);
-	const replica = picked ?? preselected ?? 0;
+	// The preselected replica belongs to the preselected process: after another
+	// process is picked, start on that process's first running replica. Before the
+	// replica list loads, keep the preselection rather than guess.
+	const replica =
+		picked ??
+		(info.data
+			? startReplica(
+					everyReplica,
+					process,
+					pickedProcess === null ? preselected : null,
+				)
+			: (preselected ?? 0));
 	const components = service.data ? stackComponents(service.data) : [];
 	const [path, setPath] = useState("/");
 	const [preview, setPreview] = useState<PreviewTarget | null>(null);

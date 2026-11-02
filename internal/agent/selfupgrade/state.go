@@ -62,10 +62,10 @@ func (c *Controller) save(st state) error {
 	if err := os.MkdirAll(c.StateDir, 0o700); err != nil {
 		return err
 	}
-	return writeFileAtomic(c.statePath(), b, 0o600)
+	return writeFileAtomic(c.statePath(), b)
 }
 
-func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
+func writeFileAtomic(path string, data []byte) error {
 	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".tmp-*")
 	if err != nil {
 		return err
@@ -77,7 +77,7 @@ func writeFileAtomic(path string, data []byte, mode os.FileMode) error {
 		cleanup()
 		return err
 	}
-	if err := tmp.Chmod(mode); err != nil {
+	if err := tmp.Chmod(0o600); err != nil {
 		_ = tmp.Close()
 		cleanup()
 		return err

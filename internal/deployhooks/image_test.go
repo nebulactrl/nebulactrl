@@ -110,3 +110,53 @@ func TestParsePayloadShapes(t *testing.T) {
 	require.Nil(t, parsePayload(http.Header{}, []byte(`{"ref":"main"}`)))
 	require.Nil(t, parsePayload(http.Header{}, []byte(`not json`)))
 }
+
+func TestParsePayloadRefusesMalformedNamesAndTagless(t *testing.T) {
+	hub := func(repo, tag string) *registryPush {
+		return parsePayload(http.Header{}, []byte(`{"push_data":{"tag":"`+tag+`"},"repository":{"repo_name":"`+repo+`"}}`))
+	}
+	bad := hub("Not A Repo!!", "v1")
+	require.NotNil(t, bad)
+	require.Equal(t, SourceDockerHub, bad.Source)
+	require.Contains(t, bad.Ignore, "repository name is not valid")
+
+	tagless := hub("acme/api", "")
+	require.NotNil(t, tagless)
+	require.Equal(t, "acme/api", tagless.Image.Path)
+	require.Contains(t, tagless.Ignore, "no tag")
+
+	// A Docker Hub payload without a repository name is not a registry delivery.
+	require.Nil(t, parsePayload(http.Header{}, []byte(`{"push_data":{"tag":"v1"},"repository":{"repo_name":""}}`)))
+
+	// GitHub: a package name that cannot be a repository is ignored, not deployed.
+	gh := http.Header{"X-Github-Event": {"package"}}
+	pkg := parsePayload(gh, []byte(`{"action":"published","package":{"name":"Bad Name!","namespace":"acme","package_version":{"container_metadata":{"tag":{"name":"v1"}}}}}`))
+	require.NotNil(t, pkg)
+	require.Contains(t, pkg.Ignore, "package name is not valid")
+}
+
+func TestEffectiveTag(t *testing.T) {
+	for ref, want := range map[string]string{
+		"acme/api":                         "latest",
+		"acme/api:v1":                      "v1",
+		"acme/api:v1@sha256:" + hex64("b"): "",
+		"acme/api@sha256:" + hex64("b"):    "",
+	} {
+		img, err := parseImage(ref)
+		require.NoError(t, err, ref)
+		require.Equal(t, want, img.effectiveTag(), ref)
+	}
+}
+
+func TestResolveOverrideNeedsAPlainServiceImage(t *testing.T) {
+	got, err := resolveOverride("not a ref", "v2", "")
+	require.NotNil(t, err)
+	require.Empty(t, got)
+	require.Equal(t, "validation_failed", err.code)
+	require.Contains(t, err.msg, "not a plain image reference")
+
+	// With neither parameter there is nothing to apply, whatever the image is.
+	got, err = resolveOverride("not a ref", "", "")
+	require.Nil(t, err)
+	require.Empty(t, got)
+}

@@ -28,6 +28,15 @@ func newDeploymentsCmd(c *cli) *cobra.Command {
 	)
 }
 
+// releaseOf summarizes a deployment's release; the API sends null for a
+// deployment that has none.
+func releaseOf(r *apiclient.ReleaseView) string {
+	if r == nil {
+		return "-"
+	}
+	return releaseSummary(r.Source)
+}
+
 func releaseSummary(s apiclient.ReleaseSource) string {
 	switch s.Type {
 	case "git":
@@ -80,7 +89,7 @@ func newDeploymentsLsCmd(c *cli) *cobra.Command {
 			}
 			rows := make([][]string, 0, len(all))
 			for _, d := range all {
-				rows = append(rows, []string{d.Id, d.Status, string(d.Trigger), string(d.Strategy), releaseSummary(d.Release.Source), ts(d.CreatedAt)})
+				rows = append(rows, []string{d.Id, d.Status, string(d.Trigger), string(d.Strategy), releaseOf(d.Release), ts(d.CreatedAt)})
 			}
 			c.table([]string{"ID", "STATUS", "TRIGGER", "STRATEGY", "RELEASE", "CREATED"}, rows)
 			return nil
@@ -111,16 +120,16 @@ func newDeploymentsStatusCmd(c *cli) *cobra.Command {
 			if d.StatusMessage != "" {
 				c.info("Message     %s", d.StatusMessage)
 			}
-			if d.WaitingFor.ServerId != "" {
+			if w := d.WaitingFor; w != nil && w.ServerId != "" {
 				since := ""
-				if d.WaitingFor.OfflineSince != nil {
-					since = " (offline since " + ts(*d.WaitingFor.OfflineSince) + ")"
+				if w.OfflineSince != nil {
+					since = " (offline since " + ts(*w.OfflineSince) + ")"
 				}
-				c.info("Waiting     for %s%s", d.WaitingFor.ServerName, since)
+				c.info("Waiting     for %s%s", w.ServerName, since)
 			}
 			c.info("Strategy    %s", d.Strategy)
 			c.info("Trigger     %s (%s)", d.Trigger, d.ActorType)
-			c.info("Release     %s  %s", d.ReleaseId, releaseSummary(d.Release.Source))
+			c.info("Release     %s  %s", deref(d.ReleaseId), releaseOf(d.Release))
 			c.info("Created     %s", ts(d.CreatedAt))
 			c.info("Started     %s", tsPtr(d.StartedAt))
 			c.info("Finished    %s", tsPtr(d.FinishedAt))
@@ -194,7 +203,7 @@ func newDeploymentsRollbackCmd(c *cli) *cobra.Command {
 				if c.asJSON {
 					return c.printJSON(d)
 				}
-				c.info("Rollback deployment %s accepted (%s, release %s)", d.Id, d.Status, releaseSummary(d.Release.Source))
+				c.info("Rollback deployment %s accepted (%s, release %s)", d.Id, d.Status, releaseOf(d.Release))
 				return nil
 			}
 			c.note("Deployment %s: %s (%s)", d.Id, d.Status, d.Strategy)
@@ -236,8 +245,8 @@ func (c *cli) waitAndReport(parent context.Context, id, last string, timeout tim
 		}
 		if err == nil {
 			wait := ""
-			if d.WaitingFor.ServerId != "" {
-				wait = "waiting for " + d.WaitingFor.ServerName
+			if w := d.WaitingFor; w != nil && w.ServerId != "" {
+				wait = "waiting for " + w.ServerName
 			}
 			if d.Status != last || d.StatusMessage != lastMsg || wait != lastWait {
 				line := "Deployment " + id + ": " + d.Status

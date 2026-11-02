@@ -1,8 +1,66 @@
 package api
 
 import (
+	"reflect"
+	"strconv"
+
 	"github.com/danielgtaylor/huma/v2"
 )
+
+// documentDefaultError gives every operation a `default` response carrying the
+// Error problem document. An operation's Errors list names the statuses its own
+// handler is meant to answer, but the domain services behind it return
+// apierr.Error values of any status (a 409 from a conflict check, a 502 from
+// an unreachable upstream, a 503 from a missing integration) and the
+// middleware answers 401, 403, 429 and 5xx before the handler runs. Keeping an
+// exhaustive per-operation list in step with the services is not maintainable,
+// so the statuses the list leaves out are documented by `default`, and a
+// client still reads `code` and `detail` from them. huma adds `default` itself
+// only to operations without an Errors list.
+func documentDefaultError(oapi *huma.OpenAPI, op *huma.Operation) {
+	if _, ok := op.Responses["default"]; ok {
+		return
+	}
+	example := huma.NewError(0, "")
+	contentType := "application/json"
+	if filter, ok := example.(huma.ContentTypeFilter); ok {
+		contentType = filter.ContentType(contentType)
+	}
+	t := reflect.TypeOf(example)
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	if op.Responses == nil {
+		op.Responses = map[string]*huma.Response{}
+	}
+	op.Responses["default"] = &huma.Response{
+		Description: "Error",
+		Content: map[string]*huma.MediaType{
+			contentType: {Schema: oapi.Components.Schemas.Schema(t, true, "Error")},
+		},
+	}
+}
+
+// WithResponse documents one more JSON success status of an operation whose
+// output chooses its status itself (an output with a `Status int` field), next
+// to the operation's DefaultStatus: a dry run that answers 200 where the real
+// call answers 202, a removal that finishes at once (200) or goes on in the
+// background (202). A status the spec leaves out is wrongly read as an error
+// by the generated clients. T is the body type of that answer.
+func WithResponse[T any](h huma.API, op huma.Operation, status int, description string) huma.Operation {
+	responses := make(map[string]*huma.Response, len(op.Responses)+1)
+	for key, response := range op.Responses {
+		responses[key] = response
+	}
+	responses[strconv.Itoa(status)] = &huma.Response{
+		Description: description,
+		Content: map[string]*huma.MediaType{
+			"application/json": {Schema: h.OpenAPI().Components.Schemas.Schema(reflect.TypeFor[T](), true, "")},
+		},
+	}
+	op.Responses = responses
+	return op
+}
 
 // Security scheme names.
 const (

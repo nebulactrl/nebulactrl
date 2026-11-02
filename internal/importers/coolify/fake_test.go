@@ -44,6 +44,8 @@ type fakeCoolify struct {
 	// sensitive controls read:sensitive: without it values and options are hidden.
 	sensitive bool
 	extraApps []map[string]any
+	// storages replaces the persistent storages of an application by uuid.
+	storages map[string][]any
 }
 
 func newFakeCoolify(t *testing.T) *fakeCoolify {
@@ -266,6 +268,9 @@ func (f *fakeCoolify) serve(w http.ResponseWriter, r *http.Request) {
 			st := map[string]any{"persistent_storages": []any{}, "file_storages": []any{}}
 			if uuid == uuidWeb {
 				st["persistent_storages"] = []any{map[string]any{"name": uuidWeb + "-storage", "mount_path": "/var/www/html/storage/app"}}
+			}
+			if own, ok := f.storages[uuid]; ok {
+				st["persistent_storages"] = own
 			}
 			reply(st)
 		case "scheduled-tasks":

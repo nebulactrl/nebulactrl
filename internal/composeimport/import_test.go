@@ -38,6 +38,7 @@ type importFixture struct {
 	svc  *composeimport.Service
 	env  db.Environment
 	srv  db.Server
+	deps composeimport.Deps
 }
 
 func newImportFixture(t *testing.T) *importFixture {
@@ -69,12 +70,13 @@ func newImportFixture(t *testing.T) *importFixture {
 	jm := jobs.New(pool, logger)
 	domains.RegisterJobs(jm, domains.NewService(pool, bus, jm, box), logger)
 	ctx := auth.WithPrincipal(bg, &auth.Principal{Type: auth.TypeUser, UserID: u.ID, WorkspaceID: ws.ID, Label: "a@example.com", Scopes: policy.AllScopes})
+	deps := composeimport.Deps{
+		Pool: pool, Bus: bus, Jobs: jm, Services: svcs, Variables: templates.VariablesAdapter{S: vars},
+		Databases: databases.NewService(pool, bus, box, nil, svcs, logger), Logger: logger,
+	}
 	return &importFixture{
-		t: t, pool: pool, q: q, ctx: ctx, box: box, env: env, srv: srv,
-		svc: composeimport.NewService(composeimport.Deps{
-			Pool: pool, Bus: bus, Jobs: jm, Services: svcs, Variables: templates.VariablesAdapter{S: vars},
-			Databases: databases.NewService(pool, bus, box, nil, svcs, logger), Logger: logger,
-		}),
+		t: t, pool: pool, q: q, ctx: ctx, box: box, env: env, srv: srv, deps: deps,
+		svc: composeimport.NewService(deps),
 	}
 }
 

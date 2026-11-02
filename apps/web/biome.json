@@ -16,6 +16,8 @@
 			"e2e/**/*",
 			"playwright.config.ts",
 			"!src/routeTree.gen.ts",
+			"!src/test/api-routes.gen.ts",
+			"!src/test/api-schemas.gen.ts",
 			"!src/api/gen",
 			"!src/styles.css",
 			"!src/transitions.css",
@@ -58,6 +60,14 @@
 					"correctness": {
 						"usePlaywrightValidDescribeCallback": "off"
 					}
+				}
+			}
+		},
+		{
+			"includes": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**"],
+			"linter": {
+				"domains": {
+					"test": "recommended"
 				}
 			}
 		},

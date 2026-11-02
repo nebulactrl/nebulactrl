@@ -383,12 +383,16 @@ func (ap *applier) environment(tx pgx.Tx, q *db.Queries, env services.EnvScope, 
 		}
 		sc := services.ScopeOf(env, row)
 		for _, v := range r.Volumes {
-			if _, err := q.InsertVolume(ctx, db.InsertVolumeParams{ServiceID: row.ID, Name: v.Name, MountPath: v.MountPath}); err != nil {
-				if services.IsUniqueViolation(err) {
-					ap.warnings = append(ap.warnings, fmt.Sprintf("%s: volume %s was skipped (name or mount path already used).", r.Name, v.Name))
-					continue
-				}
+			// A savepoint: a unique violation aborts the whole transaction otherwise.
+			skipped, err := insertOrSkip(ctx, tx, func(sq *db.Queries) error {
+				_, err := sq.InsertVolume(ctx, db.InsertVolumeParams{ServiceID: row.ID, Name: v.Name, MountPath: v.MountPath})
+				return err
+			})
+			if err != nil {
 				return fmt.Errorf("insert volume: %w", err)
+			}
+			if skipped {
+				ap.warnings = append(ap.warnings, fmt.Sprintf("%s: volume %s was skipped (name or mount path already used).", r.Name, v.Name))
 			}
 		}
 		wrote := 0
@@ -487,6 +491,26 @@ func configFor(r *CoolifyPlanResource) services.Config {
 	return cfg
 }
 
+// insertOrSkip runs an insert inside a savepoint of the import transaction. A
+// unique violation is reported as skipped and rolled back to the savepoint, so
+// the transaction stays usable; any other error is returned.
+func insertOrSkip(ctx context.Context, tx pgx.Tx, insert func(q *db.Queries) error) (skipped bool, err error) {
+	sp, err := tx.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	if err := insert(db.New(sp)); err != nil {
+		if rbErr := sp.Rollback(ctx); rbErr != nil {
+			return false, errors.Join(err, rbErr)
+		}
+		if services.IsUniqueViolation(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	return false, sp.Commit(ctx)
+}
+
 // addDomain attaches a hostname to the service (staged), like a template install.
 func (ap *applier) addDomain(tx pgx.Tx, env services.EnvScope, row db.Service, r *CoolifyPlanResource, d CoolifyPlanDomain) (warn string, err error) {
 	ctx, q := ap.ctx, db.New(tx)
@@ -542,15 +566,20 @@ func (ap *applier) addDomain(tx pgx.Tx, env services.EnvScope, row db.Service, r
 			return "", err
 		}
 	}
-	dom, err := q.InsertDomain(ctx, db.InsertDomainParams{
-		ServiceID: row.ID, Hostname: host, TargetPort: int32(port), Generated: d.Generate, StatusMessage: domains.DNSGuidance(host, srv.PublicIp),
-		PathPrefix: d.Path, Options: optsJSON,
+	var dom db.Domain
+	skipped, err := insertOrSkip(ctx, tx, func(sq *db.Queries) error {
+		var err error
+		dom, err = sq.InsertDomain(ctx, db.InsertDomainParams{
+			ServiceID: row.ID, Hostname: host, TargetPort: int32(port), Generated: d.Generate, StatusMessage: domains.DNSGuidance(host, srv.PublicIp),
+			PathPrefix: d.Path, Options: optsJSON,
+		})
+		return err
 	})
 	if err != nil {
-		if services.IsUniqueViolation(err) {
-			return r.Name + ": the hostname " + host + " is already in use and was skipped.", nil
-		}
 		return "", err
+	}
+	if skipped {
+		return r.Name + ": the hostname " + host + " is already in use and was skipped.", nil
 	}
 	if _, err := q.BumpServiceGeneration(ctx, row.ID); err != nil {
 		return "", err

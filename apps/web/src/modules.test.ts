@@ -11,7 +11,8 @@ mock.module("virtual:docs-manifest", () => ({ metas: [], nav: [] }));
  * browser. Loading them all also makes `bun test --coverage` count every file:
  * Bun reports only the files a test loads, so an untested file would otherwise
  * be missing from the coverage report instead of counting as uncovered.
- * `main.tsx` mounts the app into the page and is left out.
+ * `main.tsx` mounts the app into the page and is left out, and so are the test
+ * helpers in `test/` (the preload registers the DOM; it must not run twice).
  */
 test("every source module loads", async () => {
 	const failed: string[] = [];
@@ -21,7 +22,8 @@ test("every source module loads", async () => {
 		if (
 			file.endsWith(".d.ts") ||
 			/\.test\.tsx?$/.test(file) ||
-			file === "main.tsx"
+			file === "main.tsx" ||
+			file.startsWith("test/")
 		)
 			continue;
 		try {

@@ -217,8 +217,8 @@ func TestBuiltinFullMessageRewrite(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, StatusFailed, got.Status)
 			require.Equal(t, tc.want, got.Error)
-			require.Equal(t, NotifyBackupFailed, f.events[len(f.events)-1].Type, "the usual failure event follows")
-			require.Equal(t, tc.want, f.events[len(f.events)-1].Message)
+			f.lastEvent(NotifyBackupFailed)
+			require.Equal(t, tc.want, f.lastEvent(NotifyBackupFailed).Message)
 		})
 	}
 
@@ -247,7 +247,7 @@ func TestBuiltinFullMessageRewrite(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, StatusFailed, got.Status)
 		require.Equal(t, want, got.Error)
-		require.Equal(t, NotifyBackupFailed, f.events[len(f.events)-1].Type)
+		f.lastEvent(NotifyBackupFailed)
 	})
 
 	t.Run("external s3 keeps its own message", func(t *testing.T) {

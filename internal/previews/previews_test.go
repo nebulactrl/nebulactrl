@@ -139,9 +139,14 @@ type fakeDeployer struct {
 	pool  *pgxpool.Pool
 	srvID uuid.UUID
 	calls []deployCall
+	// failWith, when set, is returned by Deploy instead of starting one.
+	failWith error
 }
 
 func (d *fakeDeployer) Deploy(ctx context.Context, serviceID uuid.UUID, commit previews.Commit, _ string) (uuid.UUID, error) {
+	if d.failWith != nil {
+		return uuid.Nil, d.failWith
+	}
 	q := db.New(d.pool)
 	if n, _ := q.CountActiveDeployments(ctx, serviceID); n > 0 {
 		return uuid.Nil, apierr.Conflict("deployment_in_progress", "a deployment is already in progress for this service")

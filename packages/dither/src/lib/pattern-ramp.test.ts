@@ -117,6 +117,22 @@ describe("ditherRampBands", () => {
 	});
 });
 
+describe("ditherRampBands steps", () => {
+	test("a single step is one band at the `from` tone covering the box", () => {
+		const bands = ditherRampBands({
+			edge: "top",
+			from: 0.5,
+			to: 1,
+			length: "100%",
+			steps: 1,
+		});
+		expect(bands).toHaveLength(1);
+		expect(bands[0]).toMatchObject({ lo: 0, hi: 100 });
+		// bayer4 at 0.5 inks 8 of 16 cells; `to` is ignored with one step.
+		expect(bands[0]?.count).toBe(8);
+	});
+});
+
 describe("ditherRamp", () => {
 	test("is one image: one svg, one pattern per distinct level", () => {
 		const svg = svgOf({ ...base, edge: "bottom" });

@@ -156,14 +156,14 @@ type updateMaintenanceInput struct {
 	}
 }
 
-// optionalUUID parses an optional uuid query parameter.
-func optionalUUID(name, v string) (*uuid.UUID, error) {
+// optionalPageID parses the optional page_id query parameter.
+func optionalPageID(v string) (*uuid.UUID, error) {
 	if v == "" {
 		return nil, nil
 	}
 	id, err := uuid.Parse(v)
 	if err != nil {
-		return nil, apierr.BadRequest("invalid_"+name, name+" must be a UUID")
+		return nil, apierr.BadRequest("invalid_page_id", "page_id must be a UUID")
 	}
 	return &id, nil
 }
@@ -288,7 +288,7 @@ func Register(h huma.API, svc *Service) {
 		Summary: "List status incidents", Description: "Incidents written by people and posted to status pages, newest first, with their timelines.",
 		Errors: append(errs[:2:2], http.StatusBadRequest),
 	}, policy.ScopeProjectsRead), func(ctx context.Context, in *listIncidentsInput) (*incidentPageOutput, error) {
-		pageID, err := optionalUUID("page_id", in.PageID)
+		pageID, err := optionalPageID(in.PageID)
 		if err != nil {
 			return nil, err
 		}
@@ -368,7 +368,7 @@ func Register(h huma.API, svc *Service) {
 		Summary: "List maintenance windows", Description: "Scheduled maintenance, latest start first.",
 		Errors: append(errs[:2:2], http.StatusBadRequest, http.StatusUnprocessableEntity),
 	}, policy.ScopeProjectsRead), func(ctx context.Context, in *listMaintenanceInput) (*maintenancePageOutput, error) {
-		pageID, err := optionalUUID("page_id", in.PageID)
+		pageID, err := optionalPageID(in.PageID)
 		if err != nil {
 			return nil, err
 		}

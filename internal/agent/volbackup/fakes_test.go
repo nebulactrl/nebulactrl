@@ -95,16 +95,13 @@ func (f *fakeDocker) find(idOrName string) *docker.ContainerInfo {
 }
 
 // addService seeds a running service container.
-func (f *fakeDocker) addService(name, serviceID string, running bool) *docker.ContainerInfo {
+func (f *fakeDocker) addService(name, serviceID string) *docker.ContainerInfo {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.seq++
 	c := &docker.ContainerInfo{
-		ID: fmt.Sprintf("svc%03d", f.seq), Name: name, State: "exited",
+		ID: fmt.Sprintf("svc%03d", f.seq), Name: name, State: "running", Running: true,
 		Labels: map[string]string{agentprotocol.LabelManaged: "true", agentprotocol.LabelService: serviceID},
-	}
-	if running {
-		c.State, c.Running = "running", true
 	}
 	f.containers[c.ID] = c
 	return c

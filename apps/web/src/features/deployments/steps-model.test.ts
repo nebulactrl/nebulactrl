@@ -93,4 +93,33 @@ describe("stepDuration", () => {
 			"",
 		);
 	});
+
+	test("is empty when the clocks are unreadable or run backwards", () => {
+		const base = { key: "k", step: "build", state: "succeeded", message: "" };
+		expect(
+			stepDuration({
+				...base,
+				startedAt: "garbage",
+				endedAt: "2026-10-27T16:00:00Z",
+			}),
+		).toBe("");
+		expect(
+			stepDuration({
+				...base,
+				startedAt: "2026-10-27T16:00:05Z",
+				endedAt: "2026-10-27T16:00:00Z",
+			}),
+		).toBe("");
+	});
+
+	test("whole minutes drop the seconds", () => {
+		const base = { key: "k", step: "build", state: "succeeded", message: "" };
+		expect(
+			stepDuration({
+				...base,
+				startedAt: "2026-10-27T16:00:00Z",
+				endedAt: "2026-10-27T16:03:00Z",
+			}),
+		).toBe("3 min");
+	});
 });

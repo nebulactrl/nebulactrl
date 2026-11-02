@@ -102,7 +102,15 @@ export function LocationControl({
 				</span>
 				<Segmented
 					value={value.location}
-					onValueChange={(location) => set({ location })}
+					onValueChange={(location) =>
+						// Inherit hands the whole placement to the level above: a pin or
+						// registry left behind would be saved and keep overriding it.
+						set(
+							location === "inherit"
+								? { location, buildServerId: "", registryId: "" }
+								: { location },
+						)
+					}
 					options={locationOptions(scope)}
 					aria-label={`Build location of the ${SCOPE_NOUN[scope]}`}
 					font="sans"

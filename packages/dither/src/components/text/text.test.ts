@@ -295,6 +295,35 @@ describe("text fills", () => {
 		expect(out[11]).toBe(0);
 		expect(out[15]).toBe(255);
 	});
+
+	test("paintTextGrid with an ink of alpha 0 paints nothing, ghost included", () => {
+		const glyph = new Uint8ClampedArray([255, 255, 0, 255]);
+		const out = paintTextGrid(
+			glyph,
+			4,
+			1,
+			spec({ fill: "hatched" }),
+			[10, 20, 30, 0],
+			0.25,
+			0,
+		);
+		for (let i = 0; i < 4; i += 1) expect(out[i * 4 + 3]).toBe(0);
+	});
+
+	test("paintTextGrid scales ink and ghost by the ink alpha", () => {
+		const glyph = new Uint8ClampedArray([255, 255]);
+		const out = paintTextGrid(
+			glyph,
+			2,
+			1,
+			spec({ fill: "hatched" }),
+			[10, 20, 30, 128],
+			0.5,
+			0,
+		);
+		expect(out[3]).toBe(128);
+		expect(out[7]).toBe(64);
+	});
 });
 
 describe("number parts", () => {

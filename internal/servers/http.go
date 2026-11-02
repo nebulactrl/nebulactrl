@@ -186,7 +186,7 @@ func Register(h huma.API, svc *Service) {
 		return &serverOutput{Body: s}, nil
 	})
 
-	huma.Register(h, api.WithScopes(huma.Operation{
+	huma.Register(h, api.WithScopes(api.WithResponse[ServerRemoval](h, huma.Operation{
 		OperationID: "removeServer", Method: http.MethodDelete, Path: "/servers/{serverId}", Tags: tags,
 		Summary: "Remove a server",
 		Description: "Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume " +
@@ -199,7 +199,7 @@ func Register(h huma.API, svc *Service) {
 			"(409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). " +
 			"Audited as `server.removed`. Admin scope; denied to MCP agents.",
 		Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity},
-	}, policy.ScopeServersWrite, policy.ScopeAdmin), func(ctx context.Context, in *removeServerInput) (*removeServerOutput, error) {
+	}, http.StatusAccepted, "The host is being cleaned; the server shows its `removal` state until it is deleted"), policy.ScopeServersWrite, policy.ScopeAdmin), func(ctx context.Context, in *removeServerInput) (*removeServerOutput, error) {
 		res, err := svc.Remove(ctx, in.ID, RemoveInput{Confirm: in.Confirm, Mode: in.Mode})
 		if err != nil {
 			return nil, err

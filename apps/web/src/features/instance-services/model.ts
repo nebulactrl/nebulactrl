@@ -25,10 +25,11 @@ export type SliceState = SliceView["state"];
 /**
  * What the page says when the services did not load. A status means the control
  * plane answered (an older build, a refusal), and the line says what it
- * answered; only a call that got no answer says that it did not.
+ * answered; a call that got no answer (the client reports status 0) says that
+ * it did not.
  */
 export function servicesLoadFailure(error: unknown): string {
-	if (error instanceof ApiError) {
+	if (error instanceof ApiError && error.status !== 0) {
 		const reason = error.message.replace(/\.+$/, "");
 		return `The control plane answered ${error.status}: ${reason}. Nothing was changed.`;
 	}

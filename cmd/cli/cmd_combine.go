@@ -460,8 +460,8 @@ func (c *cli) printCombine(v *apiclient.CombineView) error {
 	c.info("Combine %s: %s", v.Id, v.State)
 	c.info("Target:     %s", v.TargetServiceId)
 	c.info("Sources:    %s", orDash(strings.Join(items(v.SourceServiceIds), ", ")))
-	if v.DeploymentId != "" {
-		c.info("Deployment: %s (nebulactrl deployments status %s)", v.DeploymentId, v.DeploymentId)
+	if id := deref(v.DeploymentId); id != "" {
+		c.info("Deployment: %s (nebulactrl deployments status %s)", id, id)
 	}
 	if v.Error != "" {
 		c.info("Error:      %s", v.Error)

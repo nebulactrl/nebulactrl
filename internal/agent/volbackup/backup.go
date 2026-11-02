@@ -38,12 +38,24 @@ func validHook(h *agentprotocol.VolumeHook) error {
 	return nil
 }
 
-func hookTimeout(h *agentprotocol.VolumeHook) time.Duration {
+// hookTimeoutSeconds is a hook's timeout in payload seconds: the default when
+// unset, at most the maximum.
+func hookTimeoutSeconds(h *agentprotocol.VolumeHook) int {
 	s := h.TimeoutSeconds
 	if s <= 0 {
 		s = agentprotocol.DefaultHookTimeoutSeconds
 	}
-	return time.Duration(min(s, agentprotocol.MaxHookTimeoutSeconds)) * time.Second
+	return min(s, agentprotocol.MaxHookTimeoutSeconds)
+}
+
+// seconds converts payload seconds (hook timeouts, the freeze budget) to a
+// duration. A zero secondUnit means a real second; tests shorten it.
+func (r *Runner) seconds(n int) time.Duration {
+	unit := r.secondUnit
+	if unit == 0 {
+		unit = time.Second
+	}
+	return time.Duration(n) * unit
 }
 
 // copyScript copies every volume from /src/<name> to /vol/<name>.
@@ -383,7 +395,7 @@ func execFailure(code int, err error) string {
 // budget: the copy runs under a deadline, a timer thaws independently, and the
 // thaw is retried. Over budget the backup fails instead of falling back silently.
 func (r *Runner) freezeWindow(ctx context.Context, h *helper, p agentprotocol.VolumeBackupPayload, cont docker.ContainerInfo, script []string, res *agentprotocol.VolumeBackupResult, logf func(string)) error {
-	budget := time.Duration(p.FreezeBudgetSeconds) * time.Second
+	budget := r.seconds(p.FreezeBudgetSeconds)
 	thaw := r.thawer(cont.ID)
 	logf(fmt.Sprintf("freezing the service for the local copy (budget %d s)", p.FreezeBudgetSeconds))
 
@@ -493,13 +505,13 @@ func (r *Runner) thawer(id string) func() error {
 
 // runHook runs a hook in the service container.
 func (r *Runner) runHook(ctx context.Context, cont docker.ContainerInfo, h *agentprotocol.VolumeHook) error {
-	hctx, cancel := context.WithTimeout(ctx, hookTimeout(h))
+	hctx, cancel := context.WithTimeout(ctx, r.seconds(hookTimeoutSeconds(h)))
 	defer cancel()
 	tail := &tailBuf{}
 	code, err := r.Docker.ContainerExec(hctx, cont.ID, h.Command, docker.ExecSpec{User: h.User}, tail, tail)
 	switch {
 	case hctx.Err() != nil && ctx.Err() == nil:
-		return fmt.Errorf("timed out after %s", hookTimeout(h))
+		return fmt.Errorf("timed out after %s", time.Duration(hookTimeoutSeconds(h))*time.Second)
 	case err != nil:
 		return fmt.Errorf("could not run: %w", err)
 	case code != 0:

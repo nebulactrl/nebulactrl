@@ -192,14 +192,14 @@ export function UserMenu({
 				{version || versionPending ? (
 					<>
 						<DropdownMenuSeparator />
-						<p className="flex items-center gap-1.5 px-2.5 py-1.5 text-2xs text-ink-4 leading-none">
+						<div className="flex items-center gap-1.5 px-2.5 py-1.5 text-2xs text-ink-4 leading-none">
 							NebulaCtrl
 							{version ? (
 								<span className="font-mono">{versionLabel(version)}</span>
 							) : (
 								<Skeleton className="h-[9px] w-10 rounded-sm" />
 							)}
-						</p>
+						</div>
 					</>
 				) : null}
 			</DropdownMenuContent>

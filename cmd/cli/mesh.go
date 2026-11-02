@@ -105,7 +105,7 @@ func newMeshStatusCmd(c *cli) *cobra.Command {
 func newMeshEnableCmd(c *cli) *cobra.Command {
 	var accept, dry bool
 	cmd := &cobra.Command{
-		Use: "enable <server>", Short: "Join a server to the mesh (adds one tagged tailnet device)", Args: cobra.ExactArgs(1),
+		Use: "enable <server>", Short: "Join a server to the mesh (adds one tagged tailnet device)", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := c.connect(); err != nil {
 				return err
@@ -147,7 +147,7 @@ func newMeshEnableCmd(c *cli) *cobra.Command {
 
 func newMeshDisableCmd(c *cli) *cobra.Command {
 	return &cobra.Command{
-		Use: "disable <server>", Short: "Remove a server from the mesh", Args: cobra.ExactArgs(1),
+		Use: "disable <server>", Short: "Remove a server from the mesh", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := c.connect(); err != nil {
 				return err
@@ -173,7 +173,7 @@ func newMeshDisableCmd(c *cli) *cobra.Command {
 
 func newMeshCheckCmd(c *cli) *cobra.Command {
 	return &cobra.Command{
-		Use: "check <server>", Short: "Test whether the server's mesh node reaches the other servers", Args: cobra.ExactArgs(1),
+		Use: "check <server>", Short: "Test whether the server's mesh node reaches the other servers", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := c.connect(); err != nil {
 				return err
@@ -205,7 +205,7 @@ func newMeshCheckCmd(c *cli) *cobra.Command {
 
 func newMeshReprovisionCmd(c *cli) *cobra.Command {
 	return &cobra.Command{
-		Use: "reprovision <server>", Short: "Re-create the server's mesh node (new device and tailnet IP)", Args: cobra.ExactArgs(1),
+		Use: "reprovision <server>", Short: "Re-create the server's mesh node (new device and tailnet IP)", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := c.connect(); err != nil {
 				return err

@@ -218,6 +218,12 @@ function PublicPortBody({
 		setRefusal(null);
 	};
 
+	/** Drops the edits of an open port: the saved settings show again. */
+	const discard = () => {
+		setEdited(null);
+		setRefusal(null);
+	};
+
 	const submit = () => {
 		if (!problems.valid || save.isPending) return;
 		save.mutate({
@@ -376,7 +382,7 @@ function PublicPortBody({
 						<Button
 							variant="secondary"
 							disabled={save.isPending || (view.enabled && edited === null)}
-							onClick={() => toggle(false)}
+							onClick={view.enabled ? discard : () => toggle(false)}
 						>
 							{view.enabled ? "Discard" : "Cancel"}
 						</Button>

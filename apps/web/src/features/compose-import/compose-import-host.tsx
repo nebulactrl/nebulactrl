@@ -150,7 +150,9 @@ function Wizard({
 	);
 	const plan = useQuery({
 		...composePlanQuery(environment.id, planned),
-		enabled: step !== "source",
+		// Only once the debounce has caught up with the form: Review right after an
+		// edit would otherwise plan the source as it was before the edit.
+		enabled: step !== "source" && settled === fingerprint,
 		placeholderData: keepPreviousData,
 	});
 

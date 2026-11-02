@@ -1,12 +1,13 @@
 # Tests
 
-Three tiers, from cheap to thorough:
+Four tiers, from cheap to thorough (tier 4 is orthogonal: it drives the dashboard in a real browser):
 
 | Tier | Command | What | When |
 |---|---|---|---|
 | 1 | `make test` | Go unit and database tests (`go test ./...`), web unit tests. Static validation of every catalog template. No Docker. | every change; the `ci` workflow, run by hand |
 | 2 | `make test-smoke` | 8 core Docker scenarios on one shared control plane and agent | when you touch the agent, deploy engine, reconciler, proxy or network code; the `ci` workflow, run by hand |
 | 3 | `make test-full` | everything: templates sample, Railpack, backups, reconnect/partition, proxy routes, previews, Gitea, terminal, tasks, replicas, ... | before larger changes in those areas; the `full` workflow, run by hand and as a release gate |
+| 4 | `make test-e2e` | 8 Playwright flows in Chromium against a fresh stack it starts and removes: first-run setup and enrolled server, deploy and live log, `nebula.toml`, failed deploy and rollback, canvas layout, terminal and logs, viewer role, database backup and restore | when you touch `apps/web` or an API the dashboard calls; the `e2e` job of the `ci` workflow (skipped when a change touches none of its paths), run by hand |
 
 `go test -tags integration ./tests/integration/...` directly runs the full tier
 (`NEBULACTRL_TEST_TIER` unset means `full`), but use `tests/run.sh`, which also
@@ -15,6 +16,7 @@ takes care of the dev agent (see below).
 ```sh
 make test-smoke                                          # tier 2
 make test-full                                           # tier 3
+make test-e2e                                           # tier 4
 ./tests/run.sh smoke -run 'TestRollback|TestIDOR' -v     # a subset (extra args go to go test)
 ./tests/run.sh full -run TestTasks -v
 NEBULACTRL_TEST_MULTI=1 make test-full                   # + the multi-server test
@@ -112,6 +114,71 @@ again after each one. `NEBULACTRL_TEST_TEMPLATES` selects them:
 
 The `full` workflow has a `templates` input (`sample` or `all`) for manual runs.
 
+## Tier 4: browser flows
+
+`make test-e2e` drives the dashboard in Chromium (Playwright, `apps/web/e2e`) against a
+real stack that it builds, starts and removes again. Nothing is stubbed: the control
+plane serves the web app that was just built, the agent is the real binary on a real
+Docker daemon. What the specs know about the stack is in `apps/web/e2e/support/env.ts`;
+the steps that are not the point of a flow (create a project, deploy, add a domain)
+are in `support/ui.ts`, and a flow prepares and checks state through the REST API
+(`support/api.ts`), never through the database.
+
+The stack (`tests/e2e/run.sh`, fresh on every run):
+
+- a Postgres database of its own on the server of `NEBULACTRL_TEST_DATABASE_URL` (the
+  throwaway one of `make test-db`, the service container in CI), dropped again; the
+  name is different on every run, so a control plane an earlier run left behind cannot
+  find it
+- the control plane, built from this checkout with the built web app embedded (`go build
+  -overlay`, `internal/webui/dist` is not touched), on a free port
+- a docker-in-docker daemon (`nebula-e2e-dind`, privileged) with one agent (`nebula-e2e-agent`)
+  in its network namespace and the agent's Traefik published on a free port of
+  `127.0.0.1`: services with a domain `*.localhost` are reached at
+  `https://<name>.localhost:<port>/`. The agent reaches the control plane through
+  `host.docker.internal` (`--add-host … host-gateway`, which also works on Linux). The
+  daemon is private, so the stack can never collide with the dev agent1 or tier 2 and 3.
+
+The flows run in file order with one worker, one project each (created and deleted by
+the flow itself, so a failure leaves nothing for the next one):
+
+| Flow | Asserts |
+|---|---|
+| `01-setup` | the setup page creates the administrator (a second setup is refused), sign-out, a wrong password, sign-in; "Add server" yields an install command, the launcher starts the agent with its token and the page shows it online with its OS, CPUs and Docker version |
+| `02-deploy` | project, Docker image service and domain; the deployment's log and steps (pull, create, start, health, route); the service answers through the agent's proxy, also in a browser tab; a secret variable is staged and never in the page |
+| `03-project-config` | `nebula.toml`: export, validate (a broken file is refused), plan (lists the one change, writes nothing), apply as staged, the review says "set by nebula.toml", a second plan has nothing to do |
+| `04-failed-deploy-rollback` | a deploy of a missing image tag fails and the previous release keeps answering; "Rollback to this release" brings the oldest one back |
+| `05-canvas-layout` | a card dragged on the canvas: its place on screen, in the layout the control plane saved and after a reload |
+| `06-terminal-logs` | live logs show a request made after they opened; the web terminal (held production confirmation) runs commands in the container |
+| `07-viewer-role` | a viewer joins from an invite link, reads the project and gets 403 from the API for every change; the dialogs and toasts say so. The dashboard shows a viewer the controls of a writer (Create, Deploy, New project); the flow records that as a `finding` annotation and asserts the refusal and the error handling instead of hidden buttons |
+| `08-database-backup` | a PostgreSQL database from the Create menu; a directory on the server as backup destination; a backup; a second row written; a restore over the database with the slug typed to confirm; the terminal reads the first row back and not the second |
+
+Run it:
+
+```sh
+make test-e2e                                       # build, start the stack, all flows, tear down (about 4 minutes warm, more when images are pulled)
+tests/e2e/run.sh e2e/06-terminal-logs.spec.ts       # one flow (01-setup runs first: the others need its account and server)
+E2E_SKIP_WEB_BUILD=1 make test-e2e                  # reuse apps/web/dist
+E2E_KEEP=1 make test-e2e                            # leave the stack running (the log names its state file)
+tests/e2e/run.sh down                               # remove a kept stack
+make e2e                                            # the same specs against a running `make dev` stack with the agent1 profile
+```
+
+It needs Docker, Go, bun, `bunx playwright install chromium` once, and the images of the
+flows (docker-in-docker, whoami, nginx, PostgreSQL), which the first run pulls into the
+private daemon. A failed run leaves the report in `apps/web/playwright-report` (CI) and the
+traces and stack logs (control plane, agent, daemon) in `apps/web/test-results`; open a
+trace with `bunx playwright show-trace`.
+
+CI: the `e2e` job of `ci.yml` runs `tests/e2e/run.sh` on `ubuntu-24.04` with a Postgres
+service container on pull requests and pushes to `main`. Its first step diffs the change
+against the base (or the previous push) and skips every other step when nothing under
+`apps/web`, `packages`, the Go sources, migrations, templates, the OpenAPI contract, the
+agent image, `tests/e2e` or `ci.yml` changed. It is not part of the release gate. In CI
+a failed flow is retried once; a flow that passes only on its retry shows as flaky in the
+report. The job is advisory (not a required check) until it has run green for a while;
+then it joins the ruleset's required checks.
+
 ## How the Docker tiers work
 
 `tests/integration` (build tag `integration`) runs the real control plane
@@ -124,7 +191,7 @@ injects a fault on purpose (see `ProbeFault` below).
 
 - pre-pulls the images of the selected tier (those not on the host yet),
 - builds the fixture app image and a throwaway registry (and, in the full tier, the git fixture),
-- migrates one schema and starts **one control plane**.
+- migrates one database (cloned from the migrated template, see "Requirements") and starts **one control plane**.
 
 The **agent with Traefik** starts on first use (it needs the exclusive tests to be
 finished, see below) and is shared by all parallel tests.
@@ -137,9 +204,9 @@ finished, see below) and is shared by all parallel tests.
   `api.<test>-<rand>.localhost`. Slugs, domains and networks never collide. At
   cleanup the test deletes its services through the API, so the control plane
   stops supervising them and the agent removes containers and volumes.
-  Assertions about rows must be scoped to the test's own project: the schema is shared.
+  Assertions about rows must be scoped to the test's own project: the database is shared.
 - **Exclusive tests** never call `t.Parallel()` and take `ExclusiveStack(t)`, a
-  private control plane (fresh schema) and agent. They are the ones that kill or
+  private control plane (fresh database) and agent. They are the ones that kill or
   restart the agent (reconnect, partition), recreate Traefik (TCP routes), change
   server-wide settings (base domain: templates, previews), use a second server
   (multi-server) or need the control plane on all interfaces (Gitea), plus
@@ -190,7 +257,7 @@ remove what you do not need or lower the limit.
 ## Requirements
 
 - Docker (tested on OrbStack, Docker 29). Loopback registries count as insecure, so no daemon setup is needed.
-- Postgres reachable through `NEBULACTRL_TEST_DATABASE_URL` (`make test-db` creates `nebulactrl_test` inside the dev Postgres; `make test-smoke` and `make test-full` do it). The harness creates fresh migrated schemas and drops them afterwards.
+- Postgres reachable through `NEBULACTRL_TEST_DATABASE_URL` (`make test-db` creates `nebulactrl_test` inside the dev Postgres; `make test-smoke` and `make test-full` do it), with a role that has `CREATEDB` (the dev and CI Postgres users are superusers). Every database test gets its own migrated database, `t_<hex>`, made with `CREATE DATABASE … TEMPLATE nebula_tmpl_<hash>` (`internal/testutil`; about 10 ms, instead of migrating each time) and dropped afterwards. The template is migrated once per server and schema version (the hash covers the embedded goose and River migrations); an advisory lock makes parallel test binaries build it once, and it is only used once complete. After a migration changes, the first run builds the new template and drops the old one. Nothing connects to a template. A killed run can leave `t_*` databases behind: `DROP DATABASE … WITH (FORCE)`.
 - `go`, `git`, `docker` on `PATH`. Network access for images that are not on the host yet.
 
 ## It pauses the dev agent1
@@ -295,7 +362,9 @@ workflow rules. Tests run with `-count=1`.
   `scripts/ci/go-durations.json`), each with a Postgres service container, web
   typecheck/biome/tests/build with bun, and tier 2 on the runner's Docker (the `smoke`
   input turns it off on demand; pushes and pull requests always run it, and the release
-  passes `false` because tier 3 contains it).
+  passes `false` because tier 3 contains it). Its `e2e` job runs tier 4 (see above) on pushes
+  and pull requests, and only when the change touches something the flows exercise; it
+  uploads the Playwright report, traces and stack logs of a failed run.
 - `.github/workflows/full.yml`: tier 3 (the `templates` input as above) as 4 parallel shards
   (`tests/run.sh full --shard I/4`, see "Sharding"), each on its own runner.
 - `.github/workflows/docs.yml`: the docs and site builds.

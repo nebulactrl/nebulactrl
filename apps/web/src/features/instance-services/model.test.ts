@@ -261,4 +261,16 @@ describe("servicesLoadFailure", () => {
 			"The control plane did not answer, so nothing was changed.",
 		);
 	});
+
+	test("the client's network error (status 0) is no answer either", () => {
+		expect(
+			servicesLoadFailure(
+				new ApiError(
+					0,
+					"network_error",
+					"The control plane did not answer. Check that the server is running.",
+				),
+			),
+		).toBe("The control plane did not answer, so nothing was changed.");
+	});
 });

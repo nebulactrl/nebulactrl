@@ -67,7 +67,7 @@ func routeRows(routes []map[string]any) [][]string {
 
 func newMeshLinksCmd(c *cli) *cobra.Command {
 	return &cobra.Command{
-		Use: "links <project/env>", Short: "Show the cross-server links of an environment: links, grants and routes", Args: cobra.ExactArgs(1),
+		Use: "links <project/env>", Short: "Show the cross-server links of an environment: links, grants and routes", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := c.connect(); err != nil {
 				return err
@@ -99,7 +99,7 @@ func newMeshLinksCmd(c *cli) *cobra.Command {
 
 func newMeshServiceCmd(c *cli) *cobra.Command {
 	return &cobra.Command{
-		Use: "service <service>", Short: "Show what a service exposes on the mesh, which providers it reaches and who reaches it", Args: cobra.ExactArgs(1),
+		Use: "service <service>", Short: "Show what a service exposes on the mesh, which providers it reaches and who reaches it", Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := c.connect(); err != nil {
 				return err
@@ -139,7 +139,7 @@ func newMeshReconcileCmd(c *cli) *cobra.Command {
 	var mode string
 	var accept bool
 	cmd := &cobra.Command{
-		Use: "reconcile <project/env>", Short: "Create (add) or clean up (repair) the cross-server links of an environment now", Args: cobra.ExactArgs(1),
+		Use: "reconcile <project/env>", Short: "Create (add) or clean up (repair) the cross-server links of an environment now", Args: exactArgs(1),
 		Long: "Mode add creates every link the environment's variable references and canvas links need. It adds tailnet devices (tagged devices may be billed by Tailscale), so it needs --accept-mesh-changes.\n" +
 			"Mode repair only removes grants whose source is gone; it never adds a device.",
 		RunE: func(cmd *cobra.Command, args []string) error {

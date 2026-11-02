@@ -330,3 +330,161 @@ describe("Doppler managers", () => {
 		expect(done.caret).toBe(done.text.length);
 	});
 });
+
+describe("own, shared and function candidates", () => {
+	const extra = {
+		own: [
+			{ key: "SELF_B", isSecret: false },
+			{ key: "SELF_A", isSecret: true },
+		],
+		shared: [
+			{ key: "SESSION", isSecret: true, layer: "project" as const },
+			{ key: "REGION", isSecret: false, layer: "environment" as const },
+		],
+		functions: true,
+	};
+	const exportingServices: ReferenceService[] = [
+		{
+			id: "svc-pg",
+			slug: "postgres",
+			name: "Postgres",
+			variables: [
+				{ key: "DATABASE_URL", isSecret: false },
+				{ key: "EXTRA", isSecret: false },
+			],
+			exports: [
+				{ key: "DATABASE_URL", description: "Primary URL", secret: true },
+				{ key: "DATABASE_HOST", secret: false },
+			],
+		},
+	];
+	const all = buildCandidates(exportingServices, "svc-web", extra);
+
+	test("referenceFor without a slug is the bare form", () => {
+		expect(referenceFor("", "KEY")).toBe(`${OPEN}KEY}}`);
+		expect(referenceFor("db", "KEY")).toBe(`${OPEN}db.KEY}}`);
+	});
+
+	test("own keys come first, sorted, as bare references", () => {
+		const own = all.filter((c) => c.kind === "own");
+		expect(own.map((c) => c.insert)).toEqual([
+			`${OPEN}SELF_A}}`,
+			`${OPEN}SELF_B}}`,
+		]);
+		expect(own[0]).toMatchObject({
+			slug: "",
+			serviceName: "this service",
+			isSecret: true,
+			platform: false,
+		});
+		expect(all[0]?.kind).toBe("own");
+	});
+
+	test("shared keys are shared.KEY, sorted, and remember their layer", () => {
+		const shared = all.filter((c) => c.kind === "shared");
+		expect(shared.map((c) => [c.insert, c.layer])).toEqual([
+			[`${OPEN}shared.REGION}}`, "environment"],
+			[`${OPEN}shared.SESSION}}`, "project"],
+		]);
+		expect(shared[1]?.isSecret).toBe(true);
+	});
+
+	test("an export replaces a variable of the same name and keeps its description", () => {
+		const urls = all.filter(
+			(c) => c.slug === "postgres" && c.key === "DATABASE_URL",
+		);
+		expect(urls).toHaveLength(1);
+		expect(urls[0]).toMatchObject({
+			kind: "export",
+			isSecret: true,
+			description: "Primary URL",
+		});
+		const host = all.find((c) => c.key === "DATABASE_HOST");
+		expect(host?.kind).toBe("export");
+		expect(host).not.toHaveProperty("description");
+	});
+
+	test("service keys come as variables, then exports, then platform keys", () => {
+		expect(
+			all.filter((c) => c.slug === "postgres").map((c): string => c.kind),
+		).toEqual([
+			"variable",
+			"export",
+			"export",
+			...PLATFORM_REFERENCE_KEYS.map(() => "platform"),
+		]);
+	});
+
+	test("functions close their own }} and come last", () => {
+		const fns = all.filter((c) => c.kind === "function");
+		expect(fns.length).toBeGreaterThan(0);
+		expect(all[all.length - 1]?.kind).toBe("function");
+		const uuid = fns.find((c) => c.key === "uuid()");
+		expect(uuid?.insert).toBe(`${OPEN}uuid()}}`);
+		expect(uuid?.description).toBeTruthy();
+		expect(buildCandidates([], "x")).toEqual([]);
+	});
+
+	test("bare candidates match on their key alone, and never when a service is picked", () => {
+		expect(filterCandidates(all, "SELF").map((c) => c.key)).toEqual([
+			"SELF_A",
+			"SELF_B",
+		]);
+		expect(filterCandidates(all, "uuid").map((c) => c.kind)).toEqual([
+			"function",
+		]);
+		// A "." picks a service: own keys and functions drop out.
+		expect(
+			filterCandidates(all, "postgres.").some(
+				(c) => c.kind === "own" || c.kind === "function",
+			),
+		).toBe(false);
+		expect(filterCandidates(all, "shared.").map((c) => c.key)).toEqual([
+			"REGION",
+			"SESSION",
+		]);
+		expect(filterCandidates(all, "shared.SE").map((c) => c.key)).toEqual([
+			"SESSION",
+		]);
+	});
+
+	test("an own key that merely contains the text ranks after one that starts with it", () => {
+		const list = buildCandidates([], "x", {
+			own: [
+				{ key: "MY_URL", isSecret: false },
+				{ key: "URL", isSecret: false },
+			],
+		});
+		expect(filterCandidates(list, "url").map((c) => c.key)).toEqual([
+			"URL",
+			"MY_URL",
+		]);
+	});
+
+	test("picking a function inserts it whole and swallows the closing braces", () => {
+		const text = `${OPEN}uu}}`;
+		const token = findOpenReference(text, 5);
+		const uuid = all.find((c) => c.key === "uuid()");
+		if (!token || !uuid) throw new Error("fixture");
+		const done = applyCompletion(text, token, uuid);
+		expect(done.text).toBe(`${OPEN}uuid()}}`);
+		expect(done.caret).toBe(done.text.length);
+	});
+
+	test("a service is found by its name when the slug does not match, and the query is trimmed", () => {
+		const list = buildCandidates(
+			[{ id: "a", slug: "pg", name: "Main Database", variables: [] }],
+			"x",
+		);
+		expect(
+			filterCandidates(list, "database").every((c) => c.slug === "pg"),
+		).toBe(true);
+		expect(filterCandidates(list, "database")).toHaveLength(
+			PLATFORM_REFERENCE_KEYS.length,
+		);
+		expect(filterCandidates(list, "  pg.NEBULA_PORT ")).toEqual([]);
+		expect(filterCandidates(list, "  pg.PORT ").map((c) => c.key)).toEqual([
+			"PORT",
+		]);
+	});
+});
