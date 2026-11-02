@@ -35,6 +35,30 @@ Element.prototype.animate = function (
 	return animation;
 };
 
+// A failed assertion on a DOM node (`expect(document.querySelector(...)).toBeNull()`
+// while the node is still there) makes Bun format the node for the message. Left
+// to itself it walks the node's own properties: React's fiber and props keys,
+// and through them the whole mounted tree and the document, megabytes of text
+// that takes seconds, synchronously. Inside `waitFor` that happens on a poll that
+// fails while the page is still catching up, and it blocks timers, microtasks
+// and so the very update being waited for, so a test that takes 70 ms when the
+// update lands first takes 5 s when it does not. Bun honours the inspect hook, so
+// a node prints as the start of its markup instead.
+const INSPECT_LIMIT = 200;
+Object.defineProperty(
+	Node.prototype,
+	Symbol.for("nodejs.util.inspect.custom"),
+	{
+		configurable: true,
+		value(this: Node): string {
+			const markup = this instanceof Element ? this.outerHTML : this.nodeName;
+			return markup.length > INSPECT_LIMIT
+				? `${markup.slice(0, INSPECT_LIMIT)}…`
+				: markup;
+		},
+	},
+);
+
 // Tests run with reduced motion, like renderWithProviders' MotionConfig: text
 // morphs and transitions land at once. A test of the full-motion branch stubs
 // matchMedia itself.

@@ -70,7 +70,7 @@ async function settle(api: ApiStub, queryClient: QueryClient) {
 
 /**
  * Waits for the sheet to leave. It polls the DOM directly: a role query per
- * tick is slow enough to starve the exit animation it is waiting for.
+ * tick walks the whole page for nothing, and the final check is the real one.
  */
 async function dialogGone() {
 	await waitFor(
