@@ -1,11 +1,6 @@
----
-title: Test mix in large web-plus-backend OSS projects
-description: "How 13 large open-source projects split unit, component, integration and e2e tests, run e2e in CI, keep frontend mocks honest and set coverage, and what that means for NebulaCtrl's test mix."
-section: Internals
-order: 54
----
-
 # Test strategy: what large web + backend projects actually do
+
+> Research note, written 2026-11-02. It describes the repository and the sources as they were then; it is a record of why something was decided, not current documentation.
 
 Question: NebulaCtrl has ~13,000 web component tests (881 files, 10-minute suite), Go tests mostly against real Postgres, an 8-scenario Docker smoke tier, 3 Playwright specs outside CI, and an 85% Codecov target. Should it keep many fine-grained tests or have fewer, broader ones (integration, e2e)? This builds on [coverage-practices.md](coverage-practices.md), [oss-quality-tooling.md](oss-quality-tooling.md) and [web-ui-testing.md](web-ui-testing.md) and does not repeat them.
 

@@ -1,11 +1,6 @@
----
-title: Rolling deploys of processes
-description: "Which processes of a Laravel service can roll and which must stop first, with the stop grace a queue worker needs."
-section: Internals
-order: 50
----
-
 # Rolling vs stop-first for a Laravel service with processes
+
+> Research note, written 2026-11-01. It describes the repository and the sources as they were then; it is a record of why something was decided, not current documentation.
 
 Question: can every process of one NebulaCtrl service (web, worker, scheduler, ssr from one serversideup/php image) deploy "rolling" (new container healthy before the old one stops), or do some need stop-first?
 

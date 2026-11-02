@@ -1,0 +1,65 @@
+name: Bug report
+description: Something in NebulaCtrl does not work as documented.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Security problems go to private vulnerability reporting, not here: see [SECURITY.md](https://github.com/nebulactrl/nebulactrl/blob/main/SECURITY.md).
+        Remove secrets (tokens, keys, passwords, private hostnames) from anything you paste.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead. Include the exact error message.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Create a service from image traefik/whoami
+        2. Add the domain app.example.com
+        3. Deploy
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The control plane's version (the dashboard's settings show it where updates are offered) and, if it matters, the agent's and the CLI's (`nebulactrl --version`).
+      placeholder: v0.1.2
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Install or upgrade
+        - Servers and agent
+        - Builds and deployments
+        - Domains, proxy and certificates
+        - Databases and backups
+        - Variables and secrets
+        - Teams, sign-in and API tokens
+        - CLI, API or MCP
+        - Dashboard (web UI)
+        - Templates and imports
+        - Docs
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: host
+    attributes:
+      label: Host
+      description: OS and architecture of the control plane and the affected server, and the Docker Engine version.
+      placeholder: Debian 12 amd64, Docker 28.3
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: Relevant control plane or agent log lines (`docker compose logs nebulactrl`, `journalctl -u nebulactrl-agent`), or the deployment log.
+      render: text

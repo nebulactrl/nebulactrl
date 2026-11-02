@@ -79,13 +79,17 @@ describe("the link checker", () => {
 		expect(errors).toContain("both map to /docs/c");
 	});
 
-	test("excludes research notes and the repo index", () => {
+	test("excludes research and contributor notes and the repo index", () => {
 		expect(isExcluded("architecture/platform-services-research.md")).toBe(true);
+		expect(isExcluded("research/coverage-practices.md")).toBe(true);
+		expect(isExcluded("architecture/navigation-transitions.md")).toBe(true);
 		expect(isExcluded("README.md")).toBe(true);
 		expect(isExcluded("operations/README.md")).toBe(false);
+		expect(isExcluded("operations/research.md")).toBe(false);
 		const root = fixture({
 			"README.md": "# index",
 			"x-research.md": "# notes",
+			"research/y.md": page("Y", "Internals", "# Y"),
 			"a.md": page("A", "Applications", "# A"),
 		});
 		expect([...build(root).entries.keys()]).toEqual(["a"]);

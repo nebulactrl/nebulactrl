@@ -3,7 +3,7 @@
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/nebulactrl/nebulactrl/badge)](https://scorecard.dev/viewer/?uri=github.com/nebulactrl/nebulactrl)
 [![Coverage](https://codecov.io/gh/nebulactrl/nebulactrl/graph/badge.svg)](https://app.codecov.io/gh/nebulactrl/nebulactrl)
 
-**Railway's developer experience for infrastructure you own.**
+**Deploy to servers you own, and stay in control.**
 
 NebulaCtrl is a self-hosted, Docker-native platform-as-a-service. Connect your own Linux servers (a VPS, a homelab box), arrange services on a canvas, deploy from a Git repository or a container image, attach domains with automatic HTTPS, and manage variables, logs and rollbacks from one place. The same operations are available through a REST/OpenAPI API, a CLI and an optional MCP server.
 
