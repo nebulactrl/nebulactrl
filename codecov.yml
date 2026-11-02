@@ -64,6 +64,23 @@ ignore:
   - "internal/prodguard/prodguardtest"
   - "internal/releasesign/releasesigntest"
   - "internal/systemroute/systemroutetest"
+  # Web and package test scaffolding: the stubApi/factory harness and the
+  # per-feature fixtures, testkits and harnesses. No shipped module imports them.
+  - "apps/web/src/test"
+  - "**/*fixture*.ts"
+  - "**/*fixture*.tsx"
+  - "**/*fixtures.ts"
+  - "**/*testkit*.ts"
+  - "**/*testkit*.tsx"
+  - "**/*test-kit*.tsx"
+  - "**/test-data.ts"
+  - "**/test-data.tsx"
+  - "**/test-support.ts"
+  - "**/test-harness.tsx"
+  - "**/route-harness.tsx"
+  - "**/*.test-helper.ts"
+  - "**/test-env.ts"
+  - "**/test-layout.ts"
   # Dev-only web pages. The dither catalogue is a knob gallery behind
   # import.meta.env.DEV (routes/dev.dither.tsx 404s in a production build and
   # the lazy import is dropped, so these folders never reach the bundle). They
