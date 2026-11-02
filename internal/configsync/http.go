@@ -187,7 +187,7 @@ func RegisterHTTP(h huma.API, svc HTTPService, bind Binding, envs EnvironmentLis
 		MaxBodyBytes: maxHTTPConfigBody, Errors: errs(nf, uc),
 	}, policy.ScopeProjectsRead), a.plan)
 
-	huma.Register(h, api.WithScopes(api.WithIdempotency(huma.Operation{
+	huma.Register(h, api.WithScopes(api.WithIdempotency(api.WithResponse[ApplyResult](h, huma.Operation{
 		OperationID: "applyProjectConfig", Method: http.MethodPost, Path: "/projects/{projectId}/config/apply", Tags: tags,
 		Summary: "Apply a nebula.toml to an environment",
 		Description: "Re-plans inside one transaction and stages the file exactly like dashboard edits (generation bumps, discardable, deployed with the next deploy), then runs the immediate-kind settings (scale, uptime, tasks, backups, git link, DNS) one by one. " +
@@ -196,7 +196,7 @@ func RegisterHTTP(h huma.API, svc HTTPService, bind Binding, envs EnvironmentLis
 			"Principals that need production approval get `approval_required` for a plan with immediate changes in production. " +
 			"Status 201: `staged` or `partial` (read `steps`); 200: `noop` or `failed`. Running an apply again converges.",
 		DefaultStatus: http.StatusCreated, MaxBodyBytes: maxHTTPConfigBody, Errors: errs(nf, conflict, uc),
-	}), policy.ScopeProjectsWrite), a.apply)
+	}, http.StatusOK, "Nothing new was written (`noop`), or steps failed (`failed`)")), policy.ScopeProjectsWrite), a.apply)
 
 	exportResponses := map[string]*huma.Response{
 		"200": {

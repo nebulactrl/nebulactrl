@@ -71,7 +71,7 @@ func registerReplicas(h huma.API, svc *Service) {
 		return &replicationOutput{Body: v}, nil
 	})
 
-	huma.Register(h, api.WithScopes(api.WithIdempotency(huma.Operation{
+	huma.Register(h, api.WithScopes(api.WithIdempotency(api.WithResponse[AddReplicaResult](h, huma.Operation{
 		OperationID: "addDatabaseReplica", Method: http.MethodPost, Path: "/services/{serviceId}/database/replicas", Tags: tags,
 		Summary: "Add a read replica of a PostgreSQL primary", DefaultStatus: http.StatusAccepted,
 		Description: "Creates a read replica service in the primary's environment and clones the primary into it. The replica runs on the primary's " +
@@ -79,7 +79,7 @@ func registerReplicas(h huma.API, svc *Service) {
 			"`deploying` and `streaming`; follow it with `GET /services/{id}/database/replication`. With `dryRun` only the plan is returned (status 200). " +
 			"Replication is asynchronous and manual: nothing is detected or switched automatically.",
 		Errors: errs,
-	}), policy.ScopeProjectsWrite, policy.ScopeDeploymentsWrite), func(ctx context.Context, in *addReplicaInput) (*addReplicaOutput, error) {
+	}, http.StatusOK, "The plan of a dry run; no replica was created")), policy.ScopeProjectsWrite, policy.ScopeDeploymentsWrite), func(ctx context.Context, in *addReplicaInput) (*addReplicaOutput, error) {
 		r, err := svc.AddReplica(ctx, in.ID, AddReplicaInput{
 			Name: in.Body.Name, ServerID: in.Body.ServerID, DryRun: in.Body.DryRun, AcceptMeshChanges: in.Body.AcceptMeshChanges,
 		})
@@ -107,7 +107,7 @@ func registerReplicas(h huma.API, svc *Service) {
 		return &removeReplicaOutput{Body: r}, nil
 	})
 
-	huma.Register(h, api.WithScopes(api.WithIdempotency(huma.Operation{
+	huma.Register(h, api.WithScopes(api.WithIdempotency(api.WithResponse[PromoteResult](h, huma.Operation{
 		OperationID: "promoteDatabaseReplica", Method: http.MethodPost, Path: "/services/{serviceId}/database/promote", Tags: tags,
 		Summary: "Promote a read replica to primary (manual)", DefaultStatus: http.StatusAccepted,
 		Description: "Called on the replica. Manual: NebulaCtrl does not detect failures or switch automatically. With `dryRun` the plan is returned " +
@@ -116,7 +116,7 @@ func registerReplicas(h huma.API, svc *Service) {
 			"never runs as a primary again; rebuild it as a replica or delete it. Variables that reference the old primary are rewritten as staged " +
 			"changes. Production environments need approval. Asynchronous: poll `replication.promotion`.",
 		Errors: errs,
-	}), policy.ScopeProjectsWrite, policy.ScopeDeploymentsWrite), func(ctx context.Context, in *promoteInput) (*promoteOutput, error) {
+	}, http.StatusOK, "The plan of a promotion dry run; nothing was changed")), policy.ScopeProjectsWrite, policy.ScopeDeploymentsWrite), func(ctx context.Context, in *promoteInput) (*promoteOutput, error) {
 		r, err := svc.Promote(ctx, in.ID, PromoteInput{DryRun: in.Body.DryRun, Confirm: in.Body.Confirm, AcceptDataLoss: in.Body.AcceptDataLoss})
 		if err != nil {
 			return nil, err

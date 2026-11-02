@@ -38,17 +38,27 @@ func newServicesCmd(c *cli) *cobra.Command {
 }
 
 func serviceStatus(s apiclient.ServiceView) string {
+	latest, observed := s.LatestDeployment, s.Observed
 	switch {
-	case s.LatestDeployment.Id == "":
+	case latest == nil || latest.Id == "":
 		return "not deployed"
-	case s.Observed.State != "" && s.LatestDeployment.Status == "succeeded":
-		if s.Observed.Health != "" && s.Observed.Health != "none" {
-			return s.Observed.State + " (" + s.Observed.Health + ")"
+	case observed != nil && observed.State != "" && latest.Status == "succeeded":
+		if observed.Health != "" && observed.Health != "none" {
+			return observed.State + " (" + observed.Health + ")"
 		}
-		return s.Observed.State
+		return observed.State
 	default:
-		return s.LatestDeployment.Status
+		return latest.Status
 	}
+}
+
+// serviceServerName is the name of the server a service runs on; empty while
+// it has none (the API sends null).
+func serviceServerName(s apiclient.ServiceView) string {
+	if s.Server == nil {
+		return ""
+	}
+	return s.Server.Name
 }
 
 // replicasSummary is "ready/desired", e.g. "2/3".
@@ -99,7 +109,7 @@ func newServicesLsCmd(c *cli) *cobra.Command {
 			for _, s := range svcs {
 				rows = append(rows, []string{
 					s.Name, s.Slug, string(s.Kind), orDash(sourceSummary(s)), serviceStatus(s), replicasSummary(s),
-					orDash(s.Server.Name), yesNo(s.HasStagedChanges), s.Id,
+					orDash(serviceServerName(s)), yesNo(s.HasStagedChanges), s.Id,
 				})
 			}
 			c.table([]string{"NAME", "SLUG", "KIND", "SOURCE", "STATUS", "REPLICAS", "SERVER", "STAGED", "ID"}, rows)

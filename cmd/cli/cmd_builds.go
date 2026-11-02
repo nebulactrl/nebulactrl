@@ -334,8 +334,8 @@ func newBuildSettingsCmd(c *cli) *cobra.Command {
 			out := cur.JSON200
 			if f.Changed("build-location") || f.Changed("registry") {
 				in := apiclient.PutTeamSettingsInputBody{BuildLocation: apiclient.PutTeamSettingsInputBodyBuildLocation(out.BuildLocation)}
-				if out.RegistryId != "" {
-					in.RegistryId = &out.RegistryId
+				if deref(out.RegistryId) != "" {
+					in.RegistryId = out.RegistryId
 				}
 				if f.Changed("build-location") {
 					loc, err := buildLocation(location, false)
@@ -360,7 +360,7 @@ func newBuildSettingsCmd(c *cli) *cobra.Command {
 				return c.printJSON(out)
 			}
 			c.info("Default build location: %s", out.BuildLocation)
-			c.info("Default registry: %s", orDash(out.RegistryId))
+			c.info("Default registry: %s", orDash(deref(out.RegistryId)))
 			return nil
 		},
 	}
