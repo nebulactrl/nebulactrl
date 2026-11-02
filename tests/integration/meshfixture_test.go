@@ -168,7 +168,7 @@ func startHeadscale(t testing.TB, root, hostIP string, port int) *headscaleFixtu
 		APIURL:   fmt.Sprintf("http://127.0.0.1:%d", port),
 	}
 	removeHeadscale(hs.Name, hs.volume)
-	mustSh(t, "run", "-d", "--name", hs.Name, "--label", "nebulactrl.itest=mesh",
+	mustDocker(t, "run", "-d", "--name", hs.Name, "--label", "nebulactrl.itest=mesh",
 		"-p", fmt.Sprintf("0.0.0.0:%d:%d", port, port),
 		"-v", cfg+":/etc/headscale/config.yaml:ro",
 		"-v", hs.volume+":/var/lib/headscale",
@@ -184,7 +184,7 @@ func startHeadscale(t testing.TB, root, hostIP string, port int) *headscaleFixtu
 		_ = res.Body.Close()
 		return res.StatusCode == http.StatusOK
 	}), "Headscale did not become healthy:\n%s", mustShLoose("docker", "logs", "--tail", "60", hs.Name))
-	hs.APIKey = strings.TrimSpace(mustSh(t, "exec", hs.Name, "headscale", "apikeys", "create", "--expiration", "24h"))
+	hs.APIKey = strings.TrimSpace(mustDocker(t, "exec", hs.Name, "headscale", "apikeys", "create", "--expiration", "24h"))
 	require.NotEmpty(t, hs.APIKey)
 	return hs
 }
@@ -461,7 +461,7 @@ func startHeadscaleProbe(t testing.TB, port int) (stop func()) {
 	t.Helper()
 	name := meshHeadscaleName + "-probe"
 	_, _ = sh(context.Background(), "", "docker", "rm", "-f", name)
-	mustSh(t, "run", "-d", "--name", name, "-p", fmt.Sprintf("0.0.0.0:%d:%d", port, port), "alpine:3", "sh", "-c",
+	mustDocker(t, "run", "-d", "--name", name, "-p", fmt.Sprintf("0.0.0.0:%d:%d", port, port), "alpine:3", "sh", "-c",
 		fmt.Sprintf(`while true; do printf "HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nok\n" | nc -l -p %d; done`, port))
 	stop = func() { _, _ = sh(context.Background(), "", "docker", "rm", "-f", name) }
 	t.Cleanup(stop)
