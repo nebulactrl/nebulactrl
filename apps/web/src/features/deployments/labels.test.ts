@@ -6,6 +6,8 @@ import {
 	failedAtLabel,
 	isCancelable,
 	isInFlight,
+	releaseDetail,
+	releaseLabel,
 	STATUS_KIND,
 	stepLabel,
 } from "./labels";
@@ -189,5 +191,157 @@ describe("deploymentMessage", () => {
 			input({ release: null, statusMessage: null, trigger: "redeploy" }),
 		);
 		expect(m).toEqual({ text: "Redeploy", kind: "trigger", detail: null });
+	});
+});
+
+describe("deploymentMessage for commits", () => {
+	test("a push is known by its commit subject and author", () => {
+		const m = deploymentMessage(
+			input({
+				release: null,
+				statusMessage: null,
+				commit: {
+					sha: "a91c3f2deadbeef",
+					branch: "main",
+					author: "Ada",
+					message: "Fix the login redirect\n\nLong body that is not shown",
+				},
+			}),
+		);
+		expect(m.text).toBe("Fix the login redirect · Ada");
+		expect(m.kind).toBe("release");
+	});
+
+	test("a commit without an author shows the subject alone", () => {
+		const m = deploymentMessage(
+			input({
+				release: null,
+				statusMessage: null,
+				commit: {
+					sha: "a91c3f2",
+					branch: "main",
+					author: "",
+					message: "Bump deps",
+				},
+			}),
+		);
+		expect(m.text).toBe("Bump deps");
+	});
+
+	test("a note still beats the commit subject", () => {
+		const m = deploymentMessage(
+			input({
+				message: "hotfix",
+				commit: {
+					sha: "a91c3f2",
+					branch: "main",
+					author: "Ada",
+					message: "Bump deps",
+				},
+			}),
+		);
+		expect(m.text).toBe("hotfix");
+		expect(m.kind).toBe("note");
+	});
+
+	test("a git release without a commit message reads sha7 · branch, with the release as detail only when not shown", () => {
+		const m = deploymentMessage(
+			input({
+				statusMessage: null,
+				release: {
+					id: "rel-1",
+					imageRef: "registry/api:a91c3f2",
+					createdAt: "2026-01-01T00:00:00Z",
+					source: { type: "git", commitSha: "a91c3f2deadbeef", branch: "main" },
+				},
+			}),
+		);
+		expect(m).toEqual({
+			text: "a91c3f2 · main",
+			kind: "release",
+			detail: null,
+		});
+	});
+
+	test("a git release with neither sha nor branch text falls back to the image reference", () => {
+		const m = deploymentMessage(
+			input({
+				statusMessage: null,
+				release: {
+					id: "rel-1",
+					imageRef: "registry/api:latest",
+					createdAt: "2026-01-01T00:00:00Z",
+					source: { type: "git", commitSha: "" },
+				},
+			}),
+		);
+		expect(m.text).toBe("registry/api:latest");
+		expect(m.kind).toBe("release");
+	});
+});
+
+describe("releaseLabel", () => {
+	test("is the short commit for a git release", () => {
+		expect(releaseLabel({ type: "git", commitSha: "a91c3f2deadbeef" })).toBe(
+			"a91c3f2",
+		);
+	});
+
+	test("is the short digest for an image release", () => {
+		expect(
+			releaseLabel({ type: "image", digest: "repo@sha256:0a1b2c3d4e5f6071" }),
+		).toBe("sha256:0a1b2c3d");
+	});
+
+	test("is the image when there is no usable digest", () => {
+		expect(
+			releaseLabel({
+				type: "image",
+				image: "traefik/whoami:1",
+				digest: "nope",
+			}),
+		).toBe("traefik/whoami:1");
+	});
+
+	test("is the image reference without a source, and 'unknown release' without either", () => {
+		expect(releaseLabel(undefined, "registry/api:1")).toBe("registry/api:1");
+		expect(releaseLabel(undefined)).toBe("unknown release");
+	});
+});
+
+describe("releaseDetail", () => {
+	test("a git release is 'repo @ sha7' without scheme or .git", () => {
+		expect(
+			releaseDetail({
+				type: "git",
+				gitUrl: "https://git.example/acme/api.git",
+				commitSha: "a91c3f2deadbeef",
+			}),
+		).toBe("git.example/acme/api @ a91c3f2");
+	});
+
+	test("a git release without a URL still names the commit", () => {
+		expect(releaseDetail({ type: "git", commitSha: "a91c3f2deadbeef" })).toBe(
+			" @ a91c3f2",
+		);
+	});
+
+	test("an image release is its digest, else its image, else the reference", () => {
+		expect(
+			releaseDetail({
+				type: "image",
+				digest: "repo@sha256:abc",
+				image: "repo",
+			}),
+		).toBe("repo@sha256:abc");
+		expect(releaseDetail({ type: "image", image: "repo:1" })).toBe("repo:1");
+		expect(releaseDetail({ type: "image" }, "registry/api:1")).toBe(
+			"registry/api:1",
+		);
+	});
+
+	test("without a source it is the image reference", () => {
+		expect(releaseDetail(undefined, "registry/api:1")).toBe("registry/api:1");
+		expect(releaseDetail(undefined)).toBe("");
 	});
 });

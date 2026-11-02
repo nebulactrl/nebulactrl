@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { buildCorpus } from "./corpus.ts";
 import type { LinkContext } from "./links.ts";
@@ -216,5 +217,34 @@ describe("withOrigin", () => {
 			`${"/".repeat(200_000)}x`,
 		);
 		expect(performance.now() - started).toBeLessThan(1000);
+	});
+});
+
+describe("llms.txt of a small corpus", () => {
+	test("sections the docs do not have are left out, and the API links stay", () => {
+		const root = fs.mkdtempSync(path.join(os.tmpdir(), "llms-test-"));
+		try {
+			fs.mkdirSync(path.join(root, "docs"), { recursive: true });
+			fs.writeFileSync(
+				path.join(root, "docs", "only.md"),
+				'---\ntitle: Only\ndescription: "The only page."\nsection: Applications\norder: 1\n---\n\n# Only\n\nHello.\n',
+			);
+			const small = buildCorpus({
+				docsDir: path.join(root, "docs"),
+				repoRoot: root,
+				openapi: null,
+			});
+			expect(small.errors).toEqual([]);
+			const { index } = buildLlms(small);
+			const headings = index.split("\n").filter((l) => l.startsWith("## "));
+			expect(headings).toContain("## Applications");
+			expect(headings).not.toContain("## Getting started");
+			// The whole-file link is always offered, and nothing else is in Optional.
+			expect(index).toContain("Everything in one file");
+			expect(index).toContain("[Only](");
+			expect(index).toContain("OpenAPI document");
+		} finally {
+			fs.rmSync(root, { recursive: true, force: true });
+		}
 	});
 });

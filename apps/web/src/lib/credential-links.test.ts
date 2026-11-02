@@ -20,6 +20,7 @@ import {
 	gitlabTokenUrl,
 	gitProviderGuide,
 	headscaleApiKeyGuide,
+	headscalePreauthGuide,
 	MAXMIND_LICENSE_KEY_URL,
 	maxmindGuide,
 	normalizeBaseUrl,
@@ -137,6 +138,21 @@ describe("Tailscale", () => {
 			"https://console.tailscale.com/admin/settings/trust-credentials",
 		);
 		expect(guide.prefilled).toBe(false);
+	});
+
+	test("a Headscale pre-auth key is reusable, tagged with the node defaults, and made on the server", () => {
+		const guide = headscalePreauthGuide({ defaultTags: ["tag:a", "tag:b"] });
+		expect(guide.provider).toBe("Headscale");
+		expect(guide.cta).toBeNull();
+		expect(guide.url).toBeNull();
+		expect(guide.permissions.map((p) => p.label)).toEqual([
+			"Reusable",
+			"Tagged tag:a, tag:b",
+		]);
+		expect(guide.note).toContain("preauthkeys");
+		expect(headscalePreauthGuide().permissions[1]?.label).toBe(
+			"Tagged tag:nebula-svc",
+		);
 	});
 
 	test("Headscale has a command and no page", () => {

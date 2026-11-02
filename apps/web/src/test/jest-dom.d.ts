@@ -10,4 +10,6 @@ declare module "bun:test" {
 declare global {
 	/** React's switch for act() warnings; src/test/setup.ts turns it on. */
 	var IS_REACT_ACT_ENVIRONMENT: boolean | undefined;
+	/** Base UI skips waiting for exit animations; src/test/setup.ts turns it on. */
+	var BASE_UI_ANIMATIONS_DISABLED: boolean | undefined;
 }

@@ -1,4 +1,5 @@
 import type { LatestDeployment, Service } from "#/api/models";
+import { make } from "#/test/factories";
 
 let counter = 0;
 
@@ -127,4 +128,19 @@ export function makeDeployment(
 		currentStep: null,
 		...overrides,
 	};
+}
+
+/** An environment whose services are not managed by a config file (mode "none"). */
+export function makeNoConfigSource() {
+	return make("EnvironmentConfigSource", {
+		mode: "none",
+		repo: "",
+		branch: "",
+		path: "",
+		resolvedPath: "",
+		commit: "",
+		fileSha256: "",
+		status: "unknown",
+		services: [],
+	});
 }

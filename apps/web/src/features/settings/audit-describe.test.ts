@@ -4,6 +4,7 @@ import {
 	auditDetails,
 	auditResourceLabel,
 	describeAudit,
+	metadataJson,
 } from "./audit-describe";
 
 describe("describeAudit", () => {
@@ -325,5 +326,194 @@ describe("auditResourceLabel", () => {
 	test("sentence case, spaces for underscores", () => {
 		expect(auditResourceLabel("status_page")).toBe("Status page");
 		expect(auditResourceLabel("token")).toBe("Token");
+	});
+});
+
+describe("resource and access sentences", () => {
+	test("variable verbs name service.key, and say nothing without keys", () => {
+		const meta = { service: "web", keys: ["A"] };
+		expect(describeAudit("variable.restore", meta)).toBe("Restored web.A");
+		expect(describeAudit("variable.share", meta)).toBe("Shared web.A");
+		expect(describeAudit("variable.delete", { keys: ["A", "B"] })).toBe(
+			"Deleted A, B",
+		);
+		for (const action of [
+			"variable.set",
+			"variable.delete",
+			"variable.restore",
+			"variable.share",
+		]) {
+			expect(
+				describeAudit(action, { service: "web", keys: [] }),
+			).toBeUndefined();
+		}
+	});
+
+	test("domain verbs differ, and a missing hostname says nothing", () => {
+		expect(describeAudit("domain.remove", { hostname: "a.dev" })).toBe(
+			"Removed domain a.dev",
+		);
+		expect(describeAudit("domain.update", { hostname: "a.dev" })).toBe(
+			"Updated domain a.dev",
+		);
+		expect(describeAudit("domain.add", {})).toBeUndefined();
+	});
+
+	test("creating a thing names it by name, else slug", () => {
+		expect(describeAudit("project.create", { name: "Shop" })).toBe(
+			"Created project Shop",
+		);
+		expect(describeAudit("environment.create", { slug: "staging" })).toBe(
+			"Created environment staging",
+		);
+		expect(describeAudit("service.create", { name: "web" })).toBe(
+			"Created service web",
+		);
+		expect(describeAudit("route.create", { name: "api", slug: "x" })).toBe(
+			"Created route api",
+		);
+		expect(describeAudit("database.create", { name: "pg" })).toBe(
+			"Created database pg",
+		);
+		expect(describeAudit("service.create", {})).toBeUndefined();
+	});
+
+	test("updating or deleting a project or environment", () => {
+		expect(describeAudit("project.update", { name: "Shop" })).toBe(
+			"Updated project Shop",
+		);
+		expect(describeAudit("environment.update", { slug: "prod" })).toBe(
+			"Updated environment prod",
+		);
+		expect(describeAudit("project.delete", { name: "Shop" })).toBe(
+			"Deleted project Shop",
+		);
+		expect(describeAudit("environment.delete", { name: "qa" })).toBe(
+			"Deleted environment qa",
+		);
+		expect(describeAudit("project.update", {})).toBeUndefined();
+		expect(describeAudit("project.deleted", {})).toBeUndefined();
+	});
+
+	test("service and server changes list the fields, at most four", () => {
+		expect(describeAudit("service.update", { fields: ["image", "port"] })).toBe(
+			"Changed image, port",
+		);
+		expect(
+			describeAudit("service.update", {
+				fields: ["a", "b", "c", "d", "e", "f"],
+			}),
+		).toBe("Changed a, b, c, d and 2 more");
+		expect(describeAudit("service.update", { fields: [] })).toBeUndefined();
+		expect(describeAudit("server.update", { changed: ["name"] })).toBe(
+			"Changed name",
+		);
+		expect(describeAudit("server.proxy.update", { changed: ["acme"] })).toBe(
+			"Changed acme",
+		);
+		expect(describeAudit("server.update", {})).toBeUndefined();
+		expect(describeAudit("server.enroll", { hostname: "h1" })).toBe(
+			"Enrolled h1",
+		);
+		expect(describeAudit("server.enroll", {})).toBeUndefined();
+	});
+
+	test("tokens: created with scopes, without, revoked, production guard off", () => {
+		expect(
+			describeAudit("token.create", {
+				name: "ci",
+				scopes: ["projects:read", "logs:read", "admin"],
+			}),
+		).toBe("Created token ci (projects:read, logs:read and 1 more)");
+		expect(describeAudit("token.create", { name: "ci", scopes: [] })).toBe(
+			"Created token ci",
+		);
+		expect(describeAudit("token.create", {})).toBeUndefined();
+		expect(describeAudit("token.revoke", { name: "ci" })).toBe(
+			"Revoked token ci",
+		);
+		expect(describeAudit("token.revoke", {})).toBeUndefined();
+		expect(
+			describeAudit("token.production_guard.disabled", { name: "ci" }),
+		).toBe("Let token ci change production without approval");
+		expect(
+			describeAudit("token.production_guard.disabled", {}),
+		).toBeUndefined();
+	});
+
+	test("approvals read as 'verb: summary'", () => {
+		const summary = { summary: "restart web in production" };
+		const expected: Record<string, string> = {
+			"approval.requested": "Approval requested",
+			"approval.approved": "Approved",
+			"approval.declined": "Declined",
+			"approval.expired": "Approval expired",
+			"approval.refused": "Refused",
+			"approval.used": "Ran with approval",
+		};
+		for (const [action, lead] of Object.entries(expected)) {
+			expect(describeAudit(action, summary)).toBe(
+				`${lead}: restart web in production`,
+			);
+			expect(describeAudit(action, {})).toBeUndefined();
+		}
+		expect(describeAudit("approval.error", {})).toBe(
+			"Production approval could not be checked; the change was refused",
+		);
+	});
+
+	test("links, member roles and invites without a role", () => {
+		expect(describeAudit("link.create", { from: "web", to: "db" })).toBe(
+			"Linked web and db",
+		);
+		expect(describeAudit("link.delete", { from: "web", to: "db" })).toBe(
+			"Unlinked web and db",
+		);
+		expect(describeAudit("link.create", { from: "web" })).toBeUndefined();
+		expect(
+			describeAudit("member.update", { email: "a@b.c", role: "admin" }),
+		).toBe("Set a@b.c to admin");
+		expect(describeAudit("member.update", { email: "a@b.c" })).toBeUndefined();
+		expect(describeAudit("invite.create", { email: "a@b.c" })).toBeUndefined();
+	});
+
+	test("alert thresholds and the reconcile limit", () => {
+		expect(describeAudit("notifications.alert_settings_update", {})).toBe(
+			"Changed the service alert thresholds",
+		);
+		expect(describeAudit("reconcile.limit_reached", { service: "web" })).toBe(
+			"Stopped redeploying web after repeated failures",
+		);
+		expect(describeAudit("reconcile.limit_reached", {})).toBeUndefined();
+	});
+
+	test("secret manager actions without a name say nothing", () => {
+		expect(describeAudit("secret_manager.create", {})).toBeUndefined();
+		expect(describeAudit("secret_manager.update", {})).toBeUndefined();
+		expect(describeAudit("secret_manager.delete", {})).toBeUndefined();
+		expect(describeAudit("secret_manager.test", {})).toBeUndefined();
+		expect(describeAudit("secret.reveal", { service: "web" })).toBeUndefined();
+	});
+
+	test("status sentences need a title, else they fall back to key/value", () => {
+		expect(describeAudit("status_page.create", {})).toBeUndefined();
+		expect(auditDetails("status_page.delete", { slug: "x" })).toBe("slug x");
+	});
+
+	test("unknown actions with null metadata are a dash", () => {
+		expect(describeAudit("nothing.here", null)).toBeUndefined();
+		expect(auditDetails("nothing.here", undefined)).toBe("–");
+	});
+
+	test("a fallback line collapses objects to a field count", () => {
+		expect(
+			auditDetails("nothing.here", { config: { a: 1, b: 2 }, ok: true }),
+		).toBe("config 2 fields · ok true");
+	});
+
+	test("metadataJson prints the whole map, and {} for none", () => {
+		expect(metadataJson({ a: 1 })).toBe('{\n  "a": 1\n}');
+		expect(metadataJson(null)).toBe("{}");
+		expect(metadataJson(undefined)).toBe("{}");
 	});
 });

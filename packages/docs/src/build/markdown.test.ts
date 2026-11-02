@@ -78,6 +78,35 @@ describe("compileMarkdown", () => {
 		expect(page.html).toContain("<blockquote>");
 	});
 
+	test("a callout marker alone on its line leaves no empty paragraph", () => {
+		const page = compile("# T\n\n> [!NOTE]\n\ntext after\n");
+		expect(page.html).toContain('data-tone="info"');
+		expect(page.html).not.toContain("<p></p>");
+		expect(page.html).not.toContain("[!NOTE]");
+		expect(page.html).toContain("text after");
+	});
+
+	test("an unknown callout kind stays a plain quote", () => {
+		const page = compile("# T\n\n> [!SHOUTING]\n> loud\n");
+		expect(page.html).not.toContain("docs-callout");
+		expect(page.html).toContain("<blockquote>");
+	});
+
+	test("only https images are allowed", () => {
+		const bad = compile("# T\n\n![x](http://example.com/a.png)\n");
+		expect(bad.errors.join("\n")).toContain(
+			'image "http://example.com/a.png": only https images are supported in docs',
+		);
+		const good = compile("# T\n\n![x](https://example.com/a.png)\n");
+		expect(good.errors).toEqual([]);
+	});
+
+	test("an indented code block renders as plain code", () => {
+		const page = compile("# T\n\ntext\n\n    npm install\n");
+		expect(page.html).toContain("npm install");
+		expect(page.html).toContain("<pre");
+	});
+
 	test("wraps tables in a labelled, focusable scroll frame", () => {
 		const html = compile("# T\n\n| a | b |\n|---|---|\n| 1 | 2 |\n").html;
 		expect(html).toContain(

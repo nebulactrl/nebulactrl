@@ -110,6 +110,37 @@ describe("saved widths", () => {
 	});
 });
 
+describe("storage that throws", () => {
+	const blocked: WidthStorage = {
+		getItem: () => {
+			throw new Error("SecurityError");
+		},
+		setItem: () => {
+			throw new Error("QuotaExceededError");
+		},
+	};
+
+	test("a store that cannot be read reads as unset", () => {
+		expect(loadSavedWidth(blocked, "docked")).toBeUndefined();
+	});
+
+	test("a store that cannot be written is ignored, not thrown", () => {
+		expect(() => saveWidth(blocked, "docked", 700)).not.toThrow();
+		expect(() => saveWidth(undefined, "docked", 700)).not.toThrow();
+	});
+
+	test("a width below the minimum, or not finite, is not kept", () => {
+		const storage = memory();
+		storage.data.set("nebulactrl.inspector.width.v2.wide", "Infinity");
+		expect(loadSavedWidth(storage, "wide")).toBeUndefined();
+		storage.data.set(
+			"nebulactrl.inspector.width.v2.wide",
+			String(INSPECTOR_MIN),
+		);
+		expect(loadSavedWidth(storage, "wide")).toBe(INSPECTOR_MIN);
+	});
+});
+
 describe("isFullScreen", () => {
 	test("the panel covers the screen below 760px only", () => {
 		expect(isFullScreen(390)).toBe(true);

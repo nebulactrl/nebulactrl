@@ -183,3 +183,193 @@ describe("groupByTag", () => {
 		).toBe(false);
 	});
 });
+
+describe("groupByTag schema conversion", () => {
+	const doc = {
+		openapi: "3.1.0",
+		paths: {
+			"/things": {
+				post: {
+					operationId: "makeThing",
+					tags: ["things"],
+					requestBody: {
+						content: {
+							"application/json": {
+								schema: { $ref: "#/components/schemas/Thing" },
+							},
+						},
+					},
+					responses: {
+						"200": {
+							description: "OK",
+							content: {
+								"application/json": {
+									schema: { $ref: "#/components/schemas/Merged" },
+								},
+							},
+						},
+						"201": {
+							description: "Created",
+							content: {
+								"application/json": {
+									schema: { $ref: "#/components/schemas/Extended" },
+								},
+							},
+						},
+					},
+				},
+			},
+			"/untagged": {
+				get: {
+					parameters: [
+						{
+							in: "query",
+							name: "q",
+							required: true,
+							description: " Search text ",
+							schema: {
+								type: "array",
+								items: { type: "string", format: "uuid" },
+							},
+						},
+						{ in: "query", name: "kind", schema: { enum: ["a", "b"] } },
+						{
+							in: "header",
+							name: "X-Id",
+							schema: { $ref: "#/components/schemas/Id" },
+						},
+						{
+							in: "query",
+							name: "when",
+							schema: { type: "string", format: "date-time" },
+						},
+					],
+					responses: { "204": { description: "Done" } },
+				},
+			},
+		},
+		components: {
+			schemas: {
+				Base: {
+					type: "object",
+					properties: { id: { type: "string" } },
+					required: ["id"],
+				},
+				Merged: {
+					allOf: [
+						{ $ref: "#/components/schemas/Base" },
+						{ properties: { extra: { type: "integer" } } },
+						{ $ref: "#/components/schemas/Missing" },
+					],
+				},
+				Extended: {
+					allOf: [{ $ref: "#/components/schemas/Base" }],
+					properties: { own: { type: "boolean" } },
+					required: ["own"],
+				},
+				Thing: {
+					properties: {
+						// A union member that is only null makes the field nullable.
+						owner: {
+							oneOf: [{ type: "null" }, { $ref: "#/components/schemas/Base" }],
+						},
+						either: { anyOf: [{ type: "string" }, { type: "integer" }] },
+						labels: {
+							type: "object",
+							additionalProperties: { type: "string" },
+						},
+						maybe: {
+							type: ["string", "null"],
+							description: "  Optional  ",
+							default: 3,
+						},
+						anything: { additionalProperties: true },
+					},
+				},
+				Id: { type: "string" },
+			},
+		},
+	};
+	const [other, things] = groupByTag(doc);
+	const thing = things?.defs.Thing;
+	const prop = (name: string) =>
+		thing?.props?.find((p) => p.name === name)?.schema;
+
+	test("operations without a tag go under 'other', with a generated id", () => {
+		expect(other?.name).toBe("other");
+		expect(other?.operations[0]?.id).toBe("get/untagged");
+		expect(other?.operations[0]?.responses).toEqual([
+			{ status: "204", description: "Done" },
+		]);
+	});
+
+	test("allOf merges the properties of every part, dropping a part it cannot resolve", () => {
+		const merged = things?.defs.Merged;
+		expect(merged?.props?.map((p) => [p.name, p.required])).toEqual([
+			["id", true],
+			["extra", false],
+		]);
+		expect(merged?.type).toBe("object");
+	});
+
+	test("a schema's own properties come after the ones it gets from allOf", () => {
+		expect(
+			things?.defs.Extended?.props?.map((p) => [p.name, p.required]),
+		).toEqual([
+			["id", true],
+			["own", true],
+		]);
+	});
+
+	test("a null member of a union makes the field nullable and is not listed as a variant", () => {
+		expect(prop("owner")).toEqual({
+			nullable: true,
+			variants: [{ ref: "Base" }],
+		});
+	});
+
+	test("a union of types lists each as a variant", () => {
+		expect(prop("either")?.variants).toEqual([
+			{ type: "string" },
+			{ type: "integer" },
+		]);
+	});
+
+	test("a free-form map keeps the schema of its values", () => {
+		expect(prop("labels")).toEqual({
+			type: "object",
+			additional: { type: "string" },
+		});
+	});
+
+	test("type arrays, descriptions and defaults are carried over", () => {
+		expect(prop("maybe")).toEqual({
+			type: "string",
+			nullable: true,
+			description: "Optional",
+			default: "3",
+		});
+		expect(prop("anything")).toEqual({});
+	});
+
+	test("parameter types are labelled: arrays of formats, enums, refs and formats", () => {
+		const params = other?.operations[0]?.params;
+		expect(
+			params?.map((p) => [p.name, p.type, p.required, p.description]),
+		).toEqual([
+			["q", "string (uuid)[]", true, "Search text"],
+			["kind", "enum: a | b", false, ""],
+			["X-Id", "Id", false, ""],
+			["when", "string (date-time)", false, ""],
+		]);
+	});
+
+	test("a $ref reaches every schema the operation names, once", () => {
+		expect(Object.keys(things?.defs ?? {}).sort()).toEqual([
+			"Base",
+			"Extended",
+			"Merged",
+			"Thing",
+		]);
+	});
+});

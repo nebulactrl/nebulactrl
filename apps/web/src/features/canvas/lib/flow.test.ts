@@ -51,6 +51,17 @@ describe("buildNodes / layoutFromNodes", () => {
 		expect(next.nodes.c).toEqual(base.nodes.c ?? { x: 0, y: 0 });
 	});
 
+	test("a card missing from the nodes keeps its saved place; positions are rounded to whole pixels", () => {
+		const nodes = buildNodes(services, base, new Set())
+			.filter((n) => n.id !== "b")
+			.map((n) =>
+				n.id === "a" ? { ...n, position: { x: 10.4, y: 20.6 } } : n,
+			);
+		const next = layoutFromNodes(base, nodes);
+		expect(next.nodes.b).toEqual({ x: 340, y: 100 });
+		expect(next.nodes.a).toEqual({ x: 10, y: 21 });
+	});
+
 	test("a collapsed group hides its members", () => {
 		const layout = toggleGroup(
 			createGroup(base, ["a", "b"], "g1", "Pair"),

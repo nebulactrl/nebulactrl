@@ -11,6 +11,9 @@ import {
 	NODE_HEIGHT,
 	NODE_WIDTH,
 	neighbourInDirection,
+	removeGroup,
+	renameGroup,
+	samePlaces,
 	toggleGroup,
 } from "./layout";
 
@@ -25,6 +28,33 @@ function overlap(
 		a.y + NODE_HEIGHT > b.y
 	);
 }
+
+describe("mergeLayout slots", () => {
+	test("a new card that would land on a taller new neighbour is bumped below it", () => {
+		const saved: CanvasLayout = { nodes: { a: { x: 0, y: 0 } }, groups: [] };
+		const tall = (id: string) =>
+			id === "tall"
+				? { w: NODE_WIDTH, h: NODE_HEIGHT * 3 }
+				: { w: NODE_WIDTH, h: NODE_HEIGHT };
+		const { layout, placed } = mergeLayout(["a", "tall", "next"], saved, tall);
+		expect(placed).toEqual(["tall", "next"]);
+		const first = layout.nodes.tall;
+		const second = layout.nodes.next;
+		if (!first || !second) throw new Error("not placed");
+		// Same column as the first new card, clear of its full height.
+		expect(second.x).toBe(first.x);
+		expect(second.y).toBeGreaterThanOrEqual(first.y + NODE_HEIGHT * 3);
+	});
+
+	test("a layout with nothing saved starts services on a grid from the origin", () => {
+		const { layout, placed } = mergeLayout(["a", "b", "c", "d"], null);
+		expect(placed).toEqual(["a", "b", "c", "d"]);
+		expect(layout.nodes.a).toEqual({ x: 0, y: 0 });
+		expect(layout.nodes.b?.y).toBe(0);
+		expect(layout.nodes.d?.x).toBe(0);
+		expect(layout.nodes.d?.y).toBeGreaterThan(0);
+	});
+});
 
 describe("mergeLayout", () => {
 	test("keeps saved positions exactly", () => {
@@ -148,6 +178,103 @@ describe("groups", () => {
 	test("toggleGroup flips collapsed", () => {
 		const layout = createGroup(base, ["a", "b"], "g1", "Pair");
 		expect(toggleGroup(layout, "g1").groups[0]?.collapsed).toBe(true);
+	});
+
+	test("renameGroup renames only the named frame", () => {
+		const two = createGroup(
+			createGroup(base, ["a"], "g1", "One"),
+			["c"],
+			"g2",
+			"Two",
+		);
+		const renamed = renameGroup(two, "g2", "Edge");
+		expect(renamed.groups.map((g) => [g.id, g.name])).toEqual([
+			["g1", "One"],
+			["g2", "Edge"],
+		]);
+		expect(renameGroup(two, "nope", "x")).toEqual(two);
+	});
+
+	test("removeGroup drops the frame and leaves every card where it was", () => {
+		const two = createGroup(
+			createGroup(base, ["a"], "g1", "One"),
+			["c"],
+			"g2",
+			"Two",
+		);
+		const removed = removeGroup(two, "g1");
+		expect(removed.groups.map((g) => g.id)).toEqual(["g2"]);
+		expect(removed.nodes).toEqual(two.nodes);
+		expect(removeGroup(two, "nope").groups).toHaveLength(2);
+	});
+});
+
+describe("samePlaces", () => {
+	const frame = {
+		id: "g",
+		name: "G",
+		x: 0,
+		y: 0,
+		w: 400,
+		h: 300,
+		collapsed: false,
+		serviceIds: ["a"],
+	};
+	const layout: CanvasLayout = {
+		nodes: { a: { x: 0, y: 0 }, b: { x: 10, y: 20 } },
+		groups: [frame],
+	};
+
+	test("identical places are the same, whatever the saved view or names", () => {
+		expect(
+			samePlaces(layout, {
+				nodes: { b: { x: 10, y: 20 }, a: { x: 0, y: 0 } },
+				groups: [{ ...frame, name: "Renamed" }],
+				viewport: { x: 5, y: 5, zoom: 2 },
+			}),
+		).toBe(true);
+	});
+
+	test("a card at another place, in either axis, is a change", () => {
+		expect(
+			samePlaces(layout, {
+				...layout,
+				nodes: { ...layout.nodes, b: { x: 11, y: 20 } },
+			}),
+		).toBe(false);
+		expect(
+			samePlaces(layout, {
+				...layout,
+				nodes: { ...layout.nodes, b: { x: 10, y: 21 } },
+			}),
+		).toBe(false);
+	});
+
+	test("a different set of cards is a change, even with the same count", () => {
+		expect(
+			samePlaces(layout, {
+				...layout,
+				nodes: { a: { x: 0, y: 0 }, z: { x: 10, y: 20 } },
+			}),
+		).toBe(false);
+		expect(
+			samePlaces(layout, { ...layout, nodes: { a: { x: 0, y: 0 } } }),
+		).toBe(false);
+	});
+
+	test("a moved or resized frame, or a different number of frames, is a change", () => {
+		for (const change of [
+			{ x: 1 },
+			{ y: 1 },
+			{ w: 401 },
+			{ h: 301 },
+			{ id: "other" },
+		]) {
+			expect(
+				samePlaces(layout, { ...layout, groups: [{ ...frame, ...change }] }),
+			).toBe(false);
+		}
+		expect(samePlaces(layout, { ...layout, groups: [] })).toBe(false);
 	});
 });
 

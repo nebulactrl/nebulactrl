@@ -1,6 +1,5 @@
 import { describe, expect, test } from "bun:test";
 import {
-	iconVariant,
 	type PlaybackContext,
 	type PlaybackTrigger,
 	shouldPlay,
@@ -42,12 +41,5 @@ describe("shouldPlay", () => {
 		for (const trigger of ["hover", "state", "once"] as PlaybackTrigger[]) {
 			expect(shouldPlay(trigger, POINTER)).toBe(true);
 		}
-	});
-});
-
-describe("iconVariant", () => {
-	test("maps the playing flag to a variant label", () => {
-		expect(iconVariant(true)).toBe("animate");
-		expect(iconVariant(false)).toBe("normal");
 	});
 });

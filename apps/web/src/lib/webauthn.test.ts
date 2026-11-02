@@ -1,13 +1,16 @@
-import { describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, test } from "bun:test";
 import {
 	base64urlDecode,
 	base64urlEncode,
 	classifyCeremonyError,
+	createPasskey,
 	decodeCreationOptions,
 	decodeRequestOptions,
 	encodeAuthentication,
 	encodeRegistration,
+	getPasskey,
 	PasskeyError,
+	passkeysSupported,
 } from "./webauthn";
 
 const bytes = (...values: number[]) => new Uint8Array(values);
@@ -174,5 +177,196 @@ describe("classifyCeremonyError", () => {
 	test("keeps an error that is already classified", () => {
 		const original = new PasskeyError("failed", "x");
 		expect(classifyCeremonyError(original)).toBe(original);
+	});
+});
+
+describe("passkey ceremonies", () => {
+	const realCredentials = Object.getOwnPropertyDescriptor(
+		navigator,
+		"credentials",
+	);
+	const realPKC = (window as { PublicKeyCredential?: unknown })
+		.PublicKeyCredential;
+	const realSecure = Object.getOwnPropertyDescriptor(window, "isSecureContext");
+
+	class FakePublicKeyCredential {
+		id = "cred-1";
+		type = "public-key";
+		rawId = bytes(1, 2, 3).buffer;
+		authenticatorAttachment = "platform";
+		response: Record<string, unknown>;
+		constructor(response: Record<string, unknown>) {
+			this.response = response;
+		}
+		getClientExtensionResults() {
+			return { credProps: { rk: true } };
+		}
+	}
+
+	function stubBrowser(credentials: {
+		create?: (options: CredentialCreationOptions) => Promise<unknown>;
+		get?: (options: CredentialRequestOptions) => Promise<unknown>;
+	}) {
+		Object.defineProperty(window, "isSecureContext", {
+			configurable: true,
+			value: true,
+		});
+		(window as { PublicKeyCredential?: unknown }).PublicKeyCredential =
+			FakePublicKeyCredential;
+		(globalThis as { PublicKeyCredential?: unknown }).PublicKeyCredential =
+			FakePublicKeyCredential;
+		Object.defineProperty(navigator, "credentials", {
+			configurable: true,
+			value: credentials,
+		});
+	}
+
+	afterEach(() => {
+		if (realCredentials)
+			Object.defineProperty(navigator, "credentials", realCredentials);
+		else Reflect.deleteProperty(navigator, "credentials");
+		(window as { PublicKeyCredential?: unknown }).PublicKeyCredential = realPKC;
+		(globalThis as { PublicKeyCredential?: unknown }).PublicKeyCredential =
+			realPKC;
+		if (realSecure)
+			Object.defineProperty(window, "isSecureContext", realSecure);
+		else Reflect.deleteProperty(window, "isSecureContext");
+	});
+
+	const creation = {
+		publicKey: {
+			challenge: "AQID",
+			rp: { id: "localhost", name: "NebulaCtrl" },
+			user: { id: "BAUG", name: "a@b.c", displayName: "A" },
+			pubKeyCredParams: [{ type: "public-key" as const, alg: -7 }],
+		},
+	};
+	const request = { publicKey: { challenge: "AQID" } };
+
+	test("passkeysSupported needs a secure context, PublicKeyCredential and navigator.credentials.create", () => {
+		stubBrowser({ create: async () => null });
+		expect(passkeysSupported()).toBe(true);
+
+		Object.defineProperty(window, "isSecureContext", {
+			configurable: true,
+			value: false,
+		});
+		expect(passkeysSupported()).toBe(false);
+		Object.defineProperty(window, "isSecureContext", {
+			configurable: true,
+			value: true,
+		});
+
+		(window as { PublicKeyCredential?: unknown }).PublicKeyCredential =
+			undefined;
+		expect(passkeysSupported()).toBe(false);
+		(window as { PublicKeyCredential?: unknown }).PublicKeyCredential =
+			FakePublicKeyCredential;
+
+		Object.defineProperty(navigator, "credentials", {
+			configurable: true,
+			value: {},
+		});
+		expect(passkeysSupported()).toBe(false);
+	});
+
+	test("createPasskey hands the decoded options to the authenticator and encodes what comes back", async () => {
+		let received: CredentialCreationOptions | undefined;
+		stubBrowser({
+			create: async (options) => {
+				received = options;
+				return new FakePublicKeyCredential({
+					clientDataJSON: bytes(9).buffer,
+					attestationObject: bytes(8).buffer,
+					getTransports: () => ["internal"],
+				});
+			},
+		});
+		const result = await createPasskey(creation);
+		expect(
+			Array.from(new Uint8Array(received?.publicKey?.challenge as ArrayBuffer)),
+		).toEqual([1, 2, 3]);
+		expect(result).toEqual({
+			id: "cred-1",
+			rawId: "AQID",
+			type: "public-key",
+			authenticatorAttachment: "platform",
+			clientExtensionResults: { credProps: { rk: true } },
+			response: {
+				clientDataJSON: "CQ",
+				attestationObject: "CA",
+				transports: ["internal"],
+			},
+		});
+	});
+
+	test("getPasskey asks for an assertion and encodes it, leaving out an empty user handle", async () => {
+		let received: CredentialRequestOptions | undefined;
+		stubBrowser({
+			create: async () => null,
+			get: async (options) => {
+				received = options;
+				return new FakePublicKeyCredential({
+					clientDataJSON: bytes(1).buffer,
+					authenticatorData: bytes(2).buffer,
+					signature: bytes(3).buffer,
+					userHandle: new ArrayBuffer(0),
+				});
+			},
+		});
+		const result = await getPasskey(request);
+		expect(
+			Array.from(new Uint8Array(received?.publicKey?.challenge as ArrayBuffer)),
+		).toEqual([1, 2, 3]);
+		expect(result.response).toEqual({
+			clientDataJSON: "AQ",
+			authenticatorData: "Ag",
+			signature: "Aw",
+		});
+	});
+
+	test("without passkey support both ceremonies fail as unsupported, before touching the browser", async () => {
+		Object.defineProperty(window, "isSecureContext", {
+			configurable: true,
+			value: false,
+		});
+		await expect(createPasskey(creation)).rejects.toMatchObject({
+			kind: "unsupported",
+		});
+		await expect(getPasskey(request)).rejects.toMatchObject({
+			kind: "unsupported",
+		});
+	});
+
+	test("a closed prompt is cancelled and a duplicate authenticator is already_registered", async () => {
+		stubBrowser({
+			create: async () => {
+				throw new DOMException("closed", "NotAllowedError");
+			},
+			get: async () => {
+				throw new DOMException("dup", "InvalidStateError");
+			},
+		});
+		await expect(createPasskey(creation)).rejects.toMatchObject({
+			name: "PasskeyError",
+			kind: "cancelled",
+		});
+		await expect(getPasskey(request)).rejects.toMatchObject({
+			kind: "already_registered",
+		});
+	});
+
+	test("a browser that returns something other than a public-key credential fails", async () => {
+		stubBrowser({ create: async () => null, get: async () => ({ id: "x" }) });
+		const created = createPasskey(creation);
+		await expect(created).rejects.toBeInstanceOf(PasskeyError);
+		await expect(created).rejects.toMatchObject({
+			kind: "failed",
+			message: "The browser returned no passkey.",
+		});
+		await expect(getPasskey(request)).rejects.toMatchObject({
+			kind: "failed",
+			message: "The browser returned no passkey.",
+		});
 	});
 });

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
+	absoluteDate,
 	absoluteTime,
 	count,
 	formatBytes,
@@ -139,5 +140,12 @@ describe("formatMegabytes", () => {
 		expect(formatMegabytes(1024)).toBe("1 GiB");
 		expect(formatMegabytes(16040.7)).toBe("15.7 GiB");
 		expect(formatMegabytes(-5)).toBe("0 MiB");
+	});
+});
+
+describe("absoluteDate", () => {
+	test("is the UTC date part of absoluteTime, whatever the reader's zone", () => {
+		expect(absoluteDate("2026-09-20T23:59:59-05:00")).toBe("2026-09-21");
+		expect(absoluteDate("2026-01-05T00:00:00Z")).toBe("2026-01-05");
 	});
 });

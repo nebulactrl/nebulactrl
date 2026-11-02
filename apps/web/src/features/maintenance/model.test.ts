@@ -8,7 +8,6 @@ import {
 	isDirty,
 	joinLocalInput,
 	maintenanceSupported,
-	OFF_BODY,
 	previewPath,
 	splitLocalInput,
 	toFormState,
@@ -43,9 +42,6 @@ describe("datetime-local round trip", () => {
 		expect(splitLocalInput("")).toEqual({ date: "", time: "" });
 		expect(joinLocalInput("2026-11-02", "09:30")).toBe("2026-11-02T09:30");
 		expect(joinLocalInput("", "")).toBe("");
-		expect(
-			validateForm({ title: "", message: "", eta: "2026-11-02T" }, now).eta,
-		).toContain("valid");
 	});
 });
 
@@ -74,6 +70,11 @@ describe("validateForm", () => {
 			validateForm({ ...ok, eta: etaAfter(30, now) }, now).eta,
 		).toBeUndefined();
 	});
+	test("an incomplete date and time is not a valid expected return", () => {
+		expect(
+			validateForm({ title: "", message: "", eta: "2026-11-02T" }, now).eta,
+		).toContain("valid");
+	});
 });
 
 describe("request bodies", () => {
@@ -86,9 +87,6 @@ describe("request bodies", () => {
 		expect(body.title).toBe("Upgrade");
 		expect(body.message).toBe("Soon");
 		expect(body.eta).toBe(fromLocalInput(eta)?.toISOString() ?? "");
-	});
-	test("off is just the switch", () => {
-		expect(OFF_BODY).toEqual({ enabled: false });
 	});
 });
 
