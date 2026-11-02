@@ -1,11 +1,6 @@
----
-title: Coverage targets and gates in comparable projects
-description: "What coverage numbers and gates Go projects use, how -coverpkg and GOCOVERDIR work, and how NebulaCtrl can measure honestly and gate on 90%."
-section: Internals
-order: 52
----
-
 # Coverage targets, measurement and gates: what comparable projects do
+
+> Research note, written 2026-11-01. It describes the repository and the sources as they were then; it is a record of why something was decided, not current documentation. Outcome: the target became 85% for new code and the project (see [CONTRIBUTING.md](../../CONTRIBUTING.md)).
 
 Question: NebulaCtrl wants a 90% coverage target and a gate on it. Today it reports 74.6% overall in Codecov (Go 71% per package, web 89%), informational only. Should it add `-coverpkg=./...`, coverage from the smoke binaries (`go build -cover` + `GOCOVERDIR`), exclusions, and a required Codecov status?
 

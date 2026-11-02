@@ -1,11 +1,6 @@
----
-title: Testing the web UI properly, and linting the tests
-description: "A test pyramid for the React dashboard, whether to keep happy-dom under bun test, how to harden the current setup against hangs and leaks, and which Biome rules to add for tests."
-section: Internals
-order: 53
----
-
 # Web UI testing: pyramid, environment choice, hardening and test linting
+
+> Research note, written 2026-11-02. It describes the repository and the sources as they were then; it is a record of why something was decided, not current documentation.
 
 Question: `apps/web` runs 879 test files under `bun test` with happy-dom and Testing Library. Role queries are slow on big DOMs, a failing jest-dom assertion inside `waitFor` can hang or run out of memory, React Flow, charts, canvas and WebGL cannot be tested, and some tests hang only in the full run. How should the UI be tested, and how should the tests be linted?
 

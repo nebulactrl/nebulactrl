@@ -10,7 +10,12 @@ The pages in this folder are the single source of the **in-app docs**: the contr
 - [`security/`](security/README.md): threat model, login methods and 2FA, single sign-on, host shell, host hardening.
 - [`reference/`](reference/api.md): the API reference intro (the endpoint pages are generated from `openapi/openapi.json`) and the CLI reference, generated from the command tree.
 - [`decisions/`](decisions/0001-go-modular-monolith.md): architecture decision records.
-- [`architecture/`](architecture/navigation-transitions.md): how route changes animate. The `*-research.md` notes are working documents and are not part of the in-app docs.
+
+Not part of the in-app docs (public here on GitHub, but not served in `/docs` or `llms.txt`):
+
+- [`architecture/`](architecture/navigation-transitions.md): contributor notes, for example how route changes animate in the web app.
+- [`research/`](research/test-strategy-oss.md): dated research notes, the record of why something was decided. They describe the repository as it was when written.
+- Any `*-research.md` file: working notes.
 
 ## For AI agents
 

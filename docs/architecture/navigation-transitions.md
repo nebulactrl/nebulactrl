@@ -1,10 +1,3 @@
----
-title: Navigation transitions
-description: "How route changes animate in the web app: view transitions, shared elements, reduced motion."
-section: Internals
-order: 20
----
-
 # Navigation transitions
 
 Every route change in the web app runs as a [View Transition](https://developer.mozilla.org/docs/Web/API/View_Transition_API). Cards, rows, sidebar labels and page titles morph into their destination; the rest of the page cross-fades with a small lift.

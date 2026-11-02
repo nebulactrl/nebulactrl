@@ -20,8 +20,16 @@ import { type CompiledPage, compileMarkdown } from "./markdown.ts";
 import { type ApiTagData, groupByTag } from "./openapi.ts";
 import { fileSlug } from "./slug.ts";
 
-/** Docs files that are not user-facing: the repo index and research notes. */
-const EXCLUDED: RegExp[] = [/^README\.md$/i, /-research\.md$/];
+/**
+ * Docs files that are not user-facing: the repo index, research notes and the
+ * contributor notes under research/ and architecture/ (public on GitHub, but not
+ * served in /docs or llms.txt).
+ */
+const EXCLUDED: RegExp[] = [
+	/^README\.md$/i,
+	/-research\.md$/,
+	/^(research|architecture)\//,
+];
 
 export function isExcluded(rel: string): boolean {
 	return EXCLUDED.some((pattern) => pattern.test(rel));

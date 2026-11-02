@@ -1,11 +1,6 @@
----
-title: What comparable projects run for code quality
-description: "Linters, coverage, dead-code, security and drift gates of 16 Go and TypeScript infra projects, and which ones NebulaCtrl lacks."
-section: Internals
-order: 51
----
-
 # Code-quality tooling in comparable open-source projects
+
+> Research note, written 2026-11-01. It describes the repository and the sources as they were then; it is a record of why something was decided, not current documentation.
 
 Question: which linters, coverage services, dead-code tools, scanners and CI gates do well-maintained Go + TypeScript products and self-hosted deploy/infra platforms run, and what is NebulaCtrl missing?
 

@@ -1,11 +1,6 @@
----
-title: Test strategy guidance: granularity, value and pruning
-description: "What the pyramid, trophy, honeycomb and Google's test sizes say, what evidence exists on many small tests versus fewer broad ones and on coverage targets, when to delete a test, and a mix and pruning rule for NebulaCtrl."
-section: Internals
-order: 55
----
-
 # Test strategy: many fine-grained tests, or fewer broad ones?
+
+> Research note, written 2026-11-02. It describes the repository and the sources as they were then; it is a record of why something was decided, not current documentation.
 
 Question: `apps/web` has ~13,000 component tests (881 files, a 10-minute run, cross-file leaks), the Go side tests mostly through real services and HTTP handlers against Postgres, a Docker smoke tier covers the system end to end, three Playwright specs are not in CI, and Codecov asks 85% on new code. Does that many fine-grained tests make sense, or should there be fewer, broader tests?
 
