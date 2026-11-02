@@ -32,3 +32,45 @@ describe("cubicBezier", () => {
 		expect(arrangeEase(0.9)).toBeGreaterThan(0.95);
 	});
 });
+
+describe("cubicBezier where Newton's method stalls", () => {
+	/** An independent reference: bisect x(u) = t, then read y(u). */
+	function reference(
+		x1: number,
+		y1: number,
+		x2: number,
+		y2: number,
+		t: number,
+	) {
+		const bez = (u: number, a: number, b: number) =>
+			3 * (1 - u) ** 2 * u * a + 3 * (1 - u) * u ** 2 * b + u ** 3;
+		let low = 0;
+		let high = 1;
+		for (let i = 0; i < 60; i++) {
+			const mid = (low + high) / 2;
+			if (bez(mid, x1, x2) < t) low = mid;
+			else high = mid;
+		}
+		return bez((low + high) / 2, y1, y2);
+	}
+
+	test("a flat start (zero slope at 0) still follows the curve", () => {
+		const ease = cubicBezier(0, 0, 0, 1);
+		for (const t of [0.0001, 0.001, 0.01, 0.5]) {
+			expect(ease(t)).toBeCloseTo(reference(0, 0, 0, 1, t), 3);
+		}
+	});
+
+	test("a flat end (zero slope at 1) still follows the curve", () => {
+		const ease = cubicBezier(1, 0, 1, 1);
+		for (const t of [0.5, 0.99, 0.9999, 0.999999]) {
+			expect(ease(t)).toBeCloseTo(reference(1, 0, 1, 1, t), 3);
+		}
+	});
+
+	test("values outside 0..1 time are clamped to the ends", () => {
+		const ease = cubicBezier(0.4, 0, 0.2, 1);
+		expect(ease(-1)).toBe(0);
+		expect(ease(2)).toBe(1);
+	});
+});

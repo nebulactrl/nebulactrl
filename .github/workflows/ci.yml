@@ -1,12 +1,15 @@
-# Tiers 1 and 2 of the test pyramid (tests/README.md). Runs on every pull request
+# Tiers 1, 2 and 4 of the test pyramid (tests/README.md). Runs on every pull request
 # to main and every push to main, on demand (Actions -> ci -> Run workflow) and as
 # a gate inside release.yml.
 #
 #   go     go vet + go test ./...              (unit + DB tests, Postgres service),
 #          3 parallel shards of packages, balanced by scripts/ci/go-durations.json;
 #          go vet runs in shard 1; each shard uploads its cross-package coverage to Codecov
-#   web    typecheck, biome, knip, bun test (coverage to Codecov), build
+#   web    typecheck, biome, knip, bun test of packages/{dither,ascii,tokens,docs} (coverage to Codecov), build
+#   web-test  apps/web tests in 3 shards, balanced by apps/web/test-timings.json (coverage to Codecov)
 #   smoke  tests/run.sh smoke                  (~8 Docker scenarios, runner's Docker; coverage to Codecov)
+#   e2e    tests/e2e/run.sh                    (tier 4: the Playwright flows against a fresh stack; skipped when
+#          the push or pull request touches nothing the flows exercise)
 #
 # Alongside them, the checks that keep the supply chain and the workflows honest:
 #
@@ -14,6 +17,8 @@
 #   govulncheck        known vulnerabilities that the Go code can reach
 #   golangci-lint      make lint-go, then scripts/ci/deadcode.sh (unreachable Go functions)
 #   dependency review  pull requests only: a new dependency with a high-severity advisory
+#   generated          make check-generated: sqlc, the OpenAPI document, both API clients
+#                      and the CLI reference regenerate to exactly what is committed
 #
 # Tier 3 (everything, a superset of smoke) is full.yml.
 name: ci
@@ -48,7 +53,8 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 env:
-  # The Postgres service below. Tests create their own schemas inside it.
+  # The Postgres service below (its POSTGRES_USER is the superuser, so it may
+  # CREATE DATABASE). Tests clone their own databases from a migrated template.
   NEBULACTRL_TEST_DATABASE_URL: postgres://nebulactrl:nebulactrl@localhost:5432/nebulactrl_test?sslmode=disable
 
 jobs:
@@ -67,6 +73,30 @@ jobs:
         run: scripts/release/check-workflows.sh
         env:
           GH_TOKEN: ${{ github.token }} # zizmor's online audits; read-only on fork pull requests
+
+  generated:
+    name: generated code is current
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: go.mod
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      - name: sqlc (the version the Makefile pins)
+        run: go install "github.com/sqlc-dev/sqlc/cmd/sqlc@$(sed -n 's/^SQLC_VERSION ?= //p' Makefile)"
+      - run: make check-generated
 
   govulncheck:
     name: govulncheck
@@ -200,15 +230,67 @@ jobs:
       - name: knip (unused files, exports and dependencies of the Bun workspace)
         working-directory: .
         run: scripts/ci/knip.sh
-      - run: bun test src --coverage --coverage-reporter=lcov --coverage-dir=coverage
+      # apps/web's own tests run in the web-test shards below.
+      - name: Package tests (dither, ascii, tokens, docs)
+        working-directory: .
+        shell: bash
+        # Bun writes lcov paths relative to where it ran; rewrite them relative to
+        # the repository so Codecov maps every file to one path.
+        run: |
+          for pkg in dither ascii tokens docs; do
+            (cd "packages/$pkg" && bun test src --coverage --coverage-reporter=lcov --coverage-dir=coverage)
+            sed -i -E "s#^SF:#SF:packages/$pkg/#" "packages/$pkg/coverage/lcov.info"
+          done
+      - name: Upload coverage
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          files: packages/dither/coverage/lcov.info,packages/ascii/coverage/lcov.info,packages/tokens/coverage/lcov.info,packages/docs/coverage/lcov.info
+          flags: web
+          use_oidc: true
+          fail_ci_if_error: false # an upload hiccup never fails CI; Codecov's own status does
+      - run: bun run build
+
+  web-test:
+    name: web tests (shard ${{ matrix.shard }}/3)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    permissions:
+      contents: read
+      id-token: write # Codecov upload through OIDC, no token secret
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.4.4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - run: bun install --frozen-lockfile
+      # --parallel: one worker per core, each file in a fresh global object, so no
+      # test file can leak DOM stubs or module state into another. --timings
+      # balances the shards by the recorded per-file durations (bun run
+      # test:timings refreshes them); a new file gets an average weight.
+      - run: bun test src --parallel --shard=${{ matrix.shard }}/3 --timings=test-timings.json --coverage --coverage-reporter=lcov --coverage-dir=coverage
+      # Bun writes lcov paths relative to apps/web; make them repository paths.
+      - run: sed -i -E 's#^SF:#SF:apps/web/#; s#^SF:apps/web/\.\./\.\./#SF:#' coverage/lcov.info
       - name: Upload coverage
         uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           files: apps/web/coverage/lcov.info
           flags: web
           use_oidc: true
-          fail_ci_if_error: false # an upload hiccup never fails CI; Codecov's own status does
-      - run: bun run build
+          fail_ci_if_error: false
 
   smoke:
     name: smoke (docker scenarios)
@@ -273,3 +355,99 @@ jobs:
           traefik="$(grep -ohE 'traefik:v[0-9.]+@sha256:[0-9a-f]{64}' internal/agent/proxy/manager.go | head -1)"
           pages="$(grep -ohE 'nginx:[0-9A-Za-z.-]+@sha256:[0-9a-f]{64}' internal/agent/proxy/manager_pages.go | head -1)"
           docker save -o ~/docker-images.tar registry:2 "$traefik" "$pages"
+
+  # Tier 4: the Playwright flows in a real browser against a fresh stack that
+  # tests/e2e/run.sh builds and starts on the runner (control plane with the built
+  # web app, the Postgres service below, an agent on a docker-in-docker daemon).
+  # It costs the most minutes of any job here, so the first step looks at what the
+  # push or pull request changed and every later step is skipped when nothing the
+  # flows exercise is touched. Not part of the release gate (release.yml starts
+  # ci from a manual run, where this job does not run).
+  e2e:
+    name: e2e (browser flows)
+    if: ${{ github.event_name == 'push' || github.event_name == 'pull_request' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+        env:
+          POSTGRES_USER: nebulactrl
+          POSTGRES_PASSWORD: nebulactrl
+          POSTGRES_DB: nebulactrl_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U nebulactrl -d nebulactrl_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0 # the diff against the base of the pull request or the previous push
+      - name: Did anything the flows exercise change?
+        id: changed
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BEFORE_SHA: ${{ github.event.before }}
+        # The web app, everything the control plane and agent are built from (Go
+        # sources, migrations, templates, the OpenAPI contract, the agent image's
+        # base), the web packages and lockfiles, the e2e files and this workflow.
+        # A diff that cannot be computed (a forced push, a new branch) runs them.
+        run: |
+          case "$EVENT" in
+          pull_request) range="$BASE_SHA...HEAD" ;;
+          *) range="$BEFORE_SHA..HEAD" ;;
+          esac
+          if ! files="$(git diff --name-only "$range")"; then
+            echo "cannot diff $range: running the flows"
+            echo "run=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          fi
+          pattern='^(apps/web/|packages/|internal/|cmd/|pkg/|db/|openapi/|templates/|tests/e2e/|deploy/agent/|go\.mod$|go\.sum$|bun\.lock$|\.github/workflows/ci\.yml$)'
+          if grep -qE "$pattern" <<<"$files"; then
+            echo "run=true" >>"$GITHUB_OUTPUT"
+          else
+            echo "nothing the browser flows exercise changed: skipping"
+            echo "run=false" >>"$GITHUB_OUTPUT"
+          fi
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        if: steps.changed.outputs.run == 'true'
+        with:
+          go-version-file: go.mod
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        if: steps.changed.outputs.run == 'true'
+        with:
+          bun-version: 1.4.4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: steps.changed.outputs.run == 'true'
+        with:
+          path: ~/.bun/install/cache
+          key: bun-${{ runner.os }}-${{ hashFiles('bun.lock') }}
+          restore-keys: bun-${{ runner.os }}-
+      - name: Install the web dependencies and Chromium
+        if: steps.changed.outputs.run == 'true'
+        run: |
+          bun install --frozen-lockfile
+          cd apps/web
+          bunx playwright install --with-deps chromium
+      # Builds the web app and both binaries, starts the stack, runs every flow
+      # and removes the stack again (docker-in-docker container, agent, database).
+      - name: Browser flows
+        if: steps.changed.outputs.run == 'true'
+        run: tests/e2e/run.sh
+      - name: Keep the report, traces and stack logs of a failed run
+        if: failure() && steps.changed.outputs.run == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: e2e-report
+          path: |
+            apps/web/playwright-report
+            apps/web/test-results
+          retention-days: 3

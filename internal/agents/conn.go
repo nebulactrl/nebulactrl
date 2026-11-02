@@ -38,6 +38,9 @@ const (
 	// minute (a fleet behind one NAT reconnecting after a restart fits).
 	connectsPerMinute = 120
 	outQueue          = 512
+	// sendStallTimeout is how long sendFrame waits for room in a full queue
+	// before closing the connection.
+	sendStallTimeout = 5 * time.Second
 )
 
 var errConnClosed = errors.New("agent connection closed")
@@ -51,9 +54,10 @@ type agentConn struct {
 	agentID  uuid.UUID
 	log      *slog.Logger
 
-	out       chan []byte
-	done      chan struct{}
-	closeOnce sync.Once
+	out         chan []byte
+	sendTimeout time.Duration // sendStallTimeout; shortened by tests
+	done        chan struct{}
+	closeOnce   sync.Once
 
 	kick       chan struct{}
 	resendSent atomic.Bool
@@ -77,11 +81,12 @@ type agentConn struct {
 func newAgentConn(h *Hub, ws *websocket.Conn, serverID, agentID uuid.UUID) *agentConn {
 	c := &agentConn{
 		h: h, ws: ws, serverID: serverID, agentID: agentID,
-		log:  h.log.With("server_id", serverID, "agent_id", agentID),
-		out:  make(chan []byte, outQueue),
-		done: make(chan struct{}),
-		kick: make(chan struct{}, 1),
-		deps: map[uuid.UUID]*depLog{},
+		log:         h.log.With("server_id", serverID, "agent_id", agentID),
+		out:         make(chan []byte, outQueue),
+		sendTimeout: sendStallTimeout,
+		done:        make(chan struct{}),
+		kick:        make(chan struct{}, 1),
+		deps:        map[uuid.UUID]*depLog{},
 	}
 	c.mux = c.newTunnelMux()
 	return c
@@ -122,7 +127,7 @@ func (c *agentConn) sendFrame(typ, id string, body any) error {
 		return errConnClosed
 	default:
 	}
-	t := time.NewTimer(5 * time.Second)
+	t := time.NewTimer(c.sendTimeout)
 	defer t.Stop()
 	select {
 	case c.out <- data:

@@ -156,11 +156,8 @@ export function DitherText({
 		() => palette?.map((entry) => resolveTextRgba(entry, themePalette)),
 		[paletteKey, themePalette],
 	);
-	const inkRgb = (ramp?.[ramp.length - 1] ?? ink).slice(0, 3) as [
-		number,
-		number,
-		number,
-	];
+	const inkTone = ramp?.[ramp.length - 1] ?? ink;
+	const inkRgb = inkTone.slice(0, 3) as [number, number, number];
 	const ghostAlpha = ghost ?? defaultGhost(fill);
 
 	// Rasterise the glyphs whenever the text, its box, the font or the cell grid changes.
@@ -196,7 +193,7 @@ export function DitherText({
 			cols,
 			rows,
 			spec,
-			[ink[0], ink[1], ink[2]],
+			ink,
 			ghostAlpha,
 			t,
 			buffer,
@@ -225,12 +222,13 @@ export function DitherText({
 
 	const grid = glyph?.grid;
 	const level = BLOOM[bloomLevel(bloom)];
-	const glow = level
-		? `drop-shadow(0 0 ${Math.max(
-				4,
-				Math.round((box?.height ?? 40) / level.divisor),
-			)}px rgb(${inkRgb.join(" ")} / ${level.alpha}))`
-		: undefined;
+	const glow =
+		level && inkTone[3] > 0
+			? `drop-shadow(0 0 ${Math.max(
+					4,
+					Math.round((box?.height ?? 40) / level.divisor),
+				)}px rgb(${inkRgb.join(" ")} / ${level.alpha}))`
+			: undefined;
 
 	// Until the canvas is drawn, the letters show in the ink colour through a plain dither mask.
 	const fallback: CSSProperties | undefined = grid

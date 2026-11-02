@@ -986,7 +986,7 @@ export type CombineRequest = {
 
 export type CombineView = {
     createdAt: string;
-    deploymentId: string;
+    deploymentId: string | null;
     environmentId: string;
     error: string;
     finishedAt: string | null;
@@ -1774,11 +1774,11 @@ export type ConnectionView = {
     baseUrl: string;
     canListRepos: boolean;
     createdAt: string;
-    github: GitHubAppView;
+    github: GitHubAppView | null;
     id: string;
     manualWebhook: boolean;
     name: string;
-    oauth: OAuthView;
+    oauth: OAuthView | null;
     provider: 'github' | 'gitlab' | 'gitea' | 'forgejo' | 'bitbucket';
     serviceCount: number;
     status: 'pending' | 'active' | 'error';
@@ -2854,7 +2854,7 @@ export type DnsCredential = {
      * team: usable on every server of the team; server: only on ServerID
      */
     scope: 'team' | 'server';
-    serverId: string;
+    serverId: string | null;
     updatedAt: string;
     usedBy: Array<DnsCredentialUse> | null;
 };
@@ -2885,6 +2885,10 @@ export type DnsField = {
      * Secret values are write-only: never returned by any read
      */
     secret: boolean;
+};
+
+export type DnsProviderList = {
+    items: Array<DnsProviderSpec> | null;
 };
 
 export type DnsProviderSpec = {
@@ -2949,10 +2953,7 @@ export type DnsStatus = {
      * The team has a Cloudflare connection
      */
     configured: boolean;
-    /**
-     * The first record NebulaCtrl wants; null when nothing can be created
-     */
-    desired: RecordView;
+    desired: RecordView | null;
     desiredRecords: Array<RecordView> | null;
     effectiveProxied: boolean;
     /**
@@ -3038,7 +3039,7 @@ export type DashboardAccessView = {
     /**
      * The control-plane server, where Deploy proxy lives
      */
-    proxyServerId: string;
+    proxyServerId: string | null;
     /**
      * Providers with a resolver on the control-plane server (Servers, Proxy)
      */
@@ -3207,7 +3208,7 @@ export type DeploymentRef = {
     finishedAt: string | null;
     id: string;
     message: string | null;
-    releaseId: string;
+    releaseId: string | null;
     status: string;
     statusMessage: string;
     strategy: string;
@@ -3217,30 +3218,30 @@ export type DeploymentRef = {
 export type DeploymentView = {
     actorLabel: string;
     actorType: string;
-    build: BuildInfo;
-    buildServerId: string;
+    build: BuildInfo | null;
+    buildServerId: string | null;
     buildServerName?: string;
     cancelRequestedAt: string | null;
     cancelRequestedBy: string;
     canceledAtStep: string;
-    commit: CommitView;
+    commit: CommitView | null;
     createdAt: string;
     finishedAt: string | null;
     generation: number;
     id: string;
     message: string | null;
     noCache?: boolean;
-    release: ReleaseView;
-    releaseId: string;
-    rolledBackFrom: string;
-    serverId: string;
+    release: ReleaseView | null;
+    releaseId: string | null;
+    rolledBackFrom: string | null;
+    serverId: string | null;
     serviceId: string;
     startedAt: string | null;
     status: string;
     statusMessage: string;
     strategy: 'rolling' | 'recreate' | 'route_only';
     trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook';
-    waitingFor: WaitingFor;
+    waitingFor: WaitingFor | null;
 };
 
 export type DestinationListOutputBody = {
@@ -3452,7 +3453,7 @@ export type DomainCert = {
      * The covering wildcard name, e.g. *.example.com
      */
     wildcard: string;
-    wildcardId: string;
+    wildcardId: string | null;
 };
 
 export type DomainDns = {
@@ -3495,11 +3496,11 @@ export type DomainRef = {
 export type DomainView = {
     addPrefix: string;
     authUsers: Array<string> | null;
-    cert: DomainCert;
-    certificateId: string;
+    cert: DomainCert | null;
+    certificateId: string | null;
     component: string;
     createdAt: string;
-    dns: DomainDns;
+    dns: DomainDns | null;
     dnsCheckedAt: string | null;
     dnsOk: boolean | null;
     /**
@@ -3654,23 +3655,23 @@ export type EnrollmentToken = {
 export type EnvDeploymentView = {
     actorLabel: string;
     actorType: string;
-    build: BuildInfo;
-    buildServerId: string;
+    build: BuildInfo | null;
+    buildServerId: string | null;
     buildServerName?: string;
     cancelRequestedAt: string | null;
     cancelRequestedBy: string;
     canceledAtStep: string;
-    commit: CommitView;
+    commit: CommitView | null;
     createdAt: string;
     finishedAt: string | null;
     generation: number;
     id: string;
     message: string | null;
     noCache?: boolean;
-    release: ReleaseView;
-    releaseId: string;
-    rolledBackFrom: string;
-    serverId: string;
+    release: ReleaseView | null;
+    releaseId: string | null;
+    rolledBackFrom: string | null;
+    serverId: string | null;
     serviceId: string;
     serviceName: string;
     serviceSlug: string;
@@ -3679,7 +3680,7 @@ export type EnvDeploymentView = {
     statusMessage: string;
     strategy: 'rolling' | 'recreate' | 'route_only';
     trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook';
-    waitingFor: WaitingFor;
+    waitingFor: WaitingFor | null;
 };
 
 export type EnvGrantView = {
@@ -4193,10 +4194,7 @@ export type GeoStatus = {
 };
 
 export type GetDrainOutputBody = {
-    /**
-     * The running drain, else the newest finished one; null when the server was never drained
-     */
-    drain: DrainView;
+    drain: DrainView | null;
 };
 
 export type GitHubAppView = {
@@ -4210,7 +4208,7 @@ export type GitHubAppView = {
 export type GitLinkView = {
     autoDeploy: boolean;
     branch: string;
-    connectionId: string;
+    connectionId: string | null;
     connectionName: string;
     linked: boolean;
     provider?: 'github' | 'gitlab' | 'gitea' | 'forgejo' | 'bitbucket';
@@ -5313,7 +5311,7 @@ export type MonitorView = {
 };
 
 export type Move = {
-    deploymentId: string;
+    deploymentId: string | null;
     deploymentStatus?: string;
     environmentName: string;
     message: string;
@@ -6014,7 +6012,7 @@ export type PendingChangeCounts = {
 
 export type PlacementView = {
     activeBuilds: number;
-    buildServerId: string;
+    buildServerId: string | null;
     buildServerName: string;
     emulated: boolean;
     fallback: boolean;
@@ -6023,7 +6021,7 @@ export type PlacementView = {
     platform: string;
     reason: string;
     registryHost: string;
-    registryId: string;
+    registryId: string | null;
     reuse: boolean;
     sticky: boolean;
     warnings: Array<Warning> | null;
@@ -6033,10 +6031,10 @@ export type Plan = {
     blocking: Array<PlanBlocking> | null;
     changes: Array<FieldChange> | null;
     mesh: MeshPlan;
-    placement: PlacementView;
+    placement: PlacementView | null;
     processes: Array<PlanProcess> | null;
     reasons: Array<string> | null;
-    server: ServerRef;
+    server: ServerRef | null;
     source: PlanSource;
     strategy: 'rolling' | 'recreate' | 'route_only';
     warnings: Array<string> | null;
@@ -6103,7 +6101,7 @@ export type PlanMove = {
      * The service has volumes or is a database
      */
     stateful: boolean;
-    targetServerId: string;
+    targetServerId: string | null;
     targetServerName: string;
     warnings: Array<string> | null;
 };
@@ -6253,7 +6251,7 @@ export type PortView = {
      */
     deployed: boolean;
     port: number;
-    projectId: string;
+    projectId: string | null;
     protocol: 'tcp' | 'udp';
     serviceId: string;
     /**
@@ -6428,7 +6426,7 @@ export type ProcessView = {
     command: Array<string> | null;
     default: boolean;
     name: string;
-    observed: ObservedProcessView;
+    observed: ObservedProcessView | null;
     pending: boolean;
     port: number;
     removed: boolean;
@@ -6448,12 +6446,12 @@ export type ProductionService = {
 
 export type Project = {
     buildLocation: 'inherit' | 'target' | 'build_server';
-    buildServerId: string;
+    buildServerId: string | null;
     createdAt: string;
     description: string;
     id: string;
     name: string;
-    registryId: string;
+    registryId: string | null;
     slug: string;
     system: boolean;
     updatedAt: string;
@@ -6592,10 +6590,6 @@ export type ProviderInputBody = {
 
 export type ProvidersOutputBody = {
     providers: Array<PublicProviderBody> | null;
-};
-
-export type ProvidersOutputBody1 = {
-    items: Array<DnsProviderSpec> | null;
 };
 
 export type ProvisionInputBody = {
@@ -7238,7 +7232,7 @@ export type ReleaseConfigFieldsRequest = {
 };
 
 export type ReleaseDetailView = {
-    build: BuildInfo;
+    build: BuildInfo | null;
     config: unknown;
     createdAt: string;
     deploymentId: string;
@@ -7253,13 +7247,13 @@ export type ReleaseDetailView = {
 };
 
 export type ReleasePlacement = {
-    buildServerId: string;
+    buildServerId: string | null;
     buildServerName: string;
     platform: string;
-    registryId: string;
+    registryId: string | null;
     registryRef: string;
     strategy: string;
-    targetServerId: string;
+    targetServerId: string | null;
     targetServerName: string;
 };
 
@@ -7559,13 +7553,13 @@ export type Revealed = {
 export type RollbackView = {
     actorLabel: string;
     actorType: string;
-    build: BuildInfo;
-    buildServerId: string;
+    build: BuildInfo | null;
+    buildServerId: string | null;
     buildServerName?: string;
     cancelRequestedAt: string | null;
     cancelRequestedBy: string;
     canceledAtStep: string;
-    commit: CommitView;
+    commit: CommitView | null;
     createdAt: string;
     disclaimer: string;
     finishedAt: string | null;
@@ -7573,17 +7567,17 @@ export type RollbackView = {
     id: string;
     message: string | null;
     noCache?: boolean;
-    release: ReleaseView;
-    releaseId: string;
-    rolledBackFrom: string;
-    serverId: string;
+    release: ReleaseView | null;
+    releaseId: string | null;
+    rolledBackFrom: string | null;
+    serverId: string | null;
     serviceId: string;
     startedAt: string | null;
     status: string;
     statusMessage: string;
     strategy: 'rolling' | 'recreate' | 'route_only';
     trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook';
-    waitingFor: WaitingFor;
+    waitingFor: WaitingFor | null;
 };
 
 export type RolloutView = {
@@ -7792,7 +7786,7 @@ export type ScalingView = {
     blockedReason: string | null;
     eligible: boolean;
     ineligibleReason: string | null;
-    lastScaleEvent: ScaleEvent;
+    lastScaleEvent: ScaleEvent | null;
     ready: number;
     replicas: number;
 };
@@ -8122,7 +8116,7 @@ export type Server = {
      * Evacuation state; draining and drained servers accept no new services
      */
     drainState: 'none' | 'draining' | 'drained' | 'failed';
-    facts: Facts;
+    facts: Facts | null;
     /**
      * Count where requests come from (country, and city at the city level) from the client IP; IPs are never stored
      */
@@ -8142,7 +8136,7 @@ export type Server = {
     geoStatus?: GeoStatus;
     id: string;
     lastSeenAt: string | null;
-    latest: Latest;
+    latest: Latest | null;
     /**
      * How long resource metric history is kept (1-90)
      */
@@ -8260,7 +8254,7 @@ export type ServerMeshView = {
      * Link nodes that run on this server
      */
     links: Array<MeshLinkView> | null;
-    node: NodeView;
+    node: NodeView | null;
     paused: boolean;
     tunDevice: boolean;
 };
@@ -8540,22 +8534,22 @@ export type ServiceView = {
     appliedGeneration: number;
     config: Config;
     createdAt: string;
-    currentDeploymentId: string;
-    currentRelease: ReleaseRef;
+    currentDeploymentId: string | null;
+    currentRelease: ReleaseRef | null;
     desiredState: 'running' | 'stopped';
     domains: Array<DomainView> | null;
     environmentId: string;
     generation: number;
-    git: GitRef;
+    git: GitRef | null;
     gitTokenSet: boolean;
     hasStagedChanges: boolean;
     id: string;
     kind: 'app' | 'worker' | 'database' | 'route' | 'stack';
-    latestDeployment: DeploymentRef;
+    latestDeployment: DeploymentRef | null;
     maintenance: MaintenanceView;
     name: string;
     networks: Array<NetworkRef> | null;
-    observed: ObservedView;
+    observed: ObservedView | null;
     observedAt: string | null;
     pendingChangeCounts: PendingChangeCounts;
     privateHost: string;
@@ -8563,8 +8557,8 @@ export type ServiceView = {
     projectId: string;
     registryAuthSet: boolean;
     scaling: ScalingView;
-    server: ServerRef;
-    serverId: string;
+    server: ServerRef | null;
+    serverId: string | null;
     slug: string;
     sourceType: 'image' | 'git' | 'external' | 'compose';
     /**
@@ -8572,7 +8566,7 @@ export type ServiceView = {
      */
     stagedKind: string | null;
     stale: boolean;
-    tailnet: TailnetView;
+    tailnet: TailnetView | null;
     updatedAt: string;
     volumes: Array<VolumeRef> | null;
 };
@@ -9564,7 +9558,7 @@ export type TeamSecurityBody = {
 
 export type TeamSettings = {
     buildLocation: 'target' | 'build_server';
-    registryId: string;
+    registryId: string | null;
     updatedAt: string | null;
 };
 
@@ -11464,6 +11458,10 @@ export type GetInstanceServicesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetInstanceServicesError = GetInstanceServicesErrors[keyof GetInstanceServicesErrors];
@@ -11501,6 +11499,10 @@ export type UpdateInstanceServicesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateInstanceServicesError = UpdateInstanceServicesErrors[keyof UpdateInstanceServicesErrors];
@@ -11534,6 +11536,10 @@ export type CheckInstanceServicesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckInstanceServicesError = CheckInstanceServicesErrors[keyof CheckInstanceServicesErrors];
@@ -11581,6 +11587,10 @@ export type UpdateTeamSliceQuotaErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateTeamSliceQuotaError = UpdateTeamSliceQuotaErrors[keyof UpdateTeamSliceQuotaErrors];
@@ -11637,6 +11647,10 @@ export type PurgeTeamSliceErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PurgeTeamSliceError = PurgeTeamSliceErrors[keyof PurgeTeamSliceErrors];
@@ -11707,6 +11721,10 @@ export type GetTrafficAnalyticsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTrafficAnalyticsError = GetTrafficAnalyticsErrors[keyof GetTrafficAnalyticsErrors];
@@ -11750,6 +11768,10 @@ export type GetApprovalErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetApprovalError = GetApprovalErrors[keyof GetApprovalErrors];
@@ -11797,6 +11819,10 @@ export type ApproveApprovalErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ApproveApprovalError = ApproveApprovalErrors[keyof ApproveApprovalErrors];
@@ -11844,6 +11870,10 @@ export type DeclineApprovalErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeclineApprovalError = DeclineApprovalErrors[keyof DeclineApprovalErrors];
@@ -11902,6 +11932,10 @@ export type ListAuditEventsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListAuditEventsError = ListAuditEventsErrors[keyof ListAuditEventsErrors];
@@ -11935,6 +11969,10 @@ export type ListAuthProvidersErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListAuthProvidersError = ListAuthProvidersErrors[keyof ListAuthProvidersErrors];
@@ -11972,6 +12010,10 @@ export type CreateAuthProviderErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateAuthProviderError = CreateAuthProviderErrors[keyof CreateAuthProviderErrors];
@@ -12015,6 +12057,10 @@ export type DeleteAuthProviderErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteAuthProviderError = DeleteAuthProviderErrors[keyof DeleteAuthProviderErrors];
@@ -12058,6 +12104,10 @@ export type UpdateAuthProviderErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateAuthProviderError = UpdateAuthProviderErrors[keyof UpdateAuthProviderErrors];
@@ -12091,6 +12141,10 @@ export type GetAuthSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetAuthSettingsError = GetAuthSettingsErrors[keyof GetAuthSettingsErrors];
@@ -12128,6 +12182,10 @@ export type UpdateAuthSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateAuthSettingsError = UpdateAuthSettingsErrors[keyof UpdateAuthSettingsErrors];
@@ -12157,6 +12215,10 @@ export type GetSecondFactorMethodsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetSecondFactorMethodsError = GetSecondFactorMethodsErrors[keyof GetSecondFactorMethodsErrors];
@@ -12194,6 +12256,10 @@ export type VerifySecondFactorErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type VerifySecondFactorError = VerifySecondFactorErrors[keyof VerifySecondFactorErrors];
@@ -12234,6 +12300,10 @@ export type PasskeySecondFactorErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PasskeySecondFactorError = PasskeySecondFactorErrors[keyof PasskeySecondFactorErrors];
@@ -12271,6 +12341,10 @@ export type PasskeySecondFactorOptionsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PasskeySecondFactorOptionsError = PasskeySecondFactorOptionsErrors[keyof PasskeySecondFactorOptionsErrors];
@@ -12306,6 +12380,10 @@ export type LoginErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type LoginError = LoginErrors[keyof LoginErrors];
@@ -12406,9 +12484,22 @@ export type StartProviderLoginErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StartProviderLoginError = StartProviderLoginErrors[keyof StartProviderLoginErrors];
+
+export type StartProviderLoginResponses = {
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type StartProviderLoginResponse = StartProviderLoginResponses[keyof StartProviderLoginResponses];
 
 export type PasskeyLoginData = {
     /**
@@ -12437,6 +12528,10 @@ export type PasskeyLoginErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PasskeyLoginError = PasskeyLoginErrors[keyof PasskeyLoginErrors];
@@ -12470,6 +12565,10 @@ export type PasskeyLoginOptionsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PasskeyLoginOptionsError = PasskeyLoginOptionsErrors[keyof PasskeyLoginOptionsErrors];
@@ -12530,6 +12629,10 @@ export type CheckPasswordResetTokenErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckPasswordResetTokenError = CheckPasswordResetTokenErrors[keyof CheckPasswordResetTokenErrors];
@@ -12567,6 +12670,10 @@ export type ConfirmPasswordResetErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ConfirmPasswordResetError = ConfirmPasswordResetErrors[keyof ConfirmPasswordResetErrors];
@@ -12604,6 +12711,10 @@ export type RequestPasswordResetErrors = {
      * Service Unavailable
      */
     503: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RequestPasswordResetError = RequestPasswordResetErrors[keyof RequestPasswordResetErrors];
@@ -12662,6 +12773,10 @@ export type ListBackupDestinationsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListBackupDestinationsError = ListBackupDestinationsErrors[keyof ListBackupDestinationsErrors];
@@ -12709,6 +12824,10 @@ export type CreateBackupDestinationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateBackupDestinationError = CreateBackupDestinationErrors[keyof CreateBackupDestinationErrors];
@@ -12752,6 +12871,10 @@ export type DeleteBackupDestinationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteBackupDestinationError = DeleteBackupDestinationErrors[keyof DeleteBackupDestinationErrors];
@@ -12795,6 +12918,10 @@ export type UpdateBackupDestinationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateBackupDestinationError = UpdateBackupDestinationErrors[keyof UpdateBackupDestinationErrors];
@@ -12838,6 +12965,10 @@ export type TestBackupDestinationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestBackupDestinationError = TestBackupDestinationErrors[keyof TestBackupDestinationErrors];
@@ -12877,6 +13008,10 @@ export type GetBackupRestoreErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetBackupRestoreError = GetBackupRestoreErrors[keyof GetBackupRestoreErrors];
@@ -12916,6 +13051,10 @@ export type DeleteBackupScheduleErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteBackupScheduleError = DeleteBackupScheduleErrors[keyof DeleteBackupScheduleErrors];
@@ -12955,6 +13094,10 @@ export type UpdateBackupScheduleErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateBackupScheduleError = UpdateBackupScheduleErrors[keyof UpdateBackupScheduleErrors];
@@ -12998,6 +13141,10 @@ export type DeleteBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteBackupError = DeleteBackupErrors[keyof DeleteBackupErrors];
@@ -13037,6 +13184,10 @@ export type GetBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetBackupError = GetBackupErrors[keyof GetBackupErrors];
@@ -13076,6 +13227,10 @@ export type LockBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type LockBackupError = LockBackupErrors[keyof LockBackupErrors];
@@ -13125,6 +13280,10 @@ export type RestoreBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RestoreBackupError = RestoreBackupErrors[keyof RestoreBackupErrors];
@@ -13175,6 +13334,10 @@ export type ListCatalogTemplatesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListCatalogTemplatesError = ListCatalogTemplatesErrors[keyof ListCatalogTemplatesErrors];
@@ -13218,6 +13381,10 @@ export type GetCatalogTemplateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetCatalogTemplateError = GetCatalogTemplateErrors[keyof GetCatalogTemplateErrors];
@@ -13265,6 +13432,10 @@ export type DeleteCertificateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteCertificateError = DeleteCertificateErrors[keyof DeleteCertificateErrors];
@@ -13298,6 +13469,10 @@ export type GetCloudflareIpsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetCloudflareIpsError = GetCloudflareIpsErrors[keyof GetCloudflareIpsErrors];
@@ -13335,6 +13510,10 @@ export type RefreshCloudflareIpsErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RefreshCloudflareIpsError = RefreshCloudflareIpsErrors[keyof RefreshCloudflareIpsErrors];
@@ -13382,6 +13561,10 @@ export type GetCombineErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetCombineError = GetCombineErrors[keyof GetCombineErrors];
@@ -13435,6 +13618,10 @@ export type AbortCombineErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type AbortCombineError = AbortCombineErrors[keyof AbortCombineErrors];
@@ -13488,6 +13675,10 @@ export type RetryCombineErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RetryCombineError = RetryCombineErrors[keyof RetryCombineErrors];
@@ -13521,6 +13712,10 @@ export type ListDatabaseEnginesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListDatabaseEnginesError = ListDatabaseEnginesErrors[keyof ListDatabaseEnginesErrors];
@@ -13564,6 +13759,10 @@ export type GetDeploymentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDeploymentError = GetDeploymentErrors[keyof GetDeploymentErrors];
@@ -13617,6 +13816,10 @@ export type CancelDeploymentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CancelDeploymentError = CancelDeploymentErrors[keyof CancelDeploymentErrors];
@@ -13660,6 +13863,10 @@ export type ListDeploymentCommandsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListDeploymentCommandsError = ListDeploymentCommandsErrors[keyof ListDeploymentCommandsErrors];
@@ -13703,6 +13910,10 @@ export type ListDeploymentEventsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListDeploymentEventsError = ListDeploymentEventsErrors[keyof ListDeploymentEventsErrors];
@@ -13755,6 +13966,10 @@ export type GetDeploymentLogsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDeploymentLogsError = GetDeploymentLogsErrors[keyof GetDeploymentLogsErrors];
@@ -13817,6 +14032,10 @@ export type DownloadDeploymentLogsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DownloadDeploymentLogsError = DownloadDeploymentLogsErrors[keyof DownloadDeploymentLogsErrors];
@@ -13860,6 +14079,10 @@ export type GetDeploymentReleaseErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDeploymentReleaseError = GetDeploymentReleaseErrors[keyof GetDeploymentReleaseErrors];
@@ -13913,6 +14136,10 @@ export type RollbackDeploymentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RollbackDeploymentError = RollbackDeploymentErrors[keyof RollbackDeploymentErrors];
@@ -13955,6 +14182,10 @@ export type ListDnsCredentialsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListDnsCredentialsError = ListDnsCredentialsErrors[keyof ListDnsCredentialsErrors];
@@ -13996,6 +14227,10 @@ export type CreateDnsCredentialErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateDnsCredentialError = CreateDnsCredentialErrors[keyof CreateDnsCredentialErrors];
@@ -14039,6 +14274,10 @@ export type DeleteDnsCredentialErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteDnsCredentialError = DeleteDnsCredentialErrors[keyof DeleteDnsCredentialErrors];
@@ -14082,6 +14321,10 @@ export type UpdateDnsCredentialErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateDnsCredentialError = UpdateDnsCredentialErrors[keyof UpdateDnsCredentialErrors];
@@ -14115,6 +14358,10 @@ export type ListLegoDnsProvidersErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListLegoDnsProvidersError = ListLegoDnsProvidersErrors[keyof ListLegoDnsProvidersErrors];
@@ -14123,7 +14370,7 @@ export type ListLegoDnsProvidersResponses = {
     /**
      * OK
      */
-    200: ProvidersOutputBody;
+    200: DnsProviderList;
 };
 
 export type ListLegoDnsProvidersResponse = ListLegoDnsProvidersResponses[keyof ListLegoDnsProvidersResponses];
@@ -14148,6 +14395,10 @@ export type ListDnsProvidersErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListDnsProvidersError = ListDnsProvidersErrors[keyof ListDnsProvidersErrors];
@@ -14156,7 +14407,7 @@ export type ListDnsProvidersResponses = {
     /**
      * OK
      */
-    200: ProvidersOutputBody1;
+    200: DnsProviderList;
 };
 
 export type ListDnsProvidersResponse = ListDnsProvidersResponses[keyof ListDnsProvidersResponses];
@@ -14187,6 +14438,10 @@ export type DeleteWildcardCertErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteWildcardCertError = DeleteWildcardCertErrors[keyof DeleteWildcardCertErrors];
@@ -14226,6 +14481,10 @@ export type UpdateWildcardCertErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateWildcardCertError = UpdateWildcardCertErrors[keyof UpdateWildcardCertErrors];
@@ -14269,6 +14528,10 @@ export type DeleteDomainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteDomainError = DeleteDomainErrors[keyof DeleteDomainErrors];
@@ -14330,6 +14593,10 @@ export type UpdateDomainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateDomainError = UpdateDomainErrors[keyof UpdateDomainErrors];
@@ -14373,6 +14640,10 @@ export type SetDomainAuthUsersErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetDomainAuthUsersError = SetDomainAuthUsersErrors[keyof SetDomainAuthUsersErrors];
@@ -14417,6 +14688,10 @@ export type DeleteDomainAuthUserErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteDomainAuthUserError = DeleteDomainAuthUserErrors[keyof DeleteDomainAuthUserErrors];
@@ -14464,6 +14739,10 @@ export type GetDomainDnsErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDomainDnsError = GetDomainDnsErrors[keyof GetDomainDnsErrors];
@@ -14507,6 +14786,10 @@ export type UpdateDomainDnsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateDomainDnsError = UpdateDomainDnsErrors[keyof UpdateDomainDnsErrors];
@@ -14558,6 +14841,10 @@ export type FixDomainDnsErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type FixDomainDnsError = FixDomainDnsErrors[keyof FixDomainDnsErrors];
@@ -14601,6 +14888,10 @@ export type GetDumpRestoreErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDumpRestoreError = GetDumpRestoreErrors[keyof GetDumpRestoreErrors];
@@ -14648,6 +14939,10 @@ export type CancelDumpRestoreErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CancelDumpRestoreError = CancelDumpRestoreErrors[keyof CancelDumpRestoreErrors];
@@ -14695,6 +14990,10 @@ export type DeleteEnvironmentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteEnvironmentError = DeleteEnvironmentErrors[keyof DeleteEnvironmentErrors];
@@ -14738,6 +15037,10 @@ export type UpdateEnvironmentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateEnvironmentError = UpdateEnvironmentErrors[keyof UpdateEnvironmentErrors];
@@ -14791,6 +15094,10 @@ export type CloneEnvironmentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CloneEnvironmentError = CloneEnvironmentErrors[keyof CloneEnvironmentErrors];
@@ -14844,6 +15151,10 @@ export type ImportComposeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ImportComposeError = ImportComposeErrors[keyof ImportComposeErrors];
@@ -14887,6 +15198,10 @@ export type PlanComposeImportErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanComposeImportError = PlanComposeImportErrors[keyof PlanComposeImportErrors];
@@ -14930,6 +15245,10 @@ export type DeleteEnvironmentConfigSourceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteEnvironmentConfigSourceError = DeleteEnvironmentConfigSourceErrors[keyof DeleteEnvironmentConfigSourceErrors];
@@ -14973,6 +15292,10 @@ export type GetEnvironmentConfigSourceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetEnvironmentConfigSourceError = GetEnvironmentConfigSourceErrors[keyof GetEnvironmentConfigSourceErrors];
@@ -15016,6 +15339,10 @@ export type UpdateEnvironmentConfigSourceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateEnvironmentConfigSourceError = UpdateEnvironmentConfigSourceErrors[keyof UpdateEnvironmentConfigSourceErrors];
@@ -15059,6 +15386,10 @@ export type CheckEnvironmentConfigSourceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckEnvironmentConfigSourceError = CheckEnvironmentConfigSourceErrors[keyof CheckEnvironmentConfigSourceErrors];
@@ -15112,6 +15443,10 @@ export type CreateDatabaseErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateDatabaseError = CreateDatabaseErrors[keyof CreateDatabaseErrors];
@@ -15165,6 +15500,10 @@ export type DeployStagedErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeployStagedError = DeployStagedErrors[keyof DeployStagedErrors];
@@ -15225,6 +15564,10 @@ export type ListEnvironmentDeploymentsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListEnvironmentDeploymentsError = ListEnvironmentDeploymentsErrors[keyof ListEnvironmentDeploymentsErrors];
@@ -15273,6 +15616,10 @@ export type GetEnvironmentDeploymentsDailyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetEnvironmentDeploymentsDailyError = GetEnvironmentDeploymentsDailyErrors[keyof GetEnvironmentDeploymentsDailyErrors];
@@ -15316,6 +15663,10 @@ export type PreviewEnvTemplatesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PreviewEnvTemplatesError = PreviewEnvTemplatesErrors[keyof PreviewEnvTemplatesErrors];
@@ -15368,6 +15719,10 @@ export type PreviewLinkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PreviewLinkError = PreviewLinkErrors[keyof PreviewLinkErrors];
@@ -15411,6 +15766,10 @@ export type ListLinksErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListLinksError = ListLinksErrors[keyof ListLinksErrors];
@@ -15458,6 +15817,10 @@ export type CreateLinkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateLinkError = CreateLinkErrors[keyof CreateLinkErrors];
@@ -15515,6 +15878,10 @@ export type GetEnvironmentLogsErrors = {
      * Service Unavailable
      */
     503: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetEnvironmentLogsError = GetEnvironmentLogsErrors[keyof GetEnvironmentLogsErrors];
@@ -15597,6 +15964,10 @@ export type GetEnvironmentLogHistoryErrors = {
      * Gateway Timeout
      */
     504: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetEnvironmentLogHistoryError = GetEnvironmentLogHistoryErrors[keyof GetEnvironmentLogHistoryErrors];
@@ -15640,6 +16011,10 @@ export type GetEnvironmentMeshErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetEnvironmentMeshError = GetEnvironmentMeshErrors[keyof GetEnvironmentMeshErrors];
@@ -15687,6 +16062,10 @@ export type ReconcileEnvironmentMeshErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ReconcileEnvironmentMeshError = ReconcileEnvironmentMeshErrors[keyof ReconcileEnvironmentMeshErrors];
@@ -15740,6 +16119,10 @@ export type CreateRouteErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateRouteError = CreateRouteErrors[keyof CreateRouteErrors];
@@ -15792,6 +16175,10 @@ export type ListServicesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListServicesError = ListServicesErrors[keyof ListServicesErrors];
@@ -15845,6 +16232,10 @@ export type CreateServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateServiceError = CreateServiceErrors[keyof CreateServiceErrors];
@@ -15898,6 +16289,10 @@ export type CombineServicesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CombineServicesError = CombineServicesErrors[keyof CombineServicesErrors];
@@ -15945,6 +16340,10 @@ export type PlanCombineServicesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanCombineServicesError = PlanCombineServicesErrors[keyof PlanCombineServicesErrors];
@@ -15988,6 +16387,10 @@ export type ListEnvironmentSharedVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListEnvironmentSharedVariablesError = ListEnvironmentSharedVariablesErrors[keyof ListEnvironmentSharedVariablesErrors];
@@ -16031,6 +16434,10 @@ export type PutEnvironmentSharedVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutEnvironmentSharedVariablesError = PutEnvironmentSharedVariablesErrors[keyof PutEnvironmentSharedVariablesErrors];
@@ -16075,6 +16482,10 @@ export type DeleteEnvironmentSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteEnvironmentSharedVariableError = DeleteEnvironmentSharedVariableErrors[keyof DeleteEnvironmentSharedVariableErrors];
@@ -16119,6 +16530,10 @@ export type GetEnvironmentSharedVariableHistoryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetEnvironmentSharedVariableHistoryError = GetEnvironmentSharedVariableHistoryErrors[keyof GetEnvironmentSharedVariableHistoryErrors];
@@ -16163,6 +16578,10 @@ export type RotateEnvironmentSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RotateEnvironmentSharedVariableError = RotateEnvironmentSharedVariableErrors[keyof RotateEnvironmentSharedVariableErrors];
@@ -16207,6 +16626,10 @@ export type ShareEnvironmentSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ShareEnvironmentSharedVariableError = ShareEnvironmentSharedVariableErrors[keyof ShareEnvironmentSharedVariableErrors];
@@ -16250,6 +16673,10 @@ export type CheckStackErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckStackError = CheckStackErrors[keyof CheckStackErrors];
@@ -16293,6 +16720,10 @@ export type ListTemplateInstancesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListTemplateInstancesError = ListTemplateInstancesErrors[keyof ListTemplateInstancesErrors];
@@ -16347,6 +16778,10 @@ export type InstallTemplateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type InstallTemplateError = InstallTemplateErrors[keyof InstallTemplateErrors];
@@ -16391,6 +16826,10 @@ export type PlanTemplateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanTemplateError = PlanTemplateErrors[keyof PlanTemplateErrors];
@@ -16434,6 +16873,10 @@ export type GetEnvironmentUptimeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetEnvironmentUptimeError = GetEnvironmentUptimeErrors[keyof GetEnvironmentUptimeErrors];
@@ -16483,6 +16926,10 @@ export type GetVariableUsageErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetVariableUsageError = GetVariableUsageErrors[keyof GetVariableUsageErrors];
@@ -16516,6 +16963,10 @@ export type StreamEventsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StreamEventsError = StreamEventsErrors[keyof StreamEventsErrors];
@@ -16549,6 +17000,10 @@ export type GetFleetErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetFleetError = GetFleetErrors[keyof GetFleetErrors];
@@ -16590,6 +17045,10 @@ export type DeleteMaxMindCredentialsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteMaxMindCredentialsError = DeleteMaxMindCredentialsErrors[keyof DeleteMaxMindCredentialsErrors];
@@ -16623,6 +17082,10 @@ export type GetMaxMindCredentialsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetMaxMindCredentialsError = GetMaxMindCredentialsErrors[keyof GetMaxMindCredentialsErrors];
@@ -16660,6 +17123,10 @@ export type SetMaxMindCredentialsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetMaxMindCredentialsError = SetMaxMindCredentialsErrors[keyof SetMaxMindCredentialsErrors];
@@ -16693,6 +17160,10 @@ export type ListGitConnectionsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListGitConnectionsError = ListGitConnectionsErrors[keyof ListGitConnectionsErrors];
@@ -16734,6 +17205,10 @@ export type CreateGitConnectionErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateGitConnectionError = CreateGitConnectionErrors[keyof CreateGitConnectionErrors];
@@ -16786,6 +17261,10 @@ export type DeleteGitConnectionErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteGitConnectionError = DeleteGitConnectionErrors[keyof DeleteGitConnectionErrors];
@@ -16829,6 +17308,10 @@ export type GetGitConnectionErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetGitConnectionError = GetGitConnectionErrors[keyof GetGitConnectionErrors];
@@ -16876,6 +17359,10 @@ export type UpdateGitConnectionErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateGitConnectionError = UpdateGitConnectionErrors[keyof UpdateGitConnectionErrors];
@@ -16928,6 +17415,10 @@ export type ListGitBranchesErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListGitBranchesError = ListGitBranchesErrors[keyof ListGitBranchesErrors];
@@ -16980,6 +17471,10 @@ export type ListGitDeliveriesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListGitDeliveriesError = ListGitDeliveriesErrors[keyof ListGitDeliveriesErrors];
@@ -17023,6 +17518,10 @@ export type StartGitConnectionOAuthErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StartGitConnectionOAuthError = StartGitConnectionOAuthErrors[keyof StartGitConnectionOAuthErrors];
@@ -17066,6 +17565,10 @@ export type RefreshGitHubInstallationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RefreshGitHubInstallationError = RefreshGitHubInstallationErrors[keyof RefreshGitHubInstallationErrors];
@@ -17119,6 +17622,10 @@ export type ListGitReposErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListGitReposError = ListGitReposErrors[keyof ListGitReposErrors];
@@ -17162,6 +17669,10 @@ export type TestGitConnectionErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestGitConnectionError = TestGitConnectionErrors[keyof TestGitConnectionErrors];
@@ -17205,6 +17716,10 @@ export type RotateGitWebhookSecretErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RotateGitWebhookSecretError = RotateGitWebhookSecretErrors[keyof RotateGitWebhookSecretErrors];
@@ -17242,6 +17757,10 @@ export type StartGitHubAppManifestErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StartGitHubAppManifestError = StartGitHubAppManifestErrors[keyof StartGitHubAppManifestErrors];
@@ -17289,6 +17808,10 @@ export type ImportCoolifyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ImportCoolifyError = ImportCoolifyErrors[keyof ImportCoolifyErrors];
@@ -17326,6 +17849,10 @@ export type PlanCoolifyImportErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanCoolifyImportError = PlanCoolifyImportErrors[keyof PlanCoolifyImportErrors];
@@ -17355,6 +17882,10 @@ export type GetInstanceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetInstanceError = GetInstanceErrors[keyof GetInstanceErrors];
@@ -17392,6 +17923,10 @@ export type UpdateInstanceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateInstanceError = UpdateInstanceErrors[keyof UpdateInstanceErrors];
@@ -17425,6 +17960,10 @@ export type GetInstanceBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetInstanceBackupError = GetInstanceBackupErrors[keyof GetInstanceBackupErrors];
@@ -17462,6 +18001,10 @@ export type UpdateInstanceBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateInstanceBackupError = UpdateInstanceBackupErrors[keyof UpdateInstanceBackupErrors];
@@ -17495,6 +18038,10 @@ export type AcknowledgeInstanceBackupKeyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type AcknowledgeInstanceBackupKeyError = AcknowledgeInstanceBackupKeyErrors[keyof AcknowledgeInstanceBackupKeyErrors];
@@ -17534,6 +18081,10 @@ export type ListInstanceBackupRunsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListInstanceBackupRunsError = ListInstanceBackupRunsErrors[keyof ListInstanceBackupRunsErrors];
@@ -17581,6 +18132,10 @@ export type RunInstanceBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RunInstanceBackupError = RunInstanceBackupErrors[keyof RunInstanceBackupErrors];
@@ -17618,6 +18173,10 @@ export type TestInstanceBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestInstanceBackupError = TestInstanceBackupErrors[keyof TestInstanceBackupErrors];
@@ -17651,6 +18210,10 @@ export type GetDashboardAccessErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDashboardAccessError = GetDashboardAccessErrors[keyof GetDashboardAccessErrors];
@@ -17692,6 +18255,10 @@ export type UpdateDashboardAccessErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateDashboardAccessError = UpdateDashboardAccessErrors[keyof UpdateDashboardAccessErrors];
@@ -17725,6 +18292,10 @@ export type GetDockerOptionsPolicyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDockerOptionsPolicyError = GetDockerOptionsPolicyErrors[keyof GetDockerOptionsPolicyErrors];
@@ -17762,6 +18333,10 @@ export type TestAuthProviderErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestAuthProviderError = TestAuthProviderErrors[keyof TestAuthProviderErrors];
@@ -17799,6 +18374,10 @@ export type GetInstanceUpgradeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetInstanceUpgradeError = GetInstanceUpgradeErrors[keyof GetInstanceUpgradeErrors];
@@ -17840,6 +18419,10 @@ export type UpdateInstanceUpgradeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateInstanceUpgradeError = UpdateInstanceUpgradeErrors[keyof UpdateInstanceUpgradeErrors];
@@ -17894,6 +18477,10 @@ export type DeleteCloudflareIntegrationErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteCloudflareIntegrationError = DeleteCloudflareIntegrationErrors[keyof DeleteCloudflareIntegrationErrors];
@@ -17927,6 +18514,10 @@ export type GetCloudflareIntegrationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetCloudflareIntegrationError = GetCloudflareIntegrationErrors[keyof GetCloudflareIntegrationErrors];
@@ -17968,6 +18559,10 @@ export type PutCloudflareIntegrationErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutCloudflareIntegrationError = PutCloudflareIntegrationErrors[keyof PutCloudflareIntegrationErrors];
@@ -18013,6 +18608,10 @@ export type TestCloudflareIntegrationErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestCloudflareIntegrationError = TestCloudflareIntegrationErrors[keyof TestCloudflareIntegrationErrors];
@@ -18046,6 +18645,10 @@ export type ListCloudflareZonesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListCloudflareZonesError = ListCloudflareZonesErrors[keyof ListCloudflareZonesErrors];
@@ -18087,6 +18690,10 @@ export type DeleteTailscaleIntegrationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteTailscaleIntegrationError = DeleteTailscaleIntegrationErrors[keyof DeleteTailscaleIntegrationErrors];
@@ -18120,6 +18727,10 @@ export type GetTailscaleIntegrationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTailscaleIntegrationError = GetTailscaleIntegrationErrors[keyof GetTailscaleIntegrationErrors];
@@ -18157,6 +18768,10 @@ export type PutTailscaleIntegrationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutTailscaleIntegrationError = PutTailscaleIntegrationErrors[keyof PutTailscaleIntegrationErrors];
@@ -18198,6 +18813,10 @@ export type ListTailscaleDevicesErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListTailscaleDevicesError = ListTailscaleDevicesErrors[keyof ListTailscaleDevicesErrors];
@@ -18235,6 +18854,10 @@ export type TestTailscaleIntegrationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestTailscaleIntegrationError = TestTailscaleIntegrationErrors[keyof TestTailscaleIntegrationErrors];
@@ -18278,6 +18901,10 @@ export type PreviewInviteErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PreviewInviteError = PreviewInviteErrors[keyof PreviewInviteErrors];
@@ -18332,6 +18959,10 @@ export type AcceptInviteErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type AcceptInviteError = AcceptInviteErrors[keyof AcceptInviteErrors];
@@ -18378,6 +19009,10 @@ export type DeleteLinkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteLinkError = DeleteLinkErrors[keyof DeleteLinkErrors];
@@ -18411,6 +19046,10 @@ export type ListLogDrainsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListLogDrainsError = ListLogDrainsErrors[keyof ListLogDrainsErrors];
@@ -18452,6 +19091,10 @@ export type CreateLogDrainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateLogDrainError = CreateLogDrainErrors[keyof CreateLogDrainErrors];
@@ -18495,6 +19138,10 @@ export type DeleteLogDrainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteLogDrainError = DeleteLogDrainErrors[keyof DeleteLogDrainErrors];
@@ -18534,6 +19181,10 @@ export type GetLogDrainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetLogDrainError = GetLogDrainErrors[keyof GetLogDrainErrors];
@@ -18577,6 +19228,10 @@ export type UpdateLogDrainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateLogDrainError = UpdateLogDrainErrors[keyof UpdateLogDrainErrors];
@@ -18628,6 +19283,10 @@ export type TestLogDrainErrors = {
      * Gateway Timeout
      */
     504: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestLogDrainError = TestLogDrainErrors[keyof TestLogDrainErrors];
@@ -18686,6 +19345,10 @@ export type ListMaintenanceWindowsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListMaintenanceWindowsError = ListMaintenanceWindowsErrors[keyof ListMaintenanceWindowsErrors];
@@ -18737,6 +19400,10 @@ export type CreateMaintenanceWindowErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateMaintenanceWindowError = CreateMaintenanceWindowErrors[keyof CreateMaintenanceWindowErrors];
@@ -18776,6 +19443,10 @@ export type DeleteMaintenanceWindowErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteMaintenanceWindowError = DeleteMaintenanceWindowErrors[keyof DeleteMaintenanceWindowErrors];
@@ -18815,6 +19486,10 @@ export type GetMaintenanceWindowErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetMaintenanceWindowError = GetMaintenanceWindowErrors[keyof GetMaintenanceWindowErrors];
@@ -18862,6 +19537,10 @@ export type UpdateMaintenanceWindowErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateMaintenanceWindowError = UpdateMaintenanceWindowErrors[keyof UpdateMaintenanceWindowErrors];
@@ -18909,6 +19588,10 @@ export type CancelMaintenanceWindowErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CancelMaintenanceWindowError = CancelMaintenanceWindowErrors[keyof CancelMaintenanceWindowErrors];
@@ -18938,6 +19621,10 @@ export type GetMeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetMeError = GetMeErrors[keyof GetMeErrors];
@@ -18975,6 +19662,10 @@ export type UpdateMeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateMeError = UpdateMeErrors[keyof UpdateMeErrors];
@@ -19020,6 +19711,10 @@ export type DisableTotpErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DisableTotpError = DisableTotpErrors[keyof DisableTotpErrors];
@@ -19061,6 +19756,10 @@ export type EnableTotpErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type EnableTotpError = EnableTotpErrors[keyof EnableTotpErrors];
@@ -19106,6 +19805,10 @@ export type RegenerateRecoveryCodesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RegenerateRecoveryCodesError = RegenerateRecoveryCodesErrors[keyof RegenerateRecoveryCodesErrors];
@@ -19143,6 +19846,10 @@ export type StartTotpEnrolmentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StartTotpEnrolmentError = StartTotpEnrolmentErrors[keyof StartTotpEnrolmentErrors];
@@ -19188,6 +19895,10 @@ export type StartIdentityLinkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StartIdentityLinkError = StartIdentityLinkErrors[keyof StartIdentityLinkErrors];
@@ -19235,6 +19946,10 @@ export type UnlinkIdentityErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UnlinkIdentityError = UnlinkIdentityErrors[keyof UnlinkIdentityErrors];
@@ -19268,6 +19983,10 @@ export type ListPasskeysErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListPasskeysError = ListPasskeysErrors[keyof ListPasskeysErrors];
@@ -19309,6 +20028,10 @@ export type FinishPasskeyRegistrationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type FinishPasskeyRegistrationError = FinishPasskeyRegistrationErrors[keyof FinishPasskeyRegistrationErrors];
@@ -19354,6 +20077,10 @@ export type StartPasskeyRegistrationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StartPasskeyRegistrationError = StartPasskeyRegistrationErrors[keyof StartPasskeyRegistrationErrors];
@@ -19403,6 +20130,10 @@ export type DeletePasskeyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeletePasskeyError = DeletePasskeyErrors[keyof DeletePasskeyErrors];
@@ -19446,6 +20177,10 @@ export type RenamePasskeyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RenamePasskeyError = RenamePasskeyErrors[keyof RenamePasskeyErrors];
@@ -19487,6 +20222,10 @@ export type ChangePasswordErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ChangePasswordError = ChangePasswordErrors[keyof ChangePasswordErrors];
@@ -19520,6 +20259,10 @@ export type GetMySecurityErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetMySecurityError = GetMySecurityErrors[keyof GetMySecurityErrors];
@@ -19557,6 +20300,10 @@ export type GetMeshErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetMeshError = GetMeshErrors[keyof GetMeshErrors];
@@ -19598,6 +20345,10 @@ export type ApplyMeshAclErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ApplyMeshAclError = ApplyMeshAclErrors[keyof ApplyMeshAclErrors];
@@ -19635,6 +20386,10 @@ export type CheckMeshAclErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckMeshAclError = CheckMeshAclErrors[keyof CheckMeshAclErrors];
@@ -19672,6 +20427,10 @@ export type PreviewMeshAclErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PreviewMeshAclError = PreviewMeshAclErrors[keyof PreviewMeshAclErrors];
@@ -19721,6 +20480,10 @@ export type ReprovisionMeshLinkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ReprovisionMeshLinkError = ReprovisionMeshLinkErrors[keyof ReprovisionMeshLinkErrors];
@@ -19762,6 +20525,10 @@ export type UpdateMeshSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateMeshSettingsError = UpdateMeshSettingsErrors[keyof UpdateMeshSettingsErrors];
@@ -19804,6 +20571,10 @@ export type ListNetworksErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListNetworksError = ListNetworksErrors[keyof ListNetworksErrors];
@@ -19851,6 +20622,10 @@ export type CreateNetworkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateNetworkError = CreateNetworkErrors[keyof CreateNetworkErrors];
@@ -19894,6 +20669,10 @@ export type DeleteNetworkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteNetworkError = DeleteNetworkErrors[keyof DeleteNetworkErrors];
@@ -19933,6 +20712,10 @@ export type GetNetworkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetNetworkError = GetNetworkErrors[keyof GetNetworkErrors];
@@ -19966,6 +20749,10 @@ export type GetServiceAlertSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceAlertSettingsError = GetServiceAlertSettingsErrors[keyof GetServiceAlertSettingsErrors];
@@ -20003,6 +20790,10 @@ export type UpdateServiceAlertSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateServiceAlertSettingsError = UpdateServiceAlertSettingsErrors[keyof UpdateServiceAlertSettingsErrors];
@@ -20036,6 +20827,10 @@ export type ListNotificationChannelsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListNotificationChannelsError = ListNotificationChannelsErrors[keyof ListNotificationChannelsErrors];
@@ -20077,6 +20872,10 @@ export type CreateNotificationChannelErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateNotificationChannelError = CreateNotificationChannelErrors[keyof CreateNotificationChannelErrors];
@@ -20116,6 +20915,10 @@ export type DeleteNotificationChannelErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteNotificationChannelError = DeleteNotificationChannelErrors[keyof DeleteNotificationChannelErrors];
@@ -20155,6 +20958,10 @@ export type GetNotificationChannelErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetNotificationChannelError = GetNotificationChannelErrors[keyof GetNotificationChannelErrors];
@@ -20198,6 +21005,10 @@ export type UpdateNotificationChannelErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateNotificationChannelError = UpdateNotificationChannelErrors[keyof UpdateNotificationChannelErrors];
@@ -20250,6 +21061,10 @@ export type ListNotificationDeliveriesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListNotificationDeliveriesError = ListNotificationDeliveriesErrors[keyof ListNotificationDeliveriesErrors];
@@ -20289,6 +21104,10 @@ export type RotateNotificationChannelSecretErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RotateNotificationChannelSecretError = RotateNotificationChannelSecretErrors[keyof RotateNotificationChannelSecretErrors];
@@ -20328,6 +21147,10 @@ export type TestNotificationChannelErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestNotificationChannelError = TestNotificationChannelErrors[keyof TestNotificationChannelErrors];
@@ -20361,6 +21184,10 @@ export type ListNotificationEventTypesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListNotificationEventTypesError = ListNotificationEventTypesErrors[keyof ListNotificationEventTypesErrors];
@@ -20394,6 +21221,10 @@ export type ListPlatformServicesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListPlatformServicesError = ListPlatformServicesErrors[keyof ListPlatformServicesErrors];
@@ -20435,6 +21266,10 @@ export type CreatePlatformServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreatePlatformServiceError = CreatePlatformServiceErrors[keyof CreatePlatformServiceErrors];
@@ -20491,6 +21326,10 @@ export type DeletePlatformServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeletePlatformServiceError = DeletePlatformServiceErrors[keyof DeletePlatformServiceErrors];
@@ -20534,6 +21373,10 @@ export type GetPlatformServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetPlatformServiceError = GetPlatformServiceErrors[keyof GetPlatformServiceErrors];
@@ -20581,6 +21424,10 @@ export type ReconnectPlatformServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ReconnectPlatformServiceError = ReconnectPlatformServiceErrors[keyof ReconnectPlatformServiceErrors];
@@ -20628,6 +21475,10 @@ export type RetryPlatformServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RetryPlatformServiceError = RetryPlatformServiceErrors[keyof RetryPlatformServiceErrors];
@@ -20671,6 +21522,10 @@ export type DeletePreviewErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeletePreviewError = DeletePreviewErrors[keyof DeletePreviewErrors];
@@ -20717,6 +21572,10 @@ export type ListProjectsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListProjectsError = ListProjectsErrors[keyof ListProjectsErrors];
@@ -20764,6 +21623,10 @@ export type CreateProjectErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateProjectError = CreateProjectErrors[keyof CreateProjectErrors];
@@ -20820,6 +21683,10 @@ export type DeleteProjectErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteProjectError = DeleteProjectErrors[keyof DeleteProjectErrors];
@@ -20863,6 +21730,10 @@ export type GetProjectErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetProjectError = GetProjectErrors[keyof GetProjectErrors];
@@ -20906,6 +21777,10 @@ export type UpdateProjectErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateProjectError = UpdateProjectErrors[keyof UpdateProjectErrors];
@@ -20959,11 +21834,19 @@ export type ApplyProjectConfigErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ApplyProjectConfigError = ApplyProjectConfigErrors[keyof ApplyProjectConfigErrors];
 
 export type ApplyProjectConfigResponses = {
+    /**
+     * Nothing new was written (`noop`), or steps failed (`failed`)
+     */
+    200: ConfigApplyResult;
     /**
      * Created
      */
@@ -21015,6 +21898,10 @@ export type ExportProjectConfigErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ExportProjectConfigError = ExportProjectConfigErrors[keyof ExportProjectConfigErrors];
@@ -21058,6 +21945,10 @@ export type PlanProjectConfigErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanProjectConfigError = PlanProjectConfigErrors[keyof PlanProjectConfigErrors];
@@ -21101,6 +21992,10 @@ export type ValidateProjectConfigErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ValidateProjectConfigError = ValidateProjectConfigErrors[keyof ValidateProjectConfigErrors];
@@ -21144,6 +22039,10 @@ export type GetProjectDeletionPlanErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetProjectDeletionPlanError = GetProjectDeletionPlanErrors[keyof GetProjectDeletionPlanErrors];
@@ -21187,6 +22086,10 @@ export type ListEnvironmentsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListEnvironmentsError = ListEnvironmentsErrors[keyof ListEnvironmentsErrors];
@@ -21240,6 +22143,10 @@ export type CreateEnvironmentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateEnvironmentError = CreateEnvironmentErrors[keyof CreateEnvironmentErrors];
@@ -21284,6 +22191,10 @@ export type GetCanvasErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetCanvasError = GetCanvasErrors[keyof GetCanvasErrors];
@@ -21342,6 +22253,10 @@ export type PutCanvasErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutCanvasError = PutCanvasErrors[keyof PutCanvasErrors];
@@ -21385,6 +22300,10 @@ export type ListPreviewsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListPreviewsError = ListPreviewsErrors[keyof ListPreviewsErrors];
@@ -21428,6 +22347,10 @@ export type GetPreviewSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetPreviewSettingsError = GetPreviewSettingsErrors[keyof GetPreviewSettingsErrors];
@@ -21471,6 +22394,10 @@ export type UpdatePreviewSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdatePreviewSettingsError = UpdatePreviewSettingsErrors[keyof UpdatePreviewSettingsErrors];
@@ -21514,6 +22441,10 @@ export type ListProjectSharedVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListProjectSharedVariablesError = ListProjectSharedVariablesErrors[keyof ListProjectSharedVariablesErrors];
@@ -21557,6 +22488,10 @@ export type PutProjectSharedVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutProjectSharedVariablesError = PutProjectSharedVariablesErrors[keyof PutProjectSharedVariablesErrors];
@@ -21601,6 +22536,10 @@ export type DeleteProjectSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteProjectSharedVariableError = DeleteProjectSharedVariableErrors[keyof DeleteProjectSharedVariableErrors];
@@ -21645,6 +22584,10 @@ export type GetProjectSharedVariableHistoryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetProjectSharedVariableHistoryError = GetProjectSharedVariableHistoryErrors[keyof GetProjectSharedVariableHistoryErrors];
@@ -21689,6 +22632,10 @@ export type RotateProjectSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RotateProjectSharedVariableError = RotateProjectSharedVariableErrors[keyof RotateProjectSharedVariableErrors];
@@ -21733,6 +22680,10 @@ export type ShareProjectSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ShareProjectSharedVariableError = ShareProjectSharedVariableErrors[keyof ShareProjectSharedVariableErrors];
@@ -21776,6 +22727,10 @@ export type GetTerminalSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTerminalSettingsError = GetTerminalSettingsErrors[keyof GetTerminalSettingsErrors];
@@ -21819,6 +22774,10 @@ export type SetTerminalSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetTerminalSettingsError = SetTerminalSettingsErrors[keyof SetTerminalSettingsErrors];
@@ -21852,6 +22811,10 @@ export type ListRegistriesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListRegistriesError = ListRegistriesErrors[keyof ListRegistriesErrors];
@@ -21899,6 +22862,10 @@ export type CreateRegistryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateRegistryError = CreateRegistryErrors[keyof CreateRegistryErrors];
@@ -21946,6 +22913,10 @@ export type DeleteRegistryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteRegistryError = DeleteRegistryErrors[keyof DeleteRegistryErrors];
@@ -21989,6 +22960,10 @@ export type GetRegistryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetRegistryError = GetRegistryErrors[keyof GetRegistryErrors];
@@ -22036,6 +23011,10 @@ export type UpdateRegistryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateRegistryError = UpdateRegistryErrors[keyof UpdateRegistryErrors];
@@ -22088,6 +23067,10 @@ export type CheckRegistryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckRegistryError = CheckRegistryErrors[keyof CheckRegistryErrors];
@@ -22145,6 +23128,10 @@ export type ListRegistryImagesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListRegistryImagesError = ListRegistryImagesErrors[keyof ListRegistryImagesErrors];
@@ -22192,6 +23179,10 @@ export type DeleteRetiredVolumeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteRetiredVolumeError = DeleteRetiredVolumeErrors[keyof DeleteRetiredVolumeErrors];
@@ -22237,6 +23228,10 @@ export type DeleteRouteErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteRouteError = DeleteRouteErrors[keyof DeleteRouteErrors];
@@ -22280,6 +23275,10 @@ export type GetRouteErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetRouteError = GetRouteErrors[keyof GetRouteErrors];
@@ -22341,6 +23340,10 @@ export type UpdateRouteErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateRouteError = UpdateRouteErrors[keyof UpdateRouteErrors];
@@ -22374,6 +23377,10 @@ export type ListSecretManagersErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListSecretManagersError = ListSecretManagersErrors[keyof ListSecretManagersErrors];
@@ -22419,6 +23426,10 @@ export type CreateSecretManagerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateSecretManagerError = CreateSecretManagerErrors[keyof CreateSecretManagerErrors];
@@ -22466,6 +23477,10 @@ export type DeleteSecretManagerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteSecretManagerError = DeleteSecretManagerErrors[keyof DeleteSecretManagerErrors];
@@ -22509,6 +23524,10 @@ export type UpdateSecretManagerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateSecretManagerError = UpdateSecretManagerErrors[keyof UpdateSecretManagerErrors];
@@ -22552,6 +23571,10 @@ export type TestSecretManagerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestSecretManagerError = TestSecretManagerErrors[keyof TestSecretManagerErrors];
@@ -22598,6 +23621,10 @@ export type ListServersErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListServersError = ListServersErrors[keyof ListServersErrors];
@@ -22649,6 +23676,10 @@ export type UpgradeServerAgentsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpgradeServerAgentsError = UpgradeServerAgentsErrors[keyof UpgradeServerAgentsErrors];
@@ -22692,6 +23723,10 @@ export type CreateEnrollmentTokenErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateEnrollmentTokenError = CreateEnrollmentTokenErrors[keyof CreateEnrollmentTokenErrors];
@@ -22748,6 +23783,10 @@ export type RemoveServerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RemoveServerError = RemoveServerErrors[keyof RemoveServerErrors];
@@ -22757,6 +23796,10 @@ export type RemoveServerResponses = {
      * OK
      */
     200: ServerRemoval;
+    /**
+     * The host is being cleaned; the server shows its `removal` state until it is deleted
+     */
+    202: ServerRemoval;
 };
 
 export type RemoveServerResponse = RemoveServerResponses[keyof RemoveServerResponses];
@@ -22791,6 +23834,10 @@ export type GetServerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerError = GetServerErrors[keyof GetServerErrors];
@@ -22834,6 +23881,10 @@ export type UpdateServerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateServerError = UpdateServerErrors[keyof UpdateServerErrors];
@@ -22887,6 +23938,10 @@ export type UpgradeServerAgentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpgradeServerAgentError = UpgradeServerAgentErrors[keyof UpgradeServerAgentErrors];
@@ -22947,6 +24002,10 @@ export type GetServerAnalyticsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerAnalyticsError = GetServerAnalyticsErrors[keyof GetServerAnalyticsErrors];
@@ -22990,6 +24049,10 @@ export type ListCertificatesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListCertificatesError = ListCertificatesErrors[keyof ListCertificatesErrors];
@@ -23043,6 +24106,10 @@ export type UploadCertificateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UploadCertificateError = UploadCertificateErrors[keyof UploadCertificateErrors];
@@ -23086,6 +24153,10 @@ export type GetServerCleanupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerCleanupError = GetServerCleanupErrors[keyof GetServerCleanupErrors];
@@ -23129,6 +24200,10 @@ export type UpdateServerCleanupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateServerCleanupError = UpdateServerCleanupErrors[keyof UpdateServerCleanupErrors];
@@ -23182,6 +24257,10 @@ export type RunServerCleanupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RunServerCleanupError = RunServerCleanupErrors[keyof RunServerCleanupErrors];
@@ -23239,6 +24318,10 @@ export type PruneServerVolumesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PruneServerVolumesError = PruneServerVolumesErrors[keyof PruneServerVolumesErrors];
@@ -23278,6 +24361,10 @@ export type GetServerDns01Errors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerDns01Error = GetServerDns01Errors[keyof GetServerDns01Errors];
@@ -23322,6 +24409,10 @@ export type DeleteServerDns01ResolverErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteServerDns01ResolverError = DeleteServerDns01ResolverErrors[keyof DeleteServerDns01ResolverErrors];
@@ -23362,6 +24453,10 @@ export type SetServerDns01ResolverErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetServerDns01ResolverError = SetServerDns01ResolverErrors[keyof SetServerDns01ResolverErrors];
@@ -23405,6 +24500,10 @@ export type CreateServerWildcardCertErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateServerWildcardCertError = CreateServerWildcardCertErrors[keyof CreateServerWildcardCertErrors];
@@ -23448,6 +24547,10 @@ export type GetServerDrainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerDrainError = GetServerDrainErrors[keyof GetServerDrainErrors];
@@ -23501,6 +24604,10 @@ export type StartServerDrainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StartServerDrainError = StartServerDrainErrors[keyof StartServerDrainErrors];
@@ -23548,6 +24655,10 @@ export type CancelServerDrainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CancelServerDrainError = CancelServerDrainErrors[keyof CancelServerDrainErrors];
@@ -23591,6 +24702,10 @@ export type PlanServerDrainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanServerDrainError = PlanServerDrainErrors[keyof PlanServerDrainErrors];
@@ -23644,6 +24759,10 @@ export type ReissueEnrollmentTokenErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ReissueEnrollmentTokenError = ReissueEnrollmentTokenErrors[keyof ReissueEnrollmentTokenErrors];
@@ -23687,6 +24806,10 @@ export type GetServerHardeningErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerHardeningError = GetServerHardeningErrors[keyof GetServerHardeningErrors];
@@ -23730,6 +24853,10 @@ export type UpdateServerHardeningErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateServerHardeningError = UpdateServerHardeningErrors[keyof UpdateServerHardeningErrors];
@@ -23787,6 +24914,10 @@ export type ApplyServerHardeningErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ApplyServerHardeningError = ApplyServerHardeningErrors[keyof ApplyServerHardeningErrors];
@@ -23844,6 +24975,10 @@ export type RunServerHardeningAuditErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RunServerHardeningAuditError = RunServerHardeningAuditErrors[keyof RunServerHardeningAuditErrors];
@@ -23901,6 +25036,10 @@ export type RollbackServerHardeningErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RollbackServerHardeningError = RollbackServerHardeningErrors[keyof RollbackServerHardeningErrors];
@@ -23944,6 +25083,10 @@ export type GetServerHostShellErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerHostShellError = GetServerHostShellErrors[keyof GetServerHostShellErrors];
@@ -23987,6 +25130,10 @@ export type SetServerHostShellErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetServerHostShellError = SetServerHostShellErrors[keyof SetServerHostShellErrors];
@@ -24026,6 +25173,10 @@ export type GetServerLogSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerLogSettingsError = GetServerLogSettingsErrors[keyof GetServerLogSettingsErrors];
@@ -24065,6 +25216,10 @@ export type UpdateServerLogSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateServerLogSettingsError = UpdateServerLogSettingsErrors[keyof UpdateServerLogSettingsErrors];
@@ -24108,6 +25263,10 @@ export type GetServerMeshErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerMeshError = GetServerMeshErrors[keyof GetServerMeshErrors];
@@ -24162,11 +25321,19 @@ export type SetServerMeshErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetServerMeshError = SetServerMeshErrors[keyof SetServerMeshErrors];
 
 export type SetServerMeshResponses = {
+    /**
+     * The plan of a dry run; nothing was changed
+     */
+    200: ServerMeshResult;
     /**
      * Accepted
      */
@@ -24205,6 +25372,10 @@ export type CheckServerMeshErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckServerMeshError = CheckServerMeshErrors[keyof CheckServerMeshErrors];
@@ -24254,6 +25425,10 @@ export type ReprovisionServerMeshErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ReprovisionServerMeshError = ReprovisionServerMeshErrors[keyof ReprovisionServerMeshErrors];
@@ -24302,6 +25477,10 @@ export type GetServerMetricsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerMetricsError = GetServerMetricsErrors[keyof GetServerMetricsErrors];
@@ -24345,6 +25524,10 @@ export type GetServerPatchesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerPatchesError = GetServerPatchesErrors[keyof GetServerPatchesErrors];
@@ -24402,6 +25585,10 @@ export type ApplyServerPatchesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ApplyServerPatchesError = ApplyServerPatchesErrors[keyof ApplyServerPatchesErrors];
@@ -24459,6 +25646,10 @@ export type CheckServerPatchesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckServerPatchesError = CheckServerPatchesErrors[keyof CheckServerPatchesErrors];
@@ -24507,6 +25698,10 @@ export type PlanServerPatchesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanServerPatchesError = PlanServerPatchesErrors[keyof PlanServerPatchesErrors];
@@ -24564,6 +25759,10 @@ export type RebootServerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RebootServerError = RebootServerErrors[keyof RebootServerErrors];
@@ -24608,6 +25807,10 @@ export type GetServerPatchRunErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerPatchRunError = GetServerPatchRunErrors[keyof GetServerPatchRunErrors];
@@ -24651,6 +25854,10 @@ export type ListServerPortsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListServerPortsError = ListServerPortsErrors[keyof ListServerPortsErrors];
@@ -24694,6 +25901,10 @@ export type GetServerProxyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerProxyError = GetServerProxyErrors[keyof GetServerProxyErrors];
@@ -24747,6 +25958,10 @@ export type DeployServerProxyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeployServerProxyError = DeployServerProxyErrors[keyof DeployServerProxyErrors];
@@ -24790,6 +26005,10 @@ export type PlanServerProxyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanServerProxyError = PlanServerProxyErrors[keyof PlanServerProxyErrors];
@@ -24833,6 +26052,10 @@ export type ListServerProxyRoutesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListServerProxyRoutesError = ListServerProxyRoutesErrors[keyof ListServerProxyRoutesErrors];
@@ -24876,6 +26099,10 @@ export type UpdateServerProxySettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateServerProxySettingsError = UpdateServerProxySettingsErrors[keyof UpdateServerProxySettingsErrors];
@@ -24929,6 +26156,10 @@ export type ReprovisionServerTailnetErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ReprovisionServerTailnetError = ReprovisionServerTailnetErrors[keyof ReprovisionServerTailnetErrors];
@@ -24972,6 +26203,10 @@ export type RevokeServerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RevokeServerError = RevokeServerErrors[keyof RevokeServerErrors];
@@ -25020,6 +26255,10 @@ export type DisableServerTunnelErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DisableServerTunnelError = DisableServerTunnelErrors[keyof DisableServerTunnelErrors];
@@ -25063,6 +26302,10 @@ export type GetServerTunnelErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerTunnelError = GetServerTunnelErrors[keyof GetServerTunnelErrors];
@@ -25120,6 +26363,10 @@ export type EnableServerTunnelErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type EnableServerTunnelError = EnableServerTunnelErrors[keyof EnableServerTunnelErrors];
@@ -25177,6 +26424,10 @@ export type ResyncServerTunnelErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ResyncServerTunnelError = ResyncServerTunnelErrors[keyof ResyncServerTunnelErrors];
@@ -25224,6 +26475,10 @@ export type UndrainServerErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UndrainServerError = UndrainServerErrors[keyof UndrainServerErrors];
@@ -25267,6 +26522,10 @@ export type GetServerUnrestrictedErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServerUnrestrictedError = GetServerUnrestrictedErrors[keyof GetServerUnrestrictedErrors];
@@ -25310,6 +26569,10 @@ export type SetServerUnrestrictedErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetServerUnrestrictedError = SetServerUnrestrictedErrors[keyof SetServerUnrestrictedErrors];
@@ -25366,6 +26629,10 @@ export type DeleteServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteServiceError = DeleteServiceErrors[keyof DeleteServiceErrors];
@@ -25409,6 +26676,10 @@ export type GetServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceError = GetServiceErrors[keyof GetServiceErrors];
@@ -25466,6 +26737,10 @@ export type UpdateServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateServiceError = UpdateServiceErrors[keyof UpdateServiceErrors];
@@ -25526,6 +26801,10 @@ export type GetServiceAnalyticsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceAnalyticsError = GetServiceAnalyticsErrors[keyof GetServiceAnalyticsErrors];
@@ -25565,6 +26844,10 @@ export type ListBackupRestoresErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListBackupRestoresError = ListBackupRestoresErrors[keyof ListBackupRestoresErrors];
@@ -25604,6 +26887,10 @@ export type ListBackupSchedulesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListBackupSchedulesError = ListBackupSchedulesErrors[keyof ListBackupSchedulesErrors];
@@ -25649,6 +26936,10 @@ export type CreateBackupScheduleErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateBackupScheduleError = CreateBackupScheduleErrors[keyof CreateBackupScheduleErrors];
@@ -25690,6 +26981,10 @@ export type ListBackupsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListBackupsError = ListBackupsErrors[keyof ListBackupsErrors];
@@ -25739,6 +27034,10 @@ export type CreateBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateBackupError = CreateBackupErrors[keyof CreateBackupErrors];
@@ -25790,6 +27089,10 @@ export type PreviewBuildPlanErrors = {
      * Gateway Timeout
      */
     504: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PreviewBuildPlanError = PreviewBuildPlanErrors[keyof PreviewBuildPlanErrors];
@@ -25843,6 +27146,10 @@ export type CloneServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CloneServiceError = CloneServiceErrors[keyof CloneServiceErrors];
@@ -25886,6 +27193,10 @@ export type GetServiceConfigSourceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceConfigSourceError = GetServiceConfigSourceErrors[keyof GetServiceConfigSourceErrors];
@@ -25929,6 +27240,10 @@ export type ReleaseServiceConfigFieldsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ReleaseServiceConfigFieldsError = ReleaseServiceConfigFieldsErrors[keyof ReleaseServiceConfigFieldsErrors];
@@ -25976,6 +27291,10 @@ export type GetDatabaseErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDatabaseError = GetDatabaseErrors[keyof GetDatabaseErrors];
@@ -26029,11 +27348,19 @@ export type PromoteDatabaseReplicaErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PromoteDatabaseReplicaError = PromoteDatabaseReplicaErrors[keyof PromoteDatabaseReplicaErrors];
 
 export type PromoteDatabaseReplicaResponses = {
+    /**
+     * The plan of a promotion dry run; nothing was changed
+     */
+    200: PromoteResult;
     /**
      * Accepted
      */
@@ -26076,6 +27403,10 @@ export type DisableDatabasePublicPortErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DisableDatabasePublicPortError = DisableDatabasePublicPortErrors[keyof DisableDatabasePublicPortErrors];
@@ -26123,6 +27454,10 @@ export type GetDatabasePublicPortErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDatabasePublicPortError = GetDatabasePublicPortErrors[keyof GetDatabasePublicPortErrors];
@@ -26170,6 +27505,10 @@ export type SetDatabasePublicPortErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetDatabasePublicPortError = SetDatabasePublicPortErrors[keyof SetDatabasePublicPortErrors];
@@ -26217,6 +27556,10 @@ export type RevealDatabasePublicConnectionErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RevealDatabasePublicConnectionError = RevealDatabasePublicConnectionErrors[keyof RevealDatabasePublicConnectionErrors];
@@ -26270,6 +27613,10 @@ export type RebuildDatabaseReplicaErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RebuildDatabaseReplicaError = RebuildDatabaseReplicaErrors[keyof RebuildDatabaseReplicaErrors];
@@ -26317,6 +27664,10 @@ export type RefreshDatabaseErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RefreshDatabaseError = RefreshDatabaseErrors[keyof RefreshDatabaseErrors];
@@ -26370,6 +27721,10 @@ export type RemoveDatabaseReplicaErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RemoveDatabaseReplicaError = RemoveDatabaseReplicaErrors[keyof RemoveDatabaseReplicaErrors];
@@ -26423,11 +27778,19 @@ export type AddDatabaseReplicaErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type AddDatabaseReplicaError = AddDatabaseReplicaErrors[keyof AddDatabaseReplicaErrors];
 
 export type AddDatabaseReplicaResponses = {
+    /**
+     * The plan of a dry run; no replica was created
+     */
+    200: AddReplicaResult;
     /**
      * Accepted
      */
@@ -26470,6 +27833,10 @@ export type GetDatabaseReplicationErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDatabaseReplicationError = GetDatabaseReplicationErrors[keyof GetDatabaseReplicationErrors];
@@ -26517,6 +27884,10 @@ export type RevealDatabaseExportErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RevealDatabaseExportError = RevealDatabaseExportErrors[keyof RevealDatabaseExportErrors];
@@ -26564,6 +27935,10 @@ export type RotateDatabaseCredentialsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RotateDatabaseCredentialsError = RotateDatabaseCredentialsErrors[keyof RotateDatabaseCredentialsErrors];
@@ -26611,6 +27986,10 @@ export type UpgradeDatabaseErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpgradeDatabaseError = UpgradeDatabaseErrors[keyof UpgradeDatabaseErrors];
@@ -26658,6 +28037,10 @@ export type PlanDatabaseUpgradeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanDatabaseUpgradeError = PlanDatabaseUpgradeErrors[keyof PlanDatabaseUpgradeErrors];
@@ -26701,6 +28084,10 @@ export type GetDeployHookErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetDeployHookError = GetDeployHookErrors[keyof GetDeployHookErrors];
@@ -26744,6 +28131,10 @@ export type SetDeployHookErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetDeployHookError = SetDeployHookErrors[keyof SetDeployHookErrors];
@@ -26791,6 +28182,10 @@ export type RotateDeployHookErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RotateDeployHookError = RotateDeployHookErrors[keyof RotateDeployHookErrors];
@@ -26843,6 +28238,10 @@ export type ListDeploymentsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListDeploymentsError = ListDeploymentsErrors[keyof ListDeploymentsErrors];
@@ -26896,6 +28295,10 @@ export type DeployServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeployServiceError = DeployServiceErrors[keyof DeployServiceErrors];
@@ -26939,6 +28342,10 @@ export type PlanDeploymentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PlanDeploymentError = PlanDeploymentErrors[keyof PlanDeploymentErrors];
@@ -26982,6 +28389,10 @@ export type ListDomainsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListDomainsError = ListDomainsErrors[keyof ListDomainsErrors];
@@ -27029,6 +28440,10 @@ export type CreateDomainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateDomainError = CreateDomainErrors[keyof CreateDomainErrors];
@@ -27085,6 +28500,10 @@ export type GenerateDomainErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GenerateDomainError = GenerateDomainErrors[keyof GenerateDomainErrors];
@@ -27128,6 +28547,10 @@ export type ListDumpRestoresErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListDumpRestoresError = ListDumpRestoresErrors[keyof ListDumpRestoresErrors];
@@ -27185,6 +28608,10 @@ export type CreateDumpRestoreErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateDumpRestoreError = CreateDumpRestoreErrors[keyof CreateDumpRestoreErrors];
@@ -27228,6 +28655,10 @@ export type ScanServiceEnvTemplatesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ScanServiceEnvTemplatesError = ScanServiceEnvTemplatesErrors[keyof ScanServiceEnvTemplatesErrors];
@@ -27288,6 +28719,10 @@ export type ListServiceFilesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListServiceFilesError = ListServiceFilesErrors[keyof ListServiceFilesErrors];
@@ -27331,6 +28766,10 @@ export type UnlinkServiceGitErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UnlinkServiceGitError = UnlinkServiceGitErrors[keyof UnlinkServiceGitErrors];
@@ -27374,6 +28813,10 @@ export type GetServiceGitErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceGitError = GetServiceGitErrors[keyof GetServiceGitErrors];
@@ -27429,6 +28872,10 @@ export type LinkServiceGitErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type LinkServiceGitError = LinkServiceGitErrors[keyof LinkServiceGitErrors];
@@ -27473,6 +28920,10 @@ export type ListServiceIncidentsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListServiceIncidentsError = ListServiceIncidentsErrors[keyof ListServiceIncidentsErrors];
@@ -27538,6 +28989,10 @@ export type GetServiceLogsErrors = {
      * Service Unavailable
      */
     503: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceLogsError = GetServiceLogsErrors[keyof GetServiceLogsErrors];
@@ -27616,6 +29071,10 @@ export type GetServiceCentralLogsErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceCentralLogsError = GetServiceCentralLogsErrors[keyof GetServiceCentralLogsErrors];
@@ -27704,6 +29163,10 @@ export type DownloadServiceLogsErrors = {
      * Gateway Timeout
      */
     504: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DownloadServiceLogsError = DownloadServiceLogsErrors[keyof DownloadServiceLogsErrors];
@@ -27800,6 +29263,10 @@ export type GetServiceLogHistoryErrors = {
      * Gateway Timeout
      */
     504: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceLogHistoryError = GetServiceLogHistoryErrors[keyof GetServiceLogHistoryErrors];
@@ -27849,6 +29316,10 @@ export type SetServiceMaintenanceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetServiceMaintenanceError = SetServiceMaintenanceErrors[keyof SetServiceMaintenanceErrors];
@@ -27903,6 +29374,10 @@ export type PreviewServiceMaintenanceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PreviewServiceMaintenanceError = PreviewServiceMaintenanceErrors[keyof PreviewServiceMaintenanceErrors];
@@ -27946,6 +29421,10 @@ export type GetServiceMeshErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceMeshError = GetServiceMeshErrors[keyof GetServiceMeshErrors];
@@ -27995,6 +29474,10 @@ export type GetServiceMetricsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceMetricsError = GetServiceMetricsErrors[keyof GetServiceMetricsErrors];
@@ -28042,6 +29525,10 @@ export type MoveServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type MoveServiceError = MoveServiceErrors[keyof MoveServiceErrors];
@@ -28082,6 +29569,10 @@ export type DetachServiceNetworkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DetachServiceNetworkError = DetachServiceNetworkErrors[keyof DetachServiceNetworkErrors];
@@ -28122,6 +29613,10 @@ export type AttachServiceNetworkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type AttachServiceNetworkError = AttachServiceNetworkErrors[keyof AttachServiceNetworkErrors];
@@ -28165,6 +29660,10 @@ export type ListPendingChangesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListPendingChangesError = ListPendingChangesErrors[keyof ListPendingChangesErrors];
@@ -28216,6 +29715,10 @@ export type DiscardPendingChangeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DiscardPendingChangeError = DiscardPendingChangeErrors[keyof DiscardPendingChangeErrors];
@@ -28273,6 +29776,10 @@ export type SetProcessScalingErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetProcessScalingError = SetProcessScalingErrors[keyof SetProcessScalingErrors];
@@ -28326,6 +29833,10 @@ export type RestartServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RestartServiceError = RestartServiceErrors[keyof RestartServiceErrors];
@@ -28369,6 +29880,10 @@ export type ListRetiredVolumesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListRetiredVolumesError = ListRetiredVolumesErrors[keyof ListRetiredVolumesErrors];
@@ -28422,6 +29937,10 @@ export type RunServiceCommandErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RunServiceCommandError = RunServiceCommandErrors[keyof RunServiceCommandErrors];
@@ -28475,6 +29994,10 @@ export type SetServiceScalingErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetServiceScalingError = SetServiceScalingErrors[keyof SetServiceScalingErrors];
@@ -28532,6 +30055,10 @@ export type StageServiceSourceChangeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StageServiceSourceChangeError = StageServiceSourceChangeErrors[keyof StageServiceSourceChangeErrors];
@@ -28575,6 +30102,10 @@ export type GetServiceSshKeyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceSshKeyError = GetServiceSshKeyErrors[keyof GetServiceSshKeyErrors];
@@ -28626,6 +30157,10 @@ export type AcceptServiceSshHostKeyErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type AcceptServiceSshHostKeyError = AcceptServiceSshHostKeyErrors[keyof AcceptServiceSshHostKeyErrors];
@@ -28669,6 +30204,10 @@ export type DeleteServiceSshKeyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteServiceSshKeyError = DeleteServiceSshKeyErrors[keyof DeleteServiceSshKeyErrors];
@@ -28716,6 +30255,10 @@ export type SetServiceSshKeyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetServiceSshKeyError = SetServiceSshKeyErrors[keyof SetServiceSshKeyErrors];
@@ -28759,6 +30302,10 @@ export type TestServiceSshConnectionErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type TestServiceSshConnectionError = TestServiceSshConnectionErrors[keyof TestServiceSshConnectionErrors];
@@ -28806,6 +30353,10 @@ export type StopServiceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StopServiceError = StopServiceErrors[keyof StopServiceErrors];
@@ -28849,6 +30400,10 @@ export type ListSuggestedVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListSuggestedVariablesError = ListSuggestedVariablesErrors[keyof ListSuggestedVariablesErrors];
@@ -28898,6 +30453,10 @@ export type ReprovisionServiceTailnetErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ReprovisionServiceTailnetError = ReprovisionServiceTailnetErrors[keyof ReprovisionServiceTailnetErrors];
@@ -28947,6 +30506,10 @@ export type ListServiceTaskRunsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListServiceTaskRunsError = ListServiceTaskRunsErrors[keyof ListServiceTaskRunsErrors];
@@ -28990,6 +30553,10 @@ export type ListServiceTasksErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListServiceTasksError = ListServiceTasksErrors[keyof ListServiceTasksErrors];
@@ -29043,6 +30610,10 @@ export type CreateServiceTaskErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateServiceTaskError = CreateServiceTaskErrors[keyof CreateServiceTaskErrors];
@@ -29086,6 +30657,10 @@ export type GetServiceTerminalErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceTerminalError = GetServiceTerminalErrors[keyof GetServiceTerminalErrors];
@@ -29134,6 +30709,10 @@ export type GetServiceUptimeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetServiceUptimeError = GetServiceUptimeErrors[keyof GetServiceUptimeErrors];
@@ -29177,6 +30756,10 @@ export type GetUptimeMonitorErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetUptimeMonitorError = GetUptimeMonitorErrors[keyof GetUptimeMonitorErrors];
@@ -29220,6 +30803,10 @@ export type UpdateUptimeMonitorErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateUptimeMonitorError = UpdateUptimeMonitorErrors[keyof UpdateUptimeMonitorErrors];
@@ -29263,6 +30850,10 @@ export type ListVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListVariablesError = ListVariablesErrors[keyof ListVariablesErrors];
@@ -29306,6 +30897,10 @@ export type PutVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutVariablesError = PutVariablesErrors[keyof PutVariablesErrors];
@@ -29349,6 +30944,10 @@ export type ValidateVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ValidateVariableError = ValidateVariableErrors[keyof ValidateVariableErrors];
@@ -29393,6 +30992,10 @@ export type DeleteVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteVariableError = DeleteVariableErrors[keyof DeleteVariableErrors];
@@ -29437,6 +31040,10 @@ export type GetVariableHistoryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetVariableHistoryError = GetVariableHistoryErrors[keyof GetVariableHistoryErrors];
@@ -29482,6 +31089,10 @@ export type RestoreVariableVersionErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RestoreVariableVersionError = RestoreVariableVersionErrors[keyof RestoreVariableVersionErrors];
@@ -29526,6 +31137,10 @@ export type RotateVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RotateVariableError = RotateVariableErrors[keyof RotateVariableErrors];
@@ -29569,6 +31184,10 @@ export type DeleteVolumeBackupConfigErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteVolumeBackupConfigError = DeleteVolumeBackupConfigErrors[keyof DeleteVolumeBackupConfigErrors];
@@ -29612,6 +31231,10 @@ export type GetVolumeBackupConfigErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetVolumeBackupConfigError = GetVolumeBackupConfigErrors[keyof GetVolumeBackupConfigErrors];
@@ -29655,6 +31278,10 @@ export type PutVolumeBackupConfigErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutVolumeBackupConfigError = PutVolumeBackupConfigErrors[keyof PutVolumeBackupConfigErrors];
@@ -29698,6 +31325,10 @@ export type RevealVolumeBackupRecoveryKeyErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RevealVolumeBackupRecoveryKeyError = RevealVolumeBackupRecoveryKeyErrors[keyof RevealVolumeBackupRecoveryKeyErrors];
@@ -29743,6 +31374,10 @@ export type ListVolumeBackupsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListVolumeBackupsError = ListVolumeBackupsErrors[keyof ListVolumeBackupsErrors];
@@ -29796,6 +31431,10 @@ export type CreateVolumeBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateVolumeBackupError = CreateVolumeBackupErrors[keyof CreateVolumeBackupErrors];
@@ -29839,6 +31478,10 @@ export type ListVolumeRestoresErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListVolumeRestoresError = ListVolumeRestoresErrors[keyof ListVolumeRestoresErrors];
@@ -29882,6 +31525,10 @@ export type ListVolumesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListVolumesError = ListVolumesErrors[keyof ListVolumesErrors];
@@ -29929,6 +31576,10 @@ export type CreateVolumeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateVolumeError = CreateVolumeErrors[keyof CreateVolumeErrors];
@@ -29995,6 +31646,10 @@ export type SetupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetupError = SetupErrors[keyof SetupErrors];
@@ -30053,6 +31708,10 @@ export type ListStatusIncidentsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListStatusIncidentsError = ListStatusIncidentsErrors[keyof ListStatusIncidentsErrors];
@@ -30104,6 +31763,10 @@ export type CreateStatusIncidentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateStatusIncidentError = CreateStatusIncidentErrors[keyof CreateStatusIncidentErrors];
@@ -30143,6 +31806,10 @@ export type DeleteStatusIncidentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteStatusIncidentError = DeleteStatusIncidentErrors[keyof DeleteStatusIncidentErrors];
@@ -30182,6 +31849,10 @@ export type GetStatusIncidentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetStatusIncidentError = GetStatusIncidentErrors[keyof GetStatusIncidentErrors];
@@ -30229,6 +31900,10 @@ export type UpdateStatusIncidentErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateStatusIncidentError = UpdateStatusIncidentErrors[keyof UpdateStatusIncidentErrors];
@@ -30282,6 +31957,10 @@ export type PostStatusIncidentUpdateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PostStatusIncidentUpdateError = PostStatusIncidentUpdateErrors[keyof PostStatusIncidentUpdateErrors];
@@ -30315,6 +31994,10 @@ export type ListStatusPagesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListStatusPagesError = ListStatusPagesErrors[keyof ListStatusPagesErrors];
@@ -30362,6 +32045,10 @@ export type CreateStatusPageErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateStatusPageError = CreateStatusPageErrors[keyof CreateStatusPageErrors];
@@ -30401,6 +32088,10 @@ export type DeleteStatusPageErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteStatusPageError = DeleteStatusPageErrors[keyof DeleteStatusPageErrors];
@@ -30440,6 +32131,10 @@ export type GetStatusPageErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetStatusPageError = GetStatusPageErrors[keyof GetStatusPageErrors];
@@ -30487,6 +32182,10 @@ export type UpdateStatusPageErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateStatusPageError = UpdateStatusPageErrors[keyof UpdateStatusPageErrors];
@@ -30534,6 +32233,10 @@ export type GetStatusPageCloudflareErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetStatusPageCloudflareError = GetStatusPageCloudflareErrors[keyof GetStatusPageCloudflareErrors];
@@ -30577,6 +32280,10 @@ export type UpdateStatusPageCloudflareErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateStatusPageCloudflareError = UpdateStatusPageCloudflareErrors[keyof UpdateStatusPageCloudflareErrors];
@@ -30628,6 +32335,10 @@ export type FixStatusPageCloudflareErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type FixStatusPageCloudflareError = FixStatusPageCloudflareErrors[keyof FixStatusPageCloudflareErrors];
@@ -30675,6 +32386,10 @@ export type SetStatusPageComponentsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetStatusPageComponentsError = SetStatusPageComponentsErrors[keyof SetStatusPageComponentsErrors];
@@ -30719,6 +32434,10 @@ export type CheckStatusPageDnsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckStatusPageDnsError = CheckStatusPageDnsErrors[keyof CheckStatusPageDnsErrors];
@@ -30748,6 +32467,10 @@ export type GetSystemErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetSystemError = GetSystemErrors[keyof GetSystemErrors];
@@ -30789,6 +32512,10 @@ export type SetMcpEnabledErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetMcpEnabledError = SetMcpEnabledErrors[keyof SetMcpEnabledErrors];
@@ -30818,6 +32545,10 @@ export type GetSystemUpdateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetSystemUpdateError = GetSystemUpdateErrors[keyof GetSystemUpdateErrors];
@@ -30865,6 +32596,10 @@ export type StartSystemUpdateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type StartSystemUpdateError = StartSystemUpdateErrors[keyof StartSystemUpdateErrors];
@@ -30910,6 +32645,10 @@ export type CheckSystemUpdateErrors = {
      * Bad Gateway
      */
     502: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CheckSystemUpdateError = CheckSystemUpdateErrors[keyof CheckSystemUpdateErrors];
@@ -30953,6 +32692,10 @@ export type GetTaskRunErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTaskRunError = GetTaskRunErrors[keyof GetTaskRunErrors];
@@ -31001,6 +32744,10 @@ export type GetTaskRunLogsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTaskRunLogsError = GetTaskRunLogsErrors[keyof GetTaskRunLogsErrors];
@@ -31040,6 +32787,10 @@ export type PreviewTaskScheduleErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PreviewTaskScheduleError = PreviewTaskScheduleErrors[keyof PreviewTaskScheduleErrors];
@@ -31083,6 +32834,10 @@ export type DeleteServiceTaskErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteServiceTaskError = DeleteServiceTaskErrors[keyof DeleteServiceTaskErrors];
@@ -31130,6 +32885,10 @@ export type UpdateServiceTaskErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateServiceTaskError = UpdateServiceTaskErrors[keyof UpdateServiceTaskErrors];
@@ -31183,6 +32942,10 @@ export type RunServiceTaskErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RunServiceTaskError = RunServiceTaskErrors[keyof RunServiceTaskErrors];
@@ -31216,6 +32979,10 @@ export type GetTeamSliceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTeamSliceError = GetTeamSliceErrors[keyof GetTeamSliceErrors];
@@ -31249,6 +33016,10 @@ export type GetTeamBuildSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTeamBuildSettingsError = GetTeamBuildSettingsErrors[keyof GetTeamBuildSettingsErrors];
@@ -31286,6 +33057,10 @@ export type PutTeamBuildSettingsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutTeamBuildSettingsError = PutTeamBuildSettingsErrors[keyof PutTeamBuildSettingsErrors];
@@ -31323,6 +33098,10 @@ export type ListTeamSharedVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListTeamSharedVariablesError = ListTeamSharedVariablesErrors[keyof ListTeamSharedVariablesErrors];
@@ -31364,6 +33143,10 @@ export type PutTeamSharedVariablesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type PutTeamSharedVariablesError = PutTeamSharedVariablesErrors[keyof PutTeamSharedVariablesErrors];
@@ -31407,6 +33190,10 @@ export type DeleteTeamSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteTeamSharedVariableError = DeleteTeamSharedVariableErrors[keyof DeleteTeamSharedVariableErrors];
@@ -31450,6 +33237,10 @@ export type GetTeamSharedVariableHistoryErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTeamSharedVariableHistoryError = GetTeamSharedVariableHistoryErrors[keyof GetTeamSharedVariableHistoryErrors];
@@ -31493,6 +33284,10 @@ export type RotateTeamSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RotateTeamSharedVariableError = RotateTeamSharedVariableErrors[keyof RotateTeamSharedVariableErrors];
@@ -31536,6 +33331,10 @@ export type ShareTeamSharedVariableErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ShareTeamSharedVariableError = ShareTeamSharedVariableErrors[keyof ShareTeamSharedVariableErrors];
@@ -31565,6 +33364,10 @@ export type ListTeamsErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListTeamsError = ListTeamsErrors[keyof ListTeamsErrors];
@@ -31608,6 +33411,10 @@ export type CreateTeamErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateTeamError = CreateTeamErrors[keyof CreateTeamErrors];
@@ -31664,6 +33471,10 @@ export type DeleteTeamErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteTeamError = DeleteTeamErrors[keyof DeleteTeamErrors];
@@ -31707,6 +33518,10 @@ export type GetTeamErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTeamError = GetTeamErrors[keyof GetTeamErrors];
@@ -31750,6 +33565,10 @@ export type UpdateTeamErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateTeamError = UpdateTeamErrors[keyof UpdateTeamErrors];
@@ -31793,6 +33612,10 @@ export type GetTeamDeletionPlanErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTeamDeletionPlanError = GetTeamDeletionPlanErrors[keyof GetTeamDeletionPlanErrors];
@@ -31836,6 +33659,10 @@ export type ListTeamInvitesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListTeamInvitesError = ListTeamInvitesErrors[keyof ListTeamInvitesErrors];
@@ -31889,6 +33716,10 @@ export type CreateTeamInviteErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateTeamInviteError = CreateTeamInviteErrors[keyof CreateTeamInviteErrors];
@@ -31933,6 +33764,10 @@ export type DeleteTeamInviteErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteTeamInviteError = DeleteTeamInviteErrors[keyof DeleteTeamInviteErrors];
@@ -31976,6 +33811,10 @@ export type ListTeamMembersErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListTeamMembersError = ListTeamMembersErrors[keyof ListTeamMembersErrors];
@@ -32024,6 +33863,10 @@ export type RemoveTeamMemberErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RemoveTeamMemberError = RemoveTeamMemberErrors[keyof RemoveTeamMemberErrors];
@@ -32072,6 +33915,10 @@ export type UpdateTeamMemberErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type UpdateTeamMemberError = UpdateTeamMemberErrors[keyof UpdateTeamMemberErrors];
@@ -32120,6 +33967,10 @@ export type CreateMemberPasswordResetLinkErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateMemberPasswordResetLinkError = CreateMemberPasswordResetLinkErrors[keyof CreateMemberPasswordResetLinkErrors];
@@ -32163,6 +34014,10 @@ export type GetTeamSecurityErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTeamSecurityError = GetTeamSecurityErrors[keyof GetTeamSecurityErrors];
@@ -32210,6 +34065,10 @@ export type SetTeamSecurityErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SetTeamSecurityError = SetTeamSecurityErrors[keyof SetTeamSecurityErrors];
@@ -32253,6 +34112,10 @@ export type SwitchTeamErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type SwitchTeamError = SwitchTeamErrors[keyof SwitchTeamErrors];
@@ -32309,6 +34172,10 @@ export type DeleteTemplateInstanceErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteTemplateInstanceError = DeleteTemplateInstanceErrors[keyof DeleteTemplateInstanceErrors];
@@ -32352,6 +34219,10 @@ export type GetTemplateUpdateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetTemplateUpdateError = GetTemplateUpdateErrors[keyof GetTemplateUpdateErrors];
@@ -32405,6 +34276,10 @@ export type ApplyTemplateUpdateErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ApplyTemplateUpdateError = ApplyTemplateUpdateErrors[keyof ApplyTemplateUpdateErrors];
@@ -32438,6 +34313,10 @@ export type ListTokensErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListTokensError = ListTokensErrors[keyof ListTokensErrors];
@@ -32475,6 +34354,10 @@ export type CreateTokenErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type CreateTokenError = CreateTokenErrors[keyof CreateTokenErrors];
@@ -32518,6 +34401,10 @@ export type RevokeTokenErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RevokeTokenError = RevokeTokenErrors[keyof RevokeTokenErrors];
@@ -32565,6 +34452,10 @@ export type DeleteVolumeBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteVolumeBackupError = DeleteVolumeBackupErrors[keyof DeleteVolumeBackupErrors];
@@ -32608,6 +34499,10 @@ export type GetVolumeBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type GetVolumeBackupError = GetVolumeBackupErrors[keyof GetVolumeBackupErrors];
@@ -32664,6 +34559,10 @@ export type ListVolumeBackupFilesErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type ListVolumeBackupFilesError = ListVolumeBackupFilesErrors[keyof ListVolumeBackupFilesErrors];
@@ -32707,6 +34606,10 @@ export type LockVolumeBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type LockVolumeBackupError = LockVolumeBackupErrors[keyof LockVolumeBackupErrors];
@@ -32760,6 +34663,10 @@ export type RestoreVolumeBackupErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type RestoreVolumeBackupError = RestoreVolumeBackupErrors[keyof RestoreVolumeBackupErrors];
@@ -32803,6 +34710,10 @@ export type DeleteVolumeErrors = {
      * Internal Server Error
      */
     500: Error;
+    /**
+     * Error
+     */
+    default: Error;
 };
 
 export type DeleteVolumeError = DeleteVolumeErrors[keyof DeleteVolumeErrors];

@@ -80,6 +80,8 @@ export interface WildcardCertView {
 	issuer: string;
 	notAfter: string | null;
 	daysToExpiry: number | null;
+	/** When the control plane last checked the issued certificate; null before the first check. */
+	checkedAt: string | null;
 	change: StagedChange;
 }
 

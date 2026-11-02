@@ -50,7 +50,7 @@ func processViewsOf(s apiclient.ServiceView) []apiclient.ProcessView {
 	if s.Config.ProcessName != nil && *s.Config.ProcessName != "" {
 		name = *s.Config.ProcessName
 	}
-	return []apiclient.ProcessView{{
+	view := apiclient.ProcessView{
 		Name:             name,
 		Default:          true,
 		Port:             deref(s.Config.Port),
@@ -58,25 +58,29 @@ func processViewsOf(s apiclient.ServiceView) []apiclient.ProcessView {
 		Singleton:        deref(s.Config.Singleton),
 		StopGraceSeconds: s.Config.StopGraceSeconds,
 		Scaling:          s.Scaling,
-		Observed: apiclient.ObservedProcessView{
-			Name: name, State: s.Observed.State, Health: s.Observed.Health,
-			ReplicasReady: s.Observed.ReplicasReady, ReplicasDesired: s.Observed.ReplicasDesired,
-		},
-	}}
+	}
+	if o := s.Observed; o != nil {
+		view.Observed = &apiclient.ObservedProcessView{
+			Name: name, State: o.State, Health: o.Health,
+			ReplicasReady: o.ReplicasReady, ReplicasDesired: o.ReplicasDesired,
+		}
+	}
+	return []apiclient.ProcessView{view}
 }
 
 func processState(p apiclient.ProcessView) string {
+	o := p.Observed
 	switch {
 	case p.Removed:
 		return "removed (until the next deploy)"
-	case p.Observed.State == "" && p.Pending:
+	case (o == nil || o.State == "") && p.Pending:
 		return "staged"
-	case p.Observed.State == "":
+	case o == nil || o.State == "":
 		return "-"
-	case p.Observed.Health != "" && p.Observed.Health != "none":
-		return p.Observed.State + " (" + p.Observed.Health + ")"
+	case o.Health != "" && o.Health != "none":
+		return o.State + " (" + o.Health + ")"
 	}
-	return p.Observed.State
+	return o.State
 }
 
 func commandLabel(cmd *[]string) string {

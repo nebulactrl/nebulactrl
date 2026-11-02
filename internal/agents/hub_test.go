@@ -455,18 +455,24 @@ func TestAckedCommandWithoutResultIsRedeliveredOnReconnect(t *testing.T) {
 	a2.write(agentprotocol.TypeResult, agentprotocol.ResultFrame{CommandID: again.ID, Outcome: agentprotocol.OutcomeSucceeded})
 	require.Eventually(t, func() bool { return h.commandStatus(id) == "succeeded" }, 5*time.Second, 20*time.Millisecond)
 
+	// A later command is queued before the agent comes back. The hub lists what
+	// to deliver in one pass, so the finished command would be resent in the same
+	// pass as the new one: read up to the new one and see nothing else.
 	a2.ws.CloseNow()
+	later := h.enqueue(e.serverID, agentprotocol.KindRestartService, nil)
 	a3 := h.dial(e, false)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	for {
 		_, data, err := a3.ws.Read(ctx)
-		if err != nil {
-			break // quiet for a second: nothing was resent
-		}
+		require.NoError(t, err, "the later command never arrived")
 		f, err := agentprotocol.Decode(data)
 		require.NoError(t, err)
-		require.NotEqual(t, agentprotocol.TypeCommand, f.Type, "a finished command must not be resent")
+		if f.Type != agentprotocol.TypeCommand {
+			continue
+		}
+		require.Equal(t, later.String(), f.ID, "a finished command must not be resent")
+		break
 	}
 }
 
@@ -623,7 +629,7 @@ func TestDeploymentLogsAreRedactedCappedAndFollowable(t *testing.T) {
 		var n int
 		_ = h.pool.QueryRow(h.ctx, "SELECT count(*) FROM deployment_logs WHERE deployment_id = $1", depID).Scan(&n)
 		return n == agents.MaxDeploymentLogLines+1
-	}, 10*time.Second, 50*time.Millisecond)
+	}, 10*time.Second, 10*time.Millisecond)
 
 	var leaked, markers int
 	require.NoError(t, h.pool.QueryRow(h.ctx, "SELECT count(*) FROM deployment_logs WHERE line LIKE '%sekret%'").Scan(&leaked))
@@ -633,7 +639,7 @@ func TestDeploymentLogsAreRedactedCappedAndFollowable(t *testing.T) {
 
 	// More lines after the cap are not stored and do not add a second marker.
 	a.write(agentprotocol.TypeLog, mk(10, "c"))
-	time.Sleep(300 * time.Millisecond)
+	h.settle(a, e.serverID)
 	var total int
 	require.NoError(t, h.pool.QueryRow(h.ctx, "SELECT count(*) FROM deployment_logs WHERE deployment_id = $1", depID).Scan(&total))
 	require.Equal(t, agents.MaxDeploymentLogLines+1, total)
@@ -665,7 +671,7 @@ func TestDebugLogsAreRedactedAndCappedApartFromTheDeployLog(t *testing.T) {
 	a.write(agentprotocol.TypeLog, mk(agentprotocol.StreamDebug, 400, "y"))
 
 	require.Eventually(t, func() bool { return count(agentprotocol.StreamDebug) == agents.MaxDeploymentDebugLines+1 },
-		10*time.Second, 50*time.Millisecond)
+		10*time.Second, 10*time.Millisecond)
 	require.Equal(t, 20, count(agentprotocol.StreamDeploy), "debug lines do not count toward the ordinary cap")
 
 	var leaked, markers int
@@ -676,7 +682,7 @@ func TestDebugLogsAreRedactedAndCappedApartFromTheDeployLog(t *testing.T) {
 
 	// More debug lines after the cap are dropped without a second marker.
 	a.write(agentprotocol.TypeLog, mk(agentprotocol.StreamDebug, 10, "z"))
-	time.Sleep(300 * time.Millisecond)
+	h.settle(a, e.serverID)
 	require.Equal(t, agents.MaxDeploymentDebugLines+1, count(agentprotocol.StreamDebug))
 }
 
@@ -691,7 +697,7 @@ func TestLogsForADeploymentOnAnotherServerAreIgnored(t *testing.T) {
 		DeploymentID: depID.String(), ServiceID: svcID.String(), Stream: agentprotocol.StreamDeploy,
 		Lines: []agentprotocol.LogLine{{TS: time.Now(), Text: "spoofed"}},
 	})
-	time.Sleep(300 * time.Millisecond)
+	h.settle(a, e.serverID)
 	var n int
 	require.NoError(t, h.pool.QueryRow(h.ctx, "SELECT count(*) FROM deployment_logs").Scan(&n))
 	require.Zero(t, n)
@@ -727,8 +733,8 @@ func TestLogsOfABuildServerThatOwnsACommandAreStored(t *testing.T) {
 		var n int
 		_ = h.pool.QueryRow(h.ctx, "SELECT count(*) FROM deployment_logs WHERE deployment_id = $1", depID).Scan(&n)
 		return n == 1
-	}, 5*time.Second, 50*time.Millisecond)
-	time.Sleep(300 * time.Millisecond)
+	}, 5*time.Second, 10*time.Millisecond)
+	h.settle(x, stranger.serverID)
 	var line string
 	require.NoError(t, h.pool.QueryRow(h.ctx, "SELECT line FROM deployment_logs WHERE deployment_id = $1", depID).Scan(&line))
 	require.Contains(t, line, "step 1")

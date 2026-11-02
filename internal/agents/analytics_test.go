@@ -24,6 +24,28 @@ func (h *harness) diskAlertEvents(serverID uuid.UUID) int {
 	return n
 }
 
+// metricSamples counts the heartbeat samples stored for a server. The hub
+// handles an agent's frames in order and stores a heartbeat's sample before it
+// evaluates the disk alert, so a sample that appeared for heartbeat N proves
+// the alert of heartbeat N-1 is settled: the way to wait for "nothing changed".
+func (h *harness) metricSamples(serverID uuid.UUID) int {
+	h.t.Helper()
+	var n int
+	require.NoError(h.t, h.pool.QueryRow(h.ctx, "SELECT count(*) FROM metric_samples WHERE server_id = $1", serverID).Scan(&n))
+	return n
+}
+
+// settle returns once the hub handled every frame the agent sent before it. An
+// agent's frames are handled in order and a heartbeat stores a metric sample,
+// so the sample of this one proves the earlier frames were processed: the way
+// to wait for "an ignored frame changed nothing" without sleeping.
+func (h *harness) settle(a *agentConn, serverID uuid.UUID) {
+	h.t.Helper()
+	before := h.metricSamples(serverID)
+	a.write(agentprotocol.TypeHeartbeat, diskBeat(1))
+	require.Eventually(h.t, func() bool { return h.metricSamples(serverID) > before }, 5*time.Second, 5*time.Millisecond)
+}
+
 func diskBeat(usedPercent uint64) agentprotocol.Heartbeat {
 	return agentprotocol.Heartbeat{
 		MemUsed: 1, MemTotal: 2, DiskUsed: usedPercent * 10, DiskTotal: 1000, Proxy: agentprotocol.ProxyHealth{Status: agentprotocol.ProxyOK},
@@ -44,32 +66,36 @@ func TestDiskAlertCrossingEmitsOncePerCrossing(t *testing.T) {
 	beat := func(pct uint64) { a.write(agentprotocol.TypeHeartbeat, diskBeat(pct)) }
 
 	beat(70) // below the default threshold of 80
-	require.Eventually(t, func() bool { s, err := h.svc.Get(h.ctx, e.serverID); return err == nil && s.Latest != nil }, 5*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { s, err := h.svc.Get(h.ctx, e.serverID); return err == nil && s.Latest != nil }, 5*time.Second, 5*time.Millisecond)
 	require.False(t, alertOf())
 	require.Zero(t, h.diskAlertEvents(e.serverID))
 
 	beat(85) // crossing
-	require.Eventually(t, alertOf, 5*time.Second, 20*time.Millisecond)
+	require.Eventually(t, alertOf, 5*time.Second, 5*time.Millisecond)
 	require.Equal(t, 1, h.diskAlertEvents(e.serverID))
 
 	// Still above the threshold: no second event.
+	samples := h.metricSamples(e.serverID)
 	beat(90)
 	beat(86)
-	time.Sleep(300 * time.Millisecond)
+	beat(86) // marker: its sample proves the two before it were evaluated
+	require.Eventually(t, func() bool { return h.metricSamples(e.serverID) >= samples+3 }, 5*time.Second, 5*time.Millisecond)
 	require.True(t, alertOf())
 	require.Equal(t, 1, h.diskAlertEvents(e.serverID), "one audit event per crossing")
 
 	// Hovering just below the threshold does not clear (hysteresis), then a real drop does.
+	samples = h.metricSamples(e.serverID)
 	beat(79)
-	time.Sleep(300 * time.Millisecond)
+	beat(79) // marker
+	require.Eventually(t, func() bool { return h.metricSamples(e.serverID) >= samples+2 }, 5*time.Second, 5*time.Millisecond)
 	require.True(t, alertOf())
 	beat(60)
-	require.Eventually(t, func() bool { return !alertOf() }, 5*time.Second, 20*time.Millisecond)
+	require.Eventually(t, func() bool { return !alertOf() }, 5*time.Second, 5*time.Millisecond)
 	require.Equal(t, 1, h.diskAlertEvents(e.serverID), "clearing is not an alert")
 
 	// A second crossing is a new event.
 	beat(95)
-	require.Eventually(t, alertOf, 5*time.Second, 20*time.Millisecond)
+	require.Eventually(t, alertOf, 5*time.Second, 5*time.Millisecond)
 	require.Equal(t, 2, h.diskAlertEvents(e.serverID))
 
 	var actor, label string
@@ -85,8 +111,8 @@ func TestDiskAlertFollowsThresholdSetting(t *testing.T) {
 	a := h.dial(e, false)
 	a.next(agentprotocol.TypeReconcile)
 	a.write(agentprotocol.TypeHeartbeat, diskBeat(90))
-	require.Eventually(t, func() bool { s, err := h.svc.Get(h.ctx, e.serverID); return err == nil && s.Latest != nil }, 5*time.Second, 20*time.Millisecond)
-	time.Sleep(200 * time.Millisecond)
+	a.write(agentprotocol.TypeHeartbeat, diskBeat(90)) // marker: its sample proves the first beat was evaluated
+	require.Eventually(t, func() bool { return h.metricSamples(e.serverID) >= 2 }, 5*time.Second, 5*time.Millisecond)
 	s, err := h.svc.Get(h.ctx, e.serverID)
 	require.NoError(t, err)
 	require.False(t, s.DiskAlert, "90%% is below a threshold of 95")

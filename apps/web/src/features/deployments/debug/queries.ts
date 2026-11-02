@@ -5,47 +5,16 @@ import {
 } from "#/api/gen/@tanstack/react-query.gen";
 import type * as Gen from "#/api/gen/types.gen";
 
-/** A release's placement; the ids are null when nothing was built or placed. */
-interface DebugPlacement {
-	strategy: string;
-	targetServerId: string | null;
-	targetServerName: string;
-	buildServerId: string | null;
-	buildServerName: string;
-	registryId: string | null;
-	registryRef: string;
-	platform: string;
-}
-
 /** The release of a deployment as the debug panel shows it: never a variable value. */
-export interface DebugRelease
-	extends Omit<Gen.ReleaseDetailView, "build" | "variables" | "placement"> {
-	build: Gen.BuildInfo | null;
+export interface DebugRelease extends Omit<Gen.ReleaseDetailView, "variables"> {
 	variables: Gen.ReleaseVariableView[];
-	placement: DebugPlacement;
 }
 
 export type DebugCommand = Gen.CommandView;
 
-/**
- * The wire release with Go's nulls spelled out: a pointer or slice the schema
- * renders as non-null may arrive as null.
- */
+/** The wire release with Go's nil slice (the schema allows null) spelled out as empty. */
 export function toDebugRelease(raw: Gen.ReleaseDetailView): DebugRelease {
-	const release = raw as Gen.ReleaseDetailView & {
-		build: Gen.BuildInfo | null;
-	};
-	return {
-		...release,
-		build: release.build ?? null,
-		variables: release.variables ?? [],
-		placement: {
-			...release.placement,
-			targetServerId: release.placement.targetServerId || null,
-			buildServerId: release.placement.buildServerId || null,
-			registryId: release.placement.registryId || null,
-		},
-	};
+	return { ...raw, variables: raw.variables ?? [] };
 }
 
 export function toDebugCommands(list: Gen.CommandsOutputBody): DebugCommand[] {

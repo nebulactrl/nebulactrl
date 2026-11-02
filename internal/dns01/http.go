@@ -13,10 +13,15 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
+// DNSProviderList is the body of the provider lists. It is a named type so its
+// schema cannot be mistaken for the anonymous provider list of another package
+// (huma names anonymous bodies by their field, and both are `…OutputBody`).
+type DNSProviderList struct {
+	Items []agentprotocol.DNSProviderSpec `json:"items"`
+}
+
 type providersOutput struct {
-	Body struct {
-		Items []agentprotocol.DNSProviderSpec `json:"items"`
-	}
+	Body DNSProviderList
 }
 
 type listCredentialsInput struct {

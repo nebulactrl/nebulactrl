@@ -232,7 +232,7 @@ function sameEnd(p: Point, q: Point) {
 }
 
 /** Proper crossings between cables (cables that share a jack do not count). */
-export function crossingCount(segments: readonly Segment[]): number {
+function crossingCount(segments: readonly Segment[]): number {
 	let count = 0;
 	for (let i = 0; i < segments.length; i++) {
 		const [a, b] = segments[i] as Segment;

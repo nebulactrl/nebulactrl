@@ -67,4 +67,57 @@ describe("generator expressions", () => {
 		expect(generatesSecret("secret")).toBe(true);
 		expect(generatesSecret("uuid")).toBe(false);
 	});
+
+	test("problems name the unit and reject non-whole numbers", () => {
+		expect(
+			generatorProblem({
+				...DEFAULT_GENERATOR,
+				kind: "randomBytes",
+				length: 0,
+			}),
+		).toBe("Use between 1 and 1024 bytes.");
+		expect(generatorProblem({ ...DEFAULT_GENERATOR, length: 1.5 })).toBe(
+			"Use between 1 and 1024 characters.",
+		);
+		expect(
+			generatorProblem({
+				...DEFAULT_GENERATOR,
+				kind: "randomInt",
+				min: 0.5,
+				max: 3,
+			}),
+		).toBe("Use whole numbers.");
+		expect(
+			generatorProblem({
+				...DEFAULT_GENERATOR,
+				kind: "randomInt",
+				min: 2,
+				max: 2,
+			}),
+		).toBeNull();
+		expect(generatorProblem({ ...DEFAULT_GENERATOR, kind: "uuid" })).toBeNull();
+	});
+	test("every kind has a shape that states its parameters", () => {
+		expect(
+			generatorShape({ ...DEFAULT_GENERATOR, kind: "randomBytes", length: 16 }),
+		).toBe("16 random bytes, base64-encoded");
+		expect(
+			generatorShape({
+				...DEFAULT_GENERATOR,
+				kind: "randomInt",
+				min: 3,
+				max: 9,
+			}),
+		).toBe("a whole number from 3 to 9");
+		expect(generatorShape({ ...DEFAULT_GENERATOR, kind: "uuid" })).toBe(
+			"a random UUID (version 4)",
+		);
+		expect(generatorShape({ ...DEFAULT_GENERATOR, alphabet: "hex" })).toBe(
+			"32 characters: hex (0-9, a-f)",
+		);
+	});
+	test("only random text and bytes make a secret", () => {
+		expect(generatesSecret("randomBytes")).toBe(true);
+		expect(generatesSecret("randomInt")).toBe(false);
+	});
 });

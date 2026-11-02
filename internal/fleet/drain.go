@@ -373,6 +373,8 @@ func (s *Service) driveMove(ctx context.Context, d db.ServerDrain, moves []store
 			if ae.Code == "generation_conflict" {
 				return StepResult{Wait: retryInterval}, nil
 			}
+			// Refused: the placement never changed, so failMove has nothing to revert.
+			m.GenerationAfter = 0
 			return s.failMove(ctx, d, moves, i, fmt.Sprintf("Moving %s to %s failed: %s", m.ServiceName, m.TargetServerName, ae.Message))
 		}
 		if err != nil {

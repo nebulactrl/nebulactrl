@@ -152,13 +152,13 @@ func Register(h huma.API, svc *Service) {
 		return &serverMeshOutput{Body: v}, nil
 	})
 
-	huma.Register(h, api.WithScopes(api.WithIdempotency(huma.Operation{
+	huma.Register(h, api.WithScopes(api.WithIdempotency(api.WithResponse[ServerMeshResult](h, huma.Operation{
 		OperationID: "setServerMesh", Method: http.MethodPut, Path: "/servers/{serverId}/mesh", Tags: []string{"servers", "mesh"},
 		Summary:       "Turn the mesh on or off for a server",
 		DefaultStatus: http.StatusAccepted,
 		Description:   "Enabling adds one tagged device to the team's tailnet (it may be billed by Tailscale) and needs `acceptMeshChanges`; with `?dryRun=true` it returns the plan instead (devices added, whether the host has /dev/net/tun, warnings and blockers). Disabling is refused (409 `mesh_server_in_use`) while replicas or cross-server links use the server's node. The node key is minted when the command is sent and never stored.",
 		Errors:        errs,
-	}), policy.ScopeServersWrite), func(ctx context.Context, in *setServerMeshInput) (*setServerMeshOutput, error) {
+	}, http.StatusOK, "The plan of a dry run; nothing was changed")), policy.ScopeServersWrite), func(ctx context.Context, in *setServerMeshInput) (*setServerMeshOutput, error) {
 		r, err := svc.SetServerMesh(ctx, in.ID, ServerMeshInput{Enabled: in.Body.Enabled, DryRun: in.DryRun, AcceptMeshChanges: in.Body.AcceptMeshChanges})
 		if err != nil {
 			return nil, err

@@ -231,9 +231,9 @@ func (f *fixture) row(id uuid.UUID) db.ServiceTailnet {
 	return r
 }
 
-func (f *fixture) riverArgs(kind string) []string {
+func (f *fixture) riverArgs() []string {
 	f.t.Helper()
-	rows, err := f.pool.Query(bg, `SELECT args::text FROM river_job WHERE kind = $1 ORDER BY id`, kind)
+	rows, err := f.pool.Query(bg, `SELECT args::text FROM river_job WHERE kind = 'tailnet_delete_device' ORDER BY id`)
 	require.NoError(f.t, err)
 	defer rows.Close()
 	var out []string
@@ -379,7 +379,7 @@ func TestDisablingRemovesTheNode(t *testing.T) {
 	f.apply(*rm, agentprotocol.ServiceTailnetStatus{State: agentprotocol.ServiceTailnetRemoved, Removed: true}, f.server.ID)
 	_, err = f.q.GetServiceTailnet(bg, sv.ID)
 	require.ErrorIs(t, err, pgx.ErrNoRows)
-	jobs := f.riverArgs("tailnet_delete_device")
+	jobs := f.riverArgs()
 	require.Len(t, jobs, 1)
 	require.Contains(t, jobs[0], "nNODE1CNTRL")
 	require.Empty(t, f.disp.kinds(), "the deploy already removed the sidecar on this server")
@@ -403,7 +403,7 @@ func TestDeletingTheServiceRemovesSidecarAndDevice(t *testing.T) {
 	require.ErrorIs(t, err, pgx.ErrNoRows)
 	require.Equal(t, []string{agentprotocol.KindRemoveTailnet}, f.disp.kinds())
 	require.Equal(t, f.server.ID, f.disp.cmds[0].ServerID)
-	require.Len(t, f.riverArgs("tailnet_delete_device"), 1)
+	require.Len(t, f.riverArgs(), 1)
 
 	// A service that has no node is a no-op.
 	plain := f.service("plain", nil)

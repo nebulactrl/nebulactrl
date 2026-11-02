@@ -57,3 +57,21 @@ describe("readDocFrontmatter", () => {
 		expect(() => readDocFrontmatter({ order: "x" })).toThrow("order");
 	});
 });
+
+describe("parseFrontmatter quoting", () => {
+	test("a quoted value that never closes is an error naming its line", () => {
+		expect(() => parseFrontmatter('---\ntitle: "open\n---\nbody')).toThrow(
+			"frontmatter line 2: unterminated quoted string",
+		);
+		expect(() => parseFrontmatter("---\ntitle: 'x\n---\nbody")).toThrow(
+			"unterminated",
+		);
+	});
+
+	test("double quotes unescape \\\" and \\\\; single quotes unescape ''", () => {
+		const { data } = parseFrontmatter(
+			["---", 'a: "say \\"hi\\" \\\\ ok"', "b: 'it''s'", "---", ""].join("\n"),
+		);
+		expect(data).toEqual({ a: 'say "hi" \\ ok', b: "it's" });
+	});
+});

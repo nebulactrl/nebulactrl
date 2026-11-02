@@ -124,6 +124,7 @@ func humaConfig() huma.Config {
 	// No $schema fields or Link headers: error and success bodies stay minimal.
 	c.CreateHooks = nil
 	c.Components.Schemas = NewSchemaRegistry()
+	c.OnAddOperation = append(c.OnAddOperation, documentDefaultError, nullableFieldsHook())
 	c.Info.Description = "Control-plane API for NebulaCtrl, a self-hosted Docker-native PaaS. " +
 		"Authenticate with the `nebulactrl_session` cookie (browser) or `Authorization: Bearer nct_…` (API tokens). " +
 		"Errors are RFC 9457 problem+json with an additional `code` field."

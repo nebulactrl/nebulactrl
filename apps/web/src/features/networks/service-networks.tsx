@@ -66,7 +66,8 @@ export function ServiceNetworks({ service }: { service: Service }) {
 	const blocked = attachBlockedReason(service);
 	const networks = useQuery({
 		...networksQuery(service.serverId ?? undefined),
-		enabled: service.serverId !== null && service.kind !== "route",
+		// A blocked section lists no networks: nothing to fetch.
+		enabled: blocked === null,
 	});
 	const toggle = useMutation({
 		mutationFn: async (vars: {

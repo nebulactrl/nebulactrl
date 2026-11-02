@@ -5,6 +5,7 @@ import {
 	bayerRanks,
 	ditherOn,
 	inkedCells,
+	matrixShaderCode,
 	quantize,
 } from "./bayer";
 
@@ -92,5 +93,14 @@ describe("inkedCells", () => {
 		expect(inkedCells(0.5, 4)).toBe(8);
 		expect(inkedCells(-1, 4)).toBe(0);
 		expect(inkedCells(3, 2)).toBe(4);
+	});
+});
+
+describe("matrixShaderCode", () => {
+	test("is the u_n the shader expects for each matrix", () => {
+		expect(matrixShaderCode("bayer2")).toBe(2);
+		expect(matrixShaderCode("bayer4")).toBe(4);
+		expect(matrixShaderCode("bayer8")).toBe(8);
+		expect(matrixShaderCode("blue-noise")).toBe(64);
 	});
 });

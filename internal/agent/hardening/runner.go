@@ -78,21 +78,27 @@ func scriptEnv(shell string) []string {
 // Mode implements Runner.
 func (DirectRunner) Mode() string { return ModeHost }
 
+// limitBuffer keeps the first maxOutput bytes. The buffer is a named field, not
+// embedded: an embedded bytes.Buffer would export ReadFrom, which io.Copy (and
+// so exec's pipe copy) prefers to Write, bypassing the cap.
 type limitBuffer struct {
-	bytes.Buffer
+	buf       bytes.Buffer
 	truncated bool
 }
 
 func (b *limitBuffer) Write(p []byte) (int, error) {
-	if room := maxOutput - b.Len(); room < len(p) {
+	if room := maxOutput - b.buf.Len(); room < len(p) {
 		if room > 0 {
-			b.Buffer.Write(p[:room])
+			b.buf.Write(p[:room])
 		}
 		b.truncated = true
 		return len(p), nil
 	}
-	return b.Buffer.Write(p)
+	return b.buf.Write(p)
 }
+
+func (b *limitBuffer) Len() int       { return b.buf.Len() }
+func (b *limitBuffer) String() string { return b.buf.String() }
 
 // Run implements Runner. A script that exits non-zero is not an error: the
 // exit code is in the Output. Cancelling ctx kills the script and everything it

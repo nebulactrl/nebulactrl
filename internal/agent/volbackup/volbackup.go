@@ -80,6 +80,10 @@ type Runner struct {
 	Log      *slog.Logger
 	Now      func() time.Time
 
+	// secondUnit is the length of one payload second (hook timeouts, freeze
+	// budget); zero means time.Second. Tests shorten it.
+	secondUnit time.Duration
+
 	mu        sync.Mutex
 	active    map[string]struct{} // operation ids in flight (helpers the sweep must keep)
 	repoLocks map[string]*sync.Mutex

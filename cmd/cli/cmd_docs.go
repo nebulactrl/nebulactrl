@@ -22,7 +22,7 @@ func newDocsCmd(c *cli) *cobra.Command {
 		Use:    "docs",
 		Short:  "Write the CLI reference as markdown",
 		Hidden: true,
-		Args:   cobra.NoArgs,
+		Args:   noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			var w io.Writer = c.out
 			if outFile != "" {

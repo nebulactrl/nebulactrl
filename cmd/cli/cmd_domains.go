@@ -29,7 +29,7 @@ func dnsLabel(d apiclient.DomainView) string {
 // cloudflareLabel is the Cloudflare DNS state of a domain for the table:
 // "-" while the team has no connection or nothing was evaluated yet.
 func cloudflareLabel(d apiclient.DomainView) string {
-	if d.Dns.Status == "" {
+	if d.Dns == nil || d.Dns.Status == "" {
 		return "-"
 	}
 	label := string(d.Dns.Status)

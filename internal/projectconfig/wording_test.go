@@ -114,7 +114,7 @@ func TestNoAvoidedWording(t *testing.T) {
 	add("apps/web/src/features/project-config", func(p string) bool {
 		return !strings.HasSuffix(p, ".test.ts")
 	})
-	add("apps/web/e2e/project-config.spec.ts", all)
+	add("apps/web/e2e/03-project-config.spec.ts", all)
 	if len(files) < 10 {
 		t.Fatalf("scanned only %d files: the paths moved", len(files))
 	}

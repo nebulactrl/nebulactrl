@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { Service } from "#/api/models";
 import {
 	autoscalingLine,
+	configuredLimits,
 	cpuFigure,
 	formatUptime,
 	healthVerdict,
@@ -10,6 +11,7 @@ import {
 	memoryFigure,
 	probeDescription,
 	replicaCounts,
+	replicaKind,
 	restartTotal,
 	scaleEventLine,
 	uptimeMs,
@@ -269,5 +271,249 @@ describe("liveUptimeError", () => {
 
 	test("no error text shows nothing", () => {
 		expect(liveUptimeError({ state: "down", lastError: "" })).toBeNull();
+	});
+});
+
+describe("probeDescription by check type", () => {
+	function withCheck(check: Record<string, unknown>, port = 8080): Service {
+		const s = service();
+		s.config.port = port;
+		s.config.healthcheck = {
+			...s.config.healthcheck,
+			...check,
+		} as Service["config"]["healthcheck"];
+		return s;
+	}
+
+	test("http names the path and the port, defaulting the path to /", () => {
+		expect(probeDescription(withCheck({ path: "" }))).toBe(
+			"HTTP GET / on :8080 · every 2s",
+		);
+	});
+
+	test("the check's own port wins over the service port", () => {
+		expect(probeDescription(withCheck({ port: 9000 }))).toBe(
+			"HTTP GET /healthz on :9000 · every 2s",
+		);
+	});
+
+	test("no port anywhere leaves it out", () => {
+		expect(probeDescription(withCheck({}, 0))).toBe(
+			"HTTP GET /healthz · every 2s",
+		);
+	});
+
+	test("tcp names the connect", () => {
+		expect(probeDescription(withCheck({ type: "tcp" }))).toBe(
+			"TCP connect :8080 · every 2s",
+		);
+		expect(probeDescription(withCheck({ type: "tcp" }, 0))).toBe(
+			"TCP connect · every 2s",
+		);
+	});
+
+	test("docker defers to the image", () => {
+		expect(probeDescription(withCheck({ type: "docker" }))).toBe(
+			"The image's own HEALTHCHECK",
+		);
+	});
+});
+
+describe("replicaKind", () => {
+	test("a replica that is not running is failed", () => {
+		expect(replicaKind({ state: "exited", health: "healthy" })).toBe("failed");
+	});
+	test("a running unhealthy replica is failed", () => {
+		expect(replicaKind({ state: "running", health: "unhealthy" })).toBe(
+			"failed",
+		);
+	});
+	test("running and healthy is live, anything else is starting", () => {
+		expect(replicaKind({ state: "running", health: "healthy" })).toBe("live");
+		expect(replicaKind({ state: "running", health: "starting" })).toBe(
+			"building",
+		);
+		expect(replicaKind({ state: "running", health: "" })).toBe("building");
+	});
+});
+
+describe("healthVerdict states", () => {
+	test("a first release in flight is Deploying", () => {
+		const verdict = healthVerdict(
+			service({
+				currentDeploymentId: null,
+				latestDeployment: { status: "building" } as Service["latestDeployment"],
+			}),
+		);
+		expect(verdict).toEqual({
+			kind: "deploying",
+			label: "Deploying",
+			detail: "The first release is on its way",
+		});
+	});
+
+	test("a first release that already failed is Not deployed", () => {
+		expect(
+			healthVerdict(
+				service({
+					currentDeploymentId: null,
+					latestDeployment: {
+						status: "failed",
+					} as Service["latestDeployment"],
+				}),
+			).label,
+		).toBe("Not deployed");
+	});
+
+	test("an offline server names itself", () => {
+		const s = service();
+		if (s.server) s.server.status = "revoked";
+		expect(healthVerdict(s)).toEqual({
+			kind: "offline",
+			label: "Server offline",
+			detail: "agent1 is not connected; the last report may be stale",
+		});
+	});
+
+	test("no observation yet is Not reported, never a made-up probe result", () => {
+		expect(healthVerdict(service({ observed: null }))).toEqual({
+			kind: "offline",
+			label: "Not reported",
+			detail: "The agent has not reported this service yet",
+		});
+	});
+
+	test("a container that is not running says its state, or the agent's error", () => {
+		const exited = service();
+		if (exited.observed) exited.observed.state = "exited";
+		expect(healthVerdict(exited)).toEqual({
+			kind: "failed",
+			label: "Not running",
+			detail: "Container state: exited",
+		});
+		const errored = service();
+		if (errored.observed) {
+			errored.observed.state = "exited";
+			errored.observed.error = "OOM killed";
+		}
+		expect(healthVerdict(errored).detail).toBe("OOM killed");
+	});
+
+	test("a running container whose probe fails is Unhealthy", () => {
+		const s = service();
+		if (s.observed) s.observed.health = "unhealthy";
+		expect(healthVerdict(s)).toEqual({
+			kind: "failed",
+			label: "Unhealthy",
+			detail: "HTTP GET /healthz on :8080 · every 2s",
+		});
+	});
+
+	test("without a health check a running container is Running, with one it is Starting", () => {
+		const unchecked = service();
+		unchecked.config.healthcheck.type = "none";
+		if (unchecked.observed) unchecked.observed.health = "none";
+		expect(healthVerdict(unchecked).label).toBe("Running");
+		expect(healthVerdict(unchecked).kind).toBe("live");
+		const starting = service();
+		if (starting.observed) starting.observed.health = "starting";
+		expect(healthVerdict(starting).label).toBe("Starting");
+		expect(healthVerdict(starting).kind).toBe("building");
+	});
+});
+
+describe("uptimeMs and limits edge cases", () => {
+	test("a start time that does not parse is no uptime", () => {
+		const s = service();
+		if (s.observed) s.observed.startedAt = "yesterday-ish";
+		expect(uptimeMs(s, Date.now())).toBeNull();
+	});
+
+	test("a missing start time is no uptime", () => {
+		const s = service();
+		if (s.observed) s.observed.startedAt = null;
+		expect(uptimeMs(s, Date.now())).toBeNull();
+	});
+
+	test("a clock behind the start never goes negative", () => {
+		expect(uptimeMs(service(), Date.parse("2026-10-26T09:00:00Z"))).toBe(0);
+	});
+
+	test("a container that is not running has no uptime", () => {
+		const s = service();
+		if (s.observed) s.observed.state = "exited";
+		expect(uptimeMs(s, Date.parse("2026-10-26T10:05:00Z"))).toBeNull();
+	});
+
+	test("configured limits come straight from the config for a plain service", () => {
+		const s = service();
+		s.config.cpus = 2;
+		s.config.memoryMb = 512;
+		expect(configuredLimits(s)).toEqual({ cpus: 2, memoryMb: 512 });
+	});
+
+	test("formatUptime of a negative span is 0s", () => {
+		expect(formatUptime(-5000)).toBe("0s");
+	});
+});
+
+describe("logLevel details", () => {
+	test("WARNING and FATAL/PANIC/ERR map to warn and error", () => {
+		expect(logLevel("WARNING disk almost full")).toBe("warn");
+		expect(logLevel("FATAL out of memory")).toBe("error");
+		expect(logLevel("panic: nil map")).toBe("error");
+		expect(logLevel("ERR bad request")).toBe("error");
+	});
+
+	test("a level word past the first 64 characters is just text", () => {
+		expect(logLevel(`${"x".repeat(70)} ERROR`)).toBeNull();
+	});
+
+	test("a word that merely contains a level is not a level", () => {
+		expect(logLevel("information request failed")).toBeNull();
+	});
+});
+
+describe("scale event line without a reason", () => {
+	test("leaves the reason out", () => {
+		expect(scaleEventLine({ from: 1, to: 2, reason: "", actor: "ada" })).toBe(
+			"Scaled 1 → 2 · ada",
+		);
+	});
+});
+
+describe("resource figures at the edges", () => {
+	test("no sample says so", () => {
+		expect(cpuFigure(service(), undefined)).toEqual({
+			percent: null,
+			headline: "—",
+			detail: "No samples yet",
+		});
+		expect(memoryFigure(service(), undefined, String)).toEqual({
+			percent: null,
+			headline: "—",
+			detail: "No samples yet",
+		});
+	});
+
+	test("cpu over the limit caps at 100%", () => {
+		const s = service();
+		s.config.cpus = 1;
+		expect(cpuFigure(s, { cpuPercent: 300, replicaCount: 1 }).percent).toBe(
+			100,
+		);
+	});
+
+	test("memory with no limit anywhere shows the bytes in use", () => {
+		const figure = memoryFigure(
+			service(),
+			{ memBytes: 2048, memLimitBytes: 0, replicaCount: 1 },
+			(n) => `${n} B`,
+		);
+		expect(figure).toEqual({
+			percent: null,
+			headline: "2048 B",
+			detail: "No memory limit set",
+		});
 	});
 });

@@ -271,15 +271,15 @@ func TestVolumeBackupResultFillsTheRowAndNotifies(t *testing.T) {
 	require.Equal(t, []string{"a file changed while reading"}, got.Warnings)
 	require.True(t, got.Restorable)
 	require.NotNil(t, got.FinishedAt)
-	require.Len(t, f.events, 1)
-	require.Equal(t, NotifyBackupSucceeded, f.events[0].Type)
-	require.Equal(t, "volume files", f.events[0].Engine)
+	require.Len(t, f.events(), 1)
+	require.Equal(t, NotifyBackupSucceeded, f.events()[0].Type)
+	require.Equal(t, "volume files", f.events()[0].Engine)
 
 	// A duplicate result changes nothing.
 	f.finishBackup(b, snap('b'))
 	got, _ = f.svc.GetVolumeBackup(f.ctx, b.ID)
 	require.Equal(t, snap('a'), got.SnapshotID)
-	require.Len(t, f.events, 1)
+	require.Len(t, f.events(), 1)
 }
 
 func TestVolumeBackupSkippedFailedAndExpired(t *testing.T) {
@@ -299,7 +299,7 @@ func TestVolumeBackupSkippedFailedAndExpired(t *testing.T) {
 	require.Equal(t, StatusSkipped, got.Status)
 	require.Contains(t, got.Error, "busy")
 	require.False(t, got.Restorable)
-	require.Equal(t, NotifyBackupSkipped, f.events[len(f.events)-1].Type)
+	f.lastEvent(NotifyBackupSkipped)
 
 	b2, err := f.svc.CreateVolumeBackup(f.ctx, app.ID)
 	require.NoError(t, err)
@@ -315,7 +315,7 @@ func TestVolumeBackupSkippedFailedAndExpired(t *testing.T) {
 	got, _ = f.svc.GetVolumeBackup(f.ctx, b3.ID)
 	require.Equal(t, StatusFailed, got.Status)
 	require.Equal(t, "freeze budget exceeded", got.Error)
-	require.Equal(t, NotifyBackupFailed, f.events[len(f.events)-1].Type)
+	f.lastEvent(NotifyBackupFailed)
 
 	// Stale queued backups are failed by the tick.
 	b4, err := f.svc.CreateVolumeBackup(f.ctx, app.ID)
@@ -508,7 +508,7 @@ func TestRestoreNewVolumeStagesTheSwap(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, RestoreSucceeded, list[0].Status)
 	require.True(t, list[0].SwapStaged)
-	require.Equal(t, NotifyRestoreSucceeded, f.events[len(f.events)-1].Type)
+	f.lastEvent(NotifyRestoreSucceeded)
 
 	// Pending changes show the swap against the release that still mounts the old volume.
 	cfg := services.DecodeConfig(app.Config)
@@ -677,7 +677,7 @@ func TestVolumeTickStartsDueConfigsAndSkipsOfflineServers(t *testing.T) {
 	require.Equal(t, StatusSkipped, noVol[0].Status)
 	require.Contains(t, noVol[0].Error, "no volumes")
 	var skips int
-	for _, ev := range f.events {
+	for _, ev := range f.events() {
 		if ev.Type == NotifyBackupSkipped {
 			skips++
 		}

@@ -149,13 +149,27 @@ export function rasterizeField(
 			if (diffused) {
 				colour = rampColor(palette, (diffused[y * cols + x] ?? 0) / steps);
 			} else {
-				const tone = tones[y * cols + x] ?? 0;
-				const q = Math.floor(tone * steps + 0.5) / steps;
+				const tone = Math.min(1, Math.max(0, tones[y * cols + x] ?? 0));
+				const thr = threshold?.(x, y) ?? 0.5;
+				// Ordered quantisation onto the levels with one threshold. It picks
+				// the lower or upper neighbouring level (the lower one for
+				// thr < 1 - frac), and the part of the threshold inside that
+				// interval, stretched back to 0..1 as v, makes the second choice
+				// between palette stops. v stays uniform, so the mean tone is kept
+				// at any level count and the matrix still shapes the output.
+				// Mirrors the quantise block of DITHER_FRAGMENT.
+				const p = tone * steps;
+				const lo = Math.floor(p);
+				const fr = p - lo;
+				const cut = 1 - fr;
+				const up = fr > 0 && thr >= cut;
+				const v = up ? (thr - cut) / fr : thr / cut;
+				const q = Math.min(lo + (up ? 1 : 0), steps) / steps;
 				const pos = q * last;
 				const i = Math.min(Math.floor(pos), Math.max(last - 1, 0));
 				const lowColour = palette[i] ?? paper;
 				const highColour = palette[i + 1] ?? lowColour;
-				colour = pos - i > (threshold?.(x, y) ?? 0.5) ? highColour : lowColour;
+				colour = pos - i > v ? highColour : lowColour;
 			}
 			if (sub === 1) {
 				put(x, y, colour);

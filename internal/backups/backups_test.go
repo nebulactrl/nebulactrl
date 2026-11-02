@@ -6,7 +6,9 @@ import (
 	"encoding/json"
 	"io"
 	"log/slog"
+	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -105,7 +107,8 @@ type fixture struct {
 	proj   db.Project
 	env    db.Environment
 	server db.Server
-	events []Event
+	evMu   sync.Mutex
+	evs    []Event
 }
 
 func newFixture(t *testing.T) *fixture {
@@ -140,9 +143,37 @@ func newFixture(t *testing.T) *fixture {
 		Provisioner: NewDatabaseProvisioner(databases.NewService(pool, bus, box, disp, svcs, logger)),
 	})
 	RegisterJobs(jm, f.svc)
-	f.svc.SetNotifier(NotifierFunc(func(_ context.Context, ev Event) { f.events = append(f.events, ev) }))
+	f.svc.SetNotifier(NotifierFunc(func(_ context.Context, ev Event) {
+		f.evMu.Lock()
+		defer f.evMu.Unlock()
+		f.evs = append(f.evs, ev)
+	}))
 	f.ctx = auth.WithPrincipal(bg, &auth.Principal{Type: auth.TypeUser, UserID: u.ID, WorkspaceID: ws.ID, Label: "alice@example.com", Scopes: policy.AllScopes})
 	return f
+}
+
+// events returns the notifications sent so far. Notifiers run on worker
+// goroutines (agent streams, jobs), hence the lock.
+func (f *fixture) events() []Event {
+	f.evMu.Lock()
+	defer f.evMu.Unlock()
+	return slices.Clone(f.evs)
+}
+
+// lastEvent waits for a notification of type typ to be the latest one: a
+// finished restore commits its status before it notifies.
+func (f *fixture) lastEvent(typ string) Event {
+	f.t.Helper()
+	var last Event
+	require.Eventually(f.t, func() bool {
+		evs := f.events()
+		if len(evs) == 0 {
+			return false
+		}
+		last = evs[len(evs)-1]
+		return last.Type == typ
+	}, 5*time.Second, 5*time.Millisecond, "no %s notification (last: %+v)", typ, last)
+	return last
 }
 
 // database inserts a deployed managed Postgres on the fixture server.
@@ -350,8 +381,8 @@ func TestSecretsNeverInPersistedPayloads(t *testing.T) {
 	require.NotContains(t, got.Error, canarySecret)
 	require.NotContains(t, got.Error, canaryDBPass)
 	require.Contains(t, got.Error, "••••••")
-	require.Len(t, f.events, 1)
-	require.Equal(t, NotifyBackupFailed, f.events[0].Type)
+	require.Len(t, f.events(), 1)
+	require.Equal(t, NotifyBackupFailed, f.events()[0].Type)
 }
 
 func TestBackupSuccessAndStatusFlow(t *testing.T) {
@@ -381,9 +412,9 @@ func TestBackupSuccessAndStatusFlow(t *testing.T) {
 	require.EqualValues(t, 4096, got.SizeBytes)
 	require.True(t, got.Restorable)
 	require.Equal(t, TriggerManual, got.Trigger)
-	require.Len(t, f.events, 1)
-	require.Equal(t, NotifyBackupSucceeded, f.events[0].Type)
-	require.EqualValues(t, 4096, f.events[0].SizeBytes)
+	require.Len(t, f.events(), 1)
+	require.Equal(t, NotifyBackupSucceeded, f.events()[0].Type)
+	require.EqualValues(t, 4096, f.events()[0].SizeBytes)
 
 	// A failed result after success does not rewrite history.
 	require.NoError(t, f.svc.HandleResult(f.ctx, cmdID, f.result(cmdID, "failed", "late", agentprotocol.DBBackupResult{})))
@@ -538,7 +569,7 @@ func TestTickRunsDueSchedulesAndSkipsHonestly(t *testing.T) {
 	list, _ = f.svc.ListBackups(f.ctx, sv.ID, 10)
 	require.Equal(t, StatusSkipped, list[0].Status)
 	require.Contains(t, list[0].Error, "offline")
-	require.Equal(t, NotifyBackupSkipped, f.events[len(f.events)-1].Type)
+	f.lastEvent(NotifyBackupSkipped)
 
 	// Stopped database: skipped too.
 	_, err = f.pool.Exec(context.Background(), "UPDATE servers SET status = 'online' WHERE id = $1", f.server.ID)
@@ -725,7 +756,7 @@ func TestRestoreToNewCreatesSiblingDatabase(t *testing.T) {
 	require.NoError(t, f.svc.HandleResult(f.ctx, cmdID, f.result(cmdID, "succeeded", "", agentprotocol.DBRestoreResult{Outcome: "succeeded"})))
 	got, _ = f.svc.GetRestore(f.ctx, rv.ID)
 	require.Equal(t, RestoreSucceeded, got.Status)
-	require.Equal(t, NotifyRestoreSucceeded, f.events[len(f.events)-1].Type)
+	f.lastEvent(NotifyRestoreSucceeded)
 }
 
 func (f *fixture) variable(serviceID uuid.UUID, key string) string {

@@ -174,10 +174,13 @@ function Wizard({
 	};
 
 	// A change of choices re-plans a beat after the last change. `plan.mutate`
-	// aborts the request before it, and only the latest answer is taken.
+	// aborts the request before it, and only the latest answer is taken. A
+	// debounce still catching up (Read right after typing) is not a change: Read
+	// has already planned the current request.
 	// biome-ignore lint/correctness/useExhaustiveDependencies: the plan runs when the settled request changes, not when its callbacks do.
 	useEffect(() => {
-		if (step !== "review" || settled === lastPlanned.current) return;
+		if (step !== "review" || settled !== fingerprint) return;
+		if (settled === lastPlanned.current) return;
 		runPlan(requestRef.current);
 	}, [settled, step]);
 

@@ -39,6 +39,29 @@ describe("parseCssColor", () => {
 		expect(parseCssColor("transparent")).toEqual([0, 0, 0, 0]);
 	});
 
+	test("color(srgb) with a fourth component reads it as alpha", () => {
+		expect(parseCssColor("color(srgb 1 0.5 0 0.25)")).toEqual([
+			1, 0.5, 0, 0.25,
+		]);
+		// Components are clamped into 0..1.
+		expect(parseCssColor("color(srgb 2 -1 0.5 3)")).toEqual([1, 0, 0.5, 1]);
+	});
+
+	test("percent channels and alpha", () => {
+		expect(parseCssColor("rgb(100% 50% 0%)")).toEqual([1, 0.5, 0, 1]);
+		expect(parseCssColor("rgb(300, -5, 0)")).toEqual([1, 0, 0, 1]);
+	});
+
+	test("malformed colours are rejected, not guessed", () => {
+		expect(parseCssColor("#12")).toBeNull();
+		expect(parseCssColor("#ggg")).toBeNull();
+		expect(parseCssColor("#12345")).toBeNull();
+		expect(parseCssColor("rgb(1 2)")).toBeNull();
+		expect(parseCssColor("rgb(a b c)")).toBeNull();
+		expect(parseCssColor("rgb(1 2 3 / x)")).toBeNull();
+		expect(parseCssColor("rgb(1 2 3 4 5)")).toBeNull();
+	});
+
 	test("leaves modern spaces for the canvas probe", () => {
 		expect(parseCssColor("oklch(0.7 0.15 270)")).toBeNull();
 		expect(parseCssColor("color(display-p3 1 0 0)")).toBeNull();

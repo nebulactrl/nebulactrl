@@ -1,13 +1,18 @@
 import { describe, expect, test } from "bun:test";
-import type { ServiceMetricPoint } from "#/api/gen/types.gen";
+import type { MetricPoint, ServiceMetricPoint } from "#/api/gen/types.gen";
 import {
+	breakGaps,
+	hasPeaks,
+	isDelayed,
 	latestReplicas,
+	medianStepMs,
 	processResources,
 	REPLICA_COLORS,
 	replicaBars,
 	replicaColor,
 	serviceMetricsParams,
 	showReplicaList,
+	toServerPoints,
 	toServicePoints,
 	visibleReplicas,
 } from "./model";
@@ -188,5 +193,176 @@ describe("showReplicaList", () => {
 		expect(showReplicaList(true, "worker", 3)).toBe(true);
 		expect(showReplicaList(false, undefined, 3)).toBe(true);
 		expect(showReplicaList(true, "worker", 1)).toBe(false);
+	});
+});
+
+const serverPoint = (over: Partial<MetricPoint> = {}): MetricPoint => ({
+	ts: "2025-01-01T00:00:10Z",
+	cpuPercent: 30,
+	cpuMax: 55,
+	diskPercent: 62,
+	diskTotalBytes: 100 * MB,
+	diskUsedBytes: 62 * MB,
+	memBytes: 2048 * MB,
+	memMax: 3072 * MB,
+	memPercent: 25,
+	memTotalBytes: 8192 * MB,
+	...over,
+});
+
+describe("toServerPoints", () => {
+	test("maps a sample to epoch ms and the percentages and byte totals the cards print", () => {
+		expect(toServerPoints([serverPoint()])).toEqual([
+			{
+				t: Date.parse("2025-01-01T00:00:10Z"),
+				cpu: 30,
+				cpuMax: 55,
+				memPct: 25,
+				memMaxPct: (3072 / 8192) * 100,
+				diskPct: 62,
+				memUsed: 2048 * MB,
+				memTotal: 8192 * MB,
+				diskUsed: 62 * MB,
+				diskTotal: 100 * MB,
+			},
+		]);
+	});
+
+	test("the peak falls back to the average when the sample was not downsampled", () => {
+		const [row] = toServerPoints([
+			serverPoint({
+				cpuMax: undefined as unknown as number,
+				memMax: undefined as unknown as number,
+			}),
+		]);
+		expect(row?.cpuMax).toBe(30);
+		expect(row?.memMaxPct).toBeCloseTo(25);
+	});
+
+	test("without a reported memory total there is no memory peak percent", () => {
+		const [row] = toServerPoints([serverPoint({ memTotalBytes: 0 })]);
+		expect(row?.memMaxPct).toBeNull();
+	});
+
+	test("null and empty responses give no rows", () => {
+		expect(toServerPoints(null)).toEqual([]);
+		expect(toServerPoints(undefined)).toEqual([]);
+		expect(toServerPoints([])).toEqual([]);
+	});
+});
+
+describe("toServicePoints fallbacks", () => {
+	test("the peaks fall back to the averages", () => {
+		const [row] = toServicePoints([
+			point({
+				cpuMax: undefined as unknown as number,
+				memMax: undefined as unknown as number,
+			}),
+		]);
+		expect(row?.cpuMax).toBe(80);
+		expect(row?.memMaxMb).toBe(400);
+	});
+
+	test("memory percent never passes 100 when usage is over the limit", () => {
+		const [row] = toServicePoints([
+			point({ memBytes: 2048 * MB, memLimitBytes: 1024 * MB }),
+		]);
+		expect(row?.memPct).toBe(100);
+	});
+
+	test("null and undefined give no rows", () => {
+		expect(toServicePoints(null)).toEqual([]);
+		expect(toServicePoints(undefined)).toEqual([]);
+	});
+});
+
+describe("hasPeaks", () => {
+	test("true when some sample peaked clearly above its average", () => {
+		expect(
+			hasPeaks([
+				{ cpu: 10, cpuMax: 10 },
+				{ cpu: 10, cpuMax: 12 },
+			]),
+		).toBe(true);
+	});
+
+	test("rounding noise of 0.05 or less is not a peak", () => {
+		expect(hasPeaks([{ cpu: 10, cpuMax: 10.05 }])).toBe(false);
+		expect(hasPeaks([{ cpu: 10, cpuMax: 9 }])).toBe(false);
+	});
+
+	test("gap rows (null values) and no rows have no peaks", () => {
+		expect(hasPeaks([{ cpu: null, cpuMax: null }])).toBe(false);
+		expect(hasPeaks([{ cpu: 5, cpuMax: null }])).toBe(false);
+		expect(hasPeaks([{ cpu: null, cpuMax: 5 }])).toBe(false);
+		expect(hasPeaks([])).toBe(false);
+	});
+});
+
+describe("breakGaps", () => {
+	const blank = (t: number) => ({ t, v: null as number | null });
+	const row = (t: number) => ({ t, v: 1 as number | null });
+
+	test("inserts one blank row one step after the sample before an outage", () => {
+		const out = breakGaps([row(0), row(10), row(100)], 10, blank);
+		expect(out.map((r) => [r.t, r.v])).toEqual([
+			[0, 1],
+			[10, 1],
+			[20, null],
+			[100, 1],
+		]);
+	});
+
+	test("a spacing of exactly three steps is still continuous", () => {
+		const out = breakGaps([row(0), row(30)], 10, blank);
+		expect(out.map((r) => r.t)).toEqual([0, 30]);
+	});
+
+	test("the factor sets how many steps count as an outage", () => {
+		const out = breakGaps([row(0), row(30)], 10, blank, 2);
+		expect(out.map((r) => r.t)).toEqual([0, 10, 30]);
+	});
+
+	test("fewer than two rows or a non-positive step pass through as a copy", () => {
+		const one = [row(0)];
+		const copy = breakGaps(one, 10, blank);
+		expect(copy).toEqual(one);
+		expect(copy).not.toBe(one);
+		expect(breakGaps([row(0), row(1000)], 0, blank).map((r) => r.t)).toEqual([
+			0, 1000,
+		]);
+		expect(breakGaps([], 10, blank)).toEqual([]);
+	});
+});
+
+describe("medianStepMs", () => {
+	test("is the median spacing, so one outage does not skew it", () => {
+		expect(
+			medianStepMs([{ t: 0 }, { t: 10 }, { t: 20 }, { t: 30 }, { t: 500 }]),
+		).toBe(10);
+	});
+
+	test("zero below two rows", () => {
+		expect(medianStepMs([])).toBe(0);
+		expect(medianStepMs([{ t: 5 }])).toBe(0);
+	});
+});
+
+describe("isDelayed", () => {
+	test("true once the newest sample is older than three steps", () => {
+		expect(isDelayed(1_000, 10, 1_031)).toBe(true);
+	});
+
+	test("exactly three steps old is still live", () => {
+		expect(isDelayed(1_000, 10, 1_030)).toBe(false);
+	});
+
+	test("the factor is adjustable", () => {
+		expect(isDelayed(1_000, 10, 1_030, 2)).toBe(true);
+	});
+
+	test("without a sample or a step there is nothing to call late", () => {
+		expect(isDelayed(undefined, 10, 99_999)).toBe(false);
+		expect(isDelayed(1_000, 0, 99_999)).toBe(false);
 	});
 });

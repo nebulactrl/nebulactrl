@@ -276,8 +276,8 @@ func TestDumpRestoreToNewDatabaseStreamsTheFileToTheAgent(t *testing.T) {
 	require.Contains(t, done.Log, "restored")
 	require.Contains(t, done.Log, "upload complete")
 	require.NotNil(t, done.FinishedAt)
-	require.NotEmpty(t, f.events)
-	require.Equal(t, NotifyRestoreSucceeded, f.events[len(f.events)-1].Type)
+	require.NotEmpty(t, f.events())
+	f.lastEvent(NotifyRestoreSucceeded)
 
 	// The request addressed the NEW database with its own password.
 	require.Len(t, ag.requests, 1)
@@ -328,7 +328,7 @@ func TestDumpRestoreReportsTheEngineFailure(t *testing.T) {
 	v := f.waitDump(aw.ID, RestoreFailed)
 	require.Contains(t, v.Error, "already exists")
 	require.Contains(t, v.Log, "could not execute query")
-	require.Equal(t, NotifyRestoreFailed, f.events[len(f.events)-1].Type)
+	f.lastEvent(NotifyRestoreFailed)
 }
 
 func TestDumpUploadRefusesWhatDoesNotFitBeforeAnythingChanges(t *testing.T) {

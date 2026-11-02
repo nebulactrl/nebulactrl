@@ -147,7 +147,10 @@ func mapRunOptions(raw string, unrestricted bool) runResult {
 		res.Notes = append(res.Notes, CoolifyNote{Key: key, Severity: sev, Message: msg})
 	}
 	unsupported := func(flag, why string) {
-		msg := "--" + flag
+		msg := flag
+		if !strings.HasPrefix(flag, "-") { // an unknown short flag is already named "-x"
+			msg = "--" + flag
+		}
 		if why != "" {
 			msg += ": " + why
 		}

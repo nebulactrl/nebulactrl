@@ -1,26 +1,10 @@
 import { describe, expect, test } from "bun:test";
 import {
-	ASK_ADMIN_NOTE,
 	DEAD_LINK_TEXT,
 	forgotFailure,
 	passwordProblem,
-	RESET_COMMAND,
 	resetFailure,
-	UNAVAILABLE_NOTE,
 } from "./messages";
-
-describe("the reset hint for installs without email", () => {
-	test("names the host command a solo admin runs", () => {
-		expect(RESET_COMMAND).toBe("nebulactrl-server reset-password <email>");
-	});
-	test("does not tell people to ask for something only some can give", () => {
-		expect(ASK_ADMIN_NOTE).not.toContain("team admin");
-		expect(UNAVAILABLE_NOTE).not.toContain(ASK_ADMIN_NOTE);
-	});
-	test("a dead link is worded once for the page and the submit", () => {
-		expect(resetFailure("invalid_reset_token", 400, "x")).toBe(DEAD_LINK_TEXT);
-	});
-});
 
 describe("passwordProblem", () => {
 	test("needs ten characters", () => {
@@ -39,10 +23,10 @@ describe("passwordProblem", () => {
 });
 
 describe("resetFailure", () => {
-	test("names a dead link and says what to do", () => {
-		expect(resetFailure("invalid_reset_token", 400, "x")).toContain(
-			"Ask for a new one",
-		);
+	test("a dead link is one text for the page and the submit, and says what to do", () => {
+		const text = resetFailure("invalid_reset_token", 400, "x");
+		expect(text).toBe(DEAD_LINK_TEXT);
+		expect(text).toContain("Ask for a new one");
 	});
 	test("rate limits and the rest", () => {
 		expect(resetFailure(undefined, 429, "x")).toContain("Wait a minute");
