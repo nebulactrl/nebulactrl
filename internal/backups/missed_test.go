@@ -87,7 +87,7 @@ func TestEvaluateMissed(t *testing.T) {
 
 func (f *fixture) missedEvents() []Event {
 	var out []Event
-	for _, e := range f.events {
+	for _, e := range f.events() {
 		if e.Type == NotifyBackupMissed {
 			out = append(out, e)
 		}

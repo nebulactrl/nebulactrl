@@ -86,13 +86,14 @@ func TestBackupFreezeFlow(t *testing.T) {
 
 func TestBackupFreezeBudgetExceededThawsAndFails(t *testing.T) {
 	r, d, _, svc := setup()
-	d.copyDelay = 5 * time.Second
+	r.secondUnit = 20 * time.Millisecond // a budget of one "second" is 20 ms here
+	d.copyDelay = 10 * time.Second
 	p := payload()
 	p.FreezeBudgetSeconds = 1
 	started := time.Now()
 	res, err := r.Backup(context.Background(), p, secrets(), nil)
 	require.Error(t, err)
-	assert.Less(t, time.Since(started), 4*time.Second, "the copy must be cut off at the budget")
+	assert.Less(t, time.Since(started), time.Second, "the copy must be cut off at the budget")
 	assert.Equal(t, agentprotocol.OutcomeFailed, res.Outcome)
 	assert.Equal(t, "Snapshot took longer than 1 s; use Stop mode or a pre-backup hook", res.Message)
 	assert.True(t, d.has("pause nc-app-1"))

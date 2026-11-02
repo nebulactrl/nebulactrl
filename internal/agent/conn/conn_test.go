@@ -205,11 +205,11 @@ func TestCommandFlowAckResultDedupeAndKindCheck(t *testing.T) {
 		}
 		send(agentprotocol.Command{ID: "c1", Kind: agentprotocol.KindRestartService, Payload: json.RawMessage(`{}`)})
 		send(agentprotocol.Command{ID: "c2", Kind: "format_disk", Payload: json.RawMessage(`{}`)})
-		// Redelivery of c1 must replay the stored result without running again.
-		time.Sleep(300 * time.Millisecond)
-		send(agentprotocol.Command{ID: "c1", Kind: agentprotocol.KindRestartService, Payload: json.RawMessage(`{}`)})
-		for {
-			rctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		// Redelivery of c1 must replay the stored result without running again;
+		// it is sent once both first results arrived, i.e. c1's is stored.
+		results, redelivered := 0, false
+		for results < 3 {
+			rctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 			_, data, err := ws.Read(rctx)
 			cancel()
 			if err != nil {
@@ -217,6 +217,13 @@ func TestCommandFlowAckResultDedupeAndKindCheck(t *testing.T) {
 			}
 			f, _ := agentprotocol.Decode(data)
 			got <- f
+			if f.Type == agentprotocol.TypeResult {
+				results++
+			}
+			if results == 2 && !redelivered {
+				redelivered = true
+				send(agentprotocol.Command{ID: "c1", Kind: agentprotocol.KindRestartService, Payload: json.RawMessage(`{}`)})
+			}
 		}
 	}
 
@@ -267,11 +274,12 @@ func TestRunReturnsOnlyAfterRunningHandlersFinish(t *testing.T) {
 	srv = s
 
 	started := make(chan struct{})
+	finish := make(chan struct{})
 	var finished atomic.Bool
 	c.SetHandler(HandlerFunc(func(ctx context.Context, _ agentprotocol.Command) agentprotocol.ResultFrame {
 		close(started)
 		<-ctx.Done()
-		time.Sleep(200 * time.Millisecond) // work that outlives the cancel, like a proxy Apply
+		<-finish // work that outlives the cancel, like a proxy Apply
 		finished.Store(true)
 		return agentprotocol.ResultFrame{Outcome: agentprotocol.OutcomeSucceeded}
 	}))
@@ -288,6 +296,12 @@ func TestRunReturnsOnlyAfterRunningHandlersFinish(t *testing.T) {
 	go func() { ran <- c.Run(ctx) }()
 	<-started
 	cancel()
+	select {
+	case err := <-ran:
+		t.Fatalf("Run returned (%v) while a command handler was still running", err)
+	case <-time.After(50 * time.Millisecond):
+	}
+	close(finish)
 	require.ErrorIs(t, <-ran, context.Canceled)
 	require.True(t, finished.Load(), "Run returned while a command handler was still running")
 }

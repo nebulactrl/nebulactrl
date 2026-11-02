@@ -180,6 +180,8 @@ func (e *e2e) startAgent(o agentOptions) *e2eAgent {
 			}
 		},
 		HeartbeatInterval: o.heartbeat,
+		// Reconnect at once instead of after the real one-second backoff.
+		ReconnectAfter: func(time.Duration) <-chan time.Time { return time.After(time.Millisecond) },
 	})
 	a.c.SetReconciler(reconcilerFunc(func(_ context.Context, d agentprotocol.Reconcile) error {
 		if ns, err := strconv.ParseInt(d.ACMEEmail, 10, 64); err == nil {
@@ -528,7 +530,16 @@ func TestHelloReconcileIsRepeatedWithEndpointsAfterAReconnect(t *testing.T) {
 	e.endpoints = endpointsOf(agentprotocol.TunnelRegistry)
 	require.NoError(t, hubConn.sendFrame(agentprotocol.TypeReconcile, "", agentprotocol.Reconcile{Endpoints: e.endpoints}))
 	e.waitListening(a, agentprotocol.TunnelRegistry)
-	require.NoError(t, hubConn.sendFrame(agentprotocol.TypeReconcile, "", agentprotocol.Reconcile{}))
-	time.Sleep(100 * time.Millisecond)
+	// The test reconciler records a latency sample for a numeric ACMEEmail,
+	// which tells when this reconcile has been handled.
+	a.mu.Lock()
+	seen := len(a.latency)
+	a.mu.Unlock()
+	require.NoError(t, hubConn.sendFrame(agentprotocol.TypeReconcile, "", agentprotocol.Reconcile{ACMEEmail: "1"}))
+	require.Eventually(t, func() bool {
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		return len(a.latency) > seen
+	}, 5*time.Second, time.Millisecond, "the agent handled the reconcile without the field")
 	require.NotEmpty(t, a.lp.Addr(agentprotocol.TunnelRegistry))
 }
