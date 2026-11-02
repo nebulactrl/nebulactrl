@@ -85,7 +85,8 @@ Other targets (`make help` lists them all):
 | `make lint` | `go vet` and biome |
 | `make build` | web build, then `bin/nebulactrl-server` (web embedded), `bin/nebulactrl-agent`, `bin/nebulactrl` |
 | `make build-agents` | static Linux agents for amd64 and arm64 in `bin/agents` |
-| `make e2e` | Playwright smoke test |
+| `make test-e2e` | tier 4: the Playwright flows in a real browser against a fresh stack it starts and removes (see [`tests/README.md`](tests/README.md)) |
+| `make e2e` | the same flows against a running dev stack (`make dev` plus the agent1 profile) |
 
 A second, independent Docker host for multi-server testing is available with the `multi` compose profile; see [`deploy/dev/docker-compose.yml`](deploy/dev/docker-compose.yml).
 

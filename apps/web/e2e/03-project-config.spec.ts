@@ -1,150 +1,103 @@
+import { expect, test } from "@playwright/test";
+import { deleteProject, findProject, getJson, uniqueName } from "./support/api";
+import { WHOAMI } from "./support/env";
 import {
-	type APIRequestContext,
-	expect,
-	type Page,
-	test,
-} from "@playwright/test";
+	createImageService,
+	createProject,
+	deployStaged,
+	expectLive,
+} from "./support/ui";
 
-// Smoke flow against a running dev stack, as in smoke.spec.ts (same
-// E2E_EMAIL / E2E_PASSWORD / E2E_SERVER): export a project's nebula.toml,
-// edit it, plan, apply (stage), and see the staged review say "set by
-// nebula.toml" for the line the file owns.
+// Flow 3: nebula.toml. Deploy a service, export the project's file from the
+// environment menu, add a variable to it the way a commit would, plan it (the
+// plan lists the change and refuses a broken file), apply it as staged changes,
+// and see the staged review say "set by nebula.toml" for the line the file owns.
+// The service is deployed first: for a service that never ran, the review
+// shows one line, "First deployment", and no field lines.
 
-const EMAIL = process.env.E2E_EMAIL ?? "admin@example.com";
-const PASSWORD = process.env.E2E_PASSWORD ?? "correct-horse-battery";
-const SERVER = process.env.E2E_SERVER ?? "agent1";
-
-const rand = Math.random().toString(36).slice(2, 8);
-const PROJECT_NAME = `e2e-cfg-${rand}`;
-const SERVICE_NAME = `e2e-cfg-${rand}`;
 const FLAG = "E2E_CONFIG_FLAG";
 
-interface Item {
-	id: string;
-	name: string;
-	slug: string;
-	status?: string;
-}
-
-async function list(request: APIRequestContext, path: string): Promise<Item[]> {
-	const res = await request.get(`/api/v1${path}`);
-	expect(res.ok(), `GET ${path}`).toBe(true);
-	const body: { items: Item[] } = await res.json();
-	return body.items;
-}
-
-async function signIn(page: Page) {
-	const setup = await page.request.get("/api/v1/setup");
-	const { needsSetup }: { needsSetup: boolean } = await setup.json();
-	if (needsSetup) {
-		await page.goto("/setup");
-		await page.getByLabel("Your name").fill("E2E Admin");
-		await page.getByLabel("Email").fill(EMAIL);
-		await page.getByLabel("Password").fill(PASSWORD);
-		await page.getByRole("button", { name: /create|continue|set up/i }).click();
-	} else {
-		await page.goto("/login");
-		await page.getByLabel("Email").fill(EMAIL);
-		await page.getByLabel("Password").fill(PASSWORD);
-		await page.getByRole("button", { name: "Sign in", exact: true }).click();
-	}
-	await expect(page.locator('[data-page="projects"]')).toBeVisible();
-}
-
-async function cleanup(page: Page) {
-	const request = page.request;
-	const project = (await list(request, "/projects")).find(
-		(p) => p.name === PROJECT_NAME,
-	);
-	if (!project) return;
-	for (const env of await list(
-		request,
-		`/projects/${project.id}/environments`,
-	)) {
-		for (const svc of await list(request, `/environments/${env.id}/services`)) {
-			await request.delete(
-				`/api/v1/services/${svc.id}?confirm=${svc.slug}&deleteVolumes=true`,
-			);
-		}
-	}
-	await request.delete(`/api/v1/projects/${project.id}`);
-}
-
-test("export, edit, plan, stage: the staged review says set by nebula.toml", async ({
+test("export, plan shows the diff, apply stages it as set by nebula.toml", async ({
 	page,
 }) => {
+	const project = uniqueName("e2e-cfg");
+	const service = "web";
 	try {
-		await signIn(page);
-		await expect
-			.poll(
-				async () =>
-					(await list(page.request, "/servers")).find((s) => s.name === SERVER)
-						?.status,
-				{ message: `server ${SERVER} online`, timeout: 30_000 },
-			)
-			.toBe("online");
+		await createProject(page, project);
+		await createImageService(page, { name: service, image: WHOAMI, port: 80 });
+		await deployStaged(page);
+		await expectLive(page, service);
 
-		await page.getByRole("button", { name: "New project" }).first().click();
-		await page.getByLabel("Name").fill(PROJECT_NAME);
-		await page.getByRole("button", { name: "Create project" }).click();
-		await expect(page).toHaveURL(/\/p\/[^/]+\/production/);
-		await page
-			.locator('[data-slot="canvas-empty"]')
-			.getByRole("button", { name: "Create", exact: true })
-			.click();
-		await page
-			.getByRole("listbox", { name: "Create a service" })
-			.getByRole("option", { name: /Docker image/ })
-			.click();
-		const dialog = page.getByRole("dialog");
-		await dialog.getByLabel("Image").fill("traefik/whoami");
-		await dialog.getByLabel("Name").fill(SERVICE_NAME);
-		await dialog.getByLabel("Port").fill("80");
-		await dialog.getByRole("radio", { name: new RegExp(SERVER) }).click();
-		await dialog.getByRole("button", { name: "Create service" }).click();
-		await expect(dialog).toBeHidden();
+		// Export from the environment menu: the file names the project and the service.
+		await page.getByRole("button", { name: /^production/ }).click();
+		await page.getByRole("menuitem", { name: /Export nebula\.toml/ }).click();
+		const exportDialog = page.getByRole("dialog", { name: "Export nebula.toml" });
+		const exported = exportDialog.getByRole("textbox", { name: "nebula.toml" });
+		await expect(exported).toHaveValue(/schema = 1/);
+		await expect(exported).toHaveValue(new RegExp(`project = "${project}"`));
+		await expect(exported).toHaveValue(new RegExp(`services\\.${service}`));
+		const exportedFile = await exported.inputValue();
+		await exportDialog.getByRole("button", { name: "Close" }).first().click();
+		await expect(exportDialog).toBeHidden();
 
-		const project = (await list(page.request, "/projects")).find(
-			(p) => p.name === PROJECT_NAME,
-		);
-		expect(project, "project exists").toBeTruthy();
-		const projectId = project?.id ?? "";
-		const base = `/api/v1/projects/${projectId}/config`;
+		const found = await findProject(page.request, project);
+		expect(found, "the project exists").toBeTruthy();
+		const base = `/api/v1/projects/${found?.id}/config`;
+		const file = `${exportedFile.trimEnd()}\n\n[services.${service}.variables]\n${FLAG} = "on"\n`;
 
-		// Export what exists, then add one variable the file owns.
-		const exported = await page.request.get(
-			`${base}/export?environment=production`,
-			{ headers: { Accept: "application/json" } },
-		);
-		expect(exported.ok(), "export").toBe(true);
-		const { file: exportedFile }: { file: string } = await exported.json();
-		expect(exportedFile).toContain("schema = 1");
-		const slug = (
-			await list(
-				page.request,
-				`/environments/${
-					(await list(page.request, `/projects/${projectId}/environments`))[0]
-						?.id
-				}/services`,
-			)
-		)[0]?.slug;
-		const file = `${exportedFile.trimEnd()}\n\n[services.${slug}.variables]\n${FLAG} = "on"\n`;
-
+		// Validate and plan: a valid file lists what it would change; nothing is
+		// written yet.
 		const validated = await page.request.post(`${base}/validate`, {
 			data: { file },
 		});
 		const validity: { valid: boolean } = await validated.json();
 		expect(validity.valid).toBe(true);
-
 		const planned = await page.request.post(`${base}/plan`, {
 			data: { environment: "production", source: { file } },
 		});
 		expect(planned.ok(), "plan").toBe(true);
-		const plan: { planId: string; valid: boolean } = await planned.json();
+		const plan: {
+			planId: string;
+			valid: boolean;
+			summary: { update: number; create: number; staged: number };
+			services: {
+				slug: string;
+				serviceId: string;
+				action: string;
+				changes: { field: string; op: string; to: string; applies: string }[];
+			}[];
+		} = await planned.json();
 		expect(plan.valid).toBe(true);
+		expect(plan.summary).toMatchObject({ create: 0, update: 1, staged: 1 });
+		expect(plan.services).toHaveLength(1);
+		expect(plan.services[0]).toMatchObject({ slug: service, action: "update" });
+		expect(plan.services[0]?.changes).toEqual([
+			expect.objectContaining({
+				field: `variables.${FLAG}`,
+				op: "add",
+				to: "on",
+				applies: "staged",
+			}),
+		]);
+		// Planning wrote nothing: the service still has no variable.
+		const planned0 = await getJson<{ items: { key: string }[] }>(
+			page.request,
+			`/services/${plan.services[0]?.serviceId ?? ""}/variables`,
+		);
+		expect(planned0.items.map((v) => v.key)).not.toContain(FLAG);
 
+		// A broken file is refused with a reason and never applied.
+		const broken = await page.request.post(`${base}/validate`, {
+			data: { file: `${file}\n[services.${service}.variables\n` },
+		});
+		const refusal: { valid: boolean; diagnostics: unknown[] } =
+			await broken.json();
+		expect(refusal.valid).toBe(false);
+		expect(refusal.diagnostics.length).toBeGreaterThan(0);
+
+		// Apply stages the change (deploy: false): nothing is deployed.
 		const applied = await page.request.post(`${base}/apply`, {
-			headers: { "Idempotency-Key": `e2e-${rand}` },
+			headers: { "Idempotency-Key": `e2e-${project}` },
 			data: {
 				environment: "production",
 				source: { file },
@@ -156,14 +109,21 @@ test("export, edit, plan, stage: the staged review says set by nebula.toml", asy
 
 		// The staged review marks the line the file owns.
 		await page.reload();
-		await page
-			.getByRole("button", { name: /Deploy/ })
-			.first()
-			.click();
-		const review = page.getByRole("dialog");
+		await page.getByRole("button", { name: "Deploy options" }).click();
+		await page.getByRole("menuitem", { name: "Review changes" }).click();
+		const review = page.getByRole("dialog", { name: "Review changes" });
 		await expect(review).toContainText(`variables.${FLAG}`);
 		await expect(review).toContainText("set by nebula.toml");
+		await review.getByRole("button", { name: "Close" }).first().click();
+
+		// Planning the same file again finds nothing left to do.
+		const replanned = await page.request.post(`${base}/plan`, {
+			data: { environment: "production", source: { file } },
+		});
+		const again: { summary: { update: number; unchanged: number } } =
+			await replanned.json();
+		expect(again.summary.update).toBe(0);
 	} finally {
-		await cleanup(page);
+		await deleteProject(page.request, project);
 	}
 });
