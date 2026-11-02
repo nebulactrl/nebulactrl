@@ -56,6 +56,9 @@ type Config struct {
 	HTTPClient *http.Client
 	// HeartbeatInterval overrides agentprotocol.HeartbeatInterval (tests).
 	HeartbeatInterval time.Duration
+	// ReconnectAfter waits out the delay before a reconnect attempt (default
+	// time.After; tests shorten or control it).
+	ReconnectAfter func(delay time.Duration) <-chan time.Time
 }
 
 // Client maintains the agent's connection to the control plane. It implements Sender.
@@ -92,6 +95,9 @@ func New(cfg Config) *Client {
 	}
 	if cfg.HeartbeatInterval <= 0 {
 		cfg.HeartbeatInterval = agentprotocol.HeartbeatInterval
+	}
+	if cfg.ReconnectAfter == nil {
+		cfg.ReconnectAfter = time.After
 	}
 	c := &Client{
 		cfg:     cfg,
@@ -174,7 +180,7 @@ func (c *Client) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-time.After(delay):
+		case <-c.cfg.ReconnectAfter(delay):
 		}
 		backoff = min(backoff*2, maxBackoff)
 	}
