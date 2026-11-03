@@ -104,7 +104,7 @@ func TestGitHubAppManifestInstallCloneAndStatus(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(start.Manifest), &manifest))
 	require.Equal(t, "https://nebula.example.com/hooks/git/github/"+start.ConnectionID.String(), manifest.Hook["url"])
 	require.Equal(t, true, manifest.Hook["active"])
-	require.Equal(t, map[string]string{"contents": "read", "metadata": "read", "pull_requests": "write", "statuses": "write"}, manifest.Permissions)
+	require.Equal(t, map[string]string{"checks": "read", "contents": "read", "metadata": "read", "pull_requests": "write", "statuses": "write"}, manifest.Permissions)
 	require.ElementsMatch(t, []string{"push", "pull_request"}, manifest.Events)
 	require.Equal(t, "https://nebula.example.com/api/v1/git/github/manifest/callback", manifest.RedirectURL)
 	require.Equal(t, "https://nebula.example.com/api/v1/git/github/installed", manifest.SetupURL)

@@ -1,19 +1,52 @@
 -- Cron tasks -----------------------------------------------------------------
 
 -- name: InsertServiceTask :one
-INSERT INTO service_tasks (service_id, name, schedule, timezone, command, enabled, timeout_seconds, concurrency, next_run_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO service_tasks (service_id, name, action, schedule, timezone, command, enabled, timeout_seconds, concurrency, next_run_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 RETURNING *;
+
+-- name: UpsertServiceCronTask :exec
+-- The hidden task row (action 'service') that runs a cron service on its schedule;
+-- kept in step with the deployed release's config.cron.
+INSERT INTO service_tasks (service_id, name, action, schedule, timezone, command, enabled, timeout_seconds, concurrency, next_run_at)
+VALUES ($1, '__cron', 'service', $2, $3, '[]', true, $4, $5, $6)
+ON CONFLICT (service_id, name) DO UPDATE SET
+    schedule = EXCLUDED.schedule,
+    timezone = EXCLUDED.timezone,
+    timeout_seconds = EXCLUDED.timeout_seconds,
+    concurrency = EXCLUDED.concurrency,
+    next_run_at = EXCLUDED.next_run_at,
+    enabled = true,
+    updated_at = now();
+
+-- name: DeleteServiceCronTask :exec
+DELETE FROM service_tasks WHERE service_id = $1 AND action = 'service';
+
+-- name: ListServiceCronState :many
+-- The schedule and newest non-skipped run of each cron service.
+SELECT t.service_id, t.id AS task_id, t.schedule, t.timezone, t.next_run_at,
+       r.id AS run_id, r.status AS run_status, r.started_at AS run_started_at,
+       r.finished_at AS run_finished_at, r.exit_code AS run_exit_code
+FROM service_tasks t
+LEFT JOIN task_runs r ON r.id = (
+    SELECT id FROM task_runs
+    WHERE task_id = t.id AND status <> 'skipped'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+)
+WHERE t.action = 'service' AND t.service_id = ANY($1::uuid[]);
 
 -- name: GetServiceTask :one
 SELECT * FROM service_tasks WHERE id = $1;
 
 -- name: ListServiceTasks :many
-SELECT * FROM service_tasks WHERE service_id = $1 ORDER BY lower(name), id;
+-- Hidden rows (action 'service': the schedule of a cron service) are not tasks the user manages.
+SELECT * FROM service_tasks WHERE service_id = $1 AND action <> 'service' ORDER BY lower(name), id;
 
 -- name: UpdateServiceTask :one
 UPDATE service_tasks SET
     name = sqlc.arg(name),
+    action = sqlc.arg(action),
     schedule = sqlc.arg(schedule),
     timezone = sqlc.arg(timezone),
     command = sqlc.arg(command),

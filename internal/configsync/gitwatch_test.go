@@ -1311,6 +1311,10 @@ func (d logDeployer) DeployInternal(_ context.Context, id uuid.UUID, _ string, _
 	return deployments.DeploymentView{ID: uuid.New(), ServiceID: id}, nil
 }
 
+func (logDeployer) ResolveHead(context.Context, uuid.UUID) (string, string, error) {
+	return "", "", errors.New("not used")
+}
+
 // A push lands code and config together: the config of the pushed commit is
 // staged before the deployment of the same push is created. The repository is
 // a Bitbucket one (no file list, no API reader), so the file is read on the

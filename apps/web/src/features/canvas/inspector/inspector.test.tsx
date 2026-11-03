@@ -216,6 +216,56 @@ describe("Inspector", () => {
 		).toBeInTheDocument();
 	});
 
+	test("a managed SQL database has Data after Variables; Valkey has none", async () => {
+		inspectorApi();
+		await renderInspector(
+			deployed({
+				kind: "database",
+				config: {
+					...deployed().config,
+					database: { engine: "postgres", version: "17" },
+				} as never,
+			}),
+		).view;
+		const tabs = await screen.findByRole("tablist", {
+			name: "Service sections",
+		});
+		expect(
+			within(tabs)
+				.getAllByRole("tab")
+				.map((tab) => tab.textContent),
+		).toEqual([
+			"Overview",
+			"Deployments",
+			"Variables",
+			"Data",
+			"Backups",
+			"Metrics",
+			"Analytics",
+			"Logs",
+			"Settings",
+		]);
+	});
+
+	test("a Valkey database has no Data tab", async () => {
+		inspectorApi();
+		await renderInspector(
+			deployed({
+				kind: "database",
+				config: {
+					...deployed().config,
+					database: { engine: "valkey", version: "9" },
+				} as never,
+			}),
+		).view;
+		const tabs = await screen.findByRole("tablist", {
+			name: "Service sections",
+		});
+		expect(
+			within(tabs).queryByRole("tab", { name: "Data" }),
+		).not.toBeInTheDocument();
+	});
+
 	test("a route service has only Overview, Deployments and Settings", async () => {
 		inspectorApi();
 		await renderInspector(

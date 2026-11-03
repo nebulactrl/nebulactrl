@@ -10,10 +10,12 @@ import (
 )
 
 func newDatabasesCmd(c *cli) *cobra.Command {
-	return group("databases", "Manage managed databases",
+	cmd := group("databases", "Manage managed databases",
 		newDatabasesEnginesCmd(c), newDatabasesCreateCmd(c), newDatabasesInfoCmd(c), newDatabasesRevealCmd(c),
-		newDatabasesRotateCmd(c), newDatabasesUpgradeCmd(c),
+		newDatabasesRotateCmd(c), newDatabasesUpgradeCmd(c), newDatabasesTablesCmd(c), newDatabasesQueryCmd(c),
 		newDatabasesReplicasCmd(c), newDatabasesPromoteCmd(c), newDatabasesRebuildCmd(c), newDatabasesRestoreCmd(c))
+	cmd.Aliases = []string{"db"}
+	return cmd
 }
 
 func items[T any](p *[]T) []T {

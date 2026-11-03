@@ -103,16 +103,19 @@ type Central struct {
 }
 
 var central = map[string]Central{
-	// ── scheduled tasks: the scheduler runs the command in the container ──
+	// ── scheduled tasks: the scheduler runs the command in the container, or restarts the service ──
 	"createServiceTask": {
 		Target: TargetService, Summary: "Schedule a command to run inside {name} in production",
-		Effects: []string{"The command runs in the running container on every tick, with the service's secrets in its environment."},
-		Show:    []string{"name", "schedule", "command", "enabled"},
+		Effects: []string{
+			"With action command, the command runs in the running container on every tick, with the service's secrets in its environment.",
+			"With action restart, restarts every replica of the service on this schedule (brief outage with one replica).",
+		},
+		Show: []string{"name", "action", "schedule", "command", "enabled"},
 	},
 	"updateServiceTask": {
 		Target: TargetTask, Summary: "Change a scheduled command of {name} in production",
-		Effects: []string{"The new command, schedule or enabled flag applies from the next tick."},
-		Show:    []string{"name", "schedule", "command", "enabled"},
+		Effects: []string{"The new action, command, schedule or enabled flag applies from the next tick."},
+		Show:    []string{"name", "action", "schedule", "command", "enabled"},
 	},
 	"deleteServiceTask": {
 		Target: TargetTask, Summary: "Delete a scheduled command of {name} in production",
@@ -122,7 +125,12 @@ var central = map[string]Central{
 	"linkServiceGit": {
 		Target: TargetService, Summary: "Link {name} in production to a git repository",
 		Effects: []string{"The repository, branch and auto-deploy setting apply at once; with auto-deploy a push to the branch deploys the service."},
-		Show:    []string{"repo", "branch", "autoDeploy", "watchPaths", "connectionId"},
+		Show:    []string{"repo", "branch", "autoDeploy", "waitForCi", "watchPaths", "connectionId"},
+	},
+	"setServiceGitPoll": {
+		Target: TargetService, Summary: "Check {name} in production for new commits",
+		Effects: []string{"With deploy on, a new commit found on the branch deploys the service by itself, as a push does."},
+		Show:    []string{"intervalMinutes", "deploy"}, When: []Cond{{Arg: "enabled", Equals: true}},
 	},
 	"unlinkServiceGit": {
 		Target: TargetService, Summary: "Unlink {name} in production from its git repository",
@@ -281,6 +289,7 @@ var prodExempt = map[string]ProdExemption{
 	"applyTemplateUpdate":             ExemptStaged,
 	"attachServiceNetwork":            ExemptStaged,
 	"cancelDumpRestore":               ExemptNoRuntime,
+	"checkServiceGitPoll":             ExemptProbe,
 	"checkStack":                      ExemptProbe,
 	"createBackup":                    ExemptCreates,
 	"createDatabase":                  ExemptCreates,

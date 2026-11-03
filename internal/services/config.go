@@ -6,9 +6,11 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
+	"github.com/nebulactrl/nebulactrl/internal/cronexpr"
 	"github.com/nebulactrl/nebulactrl/internal/databases/engines"
 	"github.com/nebulactrl/nebulactrl/internal/gitssh"
 	"github.com/nebulactrl/nebulactrl/internal/tailnet/tailnetcfg"
@@ -45,9 +47,16 @@ type Config struct {
 	StartCommand     []string    `json:"startCommand,omitempty"`
 	Healthcheck      Healthcheck `json:"healthcheck"`
 	StopGraceSeconds int         `json:"stopGraceSeconds"` // default 30, 1..3600
-	MemoryMB         int         `json:"memoryMb,omitempty"`
-	CPUs             float64     `json:"cpus,omitempty"`
-	ImageRetention   int         `json:"imageRetention"` // default 5
+	// RestartPolicy is what happens when the container exits on its own:
+	// always (the default: Docker unless-stopped), on-failure (up to
+	// RestartMaxRetries times) or never. Empty means always.
+	RestartPolicy string `json:"restartPolicy,omitempty" enum:"always,on-failure,never"`
+	// RestartMaxRetries caps on-failure restarts (1..100); 0 means the agent's
+	// default of 10. Only valid with RestartPolicy on-failure.
+	RestartMaxRetries int     `json:"restartMaxRetries,omitempty"`
+	MemoryMB          int     `json:"memoryMb,omitempty"`
+	CPUs              float64 `json:"cpus,omitempty"`
+	ImageRetention    int     `json:"imageRetention"` // default 5
 	// ProcessName names the default process (the service's own Port/StartCommand/Healthcheck...).
 	// "" means "web". Meaningful only when Processes is non-empty, but always stored as given.
 	ProcessName string `json:"processName,omitempty"`
@@ -97,7 +106,32 @@ type Config struct {
 	Docker *agentprotocol.DockerOptions `json:"docker,omitempty"`
 	// Stack is the Docker Compose project of a kind=stack service (nil for all others).
 	Stack *StackConfig `json:"stack,omitempty"`
+	// Cron runs the (one-shot) service on a schedule instead of on every
+	// deploy: a deploy only pulls or builds the image and records the release.
+	// Requires OneShot. Staged like every setting.
+	Cron *CronSpec `json:"cron,omitempty"`
 }
+
+// CronSpec is the schedule of a cron service (Config.Cron).
+type CronSpec struct {
+	// Schedule is a standard 5-field cron expression.
+	Schedule string `json:"schedule"`
+	// Timezone is an IANA zone name; empty means UTC.
+	Timezone string `json:"timezone,omitempty"`
+	// TimeoutSeconds bounds one run (1..86400); 0 means 1800.
+	TimeoutSeconds int `json:"timeoutSeconds,omitempty"`
+	// Concurrency is forbid (skip a run while the previous one still runs; the
+	// default) or allow.
+	Concurrency string `json:"concurrency,omitempty" enum:"forbid,allow"`
+}
+
+// Cron run defaults and bounds.
+const (
+	DefaultCronTimeoutSeconds = 1800
+	MaxCronTimeoutSeconds     = 86400
+	CronConcurrencyForbid     = "forbid"
+	CronConcurrencyAllow      = "allow"
+)
 
 // Healthcheck configures how the agent decides a new container is healthy.
 // The agent probes from outside the container, so images need no curl/wget.
@@ -237,8 +271,94 @@ func invalid(format string, a ...any) error {
 	return fmt.Errorf("%w: %s", ErrInvalidConfig, fmt.Sprintf(format, a...))
 }
 
+// codedConfigError is a validation failure that carries its own API error code.
+type codedConfigError struct{ code, msg string }
+
+func (e *codedConfigError) Error() string { return ErrInvalidConfig.Error() + ": " + e.msg }
+func (e *codedConfigError) Unwrap() error { return ErrInvalidConfig }
+
+// invalidCode is invalid with an API error code of its own, so clients can
+// tell this failure apart from a generic invalid_config.
+func invalidCode(code, format string, a ...any) error {
+	return &codedConfigError{code: code, msg: fmt.Sprintf(format, a...)}
+}
+
+// Restart policy values (Config.RestartPolicy).
+const (
+	RestartAlways    = "always"
+	RestartOnFailure = "on-failure"
+	RestartNever     = "never"
+
+	// MaxRestartRetries bounds Config.RestartMaxRetries.
+	MaxRestartRetries = 100
+)
+
+// validateRestartPolicy checks the restart policy and its retry cap.
+func (c Config) validateRestartPolicy(sourceType string) error {
+	switch c.RestartPolicy {
+	case "", RestartAlways, RestartOnFailure, RestartNever:
+	default:
+		return invalidCode("invalid_restart_policy", "restartPolicy must be always, on-failure or never")
+	}
+	if c.RestartMaxRetries < 0 || c.RestartMaxRetries > MaxRestartRetries {
+		return invalidCode("invalid_restart_max_retries", "restartMaxRetries must be between 1 and %d", MaxRestartRetries)
+	}
+	if c.RestartMaxRetries > 0 && c.RestartPolicy != RestartOnFailure {
+		return invalidCode("invalid_restart_max_retries", "restartMaxRetries only applies to the on-failure restart policy")
+	}
+	if c.RestartPolicy == "" {
+		return nil
+	}
+	if sourceType == SourceCompose || sourceType == SourceExternal || c.Stack != nil || c.Route != nil || c.Database != nil {
+		return invalidCode("restart_policy_not_applicable", "the restart policy does not apply to Compose stacks, route services or managed databases")
+	}
+	if c.OneShot {
+		return invalidCode("restart_policy_oneshot", "a one-shot service runs to completion and is never restarted: it has no restart policy")
+	}
+	return nil
+}
+
+// validateCron checks the cron schedule and where it may be used.
+func (c Config) validateCron(sourceType string) error {
+	cr := c.Cron
+	if cr == nil {
+		return nil
+	}
+	if sourceType == SourceCompose || sourceType == SourceExternal || c.Stack != nil || c.Route != nil || c.Database != nil {
+		return invalidCode("cron_not_applicable", "cron schedules only apply to app and worker services")
+	}
+	if !c.OneShot {
+		return invalidCode("cron_requires_oneshot", "a cron service is a one-shot service: set oneshot to true")
+	}
+	sch, err := cronexpr.Parse(cr.Schedule)
+	if err != nil {
+		return invalidCode("invalid_cron", "cron.schedule: %s", strings.TrimPrefix(err.Error(), "cron: "))
+	}
+	if _, err := cronexpr.LoadLocation(strings.TrimSpace(cr.Timezone)); err != nil {
+		return invalidCode("invalid_timezone", "cron.timezone: %s", strings.TrimPrefix(err.Error(), "cron: "))
+	}
+	if sch.Next(time.Now()).IsZero() {
+		return invalidCode("cron_never_fires", "cron.schedule never matches a date")
+	}
+	if cr.TimeoutSeconds < 0 || cr.TimeoutSeconds > MaxCronTimeoutSeconds {
+		return invalidCode("invalid_timeout", "cron.timeoutSeconds must be between 1 and %d", MaxCronTimeoutSeconds)
+	}
+	switch cr.Concurrency {
+	case "", CronConcurrencyForbid, CronConcurrencyAllow:
+	default:
+		return invalidCode("invalid_cron_concurrency", "cron.concurrency must be forbid or allow")
+	}
+	return nil
+}
+
 // Validate checks a defaulted config for the given source type.
 func (c Config) Validate(sourceType string) error {
+	if err := c.validateRestartPolicy(sourceType); err != nil {
+		return err
+	}
+	if err := c.validateCron(sourceType); err != nil {
+		return err
+	}
 	if c.Database != nil {
 		if sourceType != SourceImage {
 			return invalid("managed databases use image sources")

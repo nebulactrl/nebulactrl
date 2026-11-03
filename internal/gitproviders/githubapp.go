@@ -253,9 +253,9 @@ func (s *Service) StartGitHubManifest(ctx context.Context, in ManifestInput) (Ma
 		"setup_on_update": true,
 		"public":          false,
 		"hook_attributes": map[string]any{"url": s.hookURL(string(GitHub), conn.ID), "active": true},
-		// Read access to code and metadata, write access to pull requests (the
-		// preview comment) and commit statuses (the deployment status).
-		"default_permissions": map[string]string{"contents": "read", "metadata": "read", "pull_requests": "write", "statuses": "write"},
+		// Read access to code, metadata and check runs (wait for CI), write access to
+		// pull requests (the preview comment) and commit statuses (the deployment status).
+		"default_permissions": map[string]string{"checks": "read", "contents": "read", "metadata": "read", "pull_requests": "write", "statuses": "write"},
 		"default_events":      []string{"push", "pull_request"},
 	}
 	raw, _ := json.Marshal(manifest)

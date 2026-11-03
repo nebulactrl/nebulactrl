@@ -37,6 +37,7 @@ export interface ApiSchemas {
 	"BackupView": T.BackupView;
 	"Blocker": T.Blocker;
 	"BranchesOutputBody": T.BranchesOutputBody;
+	"BrowseTableInputBody": T.BrowseTableInputBody;
 	"BuildInfo": T.BuildInfo;
 	"BuildPackage": T.BuildPackage;
 	"BuildPlanResult": T.BuildPlanResult;
@@ -206,6 +207,9 @@ export interface ApiSchemas {
 	"CreatedInvite": T.CreatedInvite;
 	"CreatedToken": T.CreatedToken;
 	"CredentialsOutputBody": T.CredentialsOutputBody;
+	"CronRunView": T.CronRunView;
+	"CronSpec": T.CronSpec;
+	"CronView": T.CronView;
 	"DNSCredential": T.DnsCredential;
 	"DNSCredentialField": T.DnsCredentialField;
 	"DNSCredentialUse": T.DnsCredentialUse;
@@ -219,6 +223,11 @@ export interface ApiSchemas {
 	"DashboardAccessView": T.DashboardAccessView;
 	"DashboardCertificate": T.DashboardCertificate;
 	"DashboardResolverOption": T.DashboardResolverOption;
+	"DataColumn": T.DataColumn;
+	"DataResult": T.DataResult;
+	"DataResultSet": T.DataResultSet;
+	"DataTable": T.DataTable;
+	"DataTables": T.DataTables;
 	"DatabaseView": T.DatabaseView;
 	"DeletionPlan": T.DeletionPlan;
 	"DeployHookSetting": T.DeployHookSetting;
@@ -297,6 +306,8 @@ export interface ApiSchemas {
 	"GetDrainOutputBody": T.GetDrainOutputBody;
 	"GitHubAppView": T.GitHubAppView;
 	"GitLinkView": T.GitLinkView;
+	"GitPollInputBody": T.GitPollInputBody;
+	"GitPollView": T.GitPollView;
 	"GitRef": T.GitRef;
 	"GrantChange": T.GrantChange;
 	"Group": T.Group;
@@ -514,6 +525,8 @@ export interface ApiSchemas {
 	"PutSettingsInputBody": T.PutSettingsInputBody;
 	"PutSettingsInputBody1": T.PutSettingsInputBody1;
 	"PutTeamSettingsInputBody": T.PutTeamSettingsInputBody;
+	"QueryDatabaseInputBody": T.QueryDatabaseInputBody;
+	"QueuedCommit": T.QueuedCommit;
 	"RangeInfo": T.RangeInfo;
 	"RateLimit": T.RateLimit;
 	"RebootInputBody": T.RebootInputBody;
@@ -723,6 +736,7 @@ export interface ApiSchemas {
 	"TemplatePlanRequest": T.TemplatePlanRequest;
 	"TemplatePlanService": T.TemplatePlanService;
 	"TemplatePort": T.TemplatePort;
+	"TemplateProvide": T.TemplateProvide;
 	"TemplateRequires": T.TemplateRequires;
 	"TemplateService": T.TemplateService;
 	"TemplateSummary": T.TemplateSummary;

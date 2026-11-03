@@ -67,6 +67,8 @@ services:                      # 1..8, ordered
     domains: [{generate: true}]          # or {host: "${input:DOMAIN}"}; max one
     dependsOn: [db]
     oneshot: false             # run-to-completion job (migrations): exit 0 = success, never restarted
+    provides:                  # variables a link TO this service proposes, besides the generic host/port rows (see "Provides")
+      - {key: AWS_ENDPOINT_URL, value: "http://${{app.NEBULA_PRIVATE_HOST}}:${{app.PORT}}", description: The S3 endpoint on the private network, recommended: true}
     resources: {memoryMb: 512, cpus: 1}
     docker:                    # container options, typed, same names as a service's Docker options (see "Docker options")
       entrypoint: [/bin/sh, -c]
@@ -119,6 +121,10 @@ Env values use the variable grammar:
 Managed databases export `DATABASE_URL`, `DATABASE_HOST`, `DATABASE_PORT`, `DATABASE_NAME`, `DATABASE_USER`, `DATABASE_PASSWORD` (SQL engines) or `REDIS_URL`, `REDIS_HOST`, `REDIS_PORT`, `REDIS_PASSWORD` (valkey/redis; valkey also `VALKEY_URL`). Reference them as `${{db.DATABASE_URL}}`. Engines: `postgres`, `mysql`, `mariadb`, `valkey`, `redis`, `mongodb`, `clickhouse` (versions are majors as strings, e.g. postgres `"17"`, valkey `"9"`). Use a managed database whenever the app can use one of those engines; use an image service with `kind: database` for anything else (for example a vector-enabled Postgres build).
 
 Environment keys named like credentials (`*PASSWORD*`, `*SECRET*`, `*TOKEN*`, `*API_KEY*`, `*SALT*`…) must not have a literal value: use a generator, an input or a reference.
+
+### Provides
+
+`provides` lists variables that connecting another service to this one proposes: in the connect popover and `POST /environments/{id}/links`, after the generic `<NAME>_HOST` / `_PORT` rows. Each row is `key`, `value`, optional `description`, `secret` and `recommended` (preselected). Values may reference only this service's own variables (`${{<its key>.VAR}}`, rewritten to the real slug when linking); `${input:…}` and generators are rejected, a key must be a valid variable name, unique within the service, at most 24 per service. A key the generic rows already propose is dropped. The rows are read from the template as installed (the snapshot), so they stay stable until the stack is updated. The **Bucket** template (`bucket`, Garage without a domain) uses it to offer `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`, `S3_BUCKET` and `AWS_S3_FORCE_PATH_STYLE`.
 
 ### Docker options
 

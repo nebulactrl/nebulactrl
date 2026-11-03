@@ -24,7 +24,10 @@ var t2keys = []struct{ key, scalar, table string }{
 	{"command", "command = [\"run\"]\n", ""},
 	{"health_check", "", "[services.x.health_check]\ntype = \"none\"\n\n"},
 	{"one_shot", "one_shot = true\n", ""},
+	{"cron", "", "[services.x.cron]\nschedule = \"0 3 * * *\"\n\n"},
 	{"stop_grace_seconds", "stop_grace_seconds = 30\n", ""},
+	{"restart_policy", "restart_policy = \"never\"\n", ""},
+	{"restart_max_retries", "restart_policy = \"on-failure\"\nrestart_max_retries = 5\n", ""},
 	{"memory_mb", "memory_mb = 256\n", ""},
 	{"cpus", "cpus = 1.5\n", ""},
 	{"image_retention", "image_retention = 5\n", ""},
@@ -64,6 +67,7 @@ var t2matrix = map[string]map[string]string{
 		"build": mxNotAllo, "port": mxDerive, "command": mxDerive, "health_check": mxDerive, "one_shot": mxDerive,
 		"pre_deploy": mxNotAllo, "post_deploy": mxNotAllo, "files": mxNotAllo, "volumes": mxEither,
 		"domains": mxNotAllo, "scale": mxNotAllo, "tasks": mxNotAllo, "processes": mxNotAllo, "process_name": mxNotAllo, "singleton": mxNotAllo,
+		"restart_policy": mxNotAllo, "restart_max_retries": mxNotAllo, "cron": mxNotAllo,
 	},
 	"route": {
 		"build": mxNotAllo, "port": mxNotAllo, "command": mxNotAllo, "health_check": mxNotAllo, "one_shot": mxNotAllo,
@@ -71,6 +75,7 @@ var t2matrix = map[string]map[string]string{
 		"block_egress": mxNotAllo, "pre_deploy": mxNotAllo, "post_deploy": mxNotAllo, "files": mxNotAllo,
 		"volumes": mxNotAllo, "docker": mxNotAllo, "variables": mxNotAllo, "secrets": mxNotAllo, "scale": mxNotAllo,
 		"tasks": mxNotAllo, "backups": mxNotAllo, "networks": mxNotAllo, "processes": mxNotAllo, "process_name": mxNotAllo, "singleton": mxNotAllo,
+		"restart_policy": mxNotAllo, "restart_max_retries": mxNotAllo, "cron": mxNotAllo,
 	},
 	"stack": {
 		"build": mxNotAllo, "port": mxNotAllo, "command": mxNotAllo, "health_check": mxNotAllo, "one_shot": mxNotAllo,
@@ -78,6 +83,7 @@ var t2matrix = map[string]map[string]string{
 		"block_egress": mxNotAllo, "pre_deploy": mxNotAllo, "post_deploy": mxNotAllo, "files": mxNotAllo,
 		"volumes": mxNotAllo, "docker": mxNotAllo, "scale": mxNotAllo, "tasks": mxNotAllo, "backups": mxNotAllo,
 		"processes": mxNotAllo, "process_name": mxNotAllo, "singleton": mxNotAllo,
+		"restart_policy": mxNotAllo, "restart_max_retries": mxNotAllo, "cron": mxNotAllo,
 	},
 }
 

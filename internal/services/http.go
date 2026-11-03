@@ -42,16 +42,18 @@ type ConfigInput struct {
 	BuildType      string `json:"buildType,omitempty" doc:"How a git source is built: auto (Dockerfile if present, else Railpack), dockerfile, railpack or starter:<node|python|go|ruby|php|static>" example:"auto"`
 	Submodules     string `json:"submodules,omitempty" enum:"auto,on,off" doc:"Git submodules: auto (recursive when the commit has a .gitmodules file; a submodule that cannot be fetched is only a warning; the default), on (always; a failure fails the build) or off. Credentials: the repository's token or deploy key is used for submodules on the same host only; relative URLs and ssh:// submodules of an HTTPS repository on the same host work, other hosts are fetched anonymously over https" example:"auto"`
 	// BuildLocation overrides where a git source is built; BuildServerID pins the build server and RegistryID the registry.
-	BuildLocation    string           `json:"buildLocation,omitempty" enum:"inherit,target,build_server" doc:"Where a git source is built: inherit (project, then team default), target, or build_server (pushed to a registry; the target pulls by digest)"`
-	BuildServerID    *uuid.UUID       `json:"buildServerId,omitempty" doc:"Pin the build server; omitted lets the control plane choose a sticky one"`
-	RegistryID       *uuid.UUID       `json:"registryId,omitempty" doc:"Registry the build is pushed to; omitted inherits the project or team default"`
-	Port             int              `json:"port,omitempty"`
-	StartCommand     []string         `json:"startCommand,omitempty"`
-	Healthcheck      HealthcheckInput `json:"healthcheck,omitempty"`
-	StopGraceSeconds int              `json:"stopGraceSeconds,omitempty"`
-	MemoryMB         int              `json:"memoryMb,omitempty"`
-	CPUs             float64          `json:"cpus,omitempty"`
-	ImageRetention   int              `json:"imageRetention,omitempty"`
+	BuildLocation     string           `json:"buildLocation,omitempty" enum:"inherit,target,build_server" doc:"Where a git source is built: inherit (project, then team default), target, or build_server (pushed to a registry; the target pulls by digest)"`
+	BuildServerID     *uuid.UUID       `json:"buildServerId,omitempty" doc:"Pin the build server; omitted lets the control plane choose a sticky one"`
+	RegistryID        *uuid.UUID       `json:"registryId,omitempty" doc:"Registry the build is pushed to; omitted inherits the project or team default"`
+	Port              int              `json:"port,omitempty"`
+	StartCommand      []string         `json:"startCommand,omitempty"`
+	Healthcheck       HealthcheckInput `json:"healthcheck,omitempty"`
+	StopGraceSeconds  int              `json:"stopGraceSeconds,omitempty"`
+	RestartPolicy     string           `json:"restartPolicy,omitempty" doc:"What happens when the container exits on its own: always (the default; restart unless stopped), on-failure or never. Not available for one-shot services, stacks, routes or databases."`
+	RestartMaxRetries int              `json:"restartMaxRetries,omitempty" doc:"Restart limit for the on-failure policy (1-100; 0 means 10)."`
+	MemoryMB          int              `json:"memoryMb,omitempty"`
+	CPUs              float64          `json:"cpus,omitempty"`
+	ImageRetention    int              `json:"imageRetention,omitempty"`
 	// ProcessName names the default process (the service's own port, command and health check). Empty keeps "web".
 	ProcessName string `json:"processName,omitempty" pattern:"^[a-z0-9]([a-z0-9-]{0,29}[a-z0-9])?$" maxLength:"31" doc:"Name of the default process (the port, start command and health check above). Empty means web. Only meaningful with processes"`
 	// Singleton makes the default process run one instance at a time: the old one stops before the new one starts.
@@ -78,6 +80,8 @@ type ConfigInput struct {
 	BlockEgress *bool `json:"blockEgress,omitempty" doc:"Block outbound internet: the service only joins its environment's internal network. Omit to keep the current value on PATCH."`
 	// Docker holds allow-listed container options (staged; applied by the next deployment).
 	Docker *agentprotocol.DockerOptions `json:"docker,omitempty" doc:"Typed container options. On every server: capAdd, capDrop, noNewPrivileges, readOnlyRootfs, pidsLimit, hostname (default: the service slug), dns, sysctls, hostSysctls (host requirements, only warned about), user, groupAdd, ulimits, shmSizeMb, extraHosts, labels, init, stopSignal, tmpfs, entrypoint. Only on a server an instance admin made unrestricted: devices, gpus, runtime, privileged, pidHost, seccompUnconfined, apparmorUnconfined and the capabilities NET_ADMIN and SYS_ADMIN (422 requires_unrestricted_server otherwise). Never host networking, ip, restart or log options, host binds or the socket."`
+	// Cron runs the one-shot service on a schedule (staged; applied by the next deployment).
+	Cron *CronSpec `json:"cron,omitempty" doc:"Run the service on a schedule: a deploy only pulls or builds the image and the image's own command runs on the schedule. Requires oneshot: true and an app or worker service. schedule is a 5-field cron expression, timezone an IANA zone (default UTC), timeoutSeconds 1-86400 (default 1800), concurrency forbid (skip while the previous run still runs; default) or allow. On PATCH the object replaces the whole schedule; Stop and Start pause and resume it."`
 	// Stack is the compose project of a kind=stack service (source compose); the components are derived by the server.
 	Stack *StackConfigInput `json:"stack,omitempty" doc:"The compose project of a stack: the compose file, per-component limits and the wait timeout. Components are derived by the server."`
 }
@@ -88,11 +92,12 @@ func (c ConfigInput) ToConfig() Config {
 		Image: c.Image, GitURL: c.GitURL, GitBranch: c.GitBranch, DockerfilePath: c.DockerfilePath, BuildContext: c.BuildContext, BuildType: c.BuildType, Submodules: c.Submodules,
 		BuildLocation: c.BuildLocation, BuildServerID: c.BuildServerID, RegistryID: c.RegistryID,
 		Port: c.Port, StartCommand: c.StartCommand, StopGraceSeconds: c.StopGraceSeconds, MemoryMB: c.MemoryMB, CPUs: c.CPUs,
+		RestartPolicy: c.RestartPolicy, RestartMaxRetries: c.RestartMaxRetries,
 		ProcessName: c.ProcessName, Singleton: c.Singleton, Processes: processConfigs(c.Processes),
 		ImageRetention: c.ImageRetention, Files: c.Files, OneShot: c.OneShot,
 		PreDeployCommand: c.PreDeployCommand, PreDeployTimeoutSeconds: c.PreDeployTimeoutSeconds,
 		PostDeployCommand: c.PostDeployCommand, PostDeployTimeoutSeconds: c.PostDeployTimeoutSeconds, Tailnet: c.Tailnet,
-		BlockEgress: c.BlockEgress != nil && *c.BlockEgress, Docker: c.Docker, Stack: c.Stack.toConfig(),
+		BlockEgress: c.BlockEgress != nil && *c.BlockEgress, Docker: c.Docker, Stack: c.Stack.toConfig(), Cron: c.Cron,
 		Healthcheck: Healthcheck{
 			Type: c.Healthcheck.Type, Path: c.Healthcheck.Path, Port: c.Healthcheck.Port, IntervalSeconds: c.Healthcheck.IntervalSeconds,
 			TimeoutSeconds: c.Healthcheck.TimeoutSeconds, StartPeriodSeconds: c.Healthcheck.StartPeriodSeconds,

@@ -30,10 +30,13 @@ import { Switch } from "#/components/ui/switch";
 import { Textarea } from "#/components/ui/textarea";
 import { toast } from "#/components/ui/toast";
 import { SettingRow } from "#/features/service-settings/fields";
+import { relativeTime } from "#/lib/format";
 import {
+	canReadCi,
 	formatWatchPaths,
 	parseWatchPaths,
 	providerInfo,
+	shortSha,
 	watchPathProblem,
 } from "./model";
 import { ProviderIcon } from "./provider-icon";
@@ -284,6 +287,7 @@ export function GitLinkRows({
 	const update = useMutation({
 		mutationFn: async (next: {
 			autoDeploy?: boolean;
+			waitForCi?: boolean;
 			watchPaths?: string[];
 		}) => {
 			if (!link?.connectionId) return;
@@ -321,6 +325,10 @@ export function GitLinkRows({
 	const paths = parseWatchPaths(watch);
 	const problem = watchPathProblem(paths);
 	const watchChanged = paths.join("\n") !== (link?.watchPaths ?? []).join("\n");
+	const ciReadable = canReadCi(
+		link?.provider,
+		connections.data?.items?.find((c) => c.id === link?.connectionId)?.authType,
+	);
 
 	if (!link?.linked) {
 		return (
@@ -450,6 +458,30 @@ export function GitLinkRows({
 						<span className="type-secondary">
 							A push ({link.queuedCommit.slice(0, 7)}) is waiting for the
 							running deployment and deploys next.
+						</span>
+					) : null}
+				</div>
+			</SettingRow>
+			<SettingRow
+				label="Wait for CI"
+				description="Deploys a push only after its checks pass. A push with no checks deploys after 2 minutes."
+			>
+				<div className="flex flex-col gap-1.5">
+					<Switch
+						checked={link.waitForCi}
+						disabled={update.isPending || (!ciReadable && !link.waitForCi)}
+						onCheckedChange={(checked) => update.mutate({ waitForCi: checked })}
+						aria-label="Wait for CI to pass"
+					/>
+					{ciReadable ? null : (
+						<span className="type-secondary">
+							This connection cannot read CI results.
+						</span>
+					)}
+					{link.waitingForCi ? (
+						<span className="type-secondary">
+							Waiting for CI on {shortSha(link.waitingForCi.sha)} since{" "}
+							{relativeTime(link.waitingForCi.since)}.
 						</span>
 					) : null}
 				</div>

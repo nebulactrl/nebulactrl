@@ -99,6 +99,14 @@ type userError struct{ msg string }
 
 func (e *userError) Error() string { return e.msg }
 
+func snapshotVolumes(vols []db.Volume) []services.SnapshotVolume {
+	out := make([]services.SnapshotVolume, len(vols))
+	for i, v := range vols {
+		out[i] = services.SnapshotVolumeOf(v)
+	}
+	return out
+}
+
 func userErrorf(format string, a ...any) error { return &userError{msg: fmt.Sprintf(format, a...)} }
 
 // prepared is everything runDeploy needs to persist and dispatch.
@@ -446,7 +454,7 @@ func (s *Service) prepare(ctx context.Context, dc depCtx, commitSHA, overrideIma
 			snap.Domains = append(snap.Domains, services.SnapshotDomainOf(d, domUsers[d.ID]))
 		}
 		for _, v := range in.volumes {
-			snap.Volumes = append(snap.Volumes, services.SnapshotVolume{Name: v.Name, MountPath: v.MountPath, DockerName: v.DockerName, RestoreLabel: v.RestoreLabel})
+			snap.Volumes = append(snap.Volumes, services.SnapshotVolumeOf(v))
 		}
 		srcJSON, err := json.Marshal(source)
 		if err != nil {
@@ -529,11 +537,12 @@ func (s *Service) prepare(ctx context.Context, dc depCtx, commitSHA, overrideIma
 	if err != nil {
 		return nil, err
 	}
+	parts := services.RuntimePartsOf(sc.Service.ID, services.Snapshot{Config: cfg, Volumes: snapshotVolumes(in.volumes)})
 	pl := agentprotocol.DeployPayload{
 		DeploymentID: dep.ID.String(), ServiceID: sc.Service.ID.String(), ServiceSlug: sc.Service.Slug,
-		EnvironmentID: sc.EnvironmentID.String(), ProjectID: sc.ProjectID.String(), Strategy: p.strategy, Port: cfg.Port, StartCommand: cfg.StartCommand,
+		EnvironmentID: sc.EnvironmentID.String(), ProjectID: sc.ProjectID.String(), Strategy: p.strategy, Port: cfg.Port, StartCommand: parts.StartCommand,
 		Healthcheck: cfg.Healthcheck.Spec(), StopGraceSeconds: cfg.StopGraceSeconds, MemoryMB: cfg.MemoryMB, CPUs: cfg.CPUs,
-		ImageRetention: cfg.ImageRetention, Routes: routes, Replicas: replicas, Docker: cfg.Docker,
+		ImageRetention: cfg.ImageRetention, Routes: routes, Replicas: replicas, Docker: parts.Docker,
 	}
 	// The server's Unrestricted switch can be turned off after a config was
 	// saved: a deploy, rollback or reconcile then fails instead of granting
@@ -553,9 +562,7 @@ func (s *Service) prepare(ctx context.Context, dc depCtx, commitSHA, overrideIma
 	}
 	traffic := srv.TrafficAnalyticsEnabled
 	pl.TrafficAnalytics = &traffic
-	for _, v := range in.volumes {
-		pl.Volumes = append(pl.Volumes, agentprotocol.VolumeMount{Name: services.DockerVolumeName(v), MountPath: v.MountPath})
-	}
+	pl.Volumes = parts.Volumes
 	if cfg.Stack == nil && !cfg.HasProcesses() { // a stack's routes are StackSpec.Routes
 		pl.DomainRules, pl.Hosts = domains.RulesAndHosts(in.domains)
 		if err := dns01.ApplyAutoToRules(ctx, q, srv.ID, pl.DomainRules); err != nil {
@@ -657,10 +664,12 @@ func (s *Service) prepare(ctx context.Context, dc depCtx, commitSHA, overrideIma
 	default:
 		pl.Image = &agentprotocol.ImageSource{Ref: source.Image, Digest: source.Digest, HasRegistryAuth: len(sc.Service.RegistryAuthEnc) > 0}
 	}
-	for _, f := range cfg.Files {
-		pl.Files = append(pl.Files, agentprotocol.FileSpec{Path: f.Path, Mode: f.Mode, Content: f.Content})
-	}
+	pl.Files = parts.Files
 	pl.OneShot = cfg.OneShot
+	// A cron service deploys its image and starts nothing: its runs do.
+	pl.NoStart = cfg.Cron != nil
+	pl.RestartPolicy = cfg.RestartPolicy
+	pl.RestartMaxRetries = cfg.RestartMaxRetries
 	// The pre-deploy command (migrations) belongs to a new release; rollbacks,
 	// reconcile redeploys and drains re-run an existing release without it.
 	if p.fresh && len(cfg.PreDeployCommand) > 0 {

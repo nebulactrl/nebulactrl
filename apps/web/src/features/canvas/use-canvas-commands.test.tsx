@@ -21,7 +21,12 @@ import {
 	createStackActions,
 	useCreateStackState,
 } from "#/features/stacks/store";
-import { closeRunCommand, useRunCommandTarget } from "#/features/tasks/store";
+import {
+	closeRunCommand,
+	closeTaskDialog,
+	useRunCommandTarget,
+	useTaskDialogTarget,
+} from "#/features/tasks/store";
 import {
 	templatesActions,
 	useTemplatesState,
@@ -48,6 +53,7 @@ interface Mounted {
 		coolify: boolean;
 		stack: boolean;
 		run: string | null;
+		taskDialog: string | null;
 		shell: string | null;
 		files: string | null;
 	};
@@ -85,6 +91,7 @@ function Probe({
 		coolify: useCoolifyImportState().open,
 		stack: useCreateStackState().open,
 		run: useRunCommandTarget(),
+		taskDialog: useTaskDialogTarget(),
 		shell: useShellTarget(),
 		files: useFilesTarget(),
 	};
@@ -145,6 +152,7 @@ beforeEach(() => {
 	coolifyImportActions.close();
 	createStackActions.close();
 	closeRunCommand();
+	closeTaskDialog();
 	closeShell();
 	closeFiles();
 });
@@ -210,6 +218,25 @@ test("a service that never ran is offered Deploy, and no shell, files or command
 	for (const kind of ["run", "shell", "files"]) {
 		expect(m.ids()).not.toContain(`service:${kind}:web`);
 	}
+});
+
+test("a cron service has no container to restart or open a shell or files in, but keeps Run command", async () => {
+	const base = deployed();
+	const m = await mountCommands([
+		deployed({
+			kind: "worker",
+			config: {
+				...base.config,
+				oneshot: true,
+				cron: { schedule: "* * * * *", timezone: "UTC" },
+			},
+		}),
+	]);
+	expect(m.find("service:deploy:web").label).toBe("Redeploy Web");
+	for (const kind of ["restart", "shell", "files", "schedule-task"]) {
+		expect(m.ids()).not.toContain(`service:${kind}:web`);
+	}
+	expect(m.ids()).toContain("service:run:web");
 });
 
 test("a route gets no shell, files or run-command entries", async () => {
@@ -311,6 +338,25 @@ test("Run command, shell and files open their panels on the service", async () =
 	expect(m.find("service:files:web").label).toBe("Browse files of Web…");
 });
 
+test("Schedule task for X… opens the task dialog; a one-shot, stack or route has none", async () => {
+	const m = await mountCommands([deployed()]);
+	expect(m.find("service:schedule-task:web").label).toBe(
+		"Schedule task for Web…",
+	);
+	expect(m.stores().taskDialog).toBeNull();
+	act(() => m.find("service:schedule-task:web").run());
+	expect(m.stores().taskDialog).toBe("web");
+	act(() => closeTaskDialog());
+
+	const base = deployed();
+	const oneShot = await mountCommands([
+		{ ...base, config: { ...base.config, oneshot: true } },
+	]);
+	expect(oneShot.ids()).not.toContain("service:schedule-task:web");
+	const route = await mountCommands([deployed({ kind: "route" })]);
+	expect(route.ids()).not.toContain("service:schedule-task:web");
+});
+
 test("Deploy outside production deploys at once and says so", async () => {
 	const api = stubApi({
 		"POST /services/:id/deployments": {
@@ -327,6 +373,60 @@ test("Deploy outside production deploys at once and says so", async () => {
 	expect(api.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
 		"POST /services/web/deployments",
 	]);
+});
+
+const waiting = {
+	enabled: true,
+	intervalMinutes: 5,
+	deploy: false,
+	headSha: "abc1234def5678",
+	headBranch: "main",
+	updateAvailable: true,
+} as const;
+
+test("Deploy latest commit is offered only for a service with a new commit found", async () => {
+	const plain = await mountCommands([
+		deployed(),
+		deployed({
+			id: "api",
+			slug: "api",
+			gitPoll: { ...waiting, updateAvailable: false },
+		}),
+		deployed({ id: "found", slug: "found", gitPoll: waiting }),
+	]);
+	expect(plain.ids()).not.toContain("service:deploy-latest:web");
+	expect(plain.ids()).not.toContain("service:deploy-latest:api");
+	expect(plain.ids()).toContain("service:deploy-latest:found");
+});
+
+test("Deploy latest commit deploys at once outside production", async () => {
+	const api = stubApi({
+		"POST /services/:id/deployments": {
+			status: 202,
+			body: make("DeploymentView", { id: "d2", status: "queued" }),
+		},
+	});
+	const m = await mountCommands([deployed({ gitPoll: waiting })]);
+	const command = m.find("service:deploy-latest:web");
+	expect(command.label).toBe("Deploy latest commit of Web");
+	act(() => command.run());
+	expect(await screen.findByText("Deploying Web")).toBeInTheDocument();
+	expect(api.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+		"POST /services/web/deployments",
+	]);
+});
+
+test("Deploy latest commit in production opens the review sheet", async () => {
+	const api = stubApi({});
+	const opened: OpenReviewOptions[] = [];
+	const off = onOpenStagedReview((o) => opened.push(o));
+	const m = await mountCommands([deployed({ gitPoll: waiting })], {
+		isProduction: true,
+	});
+	act(() => m.find("service:deploy-latest:web").run());
+	off();
+	expect(opened).toEqual([{ serviceId: "web" }]);
+	expect(api.calls).toEqual([]);
 });
 
 test("a service with staged changes deploys 'with its staged changes'", async () => {

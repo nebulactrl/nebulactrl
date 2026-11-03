@@ -116,6 +116,7 @@ describe("TaskDialog: add", () => {
 				?.body,
 		).toEqual({
 			name: "Report",
+			action: "command",
 			schedule: "0 3 * * 0",
 			command: ["rake", "report"],
 			enabled: false,
@@ -297,6 +298,37 @@ describe("TaskDialog: add", () => {
 			false,
 		);
 	});
+
+	test("Restart service hides the command, timeout and concurrency and posts action restart", async () => {
+		const user = userEvent.setup();
+		const api = stubApi({
+			...preview,
+			"POST /services/:serviceId/tasks": { status: 201, body: taskView() },
+		});
+		const onOpenChange = await renderDialog();
+		await fill(user, screen.getByLabelText("Name"), "Nightly restart");
+		expect(screen.getByLabelText("Command")).toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Restart service" }));
+		expect(screen.queryByLabelText("Command")).not.toBeInTheDocument();
+		expect(
+			screen.queryByLabelText("Timeout (seconds)"),
+		).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("Concurrency")).not.toBeInTheDocument();
+		await user.click(screen.getByRole("button", { name: "Add task" }));
+		await waitFor(() => expect(onOpenChange).toHaveBeenCalledWith(false));
+		expect(
+			api.calls.find((c) => c.method === "POST" && c.path.endsWith("/tasks"))
+				?.body,
+		).toEqual({
+			name: "Nightly restart",
+			action: "restart",
+			schedule: "0 3 * * *",
+			command: [],
+			enabled: true,
+			concurrency: "forbid",
+			timezone: "UTC",
+		});
+	});
 });
 
 describe("TaskDialog: edit", () => {
@@ -361,6 +393,16 @@ describe("TaskDialog: edit", () => {
 			api.calls.some((c) => c.method === "POST" && c.path.endsWith("/tasks")),
 		).toBe(false);
 		expect(await screen.findByText("Task saved")).toBeInTheDocument();
+	});
+
+	test("opens a restart task with the Restart service action and no command fields", async () => {
+		stubApi(preview);
+		await renderDialog(
+			taskView({ action: "restart", command: [], timeoutSeconds: 300 }),
+		);
+		expect(pressed("Restart service")).toBeInTheDocument();
+		expect(screen.queryByLabelText("Command")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
 	});
 
 	test("shows a failed save", async () => {

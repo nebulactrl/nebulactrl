@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import { ReactFlow, ReactFlowProvider } from "@xyflow/react";
 import type { Service } from "#/api/models";
 import { makeProcessService } from "#/features/processes/fixtures";
@@ -224,6 +224,27 @@ describe("ServiceNode: status", () => {
 			makeService({ desiredState: "stopped", currentDeploymentId: "dep-1" }),
 		);
 		expect(screen.getAllByText("Stopped").length).toBeGreaterThan(0);
+	});
+
+	test("a new commit found by checking is hinted on a live card, and only there", async () => {
+		const gitPoll = {
+			enabled: true,
+			intervalMinutes: 5,
+			deploy: false,
+			headSha: "abc1234def5678",
+			headBranch: "main",
+			updateAvailable: true,
+		} as const;
+		const { unmount } = await card({ ...liveWeb(), gitPoll });
+		expect(screen.getByText(/ · New commit abc1234$/)).toBeInTheDocument();
+		unmount();
+		await card({
+			...liveWeb(),
+			latestDeployment: makeDeployment("failed", { failedStep: "health" }),
+			gitPoll,
+		});
+		expect(screen.getByText("Failed at Verify")).toBeInTheDocument();
+		expect(screen.queryByText(/New commit/)).not.toBeInTheDocument();
 	});
 
 	test("a never-deployed service says Not deployed and counts wanted replicas", async () => {
@@ -494,5 +515,71 @@ describe("ServiceNode: jacks, filter and card kinds", () => {
 			makeService({ kind: "stack", sourceType: "git" }),
 		);
 		expect(container.querySelector("[data-stack]")).not.toBeNull();
+	});
+});
+
+describe("ServiceNode: a cron service", () => {
+	const cronCard = (over: Partial<Service> = {}) => {
+		const base = makeService();
+		return makeService({
+			name: "Nightly",
+			kind: "worker",
+			config: {
+				...base.config,
+				oneshot: true,
+				cron: { schedule: "* * * * *", timezone: "UTC" },
+			},
+			currentDeploymentId: "dep-1",
+			latestDeployment: makeDeployment("succeeded"),
+			cron: {
+				taskId: "task-1",
+				schedule: "* * * * *",
+				timezone: "UTC",
+				nextRunAt: new Date(Date.now() + 65_000).toISOString(),
+				lastRun: {
+					id: "run-1",
+					status: "succeeded",
+					finishedAt: new Date(Date.now() - 125_000).toISOString(),
+				},
+			},
+			...over,
+		});
+	};
+
+	test("reads Scheduled with the next and the last run, and counts no replicas", async () => {
+		await card(cronCard());
+		expect(screen.getAllByText("Scheduled").length).toBeGreaterThan(0);
+		expect(screen.getByText("next in 1m · last ok 2m ago")).toBeInTheDocument();
+		expect(screen.queryByText(/replica/)).not.toBeInTheDocument();
+	});
+
+	test("never shows a memory row, whatever a stale sample says", async () => {
+		const { api } = await card(cronCard({ observed: makeObserved() }), {
+			routes: { "GET /services/:serviceId/metrics": METRICS([POINT]) },
+		});
+		await waitFor(() =>
+			expect(api.calls.some((c) => c.path.endsWith("/metrics"))).toBe(true),
+		);
+		// Let the sample land before looking: it must not draw a row.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 50));
+		});
+		expect(screen.queryByText("Memory")).not.toBeInTheDocument();
+	});
+
+	test("a paused one reads Paused and a failed last run says so", async () => {
+		const paused = await card(cronCard({ desiredState: "stopped" }));
+		expect(screen.getAllByText("Paused").length).toBeGreaterThan(0);
+		paused.unmount();
+		const base = cronCard();
+		await card(
+			cronCard({
+				cron: {
+					...(base.cron ?? { taskId: "t", schedule: "", timezone: "UTC" }),
+					lastRun: { id: "run-2", status: "failed" },
+				},
+			}),
+		);
+		expect(screen.getAllByText("Last run failed").length).toBeGreaterThan(0);
 	});
 });

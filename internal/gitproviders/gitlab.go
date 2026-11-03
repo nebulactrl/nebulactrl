@@ -284,6 +284,31 @@ func (gitlabDriver) setStatus(ctx context.Context, c *apiClient, repo, sha strin
 	return err
 }
 
+// readCI reads the newest pipeline of the commit.
+// https://docs.gitlab.com/api/pipelines/#list-project-pipelines
+func (gitlabDriver) readCI(ctx context.Context, c *apiClient, repo, sha string) (CIResult, error) {
+	var out []struct {
+		ID     int64  `json:"id"`
+		Status string `json:"status"`
+	}
+	q := url.Values{"sha": {sha}, "order_by": {"id"}, "sort": {"desc"}, "per_page": {"1"}}
+	if err := c.do(ctx, http.MethodGet, "/projects/"+glProject(repo)+"/pipelines", q, nil, &out); err != nil {
+		return CIResult{}, err
+	}
+	if len(out) == 0 {
+		return CIResult{State: ciNone}, nil
+	}
+	p := out[0]
+	name := "pipeline #" + strconv.FormatInt(p.ID, 10)
+	switch p.Status {
+	case "success", "skipped", "manual":
+		return CIResult{State: ciSuccess}, nil
+	case "failed", "canceled", "cancelled":
+		return CIResult{State: ciFailure, Summary: name + " " + p.Status}, nil
+	}
+	return CIResult{State: ciPending, Summary: name + " " + p.Status}, nil
+}
+
 func (gitlabDriver) upsertComment(ctx context.Context, c *apiClient, repo string, number int, marker, body string) error {
 	base := "/projects/" + glProject(repo) + "/merge_requests/" + strconv.Itoa(number) + "/notes"
 	for page := 1; page <= 10; page++ {

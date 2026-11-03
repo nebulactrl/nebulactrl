@@ -91,6 +91,28 @@ describe("TasksSection list", () => {
 		expect(nightly.getByRole("button", { name: "Run now" })).toBeEnabled();
 	});
 
+	test("a restart task shows Restart where a command task shows its command", async () => {
+		stubApi(
+			routes([
+				taskView({
+					name: "weekly restart",
+					action: "restart",
+					command: [],
+					timeoutSeconds: 300,
+					nextRunAt: future,
+				}),
+			]),
+		);
+		await renderSection();
+		const restart = row(
+			await screen
+				.findByText("weekly restart")
+				.then((e) => e.textContent ?? ""),
+		);
+		expect(restart.getByText("Restart")).toBeInTheDocument();
+		expect(restart.getByRole("button", { name: "Run now" })).toBeEnabled();
+	});
+
 	test("shows a paused task as paused with no next run, and a task that never ran as such", async () => {
 		stubApi(routes([taskView({ enabled: false, nextRunAt: future })]));
 		await renderSection();

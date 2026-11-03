@@ -250,6 +250,9 @@ var keyAliases = map[string]keyAlias{
 	"graceperiod":            {"stop_grace_seconds", aliasService},
 	"terminationgraceperiod": {"stop_grace_seconds", aliasService},
 
+	"restart":       {"restart_policy", aliasService},
+	"restartpolicy": {"restart_policy", aliasService},
+
 	"ports":  {"port", aliasService},
 	"expose": {"port", aliasService},
 

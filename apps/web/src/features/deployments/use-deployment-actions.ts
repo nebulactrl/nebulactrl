@@ -99,14 +99,26 @@ export function useDeploymentActions(service: Service) {
 	const restart = useMutation({
 		mutationFn: () => startRestart(service.id),
 		onSuccess: () => {
-			toast.success(
-				`Restarting ${service.name}`,
-				"The command was sent to its server.",
-			);
+			if (service.config.cron) {
+				toast.success(
+					`Resumed the schedule of ${service.name}`,
+					"It runs again from its next tick.",
+				);
+			} else {
+				toast.success(
+					`Restarting ${service.name}`,
+					"The command was sent to its server.",
+				);
+			}
 			return refresh();
 		},
 		onError: (error) => {
-			toast.error(`Could not restart ${service.name}`, errorMessage(error));
+			toast.error(
+				service.config.cron
+					? `Could not resume ${service.name}`
+					: `Could not restart ${service.name}`,
+				errorMessage(error),
+			);
 		},
 	});
 
@@ -115,14 +127,26 @@ export function useDeploymentActions(service: Service) {
 			await stopService({ path: { serviceId: service.id } });
 		},
 		onSuccess: () => {
-			toast.success(
-				`Stopping ${service.name}`,
-				"The container stops; its data stays.",
-			);
+			if (service.config.cron) {
+				toast.success(
+					`Paused the schedule of ${service.name}`,
+					"No runs start until you resume it. A run in progress finishes.",
+				);
+			} else {
+				toast.success(
+					`Stopping ${service.name}`,
+					"The container stops; its data stays.",
+				);
+			}
 			return refresh();
 		},
 		onError: (error) => {
-			toast.error(`Could not stop ${service.name}`, errorMessage(error));
+			toast.error(
+				service.config.cron
+					? `Could not pause ${service.name}`
+					: `Could not stop ${service.name}`,
+				errorMessage(error),
+			);
 		},
 	});
 

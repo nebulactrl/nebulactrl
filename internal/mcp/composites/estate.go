@@ -238,6 +238,13 @@ func serviceState(v services.ServiceView) string {
 		return stateNever
 	case v.DesiredState == "stopped":
 		return stateStopped
+	case isCronService(v):
+		// No container between runs, so nothing is observed: the schedule and
+		// its last run say how the service is doing.
+		if cronLastRunFailed(v) {
+			return stateUnhealthy
+		}
+		return stateRunning
 	case v.Observed == nil || v.Stale:
 		return stateUnknown
 	}
@@ -252,10 +259,34 @@ func serviceState(v services.ServiceView) string {
 			return stateUnhealthy
 		}
 		return stateRunning
-	case agentprotocol.StateRestarting, agentprotocol.StateExited, agentprotocol.StateMissing:
+	case agentprotocol.StateExited:
+		if completedOneShot(v) {
+			return stateRunning
+		}
+		return stateUnhealthy
+	case agentprotocol.StateRestarting, agentprotocol.StateMissing:
 		return stateUnhealthy
 	}
 	return stateUnknown
+}
+
+// isCronService reports a deployed cron service: its deployed release has a
+// schedule (the view carries the hidden task) and the config still has one.
+func isCronService(v services.ServiceView) bool { return v.Config.Cron != nil && v.Cron != nil }
+
+// cronLastRunFailed reports a cron service whose newest run failed or timed out.
+func cronLastRunFailed(v services.ServiceView) bool {
+	if v.Cron == nil || v.Cron.LastRun == nil {
+		return false
+	}
+	return v.Cron.LastRun.Status == "failed" || v.Cron.LastRun.Status == "timed_out"
+}
+
+// completedOneShot reports a one-shot service whose container ran and exited
+// cleanly: the observer reports that as exited with health healthy.
+func completedOneShot(v services.ServiceView) bool {
+	return v.Config.OneShot && v.Observed != nil &&
+		v.Observed.State == agentprotocol.StateExited && v.Observed.Health == agentprotocol.HealthHealthy
 }
 
 // deploymentFailed reports a failed terminal status.
@@ -365,7 +396,7 @@ func serviceFindings(n *envNode, v services.ServiceView, o findOpts) []Finding {
 				Title:    "Container is crash-looping",
 				Evidence: append(ev, plural(maxRestarts, "restart", "restarts")),
 				Suggest:  diagnose("Read the runtime log tail for the crash reason.")})
-		case !v.Stale && (ob.State == agentprotocol.StateExited || ob.State == agentprotocol.StateMissing):
+		case !v.Stale && !completedOneShot(v) && (ob.State == agentprotocol.StateExited || ob.State == agentprotocol.StateMissing):
 			out = append(out, Finding{Severity: sevFor(n, SevWarning), Code: "stopped_unexpectedly", Subject: sel,
 				Title:    "Service is not running although it should be",
 				Evidence: ev,

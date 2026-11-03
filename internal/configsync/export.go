@@ -18,6 +18,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
 	"github.com/nebulactrl/nebulactrl/internal/services"
+	"github.com/nebulactrl/nebulactrl/internal/tasks"
 	"github.com/nebulactrl/nebulactrl/internal/varexpr"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
@@ -582,6 +583,7 @@ func (x *exporter) service(slug string, ls *liveService, serverName, rootServer 
 	if s.caps.runtime {
 		s.runtime()
 		s.healthCheck()
+		s.cron()
 		s.hooks()
 		if s.caps.processes {
 			s.processes()
@@ -680,6 +682,20 @@ func (s *exService) tuning() {
 	if s.emit("config.stopGraceSeconds", cfg.StopGraceSeconds != ref.StopGraceSeconds) {
 		d.StopGraceSeconds = new(cfg.StopGraceSeconds)
 	}
+	// A restart policy only exists on a long-running image or git service.
+	restartable := !cfg.OneShot && (s.kind == projectconfig.KindImage || s.kind == projectconfig.KindGit)
+	if s.emitIf("config.restartPolicy", cfg.RestartPolicy != "", restartable) {
+		d.RestartPolicy = new(cfg.RestartPolicy)
+		if cfg.RestartPolicy == "" {
+			d.RestartPolicy = new(services.RestartAlways)
+		}
+	}
+	if s.emitIf("config.restartMaxRetries", cfg.RestartMaxRetries != 0, restartable && cfg.RestartPolicy == services.RestartOnFailure) {
+		d.RestartMaxRetries = new(cfg.RestartMaxRetries)
+		if cfg.RestartMaxRetries == 0 {
+			d.RestartMaxRetries = new(agentprotocol.DefaultRestartMaxRetries)
+		}
+	}
 	if s.emit("config.memoryMb", cfg.MemoryMB != 0) {
 		d.MemoryMB = new(cfg.MemoryMB)
 	}
@@ -740,6 +756,37 @@ func (s *exService) healthCheck() {
 	}
 }
 
+// cron writes the [cron] table of a cron service (one_shot is written by runtime).
+func (s *exService) cron() {
+	cr := s.cfg.Cron
+	if cr == nil {
+		return
+	}
+	out := &projectconfig.Cron{}
+	if s.emit("config.cron.schedule", true) {
+		out.Schedule = new(cr.Schedule)
+	}
+	if tz := cr.Timezone; s.emit("config.cron.timezone", tz != "" && !strings.EqualFold(tz, "utc")) {
+		out.Timezone = new(tz)
+		if tz == "" {
+			out.Timezone = new("UTC")
+		}
+	}
+	if s.emit("config.cron.timeoutSeconds", cr.TimeoutSeconds != 0 && cr.TimeoutSeconds != services.DefaultCronTimeoutSeconds) {
+		out.TimeoutSeconds = new(cr.TimeoutSeconds)
+		if cr.TimeoutSeconds == 0 {
+			out.TimeoutSeconds = new(services.DefaultCronTimeoutSeconds)
+		}
+	}
+	if s.emit("config.cron.concurrency", cr.Concurrency == services.CronConcurrencyAllow) {
+		out.Concurrency = new(cr.Concurrency)
+		if cr.Concurrency == "" {
+			out.Concurrency = new(services.CronConcurrencyForbid)
+		}
+	}
+	s.def.Cron = out
+}
+
 func (s *exService) hooks() {
 	cfg := s.cfg
 	hook := func(cmdID, timeoutID string, cmd []string, timeout, defTimeout int) *projectconfig.Hook {
@@ -797,10 +844,19 @@ func (s *exService) git() {
 			if s.emit("git.auto_deploy", !ls.Git.AutoDeploy) {
 				g.AutoDeploy = new(ls.Git.AutoDeploy)
 			}
+			if s.emit("git.wait_for_ci", ls.Git.WaitForCi) {
+				g.WaitForCI = new(ls.Git.WaitForCi)
+			}
 			if s.emit("git.watch_paths", len(ls.Git.WatchPaths) > 0) {
 				g.WatchPaths = exStrings(ls.Git.WatchPaths)
 			}
 		}
+	}
+	if s.emit("git.poll", ls.Poll != nil) {
+		g.Poll = new(livePollName(ls.Poll))
+	}
+	if s.emitIf("git.poll_deploy", ls.Poll != nil && !ls.Poll.Deploy, ls.Poll != nil) {
+		g.PollDeploy = new(livePollDeploy(ls.Poll))
 	}
 	if !linked && cfg.GitURL != "" {
 		if u, ok, stripped := exGitURL(cfg.GitURL); ok {
@@ -1351,11 +1407,15 @@ func (s *exService) tasks() {
 	for _, name := range sortedKeys(s.ls.Tasks) {
 		t := s.ls.Tasks[name]
 		var cmd []string
-		if err := json.Unmarshal(t.Command, &cmd); err != nil || len(cmd) == 0 {
+		restart := t.Action == tasks.ActionRestart
+		if err := json.Unmarshal(t.Command, &cmd); err != nil || (len(cmd) == 0 && !restart) {
 			s.x.notRepresentable(s.slug, "tasks."+name+" (its command cannot be read)")
 			continue
 		}
 		e := &projectconfig.Task{Schedule: new(t.Schedule), Command: exStrings(cmd)}
+		if restart {
+			e.Action, e.Command = new(tasks.ActionRestart), nil
+		}
 		all := s.x.defaults
 		if tz := t.Timezone; (tz != "" && tz != "UTC") || all {
 			e.Timezone = new(exScopeTimezone(tz))
@@ -1363,7 +1423,7 @@ func (s *exService) tasks() {
 		if !t.Enabled || all {
 			e.Enabled = new(t.Enabled)
 		}
-		if t.TimeoutSeconds != 1800 || all {
+		if (t.TimeoutSeconds != 1800 || all) && t.Action != tasks.ActionRestart {
 			e.TimeoutSeconds = new(int(t.TimeoutSeconds))
 		}
 		if (t.Concurrency != "" && t.Concurrency != "forbid") || all {

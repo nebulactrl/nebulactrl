@@ -1,6 +1,6 @@
 ---
 title: Advanced settings
-description: "Timer overrides (NEBULACTRL_MESH_LINK_GRACE, NEBULACTRL_REPLICA_BROKEN_AFTER, NEBULACTRL_UPTIME_INTERVAL): what they change, their defaults, and why you normally leave them alone."
+description: "Timer overrides (NEBULACTRL_MESH_LINK_GRACE, NEBULACTRL_REPLICA_BROKEN_AFTER, NEBULACTRL_UPTIME_INTERVAL, NEBULACTRL_GIT_POLL_UNIT): what they change, their defaults, and why you normally leave them alone."
 section: Reference
 order: 30
 ---
@@ -18,6 +18,7 @@ Every timer is read at start (a restart applies a change) from an environment va
 | `NEBULACTRL_MESH_LINK_GRACE` | `10m` | How long a cross-server link grant whose variable reference is gone stays before the repair removes it. A reference that is removed and added back, or a redeploy in between, keeps its link within this window. A canvas edge's grant is removed at once, whatever this says. The grace is remembered in memory only, so a control-plane restart starts the window again. See [Mesh](mesh.md) |
 | `NEBULACTRL_REPLICA_BROKEN_AFTER` | `2m` | How long a database replica may be out of streaming before it is marked `broken`. The agent polls a replica every 30 seconds, so keep this above `30s`, or a single missed poll marks a healthy replica broken. See [Database replicas](database-replicas.md) |
 | `NEBULACTRL_UPTIME_INTERVAL` | `30s` | How often agents probe each service for [uptime](uptime.md). The control plane reads it to decide when a service that sent no check for three intervals plus 30 seconds becomes `unknown`. **The agent reads the same variable** (flag `--uptime-interval`, at least `1s`; an agent that is started with a shorter value refuses to start) for its own probe period. Set it to the same value on both, or on neither: a control plane that expects 30 s while the agent probes every 2 s only waits longer than needed for `unknown`, and one that expects 2 s while the agent probes every 30 s marks a healthy service `unknown` after 36 s. A shorter interval makes alerts and the live state quicker and writes more rollup rows; it is a test and diagnostic knob |
+| `NEBULACTRL_GIT_POLL_UNIT` | `1m` | The length of one minute of a service's [check for new commits](git-providers.md#without-a-webhook-check-for-new-commits). "Every 5 minutes" checks every 5 times this value, so `1s` makes it check every 5 seconds (the control plane looks for due checks every 10 seconds). Only tests have a reason to shorten it |
 
 Rules of thumb when you do change one:
 
@@ -27,4 +28,4 @@ Rules of thumb when you do change one:
 
 ## What the test suite sets
 
-`tests/integration` starts every control plane with short values (`tests/integration/harness_timers_test.go`): `NEBULACTRL_MESH_LINK_GRACE=30s`, `NEBULACTRL_REPLICA_BROKEN_AFTER=60s` and `NEBULACTRL_UPTIME_INTERVAL=2s` (the harness agent probes every 2 s as well). The same variable in the environment of `tests/run.sh` overrides the short value, for example `NEBULACTRL_MESH_LINK_GRACE=10m ./tests/run.sh full -run '^TestMeshCrossServer$'` runs the mesh test with the production timing.
+`tests/integration` starts every control plane with short values (`tests/integration/harness_timers_test.go`): `NEBULACTRL_MESH_LINK_GRACE=30s`, `NEBULACTRL_REPLICA_BROKEN_AFTER=60s` and `NEBULACTRL_UPTIME_INTERVAL=2s` (the harness agent probes every 2 s as well) and `NEBULACTRL_GIT_POLL_UNIT=1s`. The same variable in the environment of `tests/run.sh` overrides the short value, for example `NEBULACTRL_MESH_LINK_GRACE=10m ./tests/run.sh full -run '^TestMeshCrossServer$'` runs the mesh test with the production timing.

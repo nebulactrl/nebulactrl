@@ -2,6 +2,7 @@ export const INSPECTOR_TABS = [
 	"overview",
 	"deployments",
 	"variables",
+	"data",
 	"backups",
 	"metrics",
 	"analytics",
@@ -17,6 +18,7 @@ export const TAB_LABEL: Record<InspectorTab, string> = {
 	overview: "Overview",
 	deployments: "Deployments",
 	variables: "Variables",
+	data: "Data",
 	backups: "Backups",
 	metrics: "Metrics",
 	analytics: "Analytics",
@@ -29,11 +31,12 @@ export function parseTab(value: string | undefined): InspectorTab {
 	return INSPECTOR_TABS.find((tab) => tab === value) ?? DEFAULT_TAB;
 }
 
-/** The key that follows `g` to jump to a tab: g o, g d, g v, g m, g a, g l, g s. */
+/** The key that follows `g` to jump to a tab: g o, g d, g v, g t, g m, g a, g b, g l, g s. */
 export const TAB_CHORD_KEY: Record<InspectorTab, string> = {
 	overview: "o",
 	deployments: "d",
 	variables: "v",
+	data: "t",
 	metrics: "m",
 	analytics: "a",
 	backups: "b",
@@ -57,7 +60,7 @@ const ROUTE_TABS: readonly InspectorTab[] = [
 /** What `tabsFor` reads of a service. */
 export interface TabService {
 	kind: string;
-	config: { database?: unknown };
+	config: { database?: { engine?: string } };
 	/** The service's volumes; one or more makes it eligible for volume backups. */
 	volumes?: readonly unknown[];
 }
@@ -74,6 +77,28 @@ export function hasBackupsTab(service: TabService): boolean {
 	return (service.volumes?.length ?? 0) > 0;
 }
 
+/** The managed SQL engines the Data tab (table browser and query console) serves. */
+const DATA_ENGINES: readonly string[] = [
+	"postgres",
+	"mysql",
+	"mariadb",
+	"clickhouse",
+];
+
+/**
+ * Data shows for managed SQL databases only: PostgreSQL, MySQL, MariaDB and
+ * ClickHouse. Valkey, Redis, MongoDB and an unmanaged database image have no
+ * table browser.
+ */
+export function hasDataTab(service: TabService): boolean {
+	const engine = service.config.database?.engine;
+	return (
+		service.kind === "database" &&
+		engine !== undefined &&
+		DATA_ENGINES.includes(engine)
+	);
+}
+
 /** A stack shows what the agent can report for it: no Backups, and Analytics (per-service proxy traffic) only for apps. */
 const STACK_TABS: readonly InspectorTab[] = [
 	"overview",
@@ -86,15 +111,18 @@ const STACK_TABS: readonly InspectorTab[] = [
 
 /**
  * The tabs a service shows: a route shows Overview, Deployments and Settings,
- * and Backups needs a managed database or a service with a volume. A tab the
- * service does not have (from a stale URL or a chord) resolves to the default.
+ * Backups needs a managed database or a service with a volume, and Data a
+ * managed SQL database. A tab the service does not have (from a stale URL or a
+ * chord) resolves to the default.
  */
 export function tabsFor(service: TabService): readonly InspectorTab[] {
 	if (service.kind === "route") return ROUTE_TABS;
 	if (service.kind === "stack") return STACK_TABS;
-	return hasBackupsTab(service)
-		? INSPECTOR_TABS
-		: INSPECTOR_TABS.filter((tab) => tab !== "backups");
+	const backups = hasBackupsTab(service);
+	const data = hasDataTab(service);
+	return INSPECTOR_TABS.filter(
+		(tab) => (tab !== "backups" || backups) && (tab !== "data" || data),
+	);
 }
 
 export function resolveTab(

@@ -95,6 +95,8 @@ func buildCatalog() []FieldSpec {
 	add(fs("config.processName", "process_name", "ProcessName", AppliesStaged, "string", rtKinds))
 	add(fs("config.singleton", "singleton", "Singleton", AppliesStaged, "bool", rtKinds))
 	add(fs("config.stopGraceSeconds", "stop_grace_seconds", "StopGraceSeconds", AppliesStaged, "int", append(append([]string(nil), rtKinds...), KindDatabase)))
+	add(fs("config.restartPolicy", "restart_policy", "RestartPolicy", AppliesStaged, "string", rtKinds))
+	add(fs("config.restartMaxRetries", "restart_max_retries", "RestartMaxRetries", AppliesStaged, "int", rtKinds))
 	add(fs("config.memoryMb", "memory_mb", "MemoryMB", AppliesStaged, "int", append(append([]string(nil), rtKinds...), KindDatabase)))
 	add(fs("config.cpus", "cpus", "CPUs", AppliesStaged, "float64", append(append([]string(nil), rtKinds...), KindDatabase)))
 	add(fs("config.imageRetention", "image_retention", "ImageRetention", AppliesStaged, "int", append(append([]string(nil), rtKinds...), KindDatabase)))
@@ -108,6 +110,12 @@ func buildCatalog() []FieldSpec {
 	} {
 		add(fs("config.healthcheck."+h.id, "health_check."+h.key, "Healthcheck."+h.id, AppliesStaged, h.typ, rtKinds))
 	}
+	for _, c := range []struct{ id, key, typ string }{
+		{"schedule", "schedule", "string"}, {"timezone", "timezone", "string"},
+		{"timeoutSeconds", "timeout_seconds", "int"}, {"concurrency", "concurrency", "string"},
+	} {
+		add(fs("config.cron."+c.id, "cron."+c.key, "Cron."+strings.ToUpper(c.id[:1])+c.id[1:], AppliesStaged, c.typ, rtKinds))
+	}
 	for _, p := range []struct{ id, key string }{{"preDeploy", "pre_deploy"}, {"postDeploy", "post_deploy"}} {
 		add(fs("config."+p.id+"Command", p.key+".command", strings.ToUpper(p.id[:1])+p.id[1:]+"Command", AppliesStaged, "[]string", rtKinds))
 		add(fs("config."+p.id+"TimeoutSeconds", p.key+".timeout_seconds", strings.ToUpper(p.id[:1])+p.id[1:]+"TimeoutSeconds", AppliesStaged, "int", rtKinds))
@@ -119,6 +127,9 @@ func buildCatalog() []FieldSpec {
 	add(fs("config.submodules", "git.submodules", "Submodules", AppliesStaged, "string", g))
 	add(fs("git.link", "git.connection", "gitproviders.LinkInput{ConnectionID, Repo}", AppliesImmediate, "GitLink", g))
 	add(fs("git.auto_deploy", "git.auto_deploy", "service_git.auto_deploy", AppliesImmediate, "bool", g))
+	add(fs("git.wait_for_ci", "git.wait_for_ci", "service_git.wait_for_ci", AppliesImmediate, "bool", g))
+	add(fs("git.poll", "git.poll", "service_git_poll.interval_minutes", AppliesImmediate, "string", g))
+	add(fs("git.poll_deploy", "git.poll_deploy", "service_git_poll.deploy", AppliesImmediate, "bool", g))
 	add(fs("git.watch_paths", "git.watch_paths", "service_git.watch_paths", AppliesImmediate, "[]string", g))
 	add(fs("config.buildType", "build.type", "BuildType", AppliesStaged, "string", g))
 	add(fs("config.dockerfilePath", "build.dockerfile", "DockerfilePath", AppliesStaged, "string", g))
@@ -228,12 +239,14 @@ var fieldDefaults = map[string]string{
 	"config.port": "0", "config.oneshot": "false", "config.stopGraceSeconds": "30", "config.memoryMb": "0",
 	"config.cpus": "0", "config.imageRetention": "5", "config.blockEgress": "false",
 	"config.processName": "web", "config.singleton": "false",
+	"config.restartPolicy": "always", "config.restartMaxRetries": "10 with on-failure",
 	"config.healthcheck.type": "http when the service has a port, else none", "config.healthcheck.path": "/",
 	"config.healthcheck.port": "the service port", "config.healthcheck.intervalSeconds": "2",
 	"config.healthcheck.timeoutSeconds": "3", "config.healthcheck.startPeriodSeconds": "0",
 	"config.healthcheck.deadlineSeconds": "120", "config.healthcheck.successThreshold": "2",
 	"config.preDeployTimeoutSeconds": "600", "config.postDeployTimeoutSeconds": "600",
-	"config.submodules": "auto", "git.auto_deploy": "true", "git.watch_paths": "[]",
+	"config.cron.timezone": "UTC", "config.cron.timeoutSeconds": "1800", "config.cron.concurrency": "forbid",
+	"config.submodules": "auto", "git.auto_deploy": "true", "git.wait_for_ci": "false", "git.poll": "off", "git.poll_deploy": "true", "git.watch_paths": "[]",
 	"config.buildType": "auto", "config.dockerfilePath": "Dockerfile", "config.buildContext": ".", "config.buildLocation": "inherit",
 	"config.route.scheme": "http", "config.route.passHost": "true", "config.route.insecureSkipVerify": "false",
 	"config.route.verifySkip": "false", "config.route.openToInternet": "false", "config.route.proxyProtocol": "0",
@@ -341,6 +354,8 @@ func (c *svcCtx) assembleFields() {
 	}
 	if d.OneShot != nil {
 		add("config.oneshot", rp("one_shot"), *d.OneShot, st)
+	} else if d.Cron != nil {
+		add("config.oneshot", rp("cron"), true, st) // a cron service is a one-shot
 	}
 	if d.ProcessName != nil {
 		add("config.processName", rp("process_name"), *d.ProcessName, st)
@@ -350,6 +365,12 @@ func (c *svcCtx) assembleFields() {
 	}
 	if d.StopGraceSeconds != nil {
 		add("config.stopGraceSeconds", rp("stop_grace_seconds"), *d.StopGraceSeconds, st)
+	}
+	if d.RestartPolicy != nil {
+		add("config.restartPolicy", rp("restart_policy"), *d.RestartPolicy, st)
+	}
+	if d.RestartMaxRetries != nil {
+		add("config.restartMaxRetries", rp("restart_max_retries"), *d.RestartMaxRetries, st)
 	}
 	if d.MemoryMB != nil {
 		add("config.memoryMb", rp("memory_mb"), *d.MemoryMB, st)
@@ -384,6 +405,20 @@ func (c *svcCtx) assembleFields() {
 		addI("successThreshold", "success_threshold", h.SuccessThreshold)
 		if h.Command != nil {
 			add("config.healthcheck.command", rp("health_check", "command"), append([]string{}, h.Command...), st)
+		}
+	}
+	if cr := d.Cron; cr != nil {
+		if cr.Schedule != nil {
+			add("config.cron.schedule", rp("cron", "schedule"), *cr.Schedule, st)
+		}
+		if cr.Timezone != nil {
+			add("config.cron.timezone", rp("cron", "timezone"), *cr.Timezone, st)
+		}
+		if cr.TimeoutSeconds != nil {
+			add("config.cron.timeoutSeconds", rp("cron", "timeout_seconds"), *cr.TimeoutSeconds, st)
+		}
+		if cr.Concurrency != nil {
+			add("config.cron.concurrency", rp("cron", "concurrency"), *cr.Concurrency, st)
 		}
 	}
 	for _, hk := range []struct {
@@ -432,6 +467,15 @@ func (c *svcCtx) assembleGit() {
 	}
 	if g.AutoDeploy != nil {
 		c.addField("git.auto_deploy", rp("git", "auto_deploy"), *g.AutoDeploy, im)
+	}
+	if g.WaitForCI != nil {
+		c.addField("git.wait_for_ci", rp("git", "wait_for_ci"), *g.WaitForCI, im)
+	}
+	if g.Poll != nil {
+		c.addField("git.poll", rp("git", "poll"), *g.Poll, im)
+	}
+	if g.PollDeploy != nil {
+		c.addField("git.poll_deploy", rp("git", "poll_deploy"), *g.PollDeploy, im)
 	}
 	if g.WatchPaths != nil {
 		c.addField("git.watch_paths", rp("git", "watch_paths"), append([]string{}, g.WatchPaths...), im)
@@ -749,12 +793,16 @@ func (c *svcCtx) assembleCollections() {
 		if t == nil {
 			continue
 		}
-		tv := TaskValue{Name: name, Schedule: strings.TrimSpace(derefStr(t.Schedule)), Timezone: normTimezone(t.Timezone),
+		tv := TaskValue{Name: name, Action: "command", Schedule: strings.TrimSpace(derefStr(t.Schedule)), Timezone: normTimezone(t.Timezone),
 			Command: append([]string{}, t.Command...), Enabled: true, TimeoutSeconds: 1800, Concurrency: "forbid"}
+		if t.Action != nil && *t.Action == "restart" {
+			// A restart task runs no command; the control plane stores a fixed timeout for its runs.
+			tv.Action, tv.Command, tv.TimeoutSeconds = "restart", []string{}, RestartTaskTimeoutSeconds
+		}
 		if t.Enabled != nil {
 			tv.Enabled = *t.Enabled
 		}
-		if t.TimeoutSeconds != nil {
+		if t.TimeoutSeconds != nil && tv.Action != "restart" {
 			tv.TimeoutSeconds = *t.TimeoutSeconds
 		}
 		if t.Concurrency != nil {

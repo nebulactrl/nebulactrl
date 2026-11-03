@@ -1,0 +1,9 @@
+{
+  "total_count": 4,
+  "check_runs": [
+    {"id": 1, "name": "build", "status": "completed", "conclusion": "success"},
+    {"id": 2, "name": "lint", "status": "completed", "conclusion": "neutral"},
+    {"id": 3, "name": "e2e", "status": "completed", "conclusion": "skipped"},
+    {"id": 4, "name": "nebulactrl/api", "status": "completed", "conclusion": "failure"}
+  ]
+}

@@ -40,6 +40,7 @@ import {
 import { invalidateTasks } from "./queries";
 
 type Concurrency = TaskView["concurrency"];
+type TaskAction = TaskView["action"];
 
 const CONCURRENCY_HELP: Record<Concurrency, string> = {
 	forbid:
@@ -70,6 +71,7 @@ export function TaskDialog({
 	const [command, setCommand] = useState("");
 	const [timeout, setTimeoutText] = useState(String(DEFAULT_TIMEOUT_SECONDS));
 	const [concurrency, setConcurrency] = useState<Concurrency>("forbid");
+	const [action, setAction] = useState<TaskAction>("command");
 	const [timezone, setTimezone] = useState("UTC");
 	const zones = useMemo(() => timezoneOptions(), []);
 	const [enabled, setEnabled] = useState(true);
@@ -79,33 +81,43 @@ export function TaskDialog({
 		if (!open) return;
 		setError(null);
 		setName(task?.name ?? "");
+		setAction(task?.action ?? "command");
 		setSchedule(task?.schedule ?? DEFAULT_SCHEDULE);
 		setPreset(task ? presetFor(task.schedule) : "daily");
 		setCommand(commandText(task?.command));
-		setTimeoutText(String(task?.timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS));
+		setTimeoutText(
+			String(
+				task && task.action === "command"
+					? task.timeoutSeconds
+					: DEFAULT_TIMEOUT_SECONDS,
+			),
+		);
 		setConcurrency(task?.concurrency ?? "forbid");
 		setEnabled(task?.enabled ?? true);
 		setTimezone(task?.timezone ?? "UTC");
 	}, [open, task]);
 
+	const restart = action === "restart";
 	const argv = splitCommand(command);
 	const timeoutSeconds = parseTimeoutSeconds(timeout);
 	const timezoneOk = isValidTimezone(timezone);
 	const valid =
 		name.trim() !== "" &&
 		schedule.trim() !== "" &&
-		argv.length > 0 &&
-		timeoutSeconds !== null &&
+		(restart || (argv.length > 0 && timeoutSeconds !== null)) &&
 		timezoneOk;
 
 	const save = useMutation({
 		mutationFn: async () => {
 			const body = {
 				name: name.trim(),
+				action,
 				schedule: schedule.trim(),
-				command: argv,
+				command: restart ? [] : argv,
 				enabled,
-				timeoutSeconds: timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS,
+				...(restart
+					? {}
+					: { timeoutSeconds: timeoutSeconds ?? DEFAULT_TIMEOUT_SECONDS }),
 				concurrency,
 				timezone: timezone.trim() || "UTC",
 			};
@@ -146,9 +158,9 @@ export function TaskDialog({
 					<DialogHeader>
 						<DialogTitle>{task ? "Edit task" : "Add a task"}</DialogTitle>
 						<DialogDescription>
-							Runs a command on a schedule, in a fresh container of the
-							service's current image, with its variables and volumes. Nothing
-							is restarted.
+							{restart
+								? "Restarts every replica of the service on a schedule. With one replica the service is briefly unavailable."
+								: "Runs a command on a schedule, in a fresh container of the service's current image, with its variables and volumes. Nothing is restarted."}
 						</DialogDescription>
 					</DialogHeader>
 					<DialogBody>
@@ -157,9 +169,24 @@ export function TaskDialog({
 							<Input
 								id="task-name"
 								autoComplete="off"
-								placeholder="Nightly cleanup"
+								placeholder={restart ? "Nightly restart" : "Nightly cleanup"}
 								value={name}
 								onChange={(e) => setName(e.target.value)}
+							/>
+						</Field>
+
+						<Field>
+							<FieldLabel id="task-action">Action</FieldLabel>
+							<Segmented<TaskAction>
+								aria-label="Action"
+								font="sans"
+								density="regular"
+								value={action}
+								onValueChange={setAction}
+								options={[
+									{ value: "command", label: "Run command" },
+									{ value: "restart", label: "Restart service" },
+								]}
 							/>
 						</Field>
 
@@ -237,57 +264,63 @@ export function TaskDialog({
 						</Field>
 						<CronPreview schedule={schedule} timezone={timezone} />
 
-						<Field>
-							<FieldLabel htmlFor="task-command">Command</FieldLabel>
-							<Input
-								id="task-command"
-								className="font-mono"
-								autoComplete="off"
-								spellCheck={false}
-								placeholder='sh -c "rake cleanup && rake report"'
-								value={command}
-								onChange={(e) => setCommand(e.target.value)}
-							/>
-							<FieldDescription>
-								Run without a shell, so pipes and && do nothing on their own.
-								For shell syntax use{" "}
-								<code className="type-mono">sh -c "…"</code>.
-							</FieldDescription>
-						</Field>
+						{restart ? null : (
+							<>
+								<Field>
+									<FieldLabel htmlFor="task-command">Command</FieldLabel>
+									<Input
+										id="task-command"
+										className="font-mono"
+										autoComplete="off"
+										spellCheck={false}
+										placeholder='sh -c "rake cleanup && rake report"'
+										value={command}
+										onChange={(e) => setCommand(e.target.value)}
+									/>
+									<FieldDescription>
+										Run without a shell, so pipes and && do nothing on their
+										own. For shell syntax use{" "}
+										<code className="type-mono">sh -c "…"</code>.
+									</FieldDescription>
+								</Field>
 
-						<div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-							<Field>
-								<FieldLabel htmlFor="task-timeout">
-									Timeout (seconds)
-								</FieldLabel>
-								<Input
-									id="task-timeout"
-									inputMode="numeric"
-									value={timeout}
-									onChange={(e) => setTimeoutText(e.target.value)}
-								/>
-								<FieldDescription>
-									The run is stopped after this long.
-								</FieldDescription>
-							</Field>
-							<Field>
-								<FieldLabel id="task-concurrency">If still running</FieldLabel>
-								<Segmented<Concurrency>
-									aria-label="Concurrency"
-									font="sans"
-									density="regular"
-									value={concurrency}
-									onValueChange={setConcurrency}
-									options={[
-										{ value: "forbid", label: "Skip the tick" },
-										{ value: "allow", label: "Run anyway" },
-									]}
-								/>
-								<FieldDescription>
-									{CONCURRENCY_HELP[concurrency]}
-								</FieldDescription>
-							</Field>
-						</div>
+								<div className="grid gap-3 sm:grid-cols-[160px_1fr]">
+									<Field>
+										<FieldLabel htmlFor="task-timeout">
+											Timeout (seconds)
+										</FieldLabel>
+										<Input
+											id="task-timeout"
+											inputMode="numeric"
+											value={timeout}
+											onChange={(e) => setTimeoutText(e.target.value)}
+										/>
+										<FieldDescription>
+											The run is stopped after this long.
+										</FieldDescription>
+									</Field>
+									<Field>
+										<FieldLabel id="task-concurrency">
+											If still running
+										</FieldLabel>
+										<Segmented<Concurrency>
+											aria-label="Concurrency"
+											font="sans"
+											density="regular"
+											value={concurrency}
+											onValueChange={setConcurrency}
+											options={[
+												{ value: "forbid", label: "Skip the tick" },
+												{ value: "allow", label: "Run anyway" },
+											]}
+										/>
+										<FieldDescription>
+											{CONCURRENCY_HELP[concurrency]}
+										</FieldDescription>
+									</Field>
+								</div>
+							</>
+						)}
 
 						<div className="flex items-center gap-2 text-ink-2 text-sm">
 							<Switch

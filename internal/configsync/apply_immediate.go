@@ -79,8 +79,19 @@ func (a *applier) planImmediate(sp *svcPlan) {
 		// A process the running release does not have yet still stores its setting.
 		add(&immStep{name: stepName("scale", slug, name), fields: fs, run: func(ctx context.Context) error { return a.runProcessScale(ctx, id, name, fs) }})
 	}
-	if fs := imm("git."); len(fs) > 0 {
-		add(&immStep{name: stepName("git", slug), fields: fs, run: func(ctx context.Context) error { return a.runGit(ctx, sp, id, fs) }})
+	var gitFs, pollFs []*fieldPlan
+	for _, f := range imm("git.") {
+		if isGitPollField(f.fv.ID) {
+			pollFs = append(pollFs, f)
+		} else {
+			gitFs = append(gitFs, f)
+		}
+	}
+	if len(gitFs) > 0 {
+		add(&immStep{name: stepName("git", slug), fields: gitFs, run: func(ctx context.Context) error { return a.runGit(ctx, sp, id, gitFs) }})
+	}
+	if len(pollFs) > 0 {
+		add(&immStep{name: stepName("git", slug, "poll"), fields: pollFs, run: func(ctx context.Context) error { return a.runGitPoll(ctx, sp, id) }})
 	}
 	if fs := imm("uptime."); len(fs) > 0 {
 		add(&immStep{name: stepName("uptime", slug), fields: fs, run: func(ctx context.Context) error { return a.runUptime(ctx, sp, id, false) }})
@@ -232,7 +243,7 @@ func (a *applier) runGit(ctx context.Context, sp *svcPlan, id uuid.UUID, fs []*f
 	case sp.ls != nil && sp.ls.Git != nil:
 		in.ConnectionID, in.Repo = sp.ls.Git.ConnectionID, sp.ls.Git.RepoFullName
 	default:
-		return refErr("invalid_value", "auto_deploy and watch_paths need a git connection and repository")
+		return refErr("invalid_value", "auto_deploy, wait_for_ci and watch_paths need a git connection and repository")
 	}
 	if b := sp.field("config.gitBranch"); b != nil {
 		in.Branch = asString(b.fv.Value)
@@ -242,6 +253,9 @@ func (a *applier) runGit(ctx context.Context, sp *svcPlan, id uuid.UUID, fs []*f
 		case "git.auto_deploy":
 			v, _ := asBool(f.fv.Value)
 			in.AutoDeploy = &v
+		case "git.wait_for_ci":
+			v, _ := asBool(f.fv.Value)
+			in.WaitForCI = &v
 		case "git.watch_paths":
 			v, _ := asStrings(f.fv.Value)
 			v = nonNil(append([]string(nil), v...))
@@ -249,6 +263,34 @@ func (a *applier) runGit(ctx context.Context, sp *svcPlan, id uuid.UUID, fs []*f
 		}
 	}
 	_, err := a.s.Git.Link(ctx, id, in)
+	return err
+}
+
+// runGitPoll turns "check for new commits" on or off. The setting is replaced as a whole, so every
+// part the file does not declare keeps its live value.
+func (a *applier) runGitPoll(ctx context.Context, sp *svcPlan, id uuid.UUID) error {
+	var live *db.ServiceGitPoll
+	if sp.ls != nil {
+		live = sp.ls.Poll
+	}
+	in := gitproviders.GitPollInput{Enabled: live != nil}
+	if live != nil {
+		minutes, deploy := int(live.IntervalMinutes), live.Deploy
+		in.IntervalMinutes, in.Deploy = &minutes, &deploy
+	}
+	if f := sp.field("git.poll"); f != nil {
+		name := asString(f.fv.Value)
+		minutes, on := gitPollMinutes(name)
+		in.Enabled = on
+		if on {
+			in.IntervalMinutes = &minutes
+		}
+	}
+	if f := sp.field("git.poll_deploy"); f != nil {
+		deploy, _ := asBool(f.fv.Value)
+		in.Deploy = &deploy
+	}
+	_, err := a.s.Git.PutGitPoll(ctx, id, in)
 	return err
 }
 
@@ -299,14 +341,14 @@ func (a *applier) runTask(ctx context.Context, sp *svcPlan, id uuid.UUID, f *fie
 	if sp.ls != nil {
 		if cur, exists := sp.ls.Tasks[name]; exists {
 			_, err := a.s.Tasks.UpdateTask(ctx, cur.ID, tasks.TaskPatch{
-				Schedule: &v.Schedule, Timezone: &v.Timezone, Command: &v.Command, Enabled: &v.Enabled,
+				Action: &v.Action, Schedule: &v.Schedule, Timezone: &v.Timezone, Command: &v.Command, Enabled: &v.Enabled,
 				TimeoutSeconds: &v.TimeoutSeconds, Concurrency: &v.Concurrency,
 			})
 			return err
 		}
 	}
 	_, err := a.s.Tasks.CreateTask(ctx, id, tasks.TaskInput{
-		Name: name, Schedule: v.Schedule, Timezone: v.Timezone, Command: v.Command, Enabled: &v.Enabled,
+		Name: name, Action: v.Action, Schedule: v.Schedule, Timezone: v.Timezone, Command: v.Command, Enabled: &v.Enabled,
 		TimeoutSeconds: v.TimeoutSeconds, Concurrency: v.Concurrency,
 	})
 	return err

@@ -63,12 +63,16 @@ import {
 	type RepoSelection,
 	usableConnections,
 } from "#/features/git/repo-picker";
+import { splitCommand } from "#/features/service-settings/command-line";
+import { DEFAULT_CRON_SCHEDULE } from "#/features/service-settings/draft";
 import {
 	type ExampleChoices,
 	mergeChoices,
 	toWrites,
 } from "#/features/variables/env-example";
 import { gitCloneGuide } from "#/lib/credential-links";
+import { CronFields, defaultCronTimezone } from "./cron-fields";
+import { CronMark } from "./cron-mark";
 import {
 	type Capacity,
 	capacityOf,
@@ -91,11 +95,13 @@ const READABLE_URL = /^https?:\/\/[^/\s]+\/[^/\s]+\/\S+$/;
 const TITLE: Record<ServiceRequest["kind"], string> = {
 	git: "New service from a Git repository",
 	image: "New service from a Docker image",
+	cron: "New cron job",
 };
 
 const DESCRIPTION: Record<ServiceRequest["kind"], string> = {
 	git: "The repository is built on the server you pick: with its Dockerfile if it has one, otherwise with Railpack.",
 	image: "The image is pulled onto the server you pick.",
+	cron: "Runs a command on a schedule. Deploying pulls or builds the image; each tick then runs it in a fresh container.",
 };
 
 const pct = (value: number | null) =>
@@ -242,7 +248,7 @@ export function ServerPicker({
 }
 
 /** The create request of a Git or Docker image service; databases have their own dialog. */
-export type ServiceRequest = CreateRequest & { kind: "git" | "image" };
+export type ServiceRequest = CreateRequest & { kind: "git" | "image" | "cron" };
 
 export function isServiceRequest(
 	request: CreateRequest,
@@ -303,7 +309,13 @@ function CreateForm({
 			),
 		[servers],
 	);
-	const sourceKind: "image" | "git" = kind === "git" ? "git" : "image";
+	const cron = kind === "cron";
+	const [cronSource, setCronSource] = useState<"image" | "git">("image");
+	const sourceKind: "image" | "git" = cron
+		? cronSource
+		: kind === "git"
+			? "git"
+			: "image";
 
 	const [name, setName] = useState("");
 	const [nameTouched, setNameTouched] = useState(false);
@@ -315,7 +327,7 @@ function CreateForm({
 	// Pick from a connected git account, or paste any URL.
 	const gitConnections = useQuery({
 		...listGitConnectionsOptions(),
-		enabled: kind === "git",
+		enabled: sourceKind === "git",
 	});
 	const hasAccounts =
 		usableConnections(gitConnections.data?.items ?? []).length > 0;
@@ -337,6 +349,9 @@ function CreateForm({
 	const [idempotencyKey] = useState(() => crypto.randomUUID());
 	const [step, setStep] = useState<"source" | "variables">("source");
 	const [choices, setChoices] = useState<ExampleChoices>({});
+	const [cronSchedule, setCronSchedule] = useState(DEFAULT_CRON_SCHEDULE);
+	const [cronTimezone, setCronTimezone] = useState(defaultCronTimezone);
+	const [cronCommandText, setCronCommandText] = useState("");
 
 	const suggested = suggestName({
 		kind: sourceKind,
@@ -356,7 +371,11 @@ function CreateForm({
 				? gitSel === null || gitSel.repo === "" || gitSel.branch === ""
 				: gitUrl.trim() === "" || gitBranch.trim() === "";
 	const canCreate =
-		effectiveName !== "" && !sourceMissing && !portInvalid && serverId !== "";
+		effectiveName !== "" &&
+		!sourceMissing &&
+		!portInvalid &&
+		serverId !== "" &&
+		(!cron || cronSchedule.trim() !== "");
 
 	const previewInput = useMemo<EnvTemplatePreviewInput | null>(() => {
 		if (sourceKind !== "git") return null;
@@ -405,7 +424,7 @@ function CreateForm({
 	const create = useMutation({
 		mutationFn: async (): Promise<Service> => {
 			const body: CreateServiceInputBody = { name: effectiveName, serverId };
-			body.kind = "app";
+			body.kind = cron ? "worker" : "app";
 			body.sourceType = sourceKind;
 			body.config =
 				sourceKind === "image"
@@ -416,7 +435,15 @@ function CreateForm({
 								gitBranch: gitSel.branch,
 							}
 						: { gitUrl: gitUrl.trim(), gitBranch: gitBranch.trim() };
-			if (portNumber !== undefined) body.config.port = portNumber;
+			if (cron) {
+				const startCommand = splitCommand(cronCommandText);
+				body.config.oneshot = true;
+				body.config.cron = {
+					schedule: cronSchedule.trim(),
+					timezone: cronTimezone,
+				};
+				if (startCommand.length > 0) body.config.startCommand = startCommand;
+			} else if (portNumber !== undefined) body.config.port = portNumber;
 			if (sourceKind === "git" && !accountMode && gitToken !== "")
 				body.gitToken = gitToken;
 			const { data } = await createService({
@@ -534,7 +561,11 @@ function CreateForm({
 		<form onSubmit={submit} className="contents">
 			<DialogHeader>
 				<DialogTitle className="flex items-center gap-2.5">
-					<ServiceIcon service={iconSource} size={24} />
+					{cron ? (
+						<CronMark size={24} />
+					) : (
+						<ServiceIcon service={iconSource} size={24} />
+					)}
 					{reviewing ? "Variables from .env.example" : TITLE[kind]}
 				</DialogTitle>
 				<DialogDescription>
@@ -545,6 +576,19 @@ function CreateForm({
 			</DialogHeader>
 			<DialogBody>
 				<div className={cn("flex flex-col gap-4", reviewing && "hidden")}>
+					{cron ? (
+						<Segmented<"image" | "git">
+							aria-label="Source"
+							font="sans"
+							density="regular"
+							value={cronSource}
+							onValueChange={setCronSource}
+							options={[
+								{ value: "git", label: "Git repository" },
+								{ value: "image", label: "Docker image" },
+							]}
+						/>
+					) : null}
 					{sourceKind === "image" ? (
 						<Field>
 							<FieldLabel htmlFor="create-image">Image</FieldLabel>
@@ -647,43 +691,55 @@ function CreateForm({
 							}}
 						/>
 					</Field>
-					<div className="flex items-start gap-4">
-						<Field className="min-w-0 flex-1">
-							<FieldLabel htmlFor="create-port">Port</FieldLabel>
-							<Input
-								id="create-port"
-								scale="lg"
-								inputMode="numeric"
-								autoComplete="off"
-								className="font-mono"
-								placeholder="8080"
-								value={port}
-								aria-invalid={portInvalid}
-								onChange={(event) => setPort(event.target.value)}
-							/>
-							<FieldDescription>
-								Leave empty for a worker with no HTTP.
-							</FieldDescription>
-							{portInvalid ? (
-								<FieldError>Use a whole number from 1 to 65535.</FieldError>
-							) : null}
-						</Field>
-						{showReplicas ? (
-							<Field className="w-auto shrink-0">
-								<FieldLabel>Replicas</FieldLabel>
-								<Stepper
-									aria-label="Replicas"
-									value={replicas}
-									onValueChange={setReplicas}
-									min={1}
-									max={REPLICAS_MAX}
+					{cron ? null : (
+						<div className="flex items-start gap-4">
+							<Field className="min-w-0 flex-1">
+								<FieldLabel htmlFor="create-port">Port</FieldLabel>
+								<Input
+									id="create-port"
+									scale="lg"
+									inputMode="numeric"
+									autoComplete="off"
+									className="font-mono"
+									placeholder="8080"
+									value={port}
+									aria-invalid={portInvalid}
+									onChange={(event) => setPort(event.target.value)}
 								/>
 								<FieldDescription>
-									1–{REPLICAS_MAX}, same server.
+									Leave empty for a worker with no HTTP.
 								</FieldDescription>
+								{portInvalid ? (
+									<FieldError>Use a whole number from 1 to 65535.</FieldError>
+								) : null}
 							</Field>
-						) : null}
-					</div>
+							{showReplicas ? (
+								<Field className="w-auto shrink-0">
+									<FieldLabel>Replicas</FieldLabel>
+									<Stepper
+										aria-label="Replicas"
+										value={replicas}
+										onValueChange={setReplicas}
+										min={1}
+										max={REPLICAS_MAX}
+									/>
+									<FieldDescription>
+										1–{REPLICAS_MAX}, same server.
+									</FieldDescription>
+								</Field>
+							) : null}
+						</div>
+					)}
+					{cron ? (
+						<CronFields
+							schedule={cronSchedule}
+							onSchedule={setCronSchedule}
+							timezone={cronTimezone}
+							onTimezone={setCronTimezone}
+							command={cronCommandText}
+							onCommand={setCronCommandText}
+						/>
+					) : null}
 					<Field>
 						<FieldLabel>Server</FieldLabel>
 						{usable.length === 0 ? (
@@ -747,7 +803,7 @@ function CreateForm({
 				) : (
 					<Button type="submit" disabled={!canCreate || create.isPending}>
 						{create.isPending ? <Spinner /> : null}
-						Create service
+						{cron ? "Create cron job" : "Create service"}
 					</Button>
 				)}
 			</DialogFooter>

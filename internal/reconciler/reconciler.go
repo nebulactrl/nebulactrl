@@ -224,6 +224,12 @@ func (r *Reconciler) DesiredState(ctx context.Context, serverID uuid.UUID) (agen
 			}
 			if err == nil {
 				snap = services.DecodeSnapshot(rel.Config)
+				if snap.Config.Cron != nil {
+					// A cron service has no container between runs: nothing is
+					// desired, so the agent never observes, probes or reports it
+					// missing, and its self-heal never redeploys it.
+					continue
+				}
 				// The release runs what a deploy of it runs: one replica unless it is eligible.
 				replicas = services.EffectiveReplicas(sv.Kind, snap.Config, len(snap.Volumes), replicas)
 			}

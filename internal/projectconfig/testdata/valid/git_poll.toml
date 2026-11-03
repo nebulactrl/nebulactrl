@@ -1,0 +1,19 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+
+# Check for new commits works with a plain clone URL and with a git connection.
+[services.site]
+
+[services.site.git]
+url = "https://git.example.com/acme/site.git"
+branch = "main"
+poll = "15m"          # off, 1m, 5m, 15m or 60m
+poll_deploy = false   # only show the new commit; do not deploy it
+
+[services.api]
+
+[services.api.git]
+connection = "github-acme"
+repo = "acme/api"
+branch = "main"
+poll = "1m"

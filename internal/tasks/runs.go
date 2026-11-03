@@ -27,6 +27,7 @@ import (
 // startInput describes a run to start inside a transaction.
 type startInput struct {
 	sc           services.Scope
+	action       string // ActionCommand (or empty) or ActionRestart
 	task         *db.ServiceTask
 	name, source string
 	command      []string
@@ -66,12 +67,12 @@ func (s *Service) runnable(ctx context.Context, q *db.Queries, sc services.Scope
 	if serverID == nil {
 		return zero, &blocker{"no_server", "the service is not placed on a server"}, nil
 	}
-	name, online, err := serverState(ctx, q, *serverID)
+	srv, online, err := serverState(ctx, q, *serverID)
 	if err != nil {
 		return zero, nil, err
 	}
 	if !online {
-		return zero, &blocker{"server_offline", "the server " + name + " is offline"}, nil
+		return zero, &blocker{"server_offline", "the server " + srv.Name + " is offline"}, nil
 	}
 	cur.DeploymentServerID = serverID
 	return cur, nil, nil
@@ -103,6 +104,9 @@ func (s *Service) insertSkipped(ctx context.Context, q *db.Queries, in startInpu
 // payload names the release and the variable keys; their values are attached
 // at send time (SecretsForCommand).
 func (s *Service) startRun(ctx context.Context, tx pgx.Tx, in startInput) (db.TaskRun, error) {
+	if in.action == ActionRestart {
+		return s.startRestartRun(ctx, tx, in)
+	}
 	q := db.New(tx)
 	cur, b, err := s.runnable(ctx, q, in.sc)
 	if err != nil {
@@ -116,6 +120,20 @@ func (s *Service) startRun(ctx context.Context, tx pgx.Tx, in startInput) (db.Ta
 		return db.TaskRun{}, err
 	}
 	snap := services.DecodeSnapshot(cur.Config)
+	if in.action == ActionService {
+		if snap.Config.Cron == nil {
+			return db.TaskRun{}, apierr.Conflict("not_applicable", "the deployed release of the service has no cron schedule")
+		}
+		parts := services.RuntimePartsOf(in.sc.Service.ID, snap)
+		payload.ServiceRun, payload.StartCommand, payload.Docker, payload.Volumes, payload.Files = true, parts.StartCommand, parts.Docker, parts.Volumes, parts.Files
+		payload.Command = []string{}
+		// The agent re-validates the Docker options against the server's policy.
+		srv, err := q.GetServerByID(ctx, *cur.DeploymentServerID)
+		if err != nil {
+			return db.TaskRun{}, fmt.Errorf("load server: %w", err)
+		}
+		payload.DockerPolicy = &agentprotocol.DockerPolicy{Unrestricted: srv.Unrestricted}
+	}
 	if cur.DeploymentServerID != nil {
 		mem, err := networks.Resolve(ctx, q, in.sc.EnvironmentID, *cur.DeploymentServerID, in.sc.Service.ID, snap.Config.BlockEgress, snap.Networks)
 		if err != nil {
@@ -145,6 +163,48 @@ func (s *Service) startRun(ctx context.Context, tx pgx.Tx, in startInput) (db.Ta
 	})
 	if err != nil {
 		return run, fmt.Errorf("enqueue run_task: %w", err)
+	}
+	if err := q.SetTaskRunCommand(ctx, db.SetTaskRunCommandParams{ID: run.ID, CommandID: &cmdID}); err != nil {
+		return run, err
+	}
+	run.CommandID = &cmdID
+	return run, nil
+}
+
+// startRestartRun records a run of a restart task and queues the restart of the
+// service's running container inside tx. The restart command's result finishes
+// the run (HandleResult finds it by command id). The service's desired state is
+// left alone: a stopped service is never started by a schedule.
+func (s *Service) startRestartRun(ctx context.Context, tx pgx.Tx, in startInput) (db.TaskRun, error) {
+	q := db.New(tx)
+	cur, b, err := s.runnable(ctx, q, in.sc)
+	if err != nil {
+		return db.TaskRun{}, err
+	}
+	if b != nil {
+		return db.TaskRun{}, b.err()
+	}
+	if in.sc.Service.DesiredState == services.DesiredStopped {
+		return db.TaskRun{}, apierr.Conflict("service_stopped", "the service is stopped; start it before restarting it")
+	}
+	var taskID *uuid.UUID
+	if in.task != nil {
+		taskID = &in.task.ID
+	}
+	run, err := q.InsertTaskRun(ctx, db.InsertTaskRunParams{
+		WorkspaceID: in.sc.WorkspaceID, ServiceID: in.sc.Service.ID, TaskID: taskID, Name: in.name, Source: in.source,
+		Command: argvJSON([]string{}), Status: StatusQueued, TimeoutSeconds: RestartTimeoutSeconds,
+		ServerID: cur.DeploymentServerID, ActorLabel: in.actor, ScheduledFor: in.scheduledFor,
+	})
+	if err != nil {
+		return run, fmt.Errorf("insert task run: %w", err)
+	}
+	if s.restarter == nil {
+		return run, errors.New("restart tasks are not available: no service restarter configured")
+	}
+	cmdID, err := s.restarter.RestartForSchedule(ctx, tx, in.sc, "task:"+in.name)
+	if err != nil {
+		return run, err
 	}
 	if err := q.SetTaskRunCommand(ctx, db.SetTaskRunCommandParams{ID: run.ID, CommandID: &cmdID}); err != nil {
 		return run, err
@@ -196,6 +256,15 @@ func (s *Service) payloadFor(in startInput, cur db.GetServiceCurrentReleaseRow) 
 	return p, nil
 }
 
+// runName is the name recorded on a run of t: the task's own, or the service's
+// for the hidden schedule of a cron service (whose row name is internal).
+func runName(t db.ServiceTask, sc services.Scope) string {
+	if t.Action == ActionService {
+		return sc.Service.Name
+	}
+	return t.Name
+}
+
 func normalizeTimeout(seconds int) int {
 	switch {
 	case seconds <= 0:
@@ -213,14 +282,14 @@ func (s *Service) RunTaskNow(ctx context.Context, id uuid.UUID) (RunView, error)
 	if err != nil {
 		return RunView{}, err
 	}
-	if err := guardRun(ctx, sc, guardRunTask, &t.ID, t.Name, decodeArgv(t.Command), int(t.TimeoutSeconds)); err != nil {
+	if err := guardRun(ctx, sc, guardRunTask, &t.ID, t.Name, t.Action, decodeArgv(t.Command), int(t.TimeoutSeconds)); err != nil {
 		return RunView{}, err
 	}
 	var run db.TaskRun
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
 		run, err = s.startRun(ctx, tx, startInput{
-			sc: sc, task: &t, name: t.Name, source: SourceManual, command: decodeArgv(t.Command),
+			sc: sc, task: &t, action: t.Action, name: runName(t, sc), source: SourceManual, command: decodeArgv(t.Command),
 			timeout: int(t.TimeoutSeconds), actor: actorLabel(ctx),
 		})
 		if err != nil {
@@ -228,7 +297,7 @@ func (s *Service) RunTaskNow(ctx context.Context, id uuid.UUID) (RunView, error)
 		}
 		return audit.Record(ctx, tx, audit.Entry{
 			Action: ActionTaskRun, ResourceType: "task_run", ResourceID: run.ID.String(), ProjectID: &sc.ProjectID,
-			Metadata: map[string]any{"service": sc.Service.Slug, "task": t.Name},
+			Metadata: map[string]any{"service": sc.Service.Slug, "task": runName(t, sc)},
 		})
 	})
 	if err != nil {
@@ -258,7 +327,7 @@ func (s *Service) RunCommand(ctx context.Context, serviceID uuid.UUID, command [
 			return RunView{}, err
 		}
 	}
-	if err := guardRun(ctx, sc, guardRunCommand, nil, "", command, timeoutSeconds); err != nil {
+	if err := guardRun(ctx, sc, guardRunCommand, nil, "", ActionCommand, command, timeoutSeconds); err != nil {
 		return RunView{}, err
 	}
 	var run db.TaskRun

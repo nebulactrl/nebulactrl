@@ -126,6 +126,24 @@ func TestDesiredStateKeepsRouteServicesOutOfTheContainerList(t *testing.T) {
 	require.Equal(t, []string{"192.168.1.20:8080"}, out.ExternalRoutes[0].Upstreams)
 }
 
+func TestDesiredStateKeepsCronServicesOut(t *testing.T) {
+	f := newFixture(t)
+	bg := context.Background()
+	web := f.deployed("web", services.KindApp, services.SourceImage, services.Config{Image: "nginx:1", Port: 80})
+	f.deployed("job", services.KindWorker, services.SourceImage, services.Config{
+		Image: "busybox:1", OneShot: true, Cron: &services.CronSpec{Schedule: "* * * * *"},
+	})
+
+	out, err := f.r.DesiredState(bg, f.server.ID)
+	require.NoError(t, err)
+	require.Len(t, out.Services, 1, "a cron service has no container between runs")
+	require.Equal(t, web.ID.String(), out.Services[0].ServiceID)
+	require.Empty(t, out.ExternalRoutes, "its routes are not turned into external routes either")
+
+	// Nothing is desired for it, so the agent never reports it missing.
+	require.Zero(t, f.count(`SELECT count(*) FROM river_job WHERE kind = 'reconcile_redeploy'`), "no redeploy is enqueued for a cron service")
+}
+
 func TestNewFallsBackToTheDefaultLogger(t *testing.T) {
 	require.NotNil(t, New(nil, nil, nil, nil, nil).logger)
 }

@@ -48,6 +48,8 @@ var catalog = []ChannelEventType{
 		Description: "A deployment failed or could not be restored to the previous release."},
 	{Type: TypeDeployRolledBack, Label: "Deployment rolled back", Group: GroupDeployments, Severity: SeverityWarning, DefaultOn: true, tone: toneWarn,
 		Description: "A new release did not verify and the previous release was put back."},
+	{Type: TypeDeployBlockedByCI, Label: "Deployment blocked by CI", Group: GroupDeployments, Severity: SeverityWarning, DefaultOn: true, tone: toneWarn,
+		Description: "A push was not deployed because its CI checks failed, never finished, or could not be read (services that wait for CI)."},
 	{Type: TypeDeploySucceeded, Label: "Deployment succeeded", Group: GroupDeployments, Severity: SeverityInfo, tone: toneOK,
 		Description: "A deployment finished and the service is running the new release."},
 

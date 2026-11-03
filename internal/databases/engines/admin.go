@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 // ExecPlan is a command the agent runs inside a database container. It is an
@@ -255,3 +256,50 @@ func shortVersion(v string) string {
 	}
 	return v
 }
+
+// QuoteMySQLIdent quotes one MySQL/MariaDB identifier with backticks, doubling
+// any backtick inside it.
+func QuoteMySQLIdent(s string) string {
+	return "`" + strings.ReplaceAll(s, "`", "``") + "`"
+}
+
+// QuoteClickHouseIdent quotes one ClickHouse identifier with backticks; the
+// backtick and the backslash are escaped with a backslash.
+func QuoteClickHouseIdent(s string) string {
+	return "`" + strings.NewReplacer("\\", "\\\\", "`", "\\`").Replace(s) + "`"
+}
+
+// QueryPlan builds the clickhouse-client command behind the Data tab: the
+// statements (several allowed) run on stdin and every result comes back as one
+// JSONCompact object on stdout. The password rides in the environment. Unless
+// allowWrites, --readonly=1 keeps the statements from changing data or
+// settings. At most about maxRows+1 rows are produced per result (the server
+// breaks at block granularity, so the reader still bounds them).
+func QueryPlan(c Credentials, sql string, allowWrites bool, timeout time.Duration, maxRows int) (ExecPlan, error) {
+	if err := validNames(c); err != nil {
+		return ExecPlan{}, err
+	}
+	secs := int(timeout / time.Second)
+	if secs < 1 {
+		secs = 1
+	}
+	if maxRows < 1 {
+		maxRows = 1
+	}
+	argv := []string{
+		"clickhouse-client", "--user", c.User, "--database", c.Database,
+		"--format", "JSONCompact", "--multiquery",
+		"--max_execution_time=" + strconv.Itoa(secs),
+		"--max_result_rows=" + strconv.Itoa(maxRows+1),
+		"--max_result_bytes=" + strconv.Itoa(clickHouseResultBytes),
+		"--result_overflow_mode=break",
+	}
+	if !allowWrites {
+		argv = append(argv, "--readonly=1")
+	}
+	return ExecPlan{Argv: argv, Env: []string{"CLICKHOUSE_PASSWORD=" + c.Password}, Stdin: sql}, nil
+}
+
+// clickHouseResultBytes bounds one query result on the server side, in memory
+// bytes (the JSON text is larger; the agent caps its own read separately).
+const clickHouseResultBytes = 2 << 20

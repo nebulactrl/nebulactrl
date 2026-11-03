@@ -108,9 +108,10 @@ describe("CanvasMenu: the empty pane", () => {
 		expect(menu).toHaveAccessibleName("Canvas");
 		const rows = labels(menu);
 		// Create sources first, then the canvas's own actions in this order.
-		expect(rows.slice(0, 3)).toEqual([
+		expect(rows.slice(0, 4)).toEqual([
 			"Git repository",
 			"Docker image",
+			"Cron job",
 			"Database",
 		]);
 		expect(rows.slice(-4)).toEqual([

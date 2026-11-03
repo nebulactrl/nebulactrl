@@ -202,7 +202,8 @@ func TestRestartAndStopQueueCommandsOnTheRunningServer(t *testing.T) {
 	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
 	var res services.ActionResult
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
-	require.NotEqual(t, uuid.Nil, res.CommandID)
+	require.NotNil(t, res.CommandID)
+	require.NotEqual(t, uuid.Nil, *res.CommandID)
 	cmds := f.disp.commands(agentprotocol.KindRestartService)
 	require.Len(t, cmds, 1)
 	require.Equal(t, f.server.ID, cmds[0].ServerID)
@@ -222,6 +223,34 @@ func TestRestartAndStopQueueCommandsOnTheRunningServer(t *testing.T) {
 	rec = f.do(f.ctx, http.MethodPost, "/services/"+sv.ID.String()+"/restart", nil)
 	require.Equal(t, http.StatusAccepted, rec.Code)
 	require.Equal(t, "running", f.desiredState(sv.ID), "restarting a stopped service wants it running again")
+}
+
+// A cron service has no container: stop and restart pause and resume its
+// schedule and queue no agent command.
+func TestStopAndRestartPauseAndResumeACronService(t *testing.T) {
+	f := newOpsFixture(t)
+	sv := f.deployed(f.prod.ID, "job", services.Config{
+		Image: "busybox:latest", OneShot: true, Cron: &services.CronSpec{Schedule: "* * * * *"},
+	})
+
+	rec := f.do(f.ctx, http.MethodPost, "/services/"+sv.ID.String()+"/stop", nil)
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	var res services.ActionResult
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
+	require.Nil(t, res.CommandID)
+	require.NotContains(t, rec.Body.String(), "commandId")
+	require.Equal(t, "stopped", f.desiredState(sv.ID))
+	require.Equal(t, 1, f.audits("service.stop", sv.ID.String()))
+
+	rec = f.do(f.ctx, http.MethodPost, "/services/"+sv.ID.String()+"/restart", nil)
+	require.Equal(t, http.StatusAccepted, rec.Code, rec.Body.String())
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &res))
+	require.Nil(t, res.CommandID)
+	require.Equal(t, "running", f.desiredState(sv.ID))
+	require.Equal(t, 1, f.audits("service.restart", sv.ID.String()))
+
+	require.Empty(t, f.disp.commands(agentprotocol.KindStopService))
+	require.Empty(t, f.disp.commands(agentprotocol.KindRestartService))
 }
 
 func TestRestartAndStopRefusals(t *testing.T) {

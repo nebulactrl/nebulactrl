@@ -116,7 +116,9 @@ describe("CreateButton", () => {
 		expect(labels(list)).toEqual([
 			"Git repository",
 			"Docker image",
+			"Cron job",
 			"Database",
+			"Bucket",
 			"Templates",
 			"Import Docker Compose",
 			"Import from Coolify",
@@ -148,6 +150,15 @@ describe("CreateButton", () => {
 				screen.queryByRole("listbox", { name: "Create a service" }),
 			).toBeNull(),
 		);
+	});
+
+	test("clicking Cron job opens the cron dialog and closes the menu", async () => {
+		stubCatalog();
+		const user = userEvent.setup();
+		await renderButton();
+		const list = await openMenu(user);
+		await user.click(within(list).getByRole("option", { name: /Cron job/ }));
+		expect(storeState()).toEqual({ request: { kind: "cron" }, menu: false });
 	});
 
 	test("the menu opened from a context menu hands its drop position to the dialog", async () => {
@@ -360,7 +371,7 @@ describe("CreateButton", () => {
 				within(list).getAllByRole("option")[1]?.id,
 			);
 			await user.keyboard("{ArrowUp}{ArrowUp}");
-			expect(active()).toBe(8);
+			expect(active()).toBe(10);
 			await user.keyboard("{ArrowDown}");
 			expect(active()).toBe(0);
 			await user.keyboard("{ArrowDown}{Enter}");
@@ -375,15 +386,15 @@ describe("CreateButton", () => {
 			await user.click(
 				screen.getByRole("combobox", { name: "Filter sources" }),
 			);
-			// Git, Image, then Database.
-			await user.keyboard("{ArrowDown}{ArrowDown}{ArrowRight}");
+			// Git, Image, Cron job, then Database.
+			await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowRight}");
 			expect(
 				screen.getByRole("combobox", { name: "Filter databases" }),
 			).toBeVisible();
 			await user.keyboard("{ArrowLeft}");
 			expect(labels(list)[0]).toBe("Git repository");
 
-			await user.keyboard("{ArrowDown}{ArrowDown}{ArrowRight}");
+			await user.keyboard("{ArrowDown}{ArrowDown}{ArrowDown}{ArrowRight}");
 			expect(
 				screen.getByRole("combobox", { name: "Filter databases" }),
 			).toBeVisible();

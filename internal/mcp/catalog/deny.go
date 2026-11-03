@@ -16,6 +16,7 @@ const (
 	whyInstanceServices = "Instance infrastructure (built-in S3, registry and Loki, quotas and purges of every team's slice): reserved to the instance administrator in the web UI."
 	whyApprovalAPI      = "A principal must never approve its own production operation: approvals are given by a person in the web UI."
 	whyCombine          = "Merges and deletes services; reviewed and confirmed by a person in the web UI or CLI."
+	whyDatabaseData     = "Returns or changes database rows; database contents never flow to an agent."
 )
 
 // denyEntries are the operations never callable over MCP. Reasons come from
@@ -184,4 +185,9 @@ var denyEntries = map[string]Deny{
 	"combineServices": {Reason: ReasonPersonOnly, Why: whyCombine},
 	"abortCombine":    {Reason: ReasonPersonOnly, Why: whyCombine},
 	"retryCombine":    {Reason: ReasonPersonOnly, Why: whyCombine},
+
+	// ── database contents ──
+	"listDatabaseTables":  {Reason: ReasonPersonOnly, Why: whyDatabaseData},
+	"browseDatabaseTable": {Reason: ReasonPersonOnly, Why: whyDatabaseData},
+	"queryDatabase":       {Reason: ReasonPersonOnly, Why: whyDatabaseData},
 }

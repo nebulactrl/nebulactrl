@@ -1,0 +1,25 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+
+# A nightly job: a deploy only pulls the image, the schedule runs it.
+[services.nightly-report]
+image = "ghcr.io/acme/reports:2.3"
+command = ["/app/report", "--daily"]
+memory_mb = 256
+
+[services.nightly-report.cron]
+schedule = "0 3 * * *"
+timezone = "Europe/Berlin"
+timeout_seconds = 900
+concurrency = "allow"
+
+# The shortest form: one_shot is implied, the zone is UTC.
+[services.cleanup]
+image = "busybox:1.37"
+command = ["sh", "-c", "find /data -mtime +7 -delete"]
+
+[services.cleanup.cron]
+schedule = "@hourly"
+
+[services.cleanup.volumes]
+data = "/data"

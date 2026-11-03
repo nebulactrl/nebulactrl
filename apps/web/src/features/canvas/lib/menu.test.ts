@@ -48,6 +48,18 @@ describe("serviceMenu", () => {
 		{ id: "restart", label: "Restart", disabled: false, destructive: false },
 		{ id: "toggle", label: "Stop", disabled: false, destructive: false },
 		{
+			id: "run-command",
+			label: "Run command…",
+			disabled: false,
+			destructive: false,
+		},
+		{
+			id: "schedule-task",
+			label: "Schedule task…",
+			disabled: false,
+			destructive: false,
+		},
+		{
 			id: "copy-host",
 			label: "Copy private host",
 			disabled: false,
@@ -66,6 +78,8 @@ describe("serviceMenu", () => {
 			"Scale…",
 			"Restart",
 			"Stop",
+			"Run command…",
+			"Schedule task…",
 			"Copy private host",
 			"Delete…",
 		]);
@@ -75,6 +89,31 @@ describe("serviceMenu", () => {
 		expect(
 			labels(serviceMenu({ service, actions: fresh, busy: false }))[1],
 		).toBe("Deploy");
+	});
+
+	test("Deploy latest commit follows the Deploy row when the actions offer it", () => {
+		const withLatest = [
+			actions[0],
+			{
+				id: "deploy-latest",
+				label: "Deploy latest commit",
+				disabled: false,
+				destructive: false,
+			},
+			...actions.slice(1),
+		] as const;
+		const model = serviceMenu({ service, actions: withLatest, busy: false });
+		expect(labels(model).slice(0, 4)).toEqual([
+			"Open",
+			"Redeploy",
+			"Scale…",
+			"Deploy latest commit",
+		]);
+		expect(find(model, "deploy-latest:Deploy latest commit").action).toEqual({
+			type: "service-action",
+			serviceId: "svc",
+			id: "deploy-latest",
+		});
 	});
 
 	test("lists the cables the card ends, named by the card at the other end", () => {
@@ -199,7 +238,9 @@ describe("paneMenu", () => {
 		expect(create).toEqual([
 			{ type: "create", source: "git", at },
 			{ type: "create", source: "image", at },
+			{ type: "create", source: "cron", at },
 			{ type: "create", source: "database", at },
+			{ type: "create", source: "bucket", at },
 			{ type: "create", source: "templates", at },
 			{ type: "create", source: "compose", at },
 			{ type: "create", source: "coolify", at },

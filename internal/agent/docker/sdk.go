@@ -265,6 +265,15 @@ func portOf(p PortPublish) (network.Port, error) {
 	return port, nil
 }
 
+// restartPolicyOf is the host config's restart policy: the retry cap only
+// exists for on-failure (the daemon refuses it with any other policy).
+func restartPolicyOf(spec ContainerSpec) container.RestartPolicy {
+	rp := container.RestartPolicy{Name: container.RestartPolicyMode(spec.RestartPolicy)}
+	if rp.Name == container.RestartPolicyOnFailure {
+		rp.MaximumRetryCount = spec.RestartMaxRetries
+	}
+	return rp
+}
 func (e *SDKEngine) ContainerCreate(ctx context.Context, spec ContainerSpec) (string, error) {
 	cfg := &container.Config{
 		Image:       spec.Image,
@@ -280,9 +289,10 @@ func (e *SDKEngine) ContainerCreate(ctx context.Context, spec ContainerSpec) (st
 		}
 	}
 	host := &container.HostConfig{
-		RestartPolicy: container.RestartPolicy{Name: container.RestartPolicyMode(spec.RestartPolicy)},
+		RestartPolicy: restartPolicyOf(spec),
 		Resources:     container.Resources{Memory: spec.MemoryBytes, NanoCPUs: spec.NanoCPUs},
 	}
+
 	if spec.LogConfig != nil {
 		host.LogConfig = container.LogConfig{Type: spec.LogConfig.Type, Config: spec.LogConfig.Config}
 	}

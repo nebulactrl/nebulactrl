@@ -1,0 +1,8 @@
+{
+  "state": "pending",
+  "sha": "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+  "total_count": 1,
+  "statuses": [
+    {"id": 13, "state": "pending", "context": "ci/legacy"}
+  ]
+}

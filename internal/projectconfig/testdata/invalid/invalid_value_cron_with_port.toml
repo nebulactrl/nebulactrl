@@ -1,0 +1,15 @@
+# expect: invalid_value
+# A cron service runs to completion: no port, processes, tasks or deploy hooks.
+schema = 1
+server = "fra-1"
+
+[services.job]
+image = "busybox:1"
+port = 8080
+
+[services.job.cron]
+schedule = "@daily"
+
+[services.job.tasks.extra]
+schedule = "@hourly"
+command = ["true"]

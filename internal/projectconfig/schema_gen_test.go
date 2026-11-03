@@ -44,6 +44,7 @@ var schemaTypeDefs = map[reflect.Type]string{
 	reflect.TypeFor[Git]():           "git",
 	reflect.TypeFor[Build]():         "build",
 	reflect.TypeFor[HealthCheck]():   "healthCheck",
+	reflect.TypeFor[Cron]():          "cron",
 	reflect.TypeFor[Hook]():          "hook",
 	reflect.TypeFor[Database]():      "database",
 	reflect.TypeFor[Route]():         "route",
@@ -81,7 +82,8 @@ var schemaRequired = map[reflect.Type][]string{
 	reflect.TypeFor[Hook]():      {"command"},
 	reflect.TypeFor[Database]():  {"engine"},
 	reflect.TypeFor[Route]():     {"protocol", "upstreams"},
-	reflect.TypeFor[Task]():      {"schedule", "command"},
+	reflect.TypeFor[Task]():      {"schedule"},
+	reflect.TypeFor[Cron]():      {"schedule"},
 	reflect.TypeFor[Backup]():    {"destination", "cron"},
 	reflect.TypeFor[CORS]():      {"origins"},
 	reflect.TypeFor[Redirect]():  {"regex", "replacement"},
@@ -384,6 +386,15 @@ func (g *schemaGen) refine(name string, s map[string]any) any {
 				"required":   []string{"kind"},
 			}, schemaRequire("redirect_to")),
 		}
+	case "task":
+		restart := map[string]any{
+			"properties": map[string]any{"action": map[string]any{"const": "restart"}},
+			"required":   []string{"action"},
+		}
+		s["allOf"] = []any{
+			schemaWhen(restart, schemaForbid("command", "timeout_seconds")),
+			schemaWhen(map[string]any{"not": restart}, schemaRequire("command")),
+		}
 	}
 	return s
 }
@@ -435,7 +446,7 @@ func (g *schemaGen) shared() {
 	// single key of either table.
 	g.defs["gitSource"] = map[string]any{"allOf": []any{
 		map[string]any{"oneOf": schemaExactlyOne([]string{"url"}, []string{"connection", "repo"})},
-		schemaWhen(schemaRequire("url"), schemaForbid("connection", "repo", "auto_deploy", "watch_paths")),
+		schemaWhen(schemaRequire("url"), schemaForbid("connection", "repo", "auto_deploy", "wait_for_ci", "watch_paths")),
 	}}
 	g.defs["stackSource"] = map[string]any{"oneOf": schemaExactlyOne([]string{"compose"}, []string{"compose_file"})}
 	g.defs["service"] = g.serviceDef()
@@ -469,11 +480,12 @@ func (g *schemaGen) serviceDef() map[string]any {
 	databaseForbids := []string{
 		"port", "command", "health_check", "volumes", "domains", "pre_deploy", "post_deploy",
 		"one_shot", "files", "tasks", "scale", "build", "generate_domain", "processes", "process_name", "singleton",
+		"restart_policy", "restart_max_retries", "cron",
 	}
 	stackForbids := []string{
 		"port", "command", "health_check", "memory_mb", "cpus", "stop_grace_seconds", "image_retention",
 		"one_shot", "block_egress", "pre_deploy", "post_deploy", "docker", "files", "volumes", "build",
-		"tasks", "scale", "backups", "processes", "process_name", "singleton",
+		"tasks", "scale", "backups", "processes", "process_name", "singleton", "restart_policy", "restart_max_retries", "cron",
 	}
 	routeForbids := append(slices.Clone(stackForbids), "variables", "secrets", "networks")
 	// A process of a base service needs its command; an environment override may restate a single key of it.

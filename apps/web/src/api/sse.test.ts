@@ -178,6 +178,26 @@ describe("the events feed", () => {
 		stop();
 	});
 
+	test("task and run events refresh the service views of cron services", async () => {
+		const server = serve();
+		const queryClient = seed(
+			"listServices",
+			"getService",
+			"listServiceTaskRuns",
+			"listServers",
+		);
+		const stop = startEventsFeed(queryClient);
+		await waitFor(() => expect(server.streams).toHaveLength(1));
+
+		server.streams[0]?.send({ data: { type: "task.run.updated" } });
+
+		await waitFor(() => expect(stale(queryClient, "listServices")).toBe(true));
+		expect(stale(queryClient, "getService")).toBe(true);
+		expect(stale(queryClient, "listServiceTaskRuns")).toBe(true);
+		expect(stale(queryClient, "listServers")).toBe(false);
+		stop();
+	});
+
 	test("a burst of events is merged into one invalidation of every named query", async () => {
 		const server = serve();
 		const queryClient = seed("listProjects", "listEnvironments", "listTeams");

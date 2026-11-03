@@ -338,6 +338,34 @@ func TestCommandEdgeCases(t *testing.T) {
 	}
 }
 
+func TestEphemeralResultKindsSendRowsButStoreNoData(t *testing.T) {
+	c, st, srv := newHarness(t)
+	rows := json.RawMessage(`{"results":[{"rows":[["1"],[null]]}]}`)
+	c.SetHandler(HandlerFunc(func(_ context.Context, cmd agentprotocol.Command) agentprotocol.ResultFrame {
+		return agentprotocol.ResultFrame{Outcome: agentprotocol.OutcomeSucceeded, Data: rows}
+	}))
+	results := make(chan map[string][]agentprotocol.ResultFrame, 1)
+	srv.script = func(ctx context.Context, ws *websocket.Conn, _ agentprotocol.Hello) {
+		wsSend(t, ctx, ws, agentprotocol.TypeCommand, "q1", cmdPayload("q1", agentprotocol.KindDBQuery))
+		wsSend(t, ctx, ws, agentprotocol.TypeCommand, "r1", cmdPayload("r1", agentprotocol.KindRestartService))
+		collectResults(ctx, ws, 2, results)
+		<-ctx.Done()
+	}
+	runClient(t, c)
+
+	got := recv(t, results)
+	require.JSONEq(t, string(rows), string(got["q1"][0].Data), "the frame sent to the control plane carries the rows")
+	storedQuery, seen := st.SeenCommand("q1")
+	require.True(t, seen)
+	require.NotNil(t, storedQuery)
+	require.Equal(t, agentprotocol.OutcomeSucceeded, storedQuery.Outcome)
+	require.Empty(t, storedQuery.Data, "rows never land in the agent's store")
+
+	storedOther, _ := st.SeenCommand("r1")
+	require.NotNil(t, storedOther)
+	require.JSONEq(t, string(rows), string(storedOther.Data), "other kinds keep their data")
+}
+
 func TestCommandWithoutHandlerFails(t *testing.T) {
 	c, _, srv := newHarness(t)
 	results := make(chan map[string][]agentprotocol.ResultFrame, 1)

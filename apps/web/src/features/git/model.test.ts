@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import {
+	canReadCi,
 	commitSubject,
 	formatWatchPaths,
 	parseWatchPaths,
@@ -9,6 +10,17 @@ import {
 	submitManifestForm,
 	watchPathProblem,
 } from "./model";
+
+describe("canReadCi", () => {
+	test("every provider with an API can, Bitbucket and webhook-only cannot", () => {
+		expect(canReadCi("github", "github_app")).toBe(true);
+		expect(canReadCi("gitlab", "oauth")).toBe(true);
+		expect(canReadCi("gitea", "token")).toBe(true);
+		expect(canReadCi("bitbucket", "webhook_only")).toBe(false);
+		expect(canReadCi("gitea", "webhook_only")).toBe(false);
+		expect(canReadCi(undefined, undefined)).toBe(true);
+	});
+});
 
 describe("watch paths", () => {
 	test("parses lines and commas, trims and drops duplicates", () => {

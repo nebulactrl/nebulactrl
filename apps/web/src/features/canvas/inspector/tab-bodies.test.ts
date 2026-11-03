@@ -89,13 +89,34 @@ describe("preloadOverview", () => {
 });
 
 describe("preloadRemainingTabs", () => {
-	test("an app downloads all eight tab bodies", () => {
+	test("a managed SQL database downloads all nine tab bodies", () => {
 		const spies = stubPreloads();
-		preloadRemainingTabs({ kind: "database" });
+		preloadRemainingTabs({
+			kind: "database",
+			config: { database: { engine: "postgres" } },
+		});
 		expect(new Set(calledBodies(spies))).toEqual(
 			new Set(Object.values(TAB_BODY)),
 		);
-		expect(calledBodies(spies)).toHaveLength(8);
+		expect(calledBodies(spies)).toHaveLength(9);
+	});
+
+	test("anything without a Data tab leaves out its editor chunk", () => {
+		const services: Parameters<typeof preloadRemainingTabs>[0][] = [
+			{ kind: "app" },
+			{ kind: "database", config: {} },
+			{ kind: "database", config: { database: { engine: "valkey" } } },
+		];
+		for (const service of services) {
+			const spies = stubPreloads();
+			preloadRemainingTabs(service);
+			const called = calledBodies(spies);
+			expect(called).toHaveLength(8);
+			expect(called).not.toContain(TAB_BODY.data);
+			installed.splice(0).forEach((spy) => {
+				spy.mockRestore();
+			});
+		}
 	});
 
 	test("a route downloads only the three tabs it has", () => {

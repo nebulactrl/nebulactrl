@@ -1,0 +1,10 @@
+{
+  "state": "success",
+  "sha": "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+  "total_count": 3,
+  "statuses": [
+    {"id": 1, "status": "success", "context": "ci/test", "description": "passed"},
+    {"id": 2, "status": "success", "context": "ci/lint", "description": "passed"},
+    {"id": 3, "status": "failure", "context": "nebulactrl/shop", "description": "Deployment failed"}
+  ]
+}

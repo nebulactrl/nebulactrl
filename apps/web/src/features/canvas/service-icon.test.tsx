@@ -158,6 +158,21 @@ describe("ServiceIcon: which mark a service wears", () => {
 		expect(mark({ kind: "stack" }).lucide).toContain("lucide-boxes");
 	});
 
+	test("a Garage image (the Bucket template) wears the bucket glyph, whatever its tag, digest or registry", () => {
+		for (const image of [
+			"dxflrs/garage:v2.5.0@sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5",
+			"docker.io/dxflrs/garage:v2.5.0",
+		]) {
+			const { brand, lucide } = mark({ kind: "app", config: { image } });
+			expect(brand).toBeNull();
+			expect(lucide).toContain("lucide-archive");
+		}
+		// Another repository named garage keeps the Docker image glyph.
+		expect(mark({ config: { image: "acme/garage:1" } }).lucide).toContain(
+			"lucide-container",
+		);
+	});
+
 	test("a route is a globe for http and a network for tcp/udp", () => {
 		expect(
 			mark({ kind: "route", config: { route: { protocol: "http" } } }).lucide,

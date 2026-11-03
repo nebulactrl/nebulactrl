@@ -21,10 +21,12 @@ import (
 //	NEBULACTRL_MESH_LINK_GRACE       10m -> 30s  (TestMeshCrossServer: grant of a removed reference)
 //	NEBULACTRL_REPLICA_BROKEN_AFTER   2m -> 60s  (TestMeshCrossServer: a replica that cannot reconnect)
 //	NEBULACTRL_UPTIME_INTERVAL       30s -> 2s   (TestUptime*: outage and recovery in seconds; the harness agent probes at the same period)
+//	NEBULACTRL_GIT_POLL_UNIT          1m -> 1s   (TestGitPoll*: "every minute" checks every second; the sweep that runs them ticks every 10 s)
 var fastTimers = map[string]string{
 	"NEBULACTRL_MESH_LINK_GRACE":      "30s",
 	"NEBULACTRL_REPLICA_BROKEN_AFTER": "60s",
 	"NEBULACTRL_UPTIME_INTERVAL":      "2s",
+	"NEBULACTRL_GIT_POLL_UNIT":        "1s",
 }
 
 // harnessTimers returns the timer overrides of every control plane the harness

@@ -41,14 +41,19 @@ func (d *deploy) applyTemplateFeatures(spec *docker.ContainerSpec) {
 // writeFiles copies the payload's files into the (created, not yet started)
 // container. Parent directories are created by the extraction.
 func (d *deploy) writeFiles(ctx context.Context, id string) error {
-	if len(d.p.Files) == 0 {
+	return copyFiles(ctx, d.e.cfg.Docker, id, d.p.Files)
+}
+
+// copyFiles copies files into the (created, not yet started) container id.
+func copyFiles(ctx context.Context, eng docker.Engine, id string, files []agentprotocol.FileSpec) error {
+	if len(files) == 0 {
 		return nil
 	}
-	tarball, err := filesTar(d.p.Files)
+	tarball, err := filesTar(files)
 	if err != nil {
 		return err
 	}
-	return d.e.cfg.Docker.CopyToContainer(ctx, id, "/", tarball)
+	return eng.CopyToContainer(ctx, id, "/", tarball)
 }
 
 // filesTar builds a tar archive rooted at "/" with one regular file per spec.

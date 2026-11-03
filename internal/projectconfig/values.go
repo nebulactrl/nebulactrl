@@ -179,6 +179,7 @@ type CloudflareRule struct {
 // TaskValue is the value of tasks.<name>, defaults applied.
 type TaskValue struct {
 	Name           string   `json:"name"`
+	Action         string   `json:"action"` // command | restart; default command
 	Schedule       string   `json:"schedule"`
 	Timezone       string   `json:"timezone"` // default UTC
 	Command        []string `json:"command"`

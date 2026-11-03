@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import {
 	hasBackupsTab,
+	hasDataTab,
 	INSPECTOR_TABS,
 	parseTab,
 	resolveTab,
@@ -19,6 +20,7 @@ describe("tab chords", () => {
 		expect(tabForChordKey("D")).toBe("deployments");
 		expect(tabForChordKey("s")).toBe("settings");
 		expect(tabForChordKey("x")).toBeUndefined();
+		expect(tabForChordKey("t")).toBe("data");
 	});
 });
 
@@ -60,6 +62,42 @@ describe("tabsFor", () => {
 		expect(resolveTab("backups", app)).toBe("overview");
 		expect(resolveTab("logs", app)).toBe("logs");
 		expect(tabForChordKey("b")).toBe("backups");
+	});
+});
+
+describe("the Data tab", () => {
+	const managed = (engine: string) => ({
+		kind: "database",
+		config: { database: { engine } },
+	});
+
+	test("belongs to PostgreSQL, MySQL, MariaDB and ClickHouse", () => {
+		for (const engine of ["postgres", "mysql", "mariadb", "clickhouse"]) {
+			expect(hasDataTab(managed(engine))).toBe(true);
+			expect(tabsFor(managed(engine))).toContain("data");
+		}
+	});
+	test("sits right after Variables", () => {
+		const tabs = tabsFor(managed("postgres"));
+		expect(tabs.indexOf("data")).toBe(tabs.indexOf("variables") + 1);
+	});
+	test("is not offered for Valkey, Redis, MongoDB, a plain image, an app or a route", () => {
+		for (const engine of ["valkey", "redis", "mongodb"]) {
+			expect(hasDataTab(managed(engine))).toBe(false);
+			expect(tabsFor(managed(engine))).not.toContain("data");
+		}
+		expect(tabsFor({ kind: "database", config: {} })).not.toContain("data");
+		expect(tabsFor({ kind: "app", config: {} })).not.toContain("data");
+		expect(
+			tabsFor({ kind: "app", config: { database: { engine: "postgres" } } }),
+		).not.toContain("data");
+		expect(tabsFor({ kind: "route", config: {} })).not.toContain("data");
+		expect(tabsFor({ kind: "stack", config: {} })).not.toContain("data");
+	});
+	test("a stale link to it resolves to Overview", () => {
+		expect(resolveTab("data", managed("postgres"))).toBe("data");
+		expect(resolveTab("data", managed("valkey"))).toBe("overview");
+		expect(resolveTab("data", { kind: "app", config: {} })).toBe("overview");
 	});
 });
 

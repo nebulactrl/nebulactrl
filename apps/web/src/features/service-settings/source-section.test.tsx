@@ -82,6 +82,7 @@ function gitRoutes() {
 				connectionId: "",
 				connectionName: "",
 				queuedCommit: "",
+				waitForCi: false,
 				repo: "",
 				repoUrl: "",
 				watchPaths: null,

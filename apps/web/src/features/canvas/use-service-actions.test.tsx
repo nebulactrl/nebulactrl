@@ -11,7 +11,15 @@ import {
 	closeMaintenance,
 	useMaintenanceTarget,
 } from "#/features/maintenance/store";
-import { closeRunCommand, useRunCommandTarget } from "#/features/tasks/store";
+import {
+	closeRunCommand,
+	closeRunHistory,
+	closeTaskDialog,
+	type RunHistoryTarget,
+	useRunCommandTarget,
+	useRunHistoryTarget,
+	useTaskDialogTarget,
+} from "#/features/tasks/store";
 import {
 	closeFiles,
 	closeShell,
@@ -34,6 +42,8 @@ interface Seen {
 	shell: string | null;
 	files: string | null;
 	run: string | null;
+	history: RunHistoryTarget | null;
+	taskDialog: string | null;
 	maintenance: string | null;
 	search: Record<string, unknown>;
 }
@@ -55,6 +65,8 @@ function Probe({
 		shell: useShellTarget(),
 		files: useFilesTarget(),
 		run: useRunCommandTarget(),
+		history: useRunHistoryTarget(),
+		taskDialog: useTaskDialogTarget(),
 		maintenance: useMaintenanceTarget(),
 		search: useSearch({ strict: false }) as Record<string, unknown>,
 	};
@@ -103,6 +115,8 @@ beforeEach(() => {
 	closeShell();
 	closeFiles();
 	closeRunCommand();
+	closeRunHistory();
+	closeTaskDialog();
 	closeMaintenance();
 });
 
@@ -113,12 +127,37 @@ test("a deployed image service offers the full menu in order, ending in copy and
 		"restart",
 		"toggle",
 		"run-command",
+		"schedule-task",
 		"shell",
 		"files",
 		"processes",
 		"copy-host",
 		"delete",
 	]);
+});
+
+test("a new commit found by checking adds Deploy latest commit right after Redeploy", async () => {
+	const { ids, action } = await mountActions(
+		makeService({
+			id: "g",
+			sourceType: "git",
+			currentDeploymentId: "d",
+			gitPoll: {
+				enabled: true,
+				intervalMinutes: 5,
+				deploy: false,
+				headSha: "abc1234def5678",
+				headBranch: "main",
+				updateAvailable: true,
+			},
+		}),
+	);
+	expect(ids().slice(0, 3)).toEqual(["redeploy", "deploy-latest", "restart"]);
+	expect(action("deploy-latest").label).toBe("Deploy latest commit");
+	const plain = await mountActions(
+		makeService({ id: "p", sourceType: "git", currentDeploymentId: "d" }),
+	);
+	expect(plain.ids()).not.toContain("deploy-latest");
 });
 
 test("actions that cannot apply are left out: never deployed has no stop, shell, files or command", async () => {
@@ -176,6 +215,39 @@ test("a worker offers processes; a stack does not", async () => {
 		} as Partial<Service>),
 	);
 	expect(stack.ids()).not.toContain("processes");
+});
+
+test("Schedule task… follows Run command… and opens the task dialog on the service", async () => {
+	const { ids, action, now } = await mountActions(deployed);
+	const at = ids().indexOf("run-command");
+	expect(ids()[at + 1]).toBe("schedule-task");
+	expect(action("schedule-task").label).toBe("Schedule task…");
+	expect(now().taskDialog).toBeNull();
+	act(() => action("schedule-task").run());
+	expect(now().taskDialog).toBe("web");
+});
+
+test("a one-shot service and a stack offer Run command… but no Schedule task…", async () => {
+	const base = makeService({ id: "o", currentDeploymentId: "d" });
+	const oneShot = await mountActions({
+		...base,
+		config: { ...base.config, oneshot: true },
+	});
+	expect(oneShot.ids()).toContain("run-command");
+	expect(oneShot.ids()).not.toContain("schedule-task");
+	const stack = await mountActions(
+		makeService({
+			id: "s",
+			kind: "stack",
+			sourceType: "compose",
+			currentDeploymentId: "d",
+		} as Partial<Service>),
+	);
+	expect(stack.ids()).not.toContain("schedule-task");
+	const route = await mountActions(
+		makeService({ id: "r", kind: "route", currentDeploymentId: "d" }),
+	);
+	expect(route.ids()).not.toContain("schedule-task");
 });
 
 test("the deploy row says Redeploy for a released service, Deploy for one that never ran or a route", async () => {
@@ -532,4 +604,126 @@ test("busy follows the requests: true while a deploy is on its way", async () =>
 	expect(action("redeploy").disabled).toBe(true);
 	await act(async () => release?.());
 	await waitFor(() => expect(now().actions.busy).toBe(false));
+});
+
+/** A deployed one-shot worker on a schedule, as the dock and the card menu see it. */
+function cronService(over: Partial<Service> = {}): Service {
+	const base = makeService();
+	return makeService({
+		id: "nightly",
+		name: "Nightly",
+		kind: "worker",
+		config: {
+			...base.config,
+			oneshot: true,
+			cron: { schedule: "0 3 * * *", timezone: "UTC" },
+		},
+		currentDeploymentId: "dep-1",
+		cron: { taskId: "task-7", schedule: "0 3 * * *", timezone: "UTC" },
+		...over,
+	});
+}
+
+test("a cron service swaps Restart and Stop for Pause schedule and keeps no container-only rows", async () => {
+	const { ids, labels, action } = await mountActions(cronService());
+	expect(ids()).toEqual([
+		"redeploy",
+		"toggle",
+		"run-command",
+		"run-now",
+		"run-history",
+		"copy-host",
+		"delete",
+	]);
+	expect(labels()).toContain("Run now");
+	expect(labels()).toContain("Run history");
+	expect(labels()).not.toContain("Restart");
+	expect(labels()).not.toContain("Stop");
+	expect(action("toggle").label).toBe("Pause schedule");
+	expect(action("toggle").disabled).toBe(false);
+});
+
+test("Pause schedule stops the service and says the schedule is paused", async () => {
+	const api = stubApi({
+		"POST /services/:id/stop": { status: 202, body: make("ActionResult") },
+	});
+	const { action } = await mountActions(cronService());
+	act(() => action("toggle").run());
+	expect(
+		await screen.findByText("Paused the schedule of Nightly"),
+	).toBeInTheDocument();
+	expect(api.calls.at(-1)).toMatchObject({
+		method: "POST",
+		path: "/services/nightly/stop",
+	});
+});
+
+test("a paused cron service offers Resume schedule, which restarts it", async () => {
+	const api = stubApi({
+		"POST /services/:id/restart": { status: 202, body: make("ActionResult") },
+	});
+	const { action, labels } = await mountActions(
+		cronService({ desiredState: "stopped" }),
+	);
+	expect(labels()).not.toContain("Pause schedule");
+	expect(action("toggle").label).toBe("Resume schedule");
+	act(() => action("toggle").run());
+	expect(
+		await screen.findByText("Resumed the schedule of Nightly"),
+	).toBeInTheDocument();
+	expect(api.calls.at(-1)).toMatchObject({
+		method: "POST",
+		path: "/services/nightly/restart",
+	});
+});
+
+test("Resume schedule before the first deploy is disabled", async () => {
+	const { action } = await mountActions(
+		cronService({ desiredState: "stopped", currentDeploymentId: null }),
+	);
+	expect(action("toggle").disabled).toBe(true);
+});
+
+test("Run now starts the cron task and opens its run history", async () => {
+	const api = stubApi({
+		"POST /tasks/:taskId/run": { status: 202, body: make("RunView") },
+		"GET /services/:serviceId/tasks": { body: { items: [] } },
+	});
+	const { action, now } = await mountActions(cronService());
+	act(() => action("run-now").run());
+	expect(await screen.findByText("Started Nightly")).toBeInTheDocument();
+	expect(
+		api.calls.filter((c) => c.method === "POST").map((c) => c.path),
+	).toEqual(["/tasks/task-7/run"]);
+	expect(now().history).toEqual({ serviceId: "nightly", taskId: "task-7" });
+});
+
+test("a failed Run now shows why the run could not start", async () => {
+	stubApi({
+		"POST /tasks/:taskId/run": problem(409, {
+			title: "Conflict",
+			detail: "not deployed",
+			code: "not_deployed",
+		}),
+	});
+	const { action, now } = await mountActions(cronService());
+	act(() => action("run-now").run());
+	expect(await screen.findByText("Could not run Nightly")).toBeInTheDocument();
+	expect(now().history).toBeNull();
+});
+
+test("Run history opens the drawer on the cron task, and Run command… still opens the dialog", async () => {
+	const { action, now } = await mountActions(cronService());
+	act(() => action("run-history").run());
+	expect(now().history).toEqual({ serviceId: "nightly", taskId: "task-7" });
+	act(() => action("run-command").run());
+	expect(now().run).toBe("nightly");
+});
+
+test("a cron service whose schedule row is not synced yet has no Run now or Run history", async () => {
+	const { cron: _cron, ...unsynced } = cronService();
+	const { ids } = await mountActions(unsynced);
+	expect(ids()).not.toContain("run-now");
+	expect(ids()).not.toContain("run-history");
+	expect(ids()).toContain("toggle");
 });

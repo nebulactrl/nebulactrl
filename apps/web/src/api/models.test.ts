@@ -103,6 +103,7 @@ describe("toService", () => {
 		expect(service.observedAt).toBeNull();
 		expect(service.git).toBeNull();
 		expect(service.tailnet).toBeNull();
+		expect(service.cron).toBeUndefined();
 		expect(service.stagedKind).toBeNull();
 		expect(service.scaling).toEqual({
 			replicas: 1,
@@ -207,6 +208,21 @@ describe("toService", () => {
 		expect(service.currentRelease).toEqual(release as never);
 		expect(service.git).toEqual(git as never);
 		expect(service.tailnet).toEqual(tailnet as never);
+	});
+
+	test("carries the schedule and last run of a cron service, and nothing for any other", () => {
+		const cron = {
+			taskId: "task-1",
+			schedule: "* * * * *",
+			timezone: "UTC",
+			nextRunAt: "2026-01-01T00:01:00Z",
+			lastRun: { id: "run-1", status: "succeeded" },
+		};
+		expect(toService(serviceView({ cron })).cron).toEqual(cron);
+		expect(toService(serviceView({})).cron).toBeUndefined();
+		expect(toService(serviceView({ cron: { ...cron, taskId: "" } })).cron).toBe(
+			undefined,
+		);
 	});
 
 	test("reports observed state only once the agent reported a container and a state", () => {

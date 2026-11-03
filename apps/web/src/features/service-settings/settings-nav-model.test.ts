@@ -264,6 +264,17 @@ describe("categoryOfField", () => {
 		expect(categoryOfField("buildContext")).toBe("general");
 		expect(categoryOfField("serverId")).toBe("general");
 		expect(categoryOfField("stopGraceSeconds")).toBe("deploy");
+		expect(categoryOfField("restartPolicy")).toBe("deploy");
+		for (const key of [
+			"cronEnabled",
+			"cronSchedule",
+			"cronTimezone",
+			"cronTimeoutSeconds",
+			"cronConcurrency",
+		] as const) {
+			expect(categoryOfField(key)).toBe("general");
+		}
+		expect(categoryOfField("restartMaxRetries")).toBe("deploy");
 		expect(categoryOfField("imageRetention")).toBe("deploy");
 		expect(categoryOfField("preDeployTimeoutSeconds")).toBe("deploy");
 		expect(categoryOfField("startCommand")).toBe("deploy");
@@ -339,9 +350,13 @@ describe("staged changes", () => {
 		expect(stagedCategory("source")).toBe("general");
 		expect(stagedCategory("server")).toBe("general");
 		expect(stagedCategory("config.startCommand")).toBe("deploy");
+		expect(stagedCategory("config.cron.schedule")).toBe("general");
+		expect(stagedCategory("config.cron.timeoutSeconds")).toBe("general");
 		expect(stagedCategory("config.preDeployCommand")).toBe("deploy");
 		expect(stagedCategory("config.postDeployCommand")).toBe("deploy");
 		expect(stagedCategory("config.stopGraceSeconds")).toBe("deploy");
+		expect(stagedCategory("config.restartPolicy")).toBe("deploy");
+		expect(stagedCategory("config.restartMaxRetries")).toBe("deploy");
 		expect(stagedCategory("config.imageRetention")).toBe("deploy");
 		expect(stagedCategory("config.healthcheck.path")).toBe("deploy");
 		expect(stagedCategory("config.port")).toBe("networking");
@@ -421,6 +436,9 @@ describe("searchSettings", () => {
 		};
 		expect(labels("change source", stack)).not.toContain("Change source");
 		expect(labels("change source", route)).not.toContain("Change source");
+		expect(labels("restart", app)).toContain("Restart policy");
+		expect(labels("crash", app)).toContain("Restart policy");
+		expect(labels("restart", stack)).not.toContain("Restart policy");
 	});
 
 	test("a label beats a keyword", () => {
@@ -435,6 +453,15 @@ describe("searchSettings", () => {
 		);
 		expect(labels[0]).toBe("Health check");
 		expect(labels).toContain("Health check path");
+	});
+
+	test("the cron schedule is found only on a one-shot job", () => {
+		const job = { ...app, oneshot: true };
+		expect(top("cron", job)).toBe("Cron schedule");
+		expect(top("timer", job)).toBe("Cron schedule");
+		expect(
+			searchSettings("cron", app).map((result) => result.entry.label),
+		).not.toContain("Cron schedule");
 	});
 
 	test("finds a field by a keyword", () => {
@@ -500,6 +527,22 @@ describe("searchSettings", () => {
 		expect(top("github actions", app)).toBe("Deploy hook");
 		expect(searchSettings("webhook", app)[0]?.category).toBe("deploy");
 		expect(searchSettings("webhook", route)).toEqual([]);
+	});
+
+	test("checking for new commits is a git source setting, found by what people call it", () => {
+		for (const query of [
+			"check for new commits",
+			"polling",
+			"poll",
+			"latest",
+		]) {
+			expect(top(query)).toBe("Check for new commits");
+		}
+		const hit = searchSettings("polling", app)[0];
+		expect(hit?.entry.target).toBe("set-git-poll");
+		expect(hit?.category).toBe("general");
+		expect(searchSettings("polling", image)).toEqual([]);
+		expect(searchSettings("polling", route)).toEqual([]);
 	});
 
 	test("finds the processes by what people call them", () => {

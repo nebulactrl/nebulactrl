@@ -358,7 +358,7 @@ func TestAcmeShopFixtureBaseAndProduction(t *testing.T) {
 	require.Empty(t, t1IDs(web, "uptime.recoveryThreshold"))
 
 	require.Equal(t, TaskValue{
-		Name: "digest", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: []string{"bun", "run", "jobs:digest"},
+		Name: "digest", Action: "command", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: []string{"bun", "run", "jobs:digest"},
 		Enabled: true, TimeoutSeconds: 900, Concurrency: "forbid",
 	}, t1Field(t, web, "tasks.digest").Value)
 	require.Equal(t, AppliesImmediate, t1Field(t, web, "tasks.digest").Applies)
@@ -523,9 +523,9 @@ func TestSingleImageFixture(t *testing.T) {
 	require.Equal(t, 3, t1Field(t, api, "scale.autoscaling.max").Value)
 	require.Equal(t, 70, t1Field(t, api, "scale.autoscaling.targetCpuPercent").Value)
 	require.Len(t, t1IDs(api, "uptime."), 5)
-	require.Equal(t, TaskValue{Name: "report", Schedule: "@daily", Timezone: "UTC", Command: []string{"/app/server", "report"},
+	require.Equal(t, TaskValue{Name: "report", Action: "command", Schedule: "@daily", Timezone: "UTC", Command: []string{"/app/server", "report"},
 		Enabled: true, TimeoutSeconds: 1800, Concurrency: "allow"}, t1Field(t, api, "tasks.report").Value, "defaults are applied")
-	require.Equal(t, TaskValue{Name: "cleanup", Schedule: "0 3 * * *", Timezone: "UTC", Command: []string{"/app/server", "cleanup"},
+	require.Equal(t, TaskValue{Name: "cleanup", Action: "command", Schedule: "0 3 * * *", Timezone: "UTC", Command: []string{"/app/server", "cleanup"},
 		Enabled: true, TimeoutSeconds: 600, Concurrency: "forbid"}, t1Field(t, api, "tasks.cleanup").Value)
 
 	// Docker options: the safe set.

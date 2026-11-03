@@ -106,12 +106,26 @@ type RunTaskPayload struct {
 	HasRegistryAuth bool   `json:"hasRegistryAuth,omitempty"`
 	// Command is the argv, executed without a shell. Wrap in ["sh","-c",…] for
 	// shell syntax.
-	Command        []string `json:"command"`
-	EnvKeys        []string `json:"envKeys,omitempty"`
-	SecretEnvKeys  []string `json:"secretEnvKeys,omitempty"`
-	TimeoutSeconds int      `json:"timeoutSeconds,omitempty"`
-	MemoryMB       int      `json:"memoryMb,omitempty"`
-	CPUs           float64  `json:"cpus,omitempty"`
+	Command []string `json:"command"`
+	// ServiceRun runs the image's own command (a cron service's scheduled run)
+	// instead of Command, which is then empty: the container gets the
+	// service's entrypoint/start command, volumes, files and Docker options,
+	// from the fields below.
+	ServiceRun bool `json:"serviceRun,omitempty"`
+	// StartCommand is the service's configured start command (ServiceRun only;
+	// empty runs the image's CMD).
+	StartCommand []string `json:"startCommand,omitempty"`
+	// Docker, DockerPolicy, Volumes and Files are the service's container
+	// options, as in DeployPayload (ServiceRun only).
+	Docker         *DockerOptions `json:"docker,omitempty"`
+	DockerPolicy   *DockerPolicy  `json:"dockerPolicy,omitempty"`
+	Volumes        []VolumeMount  `json:"volumes,omitempty"`
+	Files          []FileSpec     `json:"files,omitempty"`
+	EnvKeys        []string       `json:"envKeys,omitempty"`
+	SecretEnvKeys  []string       `json:"secretEnvKeys,omitempty"`
+	TimeoutSeconds int            `json:"timeoutSeconds,omitempty"`
+	MemoryMB       int            `json:"memoryMb,omitempty"`
+	CPUs           float64        `json:"cpus,omitempty"`
 	// Network membership of the task container (see network.go): the same
 	// values as the service's DeployPayload.
 	BlockEgress         bool                      `json:"blockEgress,omitempty"`

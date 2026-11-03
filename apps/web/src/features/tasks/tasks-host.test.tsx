@@ -5,8 +5,10 @@ import { renderWithProviders } from "#/test/render";
 import {
 	closeRunCommand,
 	closeRunHistory,
+	closeTaskDialog,
 	openRunCommand,
 	openRunHistory,
+	openTaskDialog,
 } from "./store";
 import { TasksHost } from "./tasks-host";
 import { emptyLogs, runView, serviceBody } from "./test-fixtures";
@@ -15,6 +17,7 @@ afterEach(() => {
 	act(() => {
 		closeRunCommand();
 		closeRunHistory();
+		closeTaskDialog();
 	});
 });
 
@@ -30,6 +33,25 @@ describe("TasksHost", () => {
 		await renderWithProviders(<TasksHost />);
 		expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 		expect(api.calls).toEqual([]);
+	});
+
+	test("openTaskDialog shows the add-a-task dialog of that service and closeTaskDialog hides it", async () => {
+		stubApi({
+			...routes,
+			"POST /task-schedules/preview": {
+				body: { valid: true, description: "Every day", nextRuns: [] },
+			},
+		});
+		await renderWithProviders(<TasksHost />);
+		await act(async () => openTaskDialog("svc-1"));
+		expect(
+			await screen.findByRole("dialog", { name: "Add a task" }),
+		).toBeInTheDocument();
+		expect(screen.getByLabelText("Name")).toBeInTheDocument();
+		await act(async () => closeTaskDialog());
+		await waitFor(() =>
+			expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+		);
 	});
 
 	test("openRunCommand shows the run-command dialog", async () => {

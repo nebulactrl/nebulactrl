@@ -81,6 +81,12 @@ func TestServicesRestartReportsTheCommand(t *testing.T) {
 	r = f.run("--json", "services", "restart", fakeSvcID)
 	require.Equal(t, "cmd-9", decode[map[string]any](t, r.stdout)["commandId"])
 
+	// A cron service has no container: restart resumes its schedule and returns no command.
+	f.reply("POST", svSvc+"/restart", 202, map[string]any{})
+	r = f.run("services", "restart", fakeSvcID)
+	require.Equal(t, 0, r.code, r.all())
+	require.Equal(t, "Schedule resumed\n", r.stdout)
+
 	f.problem("POST", svSvc+"/restart", 409, "not_running", "the service is not deployed")
 	r = f.run("services", "restart", fakeSvcID)
 	require.Equal(t, 1, r.code)

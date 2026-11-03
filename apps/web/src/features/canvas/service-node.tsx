@@ -359,18 +359,24 @@ function ServiceCard({
 										Stale
 									</span>
 								) : null}
-								<span>
-									<span className="font-mono tabular-nums">
-										{deployed
-											? `${replicas.ready}/${replicas.replicas}`
-											: replicas.replicas}
-									</span>{" "}
-									{deployed || replicas.replicas !== 1 ? "replicas" : "replica"}
-								</span>
+								{service.config.cron ? null : (
+									<span>
+										<span className="font-mono tabular-nums">
+											{deployed
+												? `${replicas.ready}/${replicas.replicas}`
+												: replicas.replicas}
+										</span>{" "}
+										{deployed || replicas.replicas !== 1
+											? "replicas"
+											: "replica"}
+									</span>
+								)}
 							</span>
 						</div>
 
-						{memory ? <MemoryRow memory={memory} /> : null}
+						{memory && !service.config.cron ? (
+							<MemoryRow memory={memory} />
+						) : null}
 					</div>
 					{service.volumes.length > 0 ? (
 						<VolumeStrip volumes={service.volumes} />

@@ -1,5 +1,6 @@
 import { cn } from "cn";
 import {
+	ArchiveIcon,
 	BoxesIcon,
 	BoxIcon,
 	ContainerIcon,
@@ -177,12 +178,28 @@ function isValkey(service: ServiceIconSource): boolean {
 	return imagePath(service.config?.image ?? "").includes("valkey");
 }
 
+/** Garage (the Bucket template's image) has no brand mark: it wears the bucket glyph. */
+function isBucket(service: ServiceIconSource): boolean {
+	const path = imagePath(service.config?.image ?? "");
+	return path.length === 2 && path[0] === "dxflrs" && path[1] === "garage";
+}
+
 /**
- * Which mark a service shows: the brand of its database engine, else of its
- * image repository, else the brand of its git host, else a generic glyph for
- * its kind (database, worker, git source, docker image, empty).
+ * Which mark a service shows: the bucket glyph for a Garage image, else the
+ * brand of its database engine, else of its image repository, else the brand
+ * of its git host, else a generic glyph for its kind (database, worker, git
+ * source, docker image, empty).
  */
 function resolveServiceIcon(service: ServiceIconSource): ResolvedServiceIcon {
+	if (isBucket(service)) {
+		return {
+			type: "generic",
+			Icon: ArchiveIcon,
+			title: "Bucket",
+			tile: "oklch(0.55 0.13 55)",
+			glyph: GENERIC_GLYPH,
+		};
+	}
 	const slug =
 		ENGINE_BRANDS[service.config?.database?.engine ?? ""] ??
 		brandForImage(service.config?.image) ??

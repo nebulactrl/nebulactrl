@@ -173,3 +173,88 @@ func TestTasks(t *testing.T) {
 	require.Contains(t, s.DeploymentLogs(d.Str("id")), "migrated fine")
 	NewProxyClient(s.Host()).WaitBody(t, "/", "v2", 30*time.Second)
 }
+
+// A cron service: the deploy pulls the image and starts nothing, the schedule
+// runs the service's own command in a throwaway container, Stop pauses the
+// schedule without an agent command, and the reconciler never redeploys it.
+func TestCronService(t *testing.T) {
+	requireTier(t, tierFull)
+	t.Parallel()
+	s := SharedStack(t)
+	t.Cleanup(s.removeTaskContainers)
+	const image = "quay.io/prometheus/busybox:latest"
+
+	r := s.Do("POST", "/environments/"+s.EnvID+"/services", map[string]any{
+		"name": "ticker", "kind": "worker", "sourceType": "image", "serverId": s.ServerID,
+		"config": map[string]any{
+			"image": image, "stopGraceSeconds": 2, "oneshot": true,
+			"startCommand": []string{"sh", "-c", "echo tick"},
+			"healthcheck":  map[string]any{"type": "none", "deadlineSeconds": 60},
+			"cron":         map[string]any{"schedule": "* * * * *"},
+		},
+	})
+	require.Equal(t, http.StatusCreated, r.Status, string(r.Raw))
+	svc := Service{ID: r.JSON().Str("id"), Slug: r.JSON().Str("slug")}
+	s.servicesMu.Lock()
+	s.serviceIDs = append(s.serviceIDs, svc.ID)
+	s.servicesMu.Unlock()
+
+	// Deploying prepares the image and starts nothing.
+	d := s.DeployOK(svc.ID)
+	require.Equal(t, "Image ready; runs on schedule", d.Str("statusMessage"), "%v", d)
+	require.Empty(t, s.Containers(svc.ID), "a cron service has no container of its own")
+
+	cron := s.Service(svc.ID).Obj("cron")
+	require.NotEmpty(t, cron.Str("taskId"), "the view carries the schedule's task: %v", s.Service(svc.ID))
+	require.Equal(t, "* * * * *", cron.Str("schedule"))
+	require.NotEmpty(t, cron.Str("nextRunAt"))
+	taskID := cron.Str("taskId")
+
+	// The schedule ticks once a minute: within two the run happened and printed its output.
+	var run J
+	require.True(t, eventually(130*time.Second, 2*time.Second, func() bool {
+		rr := s.Do("GET", "/services/"+svc.ID+"/task-runs?taskId="+taskID, nil)
+		for _, it := range rr.JSON().Items() {
+			if it.Str("source") == "cron" && it.Str("status") == "succeeded" {
+				run = it
+				return true
+			}
+		}
+		return false
+	}), "the cron service never ran")
+	require.Contains(t, s.runOutput(run.Str("id")), "tick")
+	require.True(t, eventually(10*time.Second, 500*time.Millisecond, func() bool { return s.taskContainers() == 0 }), "the run container is removed")
+	require.Empty(t, s.Containers(svc.ID), "runs carry no service label: the service never has a container")
+
+	// The card's view follows the run.
+	require.True(t, eventually(15*time.Second, time.Second, func() bool {
+		return s.Service(svc.ID).Obj("cron").Obj("lastRun").Str("status") == "succeeded"
+	}), "cron.lastRun: %v", s.Service(svc.ID).Obj("cron"))
+
+	// Stop pauses the schedule: no agent command, and the next tick is skipped.
+	r = s.Do("POST", "/services/"+svc.ID+"/stop", nil)
+	require.Equal(t, http.StatusAccepted, r.Status, string(r.Raw))
+	_, hasCommand := r.JSON()["commandId"]
+	require.False(t, hasCommand, "pausing a schedule queues no command: %s", r.Raw)
+	require.Equal(t, "stopped", s.Service(svc.ID).Str("desiredState"))
+	require.True(t, eventually(130*time.Second, 2*time.Second, func() bool {
+		rr := s.Do("GET", "/services/"+svc.ID+"/task-runs?taskId="+taskID, nil)
+		for _, it := range rr.JSON().Items() {
+			if it.Str("status") == "skipped" && it.Str("error") == "the service is stopped" {
+				return true
+			}
+		}
+		return false
+	}), "a paused schedule never recorded a skipped tick")
+
+	// Resume.
+	r = s.Do("POST", "/services/"+svc.ID+"/restart", nil)
+	require.Equal(t, http.StatusAccepted, r.Status, string(r.Raw))
+	require.Equal(t, "running", s.Service(svc.ID).Str("desiredState"))
+
+	// The reconciler never saw a missing container to heal.
+	var redeploys int
+	require.NoError(t, s.Pool.QueryRow(context.Background(),
+		`SELECT count(*) FROM river_job WHERE kind = 'reconcile_redeploy' AND args->>'serviceId' = $1`, svc.ID).Scan(&redeploys))
+	require.Zero(t, redeploys, "no reconcile_redeploy is enqueued for a cron service")
+}

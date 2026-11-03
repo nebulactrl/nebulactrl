@@ -189,10 +189,16 @@ function InspectorView({
 	// Once the panel is up and the browser is idle, fetch the chunks of the
 	// other tabs, so switching tabs never waits on the network.
 	const kind = shown?.service.kind;
+	const engine = shown?.service.config.database?.engine;
 	useEffect(() => {
 		if (!open || kind === undefined) return;
-		return whenIdle(() => preloadRemainingTabs({ kind }));
-	}, [open, kind]);
+		return whenIdle(() =>
+			preloadRemainingTabs({
+				kind,
+				config: engine === undefined ? {} : { database: { engine } },
+			}),
+		);
+	}, [open, kind, engine]);
 
 	// The strip scrolls at 420px and on a phone; keep the active tab in
 	// sight, clear of the fade, and fade the ends that hide tabs.

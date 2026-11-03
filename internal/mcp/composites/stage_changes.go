@@ -51,10 +51,13 @@ type StageConfigPatch struct {
 	StartCommand             *[]string         `json:"startCommand,omitempty" jsonschema:"argv, no shell"`
 	Healthcheck              *StageHealthcheck `json:"healthcheck,omitempty"`
 	StopGraceSeconds         *int              `json:"stopGraceSeconds,omitempty"`
+	RestartPolicy            *string           `json:"restartPolicy,omitempty" jsonschema:"always (default), on-failure or never"`
+	RestartMaxRetries        *int              `json:"restartMaxRetries,omitempty" jsonschema:"on-failure limit, 1-100"`
 	MemoryMB                 *int              `json:"memoryMb,omitempty"`
 	CPUs                     *float64          `json:"cpus,omitempty"`
 	ImageRetention           *int              `json:"imageRetention,omitempty"`
 	OneShot                  *bool             `json:"oneshot,omitempty"`
+	Cron                     *CronPatch        `json:"cron,omitempty" jsonschema:"run on a schedule (needs oneshot: true); a deploy only prepares the image. Absent fields stay"`
 	PreDeployCommand         *[]string         `json:"preDeployCommand,omitempty" jsonschema:"argv run before the new release starts (migrations)"`
 	PreDeployTimeoutSeconds  *int              `json:"preDeployTimeoutSeconds,omitempty"`
 	PostDeployCommand        *[]string         `json:"postDeployCommand,omitempty"`
@@ -63,6 +66,15 @@ type StageConfigPatch struct {
 	ProcessName              *string           `json:"processName,omitempty" jsonschema:"name of the default process (the service's own port, startCommand and healthcheck); default web. Only meaningful with processes"`
 	Singleton                *bool             `json:"singleton,omitempty" jsonschema:"the default process never runs two instances at once (stop old, then start new)"`
 	Processes                *[]StageProcess   `json:"processes,omitempty" jsonschema:"the additional named processes of the service, all running the same image with the same variables and volumes (name, startCommand, port, healthcheck, stopGraceSeconds, singleton, memoryMb, cpus). Replaces the whole list: send every process to keep; [] removes them all"`
+}
+
+// CronPatch patches the schedule of a cron service; absent fields stay and an
+// empty schedule clears the whole schedule.
+type CronPatch struct {
+	Schedule       *string `json:"schedule,omitempty" jsonschema:"cron expression; empty removes the schedule"`
+	Timezone       *string `json:"timezone,omitempty" jsonschema:"IANA zone; default UTC"`
+	TimeoutSeconds *int    `json:"timeoutSeconds,omitempty" jsonschema:"1-86400, default 1800"`
+	Concurrency    *string `json:"concurrency,omitempty" jsonschema:"forbid (default; skip while a run is active) or allow"`
 }
 
 // StageProcess is one additional process of a service, as the REST API takes it.
@@ -506,6 +518,8 @@ func (p *StageConfigPatch) apply(c *services.Config) {
 	seti(&c.Port, p.Port)
 	setv(&c.StartCommand, p.StartCommand)
 	seti(&c.StopGraceSeconds, p.StopGraceSeconds)
+	set(&c.RestartPolicy, p.RestartPolicy)
+	seti(&c.RestartMaxRetries, p.RestartMaxRetries)
 	seti(&c.MemoryMB, p.MemoryMB)
 	if p.CPUs != nil {
 		c.CPUs = *p.CPUs
@@ -513,6 +527,21 @@ func (p *StageConfigPatch) apply(c *services.Config) {
 	seti(&c.ImageRetention, p.ImageRetention)
 	if p.OneShot != nil {
 		c.OneShot = *p.OneShot
+	}
+	if cp := p.Cron; cp != nil {
+		if cp.Schedule != nil && *cp.Schedule == "" {
+			c.Cron = nil
+		} else {
+			next := services.CronSpec{}
+			if c.Cron != nil {
+				next = *c.Cron
+			}
+			set(&next.Schedule, cp.Schedule)
+			set(&next.Timezone, cp.Timezone)
+			seti(&next.TimeoutSeconds, cp.TimeoutSeconds)
+			set(&next.Concurrency, cp.Concurrency)
+			c.Cron = &next
+		}
 	}
 	setv(&c.PreDeployCommand, p.PreDeployCommand)
 	seti(&c.PreDeployTimeoutSeconds, p.PreDeployTimeoutSeconds)

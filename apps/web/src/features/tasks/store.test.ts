@@ -3,16 +3,20 @@ import { act, renderHook } from "@testing-library/react";
 import {
 	closeRunCommand,
 	closeRunHistory,
+	closeTaskDialog,
 	openRunCommand,
 	openRunHistory,
+	openTaskDialog,
 	useRunCommandTarget,
 	useRunHistoryTarget,
+	useTaskDialogTarget,
 } from "./store";
 
 afterEach(() => {
 	act(() => {
 		closeRunCommand();
 		closeRunHistory();
+		closeTaskDialog();
 	});
 });
 
@@ -78,5 +82,26 @@ describe("run history target", () => {
 		expect(history.result.current).toBeNull();
 		act(() => openRunHistory("svc-2"));
 		expect(command.result.current).toBe("svc-1");
+	});
+});
+
+describe("task dialog target", () => {
+	test("is closed until a service opens it, and closing clears it", () => {
+		const { result } = renderHook(() => useTaskDialogTarget());
+		expect(result.current).toBeNull();
+		act(() => openTaskDialog("svc-1"));
+		expect(result.current).toBe("svc-1");
+		act(() => closeTaskDialog());
+		expect(result.current).toBeNull();
+	});
+
+	test("is independent of the run command target", () => {
+		const task = renderHook(() => useTaskDialogTarget());
+		const command = renderHook(() => useRunCommandTarget());
+		act(() => openTaskDialog("svc-1"));
+		expect(command.result.current).toBeNull();
+		act(() => openRunCommand("svc-2"));
+		expect(task.result.current).toBe("svc-1");
+		act(() => closeTaskDialog());
 	});
 });

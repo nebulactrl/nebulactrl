@@ -140,6 +140,9 @@ func (c *svcCtx) checkGit() {
 		if g.AutoDeploy != nil {
 			c.err(CodeInvalidValue, rp("git", "auto_deploy"), "git.auto_deploy needs `connection` and `repo`; it is not available with `url`")
 		}
+		if g.WaitForCI != nil {
+			c.err(CodeInvalidValue, rp("git", "wait_for_ci"), "git.wait_for_ci needs `connection` and `repo`; it is not available with `url`")
+		}
 		if g.WatchPaths != nil {
 			c.err(CodeInvalidValue, rp("git", "watch_paths"), "git.watch_paths needs `connection` and `repo`; it is not available with `url`")
 		}
@@ -161,6 +164,13 @@ func (c *svcCtx) checkGit() {
 		case "auto", "on", "off":
 		default:
 			c.err(CodeInvalidValue, rp("git", "submodules"), "git.submodules must be auto, on or off")
+		}
+	}
+	if g.Poll != nil {
+		switch *g.Poll {
+		case "off", "1m", "5m", "15m", "60m":
+		default:
+			c.err(CodeInvalidValue, rp("git", "poll"), "git.poll must be off, 1m, 5m, 15m or 60m")
 		}
 	}
 	if g.WatchPaths != nil {
@@ -458,7 +468,7 @@ func (c *svcCtx) checkProcesses() {
 	if len(procs) > MaxProcessesPerService {
 		c.err(CodeLimitExceeded, rp("processes"), "%d processes; at most %d besides the service's own", len(procs), MaxProcessesPerService)
 	}
-	if d.OneShot != nil && *d.OneShot {
+	if oneShotOf(d) {
 		c.err(CodeInvalidValue, rp("processes"), "a one-shot service runs to completion and cannot have processes")
 	}
 	owner := map[int]string{}
@@ -552,15 +562,68 @@ func (c *svcCtx) checkTasks() {
 		if t.Timezone != nil {
 			c.checkTimezone(rp("tasks", name, "timezone"), *t.Timezone)
 		}
-		if len(t.Command) == 0 {
+		restart := t.Action != nil && *t.Action == "restart"
+		if t.Action != nil && *t.Action != "command" && !restart {
+			c.err(CodeInvalidValue, rp("tasks", name, "action"), "action must be command or restart")
+		}
+		switch {
+		case restart:
+			if len(t.Command) > 0 {
+				c.err(CodeInvalidValue, rp("tasks", name, "command"), "task %q restarts the service and takes no `command`", name)
+			}
+			if t.TimeoutSeconds != nil {
+				c.err(CodeInvalidValue, rp("tasks", name, "timeout_seconds"), "task %q restarts the service and takes no `timeout_seconds`", name)
+			}
+			if oneShotOf(c.def) {
+				c.err(CodeInvalidValue, rp("tasks", name, "action"), "a one-shot service has no running container to restart")
+			}
+		case len(t.Command) == 0:
 			c.err(CodeMissingRequired, rp("tasks", name, "command"), "task %q needs `command`", name)
-		} else if msg := validArgv(t.Command); msg != "" {
-			c.err(CodeInvalidValue, rp("tasks", name, "command"), "command: %s", msg)
+		default:
+			if msg := validArgv(t.Command); msg != "" {
+				c.err(CodeInvalidValue, rp("tasks", name, "command"), "command: %s", msg)
+			}
 		}
 		c.intIn(rp("tasks", name, "timeout_seconds"), t.TimeoutSeconds, 1, 86400)
 		if t.Concurrency != nil && *t.Concurrency != "forbid" && *t.Concurrency != "allow" {
 			c.err(CodeInvalidValue, rp("tasks", name, "concurrency"), "concurrency must be forbid or allow")
 		}
+	}
+}
+
+// checkCronTable validates the [cron] table of a cron service.
+func (c *svcCtx) checkCronTable() {
+	d := c.def
+	cr := d.Cron
+	if cr == nil {
+		return
+	}
+	if d.OneShot != nil && !*d.OneShot {
+		c.err(CodeInvalidValue, rp("cron"), "cron requires one_shot: a cron service runs its command on a schedule and exits (remove one_shot = false)")
+	}
+	if d.Port != nil && *d.Port != 0 {
+		c.err(CodeInvalidValue, rp("port"), "a cron service has no port")
+	}
+	if d.PreDeploy != nil || d.PostDeploy != nil {
+		c.err(CodeInvalidValue, rp("cron"), "a cron service is itself a command; it has no pre_deploy or post_deploy")
+	}
+	if len(d.Processes) > 0 {
+		c.err(CodeInvalidValue, rp("processes"), "a cron service runs a single command: it has no processes")
+	}
+	if len(d.Tasks) > 0 {
+		c.err(CodeInvalidValue, rp("tasks"), "a cron service is itself scheduled: it has no tasks")
+	}
+	if cr.Schedule == nil {
+		c.err(CodeMissingRequired, rp("cron", "schedule"), "cron needs `schedule`")
+	} else {
+		c.checkCron(rp("cron", "schedule"), *cr.Schedule, 0)
+	}
+	if cr.Timezone != nil {
+		c.checkTimezone(rp("cron", "timezone"), *cr.Timezone)
+	}
+	c.intIn(rp("cron", "timeout_seconds"), cr.TimeoutSeconds, 1, 86400)
+	if cr.Concurrency != nil && *cr.Concurrency != "forbid" && *cr.Concurrency != "allow" {
+		c.err(CodeInvalidValue, rp("cron", "concurrency"), "concurrency must be forbid or allow")
 	}
 }
 
@@ -870,8 +933,16 @@ func (c *svcCtx) toConfig() (services.Config, string, bool) {
 	}
 	cfg.Port = derefInt(d.Port)
 	cfg.StartCommand = d.Command
-	cfg.OneShot = derefBool(d.OneShot)
+	cfg.OneShot = oneShotOf(d)
+	if cr := d.Cron; cr != nil {
+		cfg.Cron = &services.CronSpec{
+			Schedule: derefStr(cr.Schedule), Timezone: derefStr(cr.Timezone),
+			TimeoutSeconds: derefInt(cr.TimeoutSeconds), Concurrency: derefStr(cr.Concurrency),
+		}
+	}
 	cfg.StopGraceSeconds = derefInt(d.StopGraceSeconds)
+	cfg.RestartPolicy = derefStr(d.RestartPolicy)
+	cfg.RestartMaxRetries = derefInt(d.RestartMaxRetries)
 	cfg.MemoryMB = derefInt(d.MemoryMB)
 	if d.CPUs != nil {
 		cfg.CPUs = *d.CPUs

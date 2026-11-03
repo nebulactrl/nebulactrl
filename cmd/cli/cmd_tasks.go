@@ -82,31 +82,55 @@ func newTasksLsCmd(c *cli) *cobra.Command {
 				if t.NextRunAt != nil && t.Enabled {
 					next = inZone(*t.NextRunAt, t.Timezone).Format("2006-01-02 15:04 MST")
 				}
-				rows = append(rows, []string{t.Name, t.Schedule, t.Timezone, yesNo(t.Enabled), next, last, strings.Join(deref(t.Command), " "), t.Id})
+				command := strings.Join(deref(t.Command), " ")
+				if t.Action == apiclient.TaskViewActionRestart {
+					command = "-"
+				}
+				rows = append(rows, []string{t.Name, string(t.Action), t.Schedule, t.Timezone, yesNo(t.Enabled), next, last, command, t.Id})
 			}
-			c.table([]string{"NAME", "SCHEDULE", "TIMEZONE", "ENABLED", "NEXT RUN", "LAST RUN", "COMMAND", "ID"}, rows)
+			c.table([]string{"NAME", "ACTION", "SCHEDULE", "TIMEZONE", "ENABLED", "NEXT RUN", "LAST RUN", "COMMAND", "ID"}, rows)
 			return nil
 		},
 	}
 }
 
 func newTasksCreateCmd(c *cli) *cobra.Command {
-	var name, schedule, concurrency, timezone string
+	var name, action, schedule, concurrency, timezone string
 	var timeout time.Duration
 	var disabled bool
 	cmd := &cobra.Command{
-		Use: "create <service> --name <name> --schedule <cron> -- <command...>", Short: "Schedule a recurring command", Args: cobra.ArbitraryArgs,
-		Long: "Runs the command (argv, no shell; use `-- sh -c '...'` for shell syntax) in a throwaway container of the service's\n" +
-			"current image with its environment. The schedule is a 5-field cron expression or @hourly/@daily/@weekly/@monthly,\n" +
+		Use: "create <service> --name <name> --schedule <cron> [--action command|restart] [-- <command...>]", Short: "Schedule a recurring command or a restart", Args: cobra.ArbitraryArgs,
+		Long: "With --action command (the default) runs the command (argv, no shell; use `-- sh -c '...'` for shell syntax) in a throwaway\n" +
+			"container of the service's current image with its environment. With --action restart it restarts the service's running\n" +
+			"container instead (brief outage with one replica; takes no command and not for one-shot services).\n" +
+			"The schedule is a 5-field cron expression or @hourly/@daily/@weekly/@monthly,\n" +
 			"evaluated in --timezone (an IANA name such as Europe/Berlin; default UTC). Daylight-saving changes keep the wall-clock\n" +
 			"time: a run in the skipped hour is skipped for that day, a repeated hour runs once.",
+		Example: "  nebulactrl tasks create acme/production/web --name nightly --schedule '0 3 * * *' -- rake cleanup\n" +
+			"  nebulactrl tasks create acme/production/web --name weekly-restart --action restart --schedule '0 4 * * 0'",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			argv, err := commandArgs(cmd, args)
-			if err != nil {
-				return err
+			if action != "command" && action != "restart" {
+				return usagef("--action must be command or restart")
 			}
-			if cmd.ArgsLenAtDash() != 1 {
-				return usagef("expected exactly one <service> before `--`")
+			var argv []string
+			if action == "restart" {
+				if cmd.ArgsLenAtDash() >= 0 && cmd.ArgsLenAtDash() < len(args) {
+					return usagef("a restart task takes no command; drop the arguments after `--`")
+				}
+				if len(args) != 1 {
+					return usagef("expected exactly one <service>")
+				}
+				if timeout > 0 {
+					return usagef("--timeout does not apply to a restart task")
+				}
+			} else {
+				var err error
+				if argv, err = commandArgs(cmd, args); err != nil {
+					return err
+				}
+				if cmd.ArgsLenAtDash() != 1 {
+					return usagef("expected exactly one <service> before `--`")
+				}
 			}
 			if name == "" || schedule == "" {
 				return usagef("--name and --schedule are required")
@@ -120,7 +144,11 @@ func newTasksCreateCmd(c *cli) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			body := apiclient.CreateServiceTaskJSONRequestBody{Name: name, Schedule: schedule, Command: &argv}
+			act := apiclient.CreateTaskInputBodyAction(action)
+			body := apiclient.CreateServiceTaskJSONRequestBody{Name: name, Action: &act, Schedule: schedule}
+			if action == "command" {
+				body.Command = &argv
+			}
 			if timezone != "" {
 				body.Timezone = &timezone
 			}
@@ -148,9 +176,10 @@ func newTasksCreateCmd(c *cli) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&name, "name", "", "task name, unique per service")
+	cmd.Flags().StringVar(&action, "action", "command", "command (run the -- command in a new container) or restart (restart the service; no command)")
 	cmd.Flags().StringVar(&schedule, "schedule", "", "cron expression, e.g. \"*/15 * * * *\" or @daily, evaluated in --timezone")
 	cmd.Flags().StringVar(&timezone, "timezone", "", "IANA time zone of the schedule, e.g. Europe/Berlin (default UTC)")
-	cmd.Flags().DurationVar(&timeout, "timeout", 0, "stop a run after this long (default 30m)")
+	cmd.Flags().DurationVar(&timeout, "timeout", 0, "stop a run after this long (default 30m; not for restart)")
 	cmd.Flags().StringVar(&concurrency, "concurrency", "", "forbid (default: skip a tick while the previous run is active) or allow")
 	cmd.Flags().BoolVar(&disabled, "disabled", false, "create the task disabled")
 	return cmd
@@ -159,8 +188,9 @@ func newTasksCreateCmd(c *cli) *cobra.Command {
 func newTasksRunCmd(c *cli) *cobra.Command {
 	var detach bool
 	return withDetach(&cobra.Command{
-		Use: "run <service> <task>", Short: "Run a cron task now and follow its output", Args: exactArgs(2),
-		Long: "Starts a run immediately (whatever the schedule), prints its output and exits with the command's exit code.",
+		Use: "run <service> [task]", Short: "Run a cron task (or a cron service) now and follow its output", Args: rangeArgs(1, 2),
+		Long: "Starts a run immediately (whatever the schedule), prints its output and exits with the command's exit code. " +
+			"A cron service (created with --cron) is run by naming only the service.",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := c.connect(); err != nil {
 				return err
@@ -171,12 +201,27 @@ func newTasksRunCmd(c *cli) *cobra.Command {
 				cancel()
 				return err
 			}
-			t, err := c.taskByRef(ctx, id, args[1])
-			if err != nil {
-				cancel()
-				return err
+			var taskID string
+			if len(args) == 2 {
+				t, err := c.taskByRef(ctx, id, args[1])
+				if err != nil {
+					cancel()
+					return err
+				}
+				taskID = t.Id
+			} else {
+				svc, err := c.api.GetServiceWithResponse(ctx, id)
+				if err := check(svc, err); err != nil {
+					cancel()
+					return err
+				}
+				if svc.JSON200.Cron == nil {
+					cancel()
+					return usagef("name the task to run: %s is not a cron service (see: nebulactrl tasks ls %s)", args[0], args[0])
+				}
+				taskID = svc.JSON200.Cron.TaskId
 			}
-			r, err := c.api.RunServiceTaskWithResponse(ctx, t.Id, &apiclient.RunServiceTaskParams{IdempotencyKey: c.key()})
+			r, err := c.api.RunServiceTaskWithResponse(ctx, taskID, &apiclient.RunServiceTaskParams{IdempotencyKey: c.key()})
 			cancel()
 			if err := check(r, err); err != nil {
 				return err

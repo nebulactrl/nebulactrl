@@ -38,6 +38,25 @@ func (q *Queries) ClearGitConnectionPending(ctx context.Context, id uuid.UUID) e
 	return err
 }
 
+const clearServiceGitCIWait = `-- name: ClearServiceGitCIWait :execrows
+UPDATE service_git SET ci_wait = NULL
+WHERE service_id = $1 AND ci_wait IS NOT NULL AND ci_wait->>'sha' = $2::text
+`
+
+type ClearServiceGitCIWaitParams struct {
+	ServiceID uuid.UUID `json:"serviceId"`
+	Sha       string    `json:"sha"`
+}
+
+// Takes the parked push (one row when this caller got it, zero when a newer push replaced it or another sweep took it).
+func (q *Queries) ClearServiceGitCIWait(ctx context.Context, arg ClearServiceGitCIWaitParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearServiceGitCIWait, arg.ServiceID, arg.Sha)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const copyServiceGit = `-- name: CopyServiceGit :exec
 INSERT INTO service_git (service_id, connection_id, repo_full_name, auto_deploy, watch_paths)
 SELECT $1::uuid, sg.connection_id, sg.repo_full_name, false, '{}'
@@ -330,7 +349,7 @@ func (q *Queries) GetGitWebhook(ctx context.Context, arg GetGitWebhookParams) (G
 }
 
 const getServiceGit = `-- name: GetServiceGit :one
-SELECT service_id, connection_id, repo_full_name, auto_deploy, watch_paths, pending_commit, updated_at FROM service_git WHERE service_id = $1
+SELECT service_id, connection_id, repo_full_name, auto_deploy, watch_paths, pending_commit, updated_at, wait_for_ci, ci_wait FROM service_git WHERE service_id = $1
 `
 
 func (q *Queries) GetServiceGit(ctx context.Context, serviceID uuid.UUID) (ServiceGit, error) {
@@ -344,6 +363,8 @@ func (q *Queries) GetServiceGit(ctx context.Context, serviceID uuid.UUID) (Servi
 		&i.WatchPaths,
 		&i.PendingCommit,
 		&i.UpdatedAt,
+		&i.WaitForCi,
+		&i.CiWait,
 	)
 	return i, err
 }
@@ -682,7 +703,7 @@ func (q *Queries) ListOrphanGitWebhooks(ctx context.Context) ([]GitWebhook, erro
 }
 
 const listServiceGitForRepo = `-- name: ListServiceGitForRepo :many
-SELECT sg.service_id, sg.connection_id, sg.repo_full_name, sg.auto_deploy, sg.watch_paths, sg.pending_commit, sg.updated_at, s.config AS service_config
+SELECT sg.service_id, sg.connection_id, sg.repo_full_name, sg.auto_deploy, sg.watch_paths, sg.pending_commit, sg.updated_at, sg.wait_for_ci, sg.ci_wait, s.config AS service_config
 FROM service_git sg
 JOIN services s ON s.id = sg.service_id AND s.deleted_at IS NULL
 WHERE sg.connection_id = $1 AND lower(sg.repo_full_name) = lower($2)
@@ -717,6 +738,8 @@ func (q *Queries) ListServiceGitForRepo(ctx context.Context, arg ListServiceGitF
 			&i.ServiceGit.WatchPaths,
 			&i.ServiceGit.PendingCommit,
 			&i.ServiceGit.UpdatedAt,
+			&i.ServiceGit.WaitForCi,
+			&i.ServiceGit.CiWait,
 			&i.ServiceConfig,
 		); err != nil {
 			return nil, err
@@ -730,7 +753,7 @@ func (q *Queries) ListServiceGitForRepo(ctx context.Context, arg ListServiceGitF
 }
 
 const listServiceGitForServices = `-- name: ListServiceGitForServices :many
-SELECT service_id, connection_id, repo_full_name, auto_deploy, watch_paths, pending_commit, updated_at FROM service_git WHERE service_id = ANY($1::uuid[])
+SELECT service_id, connection_id, repo_full_name, auto_deploy, watch_paths, pending_commit, updated_at, wait_for_ci, ci_wait FROM service_git WHERE service_id = ANY($1::uuid[])
 `
 
 func (q *Queries) ListServiceGitForServices(ctx context.Context, ids []uuid.UUID) ([]ServiceGit, error) {
@@ -750,6 +773,8 @@ func (q *Queries) ListServiceGitForServices(ctx context.Context, ids []uuid.UUID
 			&i.WatchPaths,
 			&i.PendingCommit,
 			&i.UpdatedAt,
+			&i.WaitForCi,
+			&i.CiWait,
 		); err != nil {
 			return nil, err
 		}
@@ -792,7 +817,7 @@ func (q *Queries) ListServiceGitIdleWithPending(ctx context.Context) ([]uuid.UUI
 }
 
 const listServiceGitRefs = `-- name: ListServiceGitRefs :many
-SELECT sg.service_id, sg.connection_id, sg.repo_full_name, sg.auto_deploy, sg.watch_paths,
+SELECT sg.service_id, sg.connection_id, sg.repo_full_name, sg.auto_deploy, sg.watch_paths, sg.wait_for_ci,
        c.provider, c.name AS connection_name, c.base_url
 FROM service_git sg
 JOIN git_connections c ON c.id = sg.connection_id
@@ -805,6 +830,7 @@ type ListServiceGitRefsRow struct {
 	RepoFullName   string    `json:"repoFullName"`
 	AutoDeploy     bool      `json:"autoDeploy"`
 	WatchPaths     []string  `json:"watchPaths"`
+	WaitForCi      bool      `json:"waitForCi"`
 	Provider       string    `json:"provider"`
 	ConnectionName string    `json:"connectionName"`
 	BaseUrl        string    `json:"baseUrl"`
@@ -826,9 +852,54 @@ func (q *Queries) ListServiceGitRefs(ctx context.Context, ids []uuid.UUID) ([]Li
 			&i.RepoFullName,
 			&i.AutoDeploy,
 			&i.WatchPaths,
+			&i.WaitForCi,
 			&i.Provider,
 			&i.ConnectionName,
 			&i.BaseUrl,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServiceGitWaitingCI = `-- name: ListServiceGitWaitingCI :many
+SELECT sg.service_id, sg.connection_id, sg.repo_full_name, sg.auto_deploy, sg.watch_paths, sg.pending_commit, sg.updated_at, sg.wait_for_ci, sg.ci_wait
+FROM service_git sg
+JOIN services s ON s.id = sg.service_id AND s.deleted_at IS NULL
+WHERE sg.ci_wait IS NOT NULL
+ORDER BY sg.updated_at
+LIMIT 200
+`
+
+type ListServiceGitWaitingCIRow struct {
+	ServiceGit ServiceGit `json:"serviceGit"`
+}
+
+// Links of live services with a push parked for CI.
+func (q *Queries) ListServiceGitWaitingCI(ctx context.Context) ([]ListServiceGitWaitingCIRow, error) {
+	rows, err := q.db.Query(ctx, listServiceGitWaitingCI)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListServiceGitWaitingCIRow{}
+	for rows.Next() {
+		var i ListServiceGitWaitingCIRow
+		if err := rows.Scan(
+			&i.ServiceGit.ServiceID,
+			&i.ServiceGit.ConnectionID,
+			&i.ServiceGit.RepoFullName,
+			&i.ServiceGit.AutoDeploy,
+			&i.ServiceGit.WatchPaths,
+			&i.ServiceGit.PendingCommit,
+			&i.ServiceGit.UpdatedAt,
+			&i.ServiceGit.WaitForCi,
+			&i.ServiceGit.CiWait,
 		); err != nil {
 			return nil, err
 		}
@@ -1010,6 +1081,21 @@ func (q *Queries) SetGitConnectionWebhookSecret(ctx context.Context, arg SetGitC
 	return err
 }
 
+const setServiceGitCIWait = `-- name: SetServiceGitCIWait :exec
+UPDATE service_git SET ci_wait = $2 WHERE service_id = $1
+`
+
+type SetServiceGitCIWaitParams struct {
+	ServiceID uuid.UUID       `json:"serviceId"`
+	CiWait    json.RawMessage `json:"ciWait"`
+}
+
+// Parks the newest push until its CI checks pass ({sha, message, author, branch, since, checkedAt}).
+func (q *Queries) SetServiceGitCIWait(ctx context.Context, arg SetServiceGitCIWaitParams) error {
+	_, err := q.db.Exec(ctx, setServiceGitCIWait, arg.ServiceID, arg.CiWait)
+	return err
+}
+
 const setServiceGitPending = `-- name: SetServiceGitPending :exec
 UPDATE service_git SET pending_commit = $2 WHERE service_id = $1
 `
@@ -1021,6 +1107,23 @@ type SetServiceGitPendingParams struct {
 
 func (q *Queries) SetServiceGitPending(ctx context.Context, arg SetServiceGitPendingParams) error {
 	_, err := q.db.Exec(ctx, setServiceGitPending, arg.ServiceID, arg.PendingCommit)
+	return err
+}
+
+const touchServiceGitCIWait = `-- name: TouchServiceGitCIWait :exec
+UPDATE service_git SET ci_wait = jsonb_set(ci_wait, '{checkedAt}', to_jsonb($1::text))
+WHERE service_id = $2 AND ci_wait IS NOT NULL AND ci_wait->>'sha' = $3::text
+`
+
+type TouchServiceGitCIWaitParams struct {
+	CheckedAt string    `json:"checkedAt"`
+	ServiceID uuid.UUID `json:"serviceId"`
+	Sha       string    `json:"sha"`
+}
+
+// Records when the parked push's checks were last read (ignored when a newer push replaced it).
+func (q *Queries) TouchServiceGitCIWait(ctx context.Context, arg TouchServiceGitCIWaitParams) error {
+	_, err := q.db.Exec(ctx, touchServiceGitCIWait, arg.CheckedAt, arg.ServiceID, arg.Sha)
 	return err
 }
 
@@ -1110,12 +1213,17 @@ func (q *Queries) UpsertGitWebhook(ctx context.Context, arg UpsertGitWebhookPara
 }
 
 const upsertServiceGit = `-- name: UpsertServiceGit :one
-INSERT INTO service_git (service_id, connection_id, repo_full_name, auto_deploy, watch_paths)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO service_git (service_id, connection_id, repo_full_name, auto_deploy, watch_paths, wait_for_ci)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (service_id)
 DO UPDATE SET connection_id = EXCLUDED.connection_id, repo_full_name = EXCLUDED.repo_full_name,
-              auto_deploy = EXCLUDED.auto_deploy, watch_paths = EXCLUDED.watch_paths, updated_at = now()
-RETURNING service_id, connection_id, repo_full_name, auto_deploy, watch_paths, pending_commit, updated_at
+              auto_deploy = EXCLUDED.auto_deploy, watch_paths = EXCLUDED.watch_paths, wait_for_ci = EXCLUDED.wait_for_ci,
+              -- A push that waits for CI is forgotten when the wait is turned off or the repository changes.
+              ci_wait = CASE WHEN EXCLUDED.wait_for_ci AND service_git.connection_id = EXCLUDED.connection_id
+                              AND lower(service_git.repo_full_name) = lower(EXCLUDED.repo_full_name)
+                             THEN service_git.ci_wait ELSE NULL END,
+              updated_at = now()
+RETURNING service_id, connection_id, repo_full_name, auto_deploy, watch_paths, pending_commit, updated_at, wait_for_ci, ci_wait
 `
 
 type UpsertServiceGitParams struct {
@@ -1124,6 +1232,7 @@ type UpsertServiceGitParams struct {
 	RepoFullName string    `json:"repoFullName"`
 	AutoDeploy   bool      `json:"autoDeploy"`
 	WatchPaths   []string  `json:"watchPaths"`
+	WaitForCi    bool      `json:"waitForCi"`
 }
 
 func (q *Queries) UpsertServiceGit(ctx context.Context, arg UpsertServiceGitParams) (ServiceGit, error) {
@@ -1133,6 +1242,7 @@ func (q *Queries) UpsertServiceGit(ctx context.Context, arg UpsertServiceGitPara
 		arg.RepoFullName,
 		arg.AutoDeploy,
 		arg.WatchPaths,
+		arg.WaitForCi,
 	)
 	var i ServiceGit
 	err := row.Scan(
@@ -1143,6 +1253,8 @@ func (q *Queries) UpsertServiceGit(ctx context.Context, arg UpsertServiceGitPara
 		&i.WatchPaths,
 		&i.PendingCommit,
 		&i.UpdatedAt,
+		&i.WaitForCi,
+		&i.CiWait,
 	)
 	return i, err
 }

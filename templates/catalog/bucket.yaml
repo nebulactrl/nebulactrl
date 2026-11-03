@@ -1,0 +1,104 @@
+schema: 1
+id: bucket
+revision: 1
+name: Bucket
+summary: "Private S3-compatible object storage with one bucket and key, for your other services."
+description: "A single-node Garage object store with a ready-made bucket and access key. It is private by default: services in the environment reach it on the private network, and linking a service proposes the standard AWS variables (endpoint, keys, region, bucket). Add a domain in Settings → Domains when you need presigned URLs from outside."
+category: storage
+tags: [s3, bucket, object-storage, storage, garage]
+icon: garage
+links:
+  website: https://garagehq.deuxfleurs.fr
+  docs: https://garagehq.deuxfleurs.fr/documentation/
+  source: https://git.deuxfleurs.fr/Deuxfleurs/garage
+upstream:
+  license: AGPL-3.0
+  licenseUrl: https://git.deuxfleurs.fr/Deuxfleurs/garage/src/tag/v2.5.0/LICENSE
+  class: copyleft
+origin:
+  type: original
+requires:
+  memoryMb: 256
+  diskGb: 10
+inputs:
+  - {key: ACCESS_KEY_ID, label: S3 access key ID, required: true, default: "GK${{randomBytes(16,\"hex\")}}"}
+  - {key: SECRET_ACCESS_KEY, label: S3 secret access key, secret: true, default: "${{randomBytes(32,\"hex\")}}"}
+  - {key: BUCKET, label: Default bucket name, required: true, default: default}
+services:
+  - key: bucket
+    name: Bucket
+    kind: app
+    image: dxflrs/garage:v2.5.0
+    digest: sha256:677e5b758e4425a325b811c425c026bf35a4bf42f7ddbaa773de3f4fd779a5a5
+    port: 3900
+    command: [/garage, server, --single-node, --default-bucket]
+    healthcheck:
+      type: http
+      port: 3903
+      path: /health
+      startPeriodSeconds: 10
+      deadlineSeconds: 120
+    env:
+      GARAGE_RPC_SECRET: ${{randomBytes(32,"hex")}}
+      GARAGE_ADMIN_TOKEN: ${{secret(32)}}
+      GARAGE_METRICS_TOKEN: ${{secret(32)}}
+      GARAGE_DEFAULT_ACCESS_KEY: ${input:ACCESS_KEY_ID}
+      GARAGE_DEFAULT_SECRET_KEY: ${input:SECRET_ACCESS_KEY}
+      GARAGE_DEFAULT_BUCKET: ${input:BUCKET}
+    provides:
+      - key: AWS_ENDPOINT_URL
+        value: "http://${{bucket.NEBULA_PRIVATE_HOST}}:${{bucket.PORT}}"
+        description: The S3 endpoint on the private network.
+        recommended: true
+      - key: AWS_ACCESS_KEY_ID
+        value: "${{bucket.GARAGE_DEFAULT_ACCESS_KEY}}"
+        description: The access key ID of the bucket's key.
+        recommended: true
+      - key: AWS_SECRET_ACCESS_KEY
+        value: "${{bucket.GARAGE_DEFAULT_SECRET_KEY}}"
+        description: The secret access key of the bucket's key.
+        secret: true
+        recommended: true
+      - key: AWS_REGION
+        value: garage
+        description: The region name Garage serves.
+        recommended: true
+      - key: S3_BUCKET
+        value: "${{bucket.GARAGE_DEFAULT_BUCKET}}"
+        description: The name of the default bucket.
+        recommended: true
+      - key: AWS_S3_FORCE_PATH_STYLE
+        value: "true"
+        description: Garage needs path-style addressing (endpoint/bucket/key).
+        recommended: true
+    volumes:
+      - name: meta
+        path: /var/lib/garage/meta
+      - name: data
+        path: /var/lib/garage/data
+    files:
+      - path: /etc/garage.toml
+        mode: "0644"
+        content: |
+          metadata_dir = "/var/lib/garage/meta"
+          data_dir = "/var/lib/garage/data"
+          db_engine = "lmdb"
+
+          replication_factor = 1
+          consistency_mode = "consistent"
+
+          rpc_bind_addr = "0.0.0.0:3901"
+          rpc_public_addr = "127.0.0.1:3901"
+
+          [s3_api]
+          s3_region = "garage"
+          api_bind_addr = "0.0.0.0:3900"
+
+          [admin]
+          api_bind_addr = "0.0.0.0:3903"
+    resources:
+      memoryMb: 256
+group: Bucket
+notes:
+  - "Private by default: services reach it on the private network. Add a domain in Settings → Domains for presigned URLs."
+  - "Back up the data volume."

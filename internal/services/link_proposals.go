@@ -160,7 +160,7 @@ func (s *Service) PreviewLink(ctx context.Context, envID, fromID, toID uuid.UUID
 		return LinkPreview{}, err
 	}
 	out := LinkPreview{
-		ProposedVariables: ProposeLinkVariables(to.Service.Slug, to.Service.Kind, to.Config()),
+		ProposedVariables: s.proposeLink(ctx, s.q, to),
 		Warnings:          []string{},
 		ExistingKeys:      make([]string, 0, len(raw)),
 	}

@@ -17,10 +17,10 @@ func inZone(t time.Time, tz string) time.Time {
 }
 
 func newTasksUpdateCmd(c *cli) *cobra.Command {
-	var schedule, timezone string
+	var schedule, timezone, action string
 	var enable, disable bool
 	cmd := &cobra.Command{
-		Use: "update <service> <task> [--schedule <cron>] [--timezone <zone>] [--enable|--disable]", Short: "Change a cron task's schedule, time zone or whether it runs", Args: exactArgs(2),
+		Use: "update <service> <task> [--schedule <cron>] [--timezone <zone>] [--action restart] [--enable|--disable]", Short: "Change a cron task's schedule, time zone, action or whether it runs", Args: exactArgs(2),
 		Long: "Changing the schedule or the time zone recomputes the next run from now; the new next run is printed.\n" +
 			"The time zone is an IANA name such as Europe/Berlin (UTC when never set).\n\n" +
 			"--disable stops the schedule from starting runs and keeps the task, its history and its settings; --enable starts it again.\n" +
@@ -31,8 +31,8 @@ func newTasksUpdateCmd(c *cli) *cobra.Command {
 			if enable && disable {
 				return usagef("give --enable or --disable, not both")
 			}
-			if schedule == "" && timezone == "" && !enable && !disable {
-				return usagef("give --schedule, --timezone, --enable or --disable")
+			if schedule == "" && timezone == "" && action == "" && !enable && !disable {
+				return usagef("give --schedule, --timezone, --action, --enable or --disable")
 			}
 			if err := c.connect(); err != nil {
 				return err
@@ -53,6 +53,13 @@ func newTasksUpdateCmd(c *cli) *cobra.Command {
 			}
 			if timezone != "" {
 				body.Timezone = &timezone
+			}
+			if action != "" {
+				if action != "command" && action != "restart" {
+					return usagef("--action must be command or restart")
+				}
+				a := apiclient.PatchTaskInputBodyAction(action)
+				body.Action = &a
 			}
 			if enable || disable {
 				body.Enabled = &enable
@@ -76,6 +83,7 @@ func newTasksUpdateCmd(c *cli) *cobra.Command {
 	}
 	cmd.Flags().StringVar(&schedule, "schedule", "", "new cron expression")
 	cmd.Flags().StringVar(&timezone, "timezone", "", "new IANA time zone")
+	cmd.Flags().StringVar(&action, "action", "", "restart turns the task into a service restart (its command is dropped); command needs a command and is only possible through the API or the web app")
 	cmd.Flags().BoolVar(&enable, "enable", false, "turn the task on, so its schedule starts runs")
 	cmd.Flags().BoolVar(&disable, "disable", false, "turn the task off; it is kept and does not run on schedule")
 	return cmd

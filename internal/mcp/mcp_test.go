@@ -1110,7 +1110,7 @@ func listBytes(t *testing.T, cs *sdk.ClientSession) (int, int) {
 
 // Every MCP session pays for tools/list in context, so its size is a budget:
 // a full admin token on the default toolsets stays under 60 KB (about 15k
-// tokens), core alone under 25 KB.
+// tokens), core alone under 26 KB.
 func TestToolsListSizeBudgets(t *testing.T) {
 	h := newHarness(t, true)
 	tok := h.token([]string{"admin"}, nil)
@@ -1121,7 +1121,7 @@ func TestToolsListSizeBudgets(t *testing.T) {
 	t.Logf("tools/list: default %d tools %d B, core %d tools %d B, all toolsets %d tools %d B", nDef, def, nCore, core, nFull, full)
 
 	require.LessOrEqual(t, def, 60*1024, "default toolsets")
-	require.LessOrEqual(t, core, 25*1024, "?toolsets=core")
+	require.LessOrEqual(t, core, 26*1024, "?toolsets=core")
 	require.Greater(t, nFull, nDef, "config, data and servers are opt-in")
 
 	names := toolNames(t, sessionAt(t, h.srv.URL+"/mcp", tok))

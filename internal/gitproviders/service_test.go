@@ -50,6 +50,7 @@ type depCall struct {
 	ServiceID uuid.UUID
 	Trigger   string
 	Commit    deployments.CommitInfo
+	Message   string
 }
 
 // fakeDeployer records deployments; fail, when set, decides the error per call.
@@ -58,12 +59,29 @@ type fakeDeployer struct {
 	calls []depCall
 	tries int
 	fail  func(n int, c depCall) error
+	// head is what ResolveHead answers (a remote branch head, or the error of reading it).
+	headSHA, headBranch string
+	headErr             error
+	headCalls           int
 }
 
-func (f *fakeDeployer) DeployInternal(_ context.Context, id uuid.UUID, trigger string, commit *deployments.CommitInfo, _ string) (deployments.DeploymentView, error) {
+func (f *fakeDeployer) setHead(sha, branch string, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	c := depCall{ServiceID: id, Trigger: trigger}
+	f.headSHA, f.headBranch, f.headErr = sha, branch, err
+}
+
+func (f *fakeDeployer) ResolveHead(context.Context, uuid.UUID) (string, string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.headCalls++
+	return f.headSHA, f.headBranch, f.headErr
+}
+
+func (f *fakeDeployer) DeployInternal(_ context.Context, id uuid.UUID, trigger string, commit *deployments.CommitInfo, message string) (deployments.DeploymentView, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := depCall{ServiceID: id, Trigger: trigger, Message: message}
 	if commit != nil {
 		c.Commit = *commit
 	}

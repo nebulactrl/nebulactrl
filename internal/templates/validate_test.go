@@ -1,6 +1,7 @@
 package templates
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -88,6 +89,41 @@ func TestValidateCycleAndFiles(t *testing.T) {
 
 	y = strings.Replace(goodTemplate, "    dependsOn: [db]\n", "    dependsOn: [db]\n    files:\n      - {path: ../etc/x, content: hi}\n", 1)
 	require.ErrorContains(t, Validate(parse(t, y)), "clean absolute path")
+}
+
+func TestValidateProvides(t *testing.T) {
+	const anchor = "    dependsOn: [db]\n"
+	with := func(rows string) *CatalogTemplate {
+		y := strings.Replace(goodTemplate, anchor, anchor+"    provides:\n"+rows, 1)
+		require.NotEqual(t, goodTemplate, y)
+		return parse(t, y)
+	}
+	require.NoError(t, Validate(with(`      - {key: APP_URL, value: "http://${{app.NEBULA_PRIVATE_HOST}}:${{app.PORT}}", recommended: true}
+      - {key: APP_TOKEN, value: "${{app.TOKEN}}", secret: true, description: "The token."}
+`)))
+
+	cases := map[string]struct{ rows, want string }{
+		"bad key":      {"      - {key: 1BAD, value: x}\n", "provides key"},
+		"duplicate":    {"      - {key: A, value: x}\n      - {key: A, value: y}\n", "duplicate provides key"},
+		"empty value":  {"      - {key: A, value: \"\"}\n", "value is required"},
+		"other ref":    {"      - {key: A, value: \"${{db.DATABASE_URL}}\"}\n", "own variables"},
+		"input":        {"      - {key: A, value: \"${input:TITLE}\"}\n", "cannot use inputs"},
+		"generator":    {"      - {key: A, value: \"${{secret(32)}}\"}\n", "cannot use generators"},
+		"shared scope": {"      - {key: A, value: \"${{shared.X}}\"}\n", "provides may only reference"},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := Validate(with(tc.rows))
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.want)
+		})
+	}
+
+	var many strings.Builder
+	for i := range maxProvides + 1 {
+		many.WriteString("      - {key: K" + strconv.Itoa(i) + ", value: x}\n")
+	}
+	require.ErrorContains(t, Validate(with(many.String())), "at most 24 provides")
 }
 
 func TestSourceAvailableNeedsLicenseURL(t *testing.T) {

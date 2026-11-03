@@ -8,10 +8,13 @@ import { Switch } from "#/components/ui/switch";
 import { withoutPlacementWarnings } from "#/features/build-placement/model";
 import { MeshPlanBlock } from "#/features/mesh/plan-block";
 import { defaultProcessName, hasProcesses } from "#/features/processes/model";
+import type { RestartPolicy } from "./draft";
 import {
 	type DraftProps,
 	Section,
 	SectionBody,
+	type SelectOption,
+	SelectRow,
 	SettingRow,
 	TextRow,
 } from "./fields";
@@ -468,6 +471,12 @@ export function CommandsSection({
 	);
 }
 
+const RESTART_POLICY_OPTIONS: readonly SelectOption[] = [
+	{ value: "always", label: "Always", text: "Always" },
+	{ value: "on-failure", label: "On failure", text: "On failure" },
+	{ value: "never", label: "Never", text: "Never" },
+];
+
 /** How the next deploy replaces the running release: the plan's strategy as a fact, and the rarely changed limits. */
 export function ReleasesSection({
 	service,
@@ -483,6 +492,33 @@ export function ReleasesSection({
 			<SectionBody className="flex flex-col gap-2">
 				<ReleaseFacts service={service} />
 			</SectionBody>
+			{draft.oneshot || service.kind === "database" ? null : (
+				<>
+					<SelectRow
+						id="set-restart-policy"
+						field="config.restartPolicy"
+						label="Restart policy"
+						description="What happens when the container exits on its own"
+						value={draft.restartPolicy}
+						options={RESTART_POLICY_OPTIONS}
+						onChange={(value) => set("restartPolicy", value as RestartPolicy)}
+					/>
+					{draft.restartPolicy === "on-failure" ? (
+						<TextRow
+							id="set-restart-max-retries"
+							field="config.restartMaxRetries"
+							label="Max restarts"
+							description="Restarts before giving up (default 10)"
+							type="number"
+							narrow
+							value={draft.restartMaxRetries}
+							placeholder="10"
+							error={errors.restartMaxRetries}
+							onChange={(value) => set("restartMaxRetries", value)}
+						/>
+					) : null}
+				</>
+			)}
 			<MoreOptions
 				count={2}
 				invalid={Boolean(errors.stopGraceSeconds || errors.imageRetention)}

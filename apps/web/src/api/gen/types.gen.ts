@@ -81,7 +81,7 @@ export type AccountRef = {
 };
 
 export type ActionResult = {
-    commandId: string;
+    commandId?: string;
 };
 
 export type AddReplicaInputBody = {
@@ -360,6 +360,18 @@ export type Blocker = {
 
 export type BranchesOutputBody = {
     items: Array<string> | null;
+};
+
+export type BrowseTableInputBody = {
+    /**
+     * Rows to skip; pages are 100 rows
+     */
+    offset: number;
+    /**
+     * Schema of the table (PostgreSQL schema, MySQL/MariaDB/ClickHouse database), as listed by the tables operation
+     */
+    schema?: string;
+    table: string;
 };
 
 export type BuildInfo = {
@@ -1409,6 +1421,7 @@ export type Config = {
     buildServerId?: string;
     buildType?: string;
     cpus?: number;
+    cron?: CronSpec;
     database?: Spec;
     docker?: DockerOptions;
     dockerfilePath?: string;
@@ -1428,6 +1441,8 @@ export type Config = {
     processName?: string;
     processes?: Array<ProcessConfig> | null;
     registryId?: string;
+    restartMaxRetries?: number;
+    restartPolicy?: 'always' | 'on-failure' | 'never';
     route?: RouteConfig;
     singleton?: boolean;
     stack?: StackConfig;
@@ -1550,6 +1565,10 @@ export type ConfigInput = {
     buildType?: string;
     cpus?: number;
     /**
+     * Run the service on a schedule: a deploy only pulls or builds the image and the image's own command runs on the schedule. Requires oneshot: true and an app or worker service. schedule is a 5-field cron expression, timezone an IANA zone (default UTC), timeoutSeconds 1-86400 (default 1800), concurrency forbid (skip while the previous run still runs; default) or allow. On PATCH the object replaces the whole schedule; Stop and Start pause and resume it.
+     */
+    cron?: CronSpec;
+    /**
      * Typed container options. On every server: capAdd, capDrop, noNewPrivileges, readOnlyRootfs, pidsLimit, hostname (default: the service slug), dns, sysctls, hostSysctls (host requirements, only warned about), user, groupAdd, ulimits, shmSizeMb, extraHosts, labels, init, stopSignal, tmpfs, entrypoint. Only on a server an instance admin made unrestricted: devices, gpus, runtime, privileged, pidHost, seccompUnconfined, apparmorUnconfined and the capabilities NET_ADMIN and SYS_ADMIN (422 requires_unrestricted_server otherwise). Never host networking, ip, restart or log options, host binds or the socket.
      */
     docker?: DockerOptions;
@@ -1579,6 +1598,14 @@ export type ConfigInput = {
      * Registry the build is pushed to; omitted inherits the project or team default
      */
     registryId?: string;
+    /**
+     * Restart limit for the on-failure policy (1-100; 0 means 10).
+     */
+    restartMaxRetries?: number;
+    /**
+     * What happens when the container exits on its own: always (the default; restart unless stopped), on-failure or never. Not available for one-shot services, stacks, routes or databases.
+     */
+    restartPolicy?: string;
     /**
      * The default process never runs two instances at once: the old instance stops before the new one starts, and scaling is off
      */
@@ -2701,9 +2728,13 @@ export type CreateServiceInputBody = {
 
 export type CreateTaskInputBody = {
     /**
-     * Argv, run without a shell in a container of the service's current image. Wrap in ["sh","-c",…] for shell syntax.
+     * command (default) runs Command in a new container; restart restarts the service's running container on the schedule (brief outage with one replica).
      */
-    command: Array<string> | null;
+    action?: 'command' | 'restart';
+    /**
+     * Argv, run without a shell in a container of the service's current image. Wrap in ["sh","-c",…] for shell syntax. Required (at least one element) for the command action; must be empty for restart.
+     */
+    command?: Array<string> | null;
     /**
      * forbid (default) skips a tick while the previous run is still active.
      */
@@ -2834,6 +2865,29 @@ export type CreatedToken = {
 
 export type CredentialsOutputBody = {
     items: Array<DnsCredential> | null;
+};
+
+export type CronRunView = {
+    exitCode?: number;
+    finishedAt?: string;
+    id: string;
+    startedAt?: string;
+    status: string;
+};
+
+export type CronSpec = {
+    concurrency?: 'forbid' | 'allow';
+    schedule: string;
+    timeoutSeconds?: number;
+    timezone?: string;
+};
+
+export type CronView = {
+    lastRun?: CronRunView;
+    nextRunAt?: string;
+    schedule: string;
+    taskId: string;
+    timezone: string;
 };
 
 export type DnsCredential = {
@@ -3074,6 +3128,51 @@ export type DashboardResolverOption = {
      */
     provider: string;
     providerName: string;
+};
+
+export type DataColumn = {
+    name: string;
+    /**
+     * The engine's name for the column type
+     */
+    type: string;
+};
+
+export type DataResult = {
+    durationMs: number;
+    results: Array<DataResultSet> | null;
+    /**
+     * Some cell was longer than the per-cell limit and is clipped
+     */
+    truncatedCells?: boolean;
+};
+
+export type DataResultSet = {
+    columns: Array<DataColumn> | null;
+    /**
+     * The server's completion tag, for example INSERT 0 1
+     */
+    commandTag?: string;
+    rowCount: number;
+    rows: Array<Array<string | null> | null> | null;
+    /**
+     * More rows existed than are returned
+     */
+    truncated?: boolean;
+};
+
+export type DataTable = {
+    kind: 'table' | 'view' | 'other';
+    name: string;
+    /**
+     * Approximate row count from the engine's statistics; absent when unknown
+     */
+    rowEstimate?: number;
+    schema: string;
+};
+
+export type DataTables = {
+    tables: Array<DataTable> | null;
 };
 
 export type DatabaseView = {
@@ -4215,8 +4314,36 @@ export type GitLinkView = {
     queuedCommit: string;
     repo: string;
     repoUrl: string;
+    waitForCi: boolean;
+    waitingForCi?: QueuedCommit;
     watchPaths: Array<string> | null;
     webhook: HookStatusView;
+};
+
+export type GitPollInputBody = {
+    /**
+     * Deploy a new commit found by checking (default true); false only shows it
+     */
+    deploy?: boolean;
+    /**
+     * Check the branch head on a schedule (false: stop checking)
+     */
+    enabled: boolean;
+    /**
+     * Minutes between checks (default 5)
+     */
+    intervalMinutes?: 1 | 5 | 15 | 60;
+};
+
+export type GitPollView = {
+    checkedAt?: string;
+    deploy: boolean;
+    enabled: boolean;
+    error?: string;
+    headBranch?: string;
+    headSha?: string;
+    intervalMinutes: 1 | 5 | 15 | 60;
+    updateAvailable: boolean;
 };
 
 export type GitRef = {
@@ -4225,6 +4352,7 @@ export type GitRef = {
     connectionName: string;
     provider: 'github' | 'gitlab' | 'gitea' | 'forgejo' | 'bitbucket';
     repo: string;
+    waitForCi: boolean;
     watchPaths: Array<string> | null;
 };
 
@@ -4811,6 +4939,10 @@ export type LinkInputBody = {
      * owner/name (or a clone URL)
      */
     repo: string;
+    /**
+     * Deploy a push only after its CI checks pass (default: keep the current setting, false for a new link). A push with no checks deploys after 2 minutes. 422 ci_not_supported on Bitbucket and webhook-only connections.
+     */
+    waitForCi?: boolean;
     /**
      * Monorepo watch paths: globs relative to the repository root ('apps/api**', 'packages*src', '!***.md'); a push only deploys when a changed file matches. Empty watches everything.
      */
@@ -5928,6 +6060,10 @@ export type PatchScheduleInputBody = {
 };
 
 export type PatchTaskInputBody = {
+    /**
+     * Switching to restart clears the command.
+     */
+    action?: 'command' | 'restart';
     command?: Array<string>;
     concurrency?: 'forbid' | 'allow';
     enabled?: boolean;
@@ -6957,6 +7093,29 @@ export type PutTeamSettingsInputBody = {
      * Default registry builds are pushed to; omitted clears it.
      */
     registryId?: string;
+};
+
+export type QueryDatabaseInputBody = {
+    /**
+     * Lift the read-only session so statements may change data. Off by default.
+     */
+    allowWrites?: boolean;
+    /**
+     * Required with allowWrites in a production environment: the service slug
+     */
+    confirm?: string;
+    /**
+     * One or more statements
+     */
+    sql: string;
+};
+
+export type QueuedCommit = {
+    author: string;
+    branch: string;
+    message: string;
+    sha: string;
+    since: string;
 };
 
 export type RangeInfo = {
@@ -8534,6 +8693,7 @@ export type ServiceView = {
     appliedGeneration: number;
     config: Config;
     createdAt: string;
+    cron?: CronView;
     currentDeploymentId: string | null;
     currentRelease: ReleaseRef | null;
     desiredState: 'running' | 'stopped';
@@ -8541,6 +8701,7 @@ export type ServiceView = {
     environmentId: string;
     generation: number;
     git: GitRef | null;
+    gitPoll: GitPollView | null;
     gitTokenSet: boolean;
     hasStagedChanges: boolean;
     id: string;
@@ -9393,6 +9554,10 @@ export type TaskMove = {
 
 export type TaskView = {
     /**
+     * What the task does: run a command in a new container (command) or restart the service (restart).
+     */
+    action: 'command' | 'restart';
+    /**
      * Argv, run without a shell.
      */
     command: Array<string> | null;
@@ -9747,6 +9912,14 @@ export type TemplatePort = {
     publish: boolean;
 };
 
+export type TemplateProvide = {
+    description?: string;
+    key: string;
+    recommended?: boolean;
+    secret?: boolean;
+    value: string;
+};
+
 export type TemplateRequires = {
     arch: Array<string> | null;
     diskGb: number;
@@ -9772,6 +9945,7 @@ export type TemplateService = {
     oneshot?: boolean;
     port?: number;
     ports?: Array<TemplatePort> | null;
+    provides?: Array<TemplateProvide> | null;
     resources?: TemplateLimits;
     secrets?: Array<string> | null;
     stopGraceSeconds?: number;
@@ -27573,6 +27747,65 @@ export type RevealDatabasePublicConnectionResponses = {
 
 export type RevealDatabasePublicConnectionResponse = RevealDatabasePublicConnectionResponses[keyof RevealDatabasePublicConnectionResponses];
 
+export type QueryDatabaseData = {
+    body: QueryDatabaseInputBody;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/database/query';
+};
+
+export type QueryDatabaseErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Conflict
+     */
+    409: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Service Unavailable
+     */
+    503: Error;
+    /**
+     * Gateway Timeout
+     */
+    504: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type QueryDatabaseError = QueryDatabaseErrors[keyof QueryDatabaseErrors];
+
+export type QueryDatabaseResponses = {
+    /**
+     * OK
+     */
+    200: DataResult;
+};
+
+export type QueryDatabaseResponse = QueryDatabaseResponses[keyof QueryDatabaseResponses];
+
 export type RebuildDatabaseReplicaData = {
     body: RebuildInputBody;
     headers?: {
@@ -27951,6 +28184,124 @@ export type RotateDatabaseCredentialsResponses = {
 };
 
 export type RotateDatabaseCredentialsResponse = RotateDatabaseCredentialsResponses[keyof RotateDatabaseCredentialsResponses];
+
+export type BrowseDatabaseTableData = {
+    body: BrowseTableInputBody;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/database/rows';
+};
+
+export type BrowseDatabaseTableErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Conflict
+     */
+    409: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Service Unavailable
+     */
+    503: Error;
+    /**
+     * Gateway Timeout
+     */
+    504: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type BrowseDatabaseTableError = BrowseDatabaseTableErrors[keyof BrowseDatabaseTableErrors];
+
+export type BrowseDatabaseTableResponses = {
+    /**
+     * OK
+     */
+    200: DataResult;
+};
+
+export type BrowseDatabaseTableResponse = BrowseDatabaseTableResponses[keyof BrowseDatabaseTableResponses];
+
+export type ListDatabaseTablesData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/database/tables';
+};
+
+export type ListDatabaseTablesErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Conflict
+     */
+    409: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Service Unavailable
+     */
+    503: Error;
+    /**
+     * Gateway Timeout
+     */
+    504: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type ListDatabaseTablesError = ListDatabaseTablesErrors[keyof ListDatabaseTablesErrors];
+
+export type ListDatabaseTablesResponses = {
+    /**
+     * OK
+     */
+    200: DataTables;
+};
+
+export type ListDatabaseTablesResponse = ListDatabaseTablesResponses[keyof ListDatabaseTablesResponses];
 
 export type UpgradeDatabaseData = {
     body: UpgradeInputBody;
@@ -28888,6 +29239,151 @@ export type LinkServiceGitResponses = {
 };
 
 export type LinkServiceGitResponse = LinkServiceGitResponses[keyof LinkServiceGitResponses];
+
+export type GetServiceGitPollData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/git-poll';
+};
+
+export type GetServiceGitPollErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type GetServiceGitPollError = GetServiceGitPollErrors[keyof GetServiceGitPollErrors];
+
+export type GetServiceGitPollResponses = {
+    /**
+     * OK
+     */
+    200: GitPollView;
+};
+
+export type GetServiceGitPollResponse = GetServiceGitPollResponses[keyof GetServiceGitPollResponses];
+
+export type SetServiceGitPollData = {
+    body: GitPollInputBody;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/git-poll';
+};
+
+export type SetServiceGitPollErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Precondition Failed
+     */
+    412: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type SetServiceGitPollError = SetServiceGitPollErrors[keyof SetServiceGitPollErrors];
+
+export type SetServiceGitPollResponses = {
+    /**
+     * OK
+     */
+    200: GitPollView;
+};
+
+export type SetServiceGitPollResponse = SetServiceGitPollResponses[keyof SetServiceGitPollResponses];
+
+export type CheckServiceGitPollData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/git-poll/check';
+};
+
+export type CheckServiceGitPollErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type CheckServiceGitPollError = CheckServiceGitPollErrors[keyof CheckServiceGitPollErrors];
+
+export type CheckServiceGitPollResponses = {
+    /**
+     * OK
+     */
+    200: GitPollView;
+};
+
+export type CheckServiceGitPollResponse = CheckServiceGitPollResponses[keyof CheckServiceGitPollResponses];
 
 export type ListServiceIncidentsData = {
     body?: never;

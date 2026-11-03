@@ -39,6 +39,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/deployments"
 	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/events"
+	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
 	"github.com/nebulactrl/nebulactrl/internal/networks"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
@@ -124,6 +125,27 @@ func (s *applyScaler) processCalls() []string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	return append([]string(nil), s.procs...)
+}
+
+// applyGit is the git use case; it records the "check for new commits" calls.
+type applyGit struct {
+	*gitproviders.Service
+
+	mu    sync.Mutex
+	polls []gitproviders.GitPollInput
+}
+
+func (g *applyGit) PutGitPoll(ctx context.Context, id uuid.UUID, in gitproviders.GitPollInput) (services.GitPollView, error) {
+	g.mu.Lock()
+	g.polls = append(g.polls, in)
+	g.mu.Unlock()
+	return g.Service.PutGitPoll(ctx, id, in)
+}
+
+func (g *applyGit) pollCalls() []gitproviders.GitPollInput {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return append([]gitproviders.GitPollInput(nil), g.polls...)
 }
 
 func (s *applyScaler) Set(ctx context.Context, id uuid.UUID, in scaling.SetInput) (services.ServiceView, error) {
@@ -263,6 +285,7 @@ type applyFixture struct {
 	tsk    *applyTasks
 	bkp    *applyBackups
 	deploy *applyDeployer
+	git    *applyGit
 
 	ws      db.Workspace
 	userID  uuid.UUID
@@ -323,11 +346,12 @@ func newApplyFixture(t *testing.T) *applyFixture {
 	tsk := &applyTasks{Service: tasks.NewService(tasks.Deps{Pool: pool, Bus: bus, Box: box, Logger: logger})}
 	bkp := &applyBackups{Service: backups.NewService(backups.Deps{Pool: pool, Bus: bus, Box: box, Logger: logger})}
 	deploy := &applyDeployer{}
+	git := &applyGit{Service: gitproviders.NewService(gitproviders.Deps{Pool: pool, Bus: bus, Box: box, Services: svcs, Logger: logger})}
 
 	cfg := configsync.NewService(configsync.Deps{
 		Pool: pool, Bus: bus, Box: box, Logger: logger, PublicURL: "https://nebula.example.com",
 		Services: svcs, Variables: vars, Domains: doms, Databases: dbs, Routes: routes, Networks: nets,
-		Scaling: scaler, Tasks: tsk, Backups: bkp, Uptime: upt, Deploy: deploy,
+		Scaling: scaler, Tasks: tsk, Backups: bkp, Uptime: upt, Git: git, Deploy: deploy,
 	})
 
 	admin := auth.WithPrincipal(bg, &auth.Principal{
@@ -339,7 +363,7 @@ func newApplyFixture(t *testing.T) *applyFixture {
 	return &applyFixture{
 		t: t, pool: pool, q: q, box: box, bus: bus, logs: logs, cfg: cfg, disp: disp,
 		svcs: svcs, vars: vars, doms: doms, nets: nets, upt: upt,
-		scaler: scaler, tsk: tsk, bkp: bkp, deploy: deploy,
+		scaler: scaler, tsk: tsk, bkp: bkp, deploy: deploy, git: git,
 		ws: ws, userID: u.ID, project: prj, staging: staging, prod: prod, server: srv, dest: dest, admin: admin,
 	}
 }
@@ -2006,6 +2030,33 @@ func TestApplyPartialWhenTheTaskStoreFailsThenConverges(t *testing.T) {
 	require.Equal(t, configsync.StatusNoop, f.mustApply(file).Status)
 }
 
+// A restart task applies through the same path as a command task, stores no
+// command, and the file converges: the live value (restart, fixed timeout)
+// equals the file's.
+func TestApplyRestartTaskConverges(t *testing.T) {
+	f := newApplyFixture(t)
+	file := applyWebFile(8080, "\n[services.web.tasks.weekly]\nschedule = \"0 4 * * 0\"\naction = \"restart\"\n")
+
+	res := f.mustApply(file)
+	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
+	web := f.svcRow(f.staging, "web")
+	row, ok := f.taskRows(web.ID)["weekly"]
+	require.True(t, ok)
+	require.Equal(t, tasks.ActionRestart, row.Action)
+	require.JSONEq(t, `[]`, string(row.Command))
+	require.Equal(t, int32(tasks.RestartTimeoutSeconds), row.TimeoutSeconds)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(file).Status)
+
+	// Back to a command task: the file changes the action and gives a command.
+	file = applyWebFile(8080, "\n[services.web.tasks.weekly]\nschedule = \"0 4 * * 0\"\ncommand = [\"echo\", \"hi\"]\n")
+	res = f.mustApply(file)
+	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
+	row = f.taskRows(web.ID)["weekly"]
+	require.Equal(t, tasks.ActionCommand, row.Action)
+	require.JSONEq(t, `["echo","hi"]`, string(row.Command))
+	require.Equal(t, configsync.StatusNoop, f.mustApply(file).Status)
+}
+
 const applyDeferFile = `schema = 1
 server = "agent1"
 
@@ -2866,4 +2917,93 @@ command = ["clockwork"]
 	require.Empty(t, applyRemovedFields(f.plan("staging", v2, applyWithPrune())))
 	require.Equal(t, configsync.StatusNoop, f.mustApply(v2, applyWithPrune()).Status)
 	require.Equal(t, []string{"clock", "worker"}, applyProcessNames(f.cfgOf(web.ID)))
+}
+
+// ---- check for new commits (git.poll, git.poll_deploy) ----
+
+func applyGitPollFile(extra string) string {
+	return "schema = 1\nserver = \"agent1\"\n\n[services.web]\nport = 3000\n\n[services.web.git]\nurl = \"https://github.com/acme/shop.git\"\nbranch = \"main\"\n" + extra
+}
+
+func (f *applyFixture) gitPoll(id uuid.UUID) (db.ServiceGitPoll, bool) {
+	f.t.Helper()
+	p, err := f.q.GetGitPoll(context.Background(), id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return db.ServiceGitPoll{}, false
+	}
+	require.NoError(f.t, err)
+	return p, true
+}
+
+func TestApplyGitPollTurnsCheckingOnAndOffForAPlainUrl(t *testing.T) {
+	f := newApplyFixture(t)
+	web := f.uiService(f.staging, "web", services.SourceGit, services.Config{GitURL: "https://github.com/acme/shop.git", GitBranch: "main", Port: 3000})
+	ptr := func(v int) *int { return &v }
+	flag := func(v bool) *bool { return &v }
+
+	// On, every 15 minutes, only showing the new commit.
+	on := applyGitPollFile("poll = \"15m\"\npoll_deploy = false\n")
+	pl := f.plan("staging", on)
+	require.True(t, pl.Valid, applyJSON(pl.Diagnostics))
+	require.Equal(t, []string{"git.poll", "git.poll_deploy"}, applyChangeFields(applyPlanService(t, pl, "web")))
+	for _, c := range applyPlanService(t, pl, "web").Changes {
+		require.Equal(t, configsync.AppliesImmediate, c.Applies)
+	}
+	res := f.mustApply(on, applyWithPlanID(pl.PlanID))
+	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "git:web:poll"), applyJSON(res.Steps))
+	p, ok := f.gitPoll(web.ID)
+	require.True(t, ok)
+	require.EqualValues(t, 15, p.IntervalMinutes)
+	require.False(t, p.Deploy)
+	owned := f.owned(web.ID)
+	require.Equal(t, applyFP("15m"), owned["git.poll"])
+	require.Equal(t, applyFP(false), owned["git.poll_deploy"])
+	require.Equal(t, []gitproviders.GitPollInput{{Enabled: true, IntervalMinutes: ptr(15), Deploy: flag(false)}}, f.git.pollCalls())
+	require.Equal(t, configsync.StatusNoop, f.mustApply(on).Status)
+
+	// The file says what is live.
+	ex, err := f.cfg.Export(f.admin, f.project.ID, "staging", "", false, false)
+	require.NoError(t, err)
+	require.Contains(t, ex.File, "poll = \"15m\"")
+	require.Contains(t, ex.File, "poll_deploy = false")
+
+	// Only the deploy choice changes: the interval stays.
+	deploy := applyGitPollFile("poll = \"15m\"\npoll_deploy = true\n")
+	f.mustApply(deploy)
+	p, _ = f.gitPoll(web.ID)
+	require.EqualValues(t, 15, p.IntervalMinutes)
+	require.True(t, p.Deploy)
+
+	// A file that leaves poll_deploy out keeps what is live when only the interval changes.
+	f.mustApply(applyGitPollFile("poll = \"1m\"\npoll_deploy = false\n"))
+	f.mustApply(applyGitPollFile("poll = \"60m\"\n"))
+	p, _ = f.gitPoll(web.ID)
+	require.EqualValues(t, 60, p.IntervalMinutes)
+	require.False(t, p.Deploy)
+
+	// Off deletes the row; poll_deploy is moot then and never shows as a change.
+	off := applyGitPollFile("poll = \"off\"\npoll_deploy = false\n")
+	res = f.mustApply(off)
+	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "git:web:poll"), applyJSON(res.Steps))
+	_, ok = f.gitPoll(web.ID)
+	require.False(t, ok)
+	calls := f.git.pollCalls()
+	require.False(t, calls[len(calls)-1].Enabled)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(off).Status)
+	// Leaving poll_deploy out releases it once; nothing changes after that.
+	f.mustApply(applyGitPollFile("poll = \"off\"\n"))
+	require.Equal(t, configsync.StatusNoop, f.mustApply(applyGitPollFile("poll = \"off\"\n")).Status)
+}
+
+func TestApplyGitPollCreatesTheServiceAndChecksItAtOnce(t *testing.T) {
+	f := newApplyFixture(t)
+	res := f.mustApply(applyGitPollFile("poll = \"5m\"\n"))
+	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
+	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "git:web:poll"), applyJSON(res.Steps))
+	web := f.svcRow(f.staging, "web")
+	p, ok := f.gitPoll(web.ID)
+	require.True(t, ok)
+	require.EqualValues(t, 5, p.IntervalMinutes)
+	require.True(t, p.Deploy, "deploy is on by default")
+	require.Equal(t, configsync.StatusNoop, f.mustApply(applyGitPollFile("poll = \"5m\"\n")).Status)
 }

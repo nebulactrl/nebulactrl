@@ -37,6 +37,7 @@ export interface RunHistoryTarget {
 
 const runCommand = createStore<string | null>(null);
 const runHistory = createStore<RunHistoryTarget | null>(null);
+const taskDialog = createStore<string | null>(null);
 
 /** Opens the "Run command" dialog of a service. */
 export function openRunCommand(serviceId: string): void {
@@ -64,4 +65,18 @@ export function closeRunHistory(): void {
 /** What the run-history drawer shows, if it is open. */
 export function useRunHistoryTarget(): RunHistoryTarget | null {
 	return useStore(runHistory);
+}
+
+/** Opens the "Schedule task" dialog (create mode) of a service. */
+export function openTaskDialog(serviceId: string): void {
+	taskDialog.set(serviceId);
+}
+
+export function closeTaskDialog(): void {
+	taskDialog.set(null);
+}
+
+/** The service whose "Schedule task" dialog is open, if any. */
+export function useTaskDialogTarget(): string | null {
+	return useStore(taskDialog);
 }

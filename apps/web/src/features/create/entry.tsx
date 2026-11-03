@@ -10,16 +10,19 @@ import { routeCreate } from "#/features/proxy/create-store";
 import { createStackActions } from "#/features/stacks/store";
 import { templatesActions } from "#/features/templates/store";
 import { TemplatesMark } from "#/features/templates/template-icon";
+import { CronMark } from "./cron-mark";
 import type { MenuEntryId } from "./lib";
 import { type CreateOptions, createActions } from "./store";
 
-type FixedMark = "templates" | "compose" | "coolify";
+type FixedMark = "templates" | "compose" | "coolify" | "cron";
 
 /** What each entry's mark is drawn from: the same icon its service will wear. */
 const ENTRY_ICON: Record<Exclude<MenuEntryId, FixedMark>, ServiceIconSource> = {
 	git: { sourceType: "git", config: { gitUrl: "https://github.com/" } },
 	image: { sourceType: "image", config: { image: "docker" } },
 	database: { kind: "database" },
+	// The Bucket template's image: the card it creates wears the same glyph.
+	bucket: { config: { image: "dxflrs/garage" } },
 	external: { kind: "route", config: { route: { protocol: "http" } } },
 	port: { kind: "route", config: { route: { protocol: "tcp" } } },
 	stack: { kind: "stack", sourceType: "compose" },
@@ -50,6 +53,8 @@ export function EntryMark({
 			return <ComposeMark size={size} />;
 		case "coolify":
 			return <CoolifyMark size={size} />;
+		case "cron":
+			return <CronMark size={size} />;
 		default:
 			return <ServiceIcon service={ENTRY_ICON[id]} size={size} />;
 	}
@@ -65,6 +70,7 @@ export function openCreateEntry(id: MenuEntryId, options: CreateOptions = {}) {
 	switch (id) {
 		case "git":
 		case "image":
+		case "cron":
 		case "database":
 			createActions.open(id, options);
 			return;
@@ -83,6 +89,10 @@ export function openCreateEntry(id: MenuEntryId, options: CreateOptions = {}) {
 		case "templates":
 			createActions.setMenuOpen(false);
 			templatesActions.open();
+			return;
+		case "bucket":
+			createActions.setMenuOpen(false);
+			templatesActions.open("bucket");
 			return;
 		case "compose":
 			createActions.setMenuOpen(false);

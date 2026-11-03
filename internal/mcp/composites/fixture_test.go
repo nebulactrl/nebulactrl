@@ -247,6 +247,8 @@ type svcOpts struct {
 	processes []services.ProcessConfig
 	// undeployed leaves the service without a deployment.
 	undeployed bool
+	// oneShot makes it a one-shot service.
+	oneShot bool
 }
 
 // service inserts a service. Unless undeployed, it also has a release and a
@@ -268,7 +270,7 @@ func (f *fx) service(o svcOpts) db.Service {
 	if srv == nil {
 		srv = &f.server
 	}
-	raw, _ := json.Marshal(services.Config{Image: o.image, Port: o.port, Processes: o.processes}.WithDefaults())
+	raw, _ := json.Marshal(services.Config{Image: o.image, Port: o.port, Processes: o.processes, OneShot: o.oneShot}.WithDefaults())
 	sv, err := f.q.InsertService(bg, db.InsertServiceParams{
 		ID: uuid.New(), EnvironmentID: o.env.ID, Name: o.slug, Slug: o.slug, Kind: o.kind,
 		SourceType: services.SourceImage, Config: raw, ServerID: &srv.ID,

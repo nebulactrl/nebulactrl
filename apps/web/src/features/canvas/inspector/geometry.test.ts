@@ -26,8 +26,14 @@ function memory(): WidthStorage & { data: Map<string, string> } {
 }
 
 describe("widthClassOf", () => {
-	test("Metrics, Analytics, Logs and Settings are wide", () => {
-		for (const tab of ["metrics", "analytics", "logs", "settings"] as const)
+	test("Metrics, Analytics, Logs, Data and Settings are wide", () => {
+		for (const tab of [
+			"metrics",
+			"analytics",
+			"logs",
+			"data",
+			"settings",
+		] as const)
 			expect(widthClassOf(tab)).toBe("wide");
 	});
 	test("Overview, Deployments and Variables are docked", () => {

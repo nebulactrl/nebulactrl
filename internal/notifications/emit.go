@@ -12,6 +12,7 @@ const (
 	TypeDeploySucceeded      = "deploy.succeeded"
 	TypeDeployFailed         = "deploy.failed"
 	TypeDeployRolledBack     = "deploy.rolled_back"
+	TypeDeployBlockedByCI    = "deployment.ci_blocked"
 	TypeServerOffline        = "server.offline"
 	TypeServerOnline         = "server.online"
 	TypeServerDiskAlert      = "server.disk_alert"

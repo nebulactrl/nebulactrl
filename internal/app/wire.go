@@ -262,7 +262,7 @@ func wire(c *Core) Modules {
 	// Git providers: connections, webhooks, auto-deploy on push, commit statuses.
 	// Deployments pull short-lived clone credentials from it.
 	gitSvc := gitproviders.NewService(gitproviders.Deps{
-		Pool: c.Pool, Bus: c.Bus, Jobs: c.Jobs, Box: c.Box, Config: c.Config, Services: serviceSvc, Deployer: deploymentSvc, Logger: c.Logger,
+		Pool: c.Pool, Bus: c.Bus, Jobs: c.Jobs, Box: c.Box, Config: c.Config, Services: serviceSvc, Deployer: deploymentSvc, Notifier: notifySvc, Logger: c.Logger,
 	})
 	deploymentSvc.SetGitAuth(gitSvc)
 	serviceSvc.SetGitLinkHook(gitSvc)
@@ -291,6 +291,7 @@ func wire(c *Core) Modules {
 	databaseSvc := databases.NewService(c.Pool, c.Bus, c.Box, hub, serviceSvc, c.Logger)
 	databaseSvc.SetBrokenAfter(c.Config.Timers.ReplicaBrokenAfter)
 	databaseSvc.SetExtSecrets(extSecrets)
+	databaseSvc.SetRequester(hub)
 	databases.RegisterExports()
 	databaseSvc.SetReplicas(databases.ReplicaDeps{
 		Mesh: meshSvc, Links: meshLinkReconciler{s: meshLinksSvc}, Deployer: deploymentSvc, Jobs: c.Jobs, Resync: hub, Notify: replicaNotifier(notifySvc),
@@ -303,6 +304,9 @@ func wire(c *Core) Modules {
 		Variables: templates.VariablesAdapter{S: variableSvc}, Databases: templates.DatabasesAdapter{S: databaseSvc},
 		Ports: templates.PortsAdapter{}, Deploy: deploymentSvc, Materialize: templates.MaterializeWith, Logger: c.Logger,
 	})
+	// A link to a template's service also proposes the variables the template
+	// declares in `provides` (Bucket: the S3 settings).
+	serviceSvc.SetLinkProvider(templateSvc)
 	// Docker Compose import wizard: a Compose file becomes staged services.
 	composeSvc := composeimport.NewService(composeimport.Deps{
 		Pool: c.Pool, Bus: c.Bus, Jobs: c.Jobs, Services: serviceSvc, Variables: templates.VariablesAdapter{S: variableSvc},
@@ -330,7 +334,7 @@ func wire(c *Core) Modules {
 
 	// Cron tasks, one-off commands and their run history.
 	taskSvc := tasks.NewService(tasks.Deps{
-		Pool: c.Pool, Bus: c.Bus, Jobs: c.Jobs, Box: c.Box, Dispatcher: hub, Redactor: serviceSvc, Notifier: notifySvc, Logger: c.Logger, ExtSecrets: extSecrets,
+		Pool: c.Pool, Bus: c.Bus, Jobs: c.Jobs, Box: c.Box, Dispatcher: hub, Redactor: serviceSvc, Restarter: serviceSvc, Notifier: notifySvc, Logger: c.Logger, ExtSecrets: extSecrets,
 	})
 
 	// Pull-request previews: an environment per open PR of a connected

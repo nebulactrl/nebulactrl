@@ -1,0 +1,11 @@
+# expect: invalid_value
+# git.poll takes off or one of the intervals 1m, 5m, 15m, 60m.
+schema = 1
+server = "fra-1"
+
+[services.web]
+
+[services.web.git]
+url = "https://git.example.com/acme/shop.git"
+branch = "main"
+poll = "30m"

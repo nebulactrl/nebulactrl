@@ -17,10 +17,10 @@ var serviceConcise = []string{
 	"processes.scaling.replicas", "processes.scaling.ready", "processes.observed.state", "processes.observed.health",
 	"processes.pending", "processes.removed",
 	"latestDeployment", "currentDeploymentId", "currentRelease.id", "currentRelease.imageRef",
-	"maintenance.enabled", "git.provider", "git.repo", "git.autoDeploy",
+	"maintenance.enabled", "git.provider", "git.repo", "git.autoDeploy", "git.waitForCi",
 	"config.image", "config.gitUrl", "config.gitBranch", "config.port", "config.buildType",
 	"config.startCommand", "config.memoryMb", "config.cpus", "config.healthcheck",
-	"config.stopGraceSeconds", "config.imageRetention", "config.processName", "config.singleton", "config.processes",
+	"config.stopGraceSeconds", "config.restartPolicy", "config.restartMaxRetries", "config.imageRetention", "config.processName", "config.singleton", "config.processes",
 }
 
 var deploymentConcise = []string{

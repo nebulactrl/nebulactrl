@@ -86,7 +86,9 @@ export function replicasEligible(input: { port: number | undefined }): boolean {
 export type MenuEntryId =
 	| "git"
 	| "image"
+	| "cron"
 	| "database"
+	| "bucket"
 	| "templates"
 	| "compose"
 	| "coolify"
@@ -132,10 +134,22 @@ const MENU_ENTRIES: readonly MenuEntry[] = [
 		keywords: ["docker", "image", "container", "registry"],
 	},
 	{
+		id: "cron",
+		label: "Cron job",
+		hint: "run a command on a schedule",
+		keywords: ["cron", "schedule", "job", "scheduled", "timer"],
+	},
+	{
 		id: "database",
 		label: "Database",
 		hint: "Valkey, PostgreSQL, MySQL…",
 		keywords: ["database", "db", "sql", "data"],
+	},
+	{
+		id: "bucket",
+		label: "Bucket",
+		hint: "S3-compatible object storage",
+		keywords: ["s3", "bucket", "object storage", "files", "garage"],
 	},
 	{
 		id: "templates",

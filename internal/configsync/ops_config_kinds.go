@@ -62,6 +62,105 @@ func kindCfgField(id string) (cfgField, bool) {
 		}, true
 	case strings.HasPrefix(id, "config.database."):
 		return databaseField(strings.TrimPrefix(id, "config.database."))
+	case strings.HasPrefix(id, "config.cron."):
+		return cronField(strings.TrimPrefix(id, "config.cron."))
+	}
+	return cfgField{}, false
+}
+
+// cronOf returns the (created on demand, copied on write) cron schedule of c.
+func cronOf(c *services.Config) *services.CronSpec {
+	if c.Cron == nil {
+		c.Cron = &services.CronSpec{}
+	} else {
+		cp := *c.Cron
+		c.Cron = &cp
+	}
+	return c.Cron
+}
+
+// cronField resolves a config.cron.<key> id. A key the live config lacks (no
+// schedule) reads as empty or zero; the defaults of a schedule that exists are
+// read as what the scheduler uses, so a file that writes them plans to zero.
+func cronField(key string) (cfgField, bool) {
+	switch key {
+	case "schedule":
+		return cfgField{
+			get: func(_ *planCtx, c services.Config) any {
+				if c.Cron == nil {
+					return ""
+				}
+				return c.Cron.Schedule
+			},
+			set: func(_ *planCtx, c *services.Config, v any) error {
+				s, ok := v.(string)
+				if !ok {
+					return refErr("wrong_type", "cron.schedule must be text")
+				}
+				cronOf(c).Schedule = s
+				return nil
+			},
+		}, true
+	case "timezone":
+		return cfgField{
+			get: func(_ *planCtx, c services.Config) any {
+				if c.Cron == nil {
+					return ""
+				}
+				if c.Cron.Timezone == "" || strings.EqualFold(c.Cron.Timezone, "utc") {
+					return "UTC"
+				}
+				return c.Cron.Timezone
+			},
+			set: func(_ *planCtx, c *services.Config, v any) error {
+				s, ok := v.(string)
+				if !ok {
+					return refErr("wrong_type", "cron.timezone must be text")
+				}
+				cronOf(c).Timezone = s
+				return nil
+			},
+		}, true
+	case "timeoutSeconds":
+		return cfgField{
+			get: func(_ *planCtx, c services.Config) any {
+				switch {
+				case c.Cron == nil:
+					return 0
+				case c.Cron.TimeoutSeconds == 0:
+					return services.DefaultCronTimeoutSeconds
+				}
+				return c.Cron.TimeoutSeconds
+			},
+			set: func(_ *planCtx, c *services.Config, v any) error {
+				n, ok := asInt(v)
+				if !ok {
+					return refErr("wrong_type", "cron.timeout_seconds must be a number")
+				}
+				cronOf(c).TimeoutSeconds = n
+				return nil
+			},
+		}, true
+	case "concurrency":
+		return cfgField{
+			get: func(_ *planCtx, c services.Config) any {
+				switch {
+				case c.Cron == nil:
+					return ""
+				case c.Cron.Concurrency == "":
+					return services.CronConcurrencyForbid
+				}
+				return c.Cron.Concurrency
+			},
+			set: func(_ *planCtx, c *services.Config, v any) error {
+				s, ok := v.(string)
+				if !ok {
+					return refErr("wrong_type", "cron.concurrency must be text")
+				}
+				cronOf(c).Concurrency = s
+				return nil
+			},
+		}, true
 	}
 	return cfgField{}, false
 }

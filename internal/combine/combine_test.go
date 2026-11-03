@@ -180,7 +180,7 @@ func newFixture(t *testing.T) *fixture {
 	f.shopDomain = f.domain(f.shop.ID, "shop.example.com", 3000)
 	f.apiDomain = f.domain(f.api.ID, "api.example.com", 4000)
 	f.task, err = q.InsertServiceTask(bg, db.InsertServiceTaskParams{
-		ServiceID: f.api.ID, Name: "digest", Schedule: "0 * * * *", Timezone: "UTC", Command: json.RawMessage(`["bin/digest"]`), Enabled: true,
+		ServiceID: f.api.ID, Name: "digest", Action: "command", Schedule: "0 * * * *", Timezone: "UTC", Command: json.RawMessage(`["bin/digest"]`), Enabled: true,
 		TimeoutSeconds: 60, Concurrency: "forbid",
 	})
 	require.NoError(t, err)
@@ -488,7 +488,7 @@ func TestPlanBlockers(t *testing.T) {
 		}, nil},
 		{"a task name that exists on the target", CodeTaskNameConflict, func(f *fixture) {
 			_, err := f.q.InsertServiceTask(context.Background(), db.InsertServiceTaskParams{
-				ServiceID: f.shop.ID, Name: "Digest", Schedule: "0 * * * *", Timezone: "UTC", Command: json.RawMessage(`["x"]`), Enabled: true,
+				ServiceID: f.shop.ID, Name: "Digest", Action: "command", Schedule: "0 * * * *", Timezone: "UTC", Command: json.RawMessage(`["x"]`), Enabled: true,
 				TimeoutSeconds: 60, Concurrency: "forbid",
 			})
 			require.NoError(t, err)

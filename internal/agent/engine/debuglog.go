@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -126,8 +127,12 @@ func envKeys(env []string) []string {
 // argument count and program, since its arguments can carry a value.
 func specSummary(spec docker.ContainerSpec) []string {
 	var out []string
+	restart := spec.RestartPolicy
+	if spec.RestartMaxRetries > 0 {
+		restart += ":" + strconv.Itoa(spec.RestartMaxRetries)
+	}
 	out = append(out, fmt.Sprintf("create %s image=%s restart=%q stopTimeout=%s",
-		spec.Name, shortID(spec.Image), spec.RestartPolicy, stopTimeoutLabel(spec.StopTimeout)))
+		spec.Name, shortID(spec.Image), restart, stopTimeoutLabel(spec.StopTimeout)))
 	if keys := envKeys(spec.Env); len(keys) > 0 {
 		masked := make([]string, len(keys))
 		for i, k := range keys {

@@ -7,6 +7,7 @@ import { Button } from "#/components/ui/button";
 import { CheckLabel } from "#/components/ui/check-label";
 import { Input } from "#/components/ui/input";
 import { GitLinkRows } from "#/features/git/git-link-section";
+import { GitPollRows } from "#/features/git/git-poll-section";
 import { gitCloneGuide, registryGuide } from "#/lib/credential-links";
 import { BuildPlanPreview } from "./build-plan-preview";
 import { BUILD_TYPES } from "./build-types";
@@ -209,6 +210,7 @@ export function SourceSection({
 				placeholder="main"
 				onChange={(value) => set("gitBranch", value)}
 			/>
+			<GitPollRows service={service} />
 			<SelectRow
 				id="set-build-type"
 				field="config.buildType"

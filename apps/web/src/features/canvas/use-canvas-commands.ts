@@ -4,8 +4,10 @@ import {
 	ArrowUpRightIcon,
 	BoxesIcon,
 	BoxIcon,
+	CalendarClockIcon,
 	FileCodeIcon,
 	FolderOpenIcon,
+	GitCommitHorizontalIcon,
 	LayersIcon,
 	PlusIcon,
 	RefreshCwIcon,
@@ -32,7 +34,7 @@ import {
 } from "#/features/deployments/quick-actions";
 import { categoryCommands } from "#/features/service-settings/settings-nav-model";
 import { createStackActions } from "#/features/stacks/store";
-import { openRunCommand } from "#/features/tasks";
+import { openRunCommand, openTaskDialog } from "#/features/tasks";
 import { templatesActions } from "#/features/templates/store";
 import { openFiles, openShell } from "#/features/terminal";
 import { openTargets } from "#/lib/service-urls";
@@ -155,7 +157,29 @@ export function useCanvasCommands({
 					keywords: ["deploy", "redeploy", "release", service.slug],
 					run: () => void deploy(service),
 				},
-				{
+			);
+			// Checking found a commit the running release was not built from.
+			if (service.gitPoll?.updateAvailable) {
+				entries.push({
+					id: `service:deploy-latest:${service.id}`,
+					label: `Deploy latest commit of ${service.name}`,
+					group: "Action",
+					hint: isProduction ? "review, then confirm" : "found by checking",
+					icon: GitCommitHorizontalIcon,
+					keywords: [
+						"deploy",
+						"latest",
+						"commit",
+						"update",
+						"new",
+						service.slug,
+					],
+					run: () => void deploy(service),
+				});
+			}
+			// A cron service has no container to restart: Pause/Resume is its toggle.
+			if (!service.config.cron) {
+				entries.push({
 					id: `service:restart:${service.id}`,
 					label: `Restart ${service.name}`,
 					group: "Action",
@@ -178,8 +202,8 @@ export function useCanvasCommands({
 								),
 						);
 					},
-				},
-			);
+				});
+			}
 			// Every settings page of the service, found by what is inside it.
 			// Only once the reader types: eight rows per service would bury the rest.
 			for (const command of categoryCommands({
@@ -228,33 +252,60 @@ export function useCanvasCommands({
 					keywords: ["exec", "shell", "task", "migrate", service.slug],
 					run: () => openRunCommand(service.id),
 				});
-				entries.push(
-					{
-						id: `service:shell:${service.id}`,
-						label: `Open shell in ${service.name}…`,
+				if (!service.config.oneshot && service.kind !== "stack") {
+					entries.push({
+						id: `service:schedule-task:${service.id}`,
+						label: `Schedule task for ${service.name}…`,
 						group: "Action",
-						hint: "interactive terminal",
-						icon: TerminalSquareIcon,
+						hint: "run a command or restart on a schedule",
+						icon: CalendarClockIcon,
 						keywords: [
-							"terminal",
-							"exec",
-							"bash",
-							"sh",
-							"console",
+							"cron",
+							"schedule",
+							"restart",
+							"task",
+							"job",
 							service.slug,
 						],
-						run: () => openShell(service.id),
-					},
-					{
-						id: `service:files:${service.id}`,
-						label: `Browse files of ${service.name}…`,
-						group: "Action",
-						hint: "inside the container",
-						icon: FolderOpenIcon,
-						keywords: ["files", "browser", "upload", "download", service.slug],
-						run: () => openFiles(service.id),
-					},
-				);
+						run: () => openTaskDialog(service.id),
+					});
+				}
+				// A cron service has no running container to open a shell or files in.
+				if (!service.config.cron) {
+					entries.push(
+						{
+							id: `service:shell:${service.id}`,
+							label: `Open shell in ${service.name}…`,
+							group: "Action",
+							hint: "interactive terminal",
+							icon: TerminalSquareIcon,
+							keywords: [
+								"terminal",
+								"exec",
+								"bash",
+								"sh",
+								"console",
+								service.slug,
+							],
+							run: () => openShell(service.id),
+						},
+						{
+							id: `service:files:${service.id}`,
+							label: `Browse files of ${service.name}…`,
+							group: "Action",
+							hint: "inside the container",
+							icon: FolderOpenIcon,
+							keywords: [
+								"files",
+								"browser",
+								"upload",
+								"download",
+								service.slug,
+							],
+							run: () => openFiles(service.id),
+						},
+					);
+				}
 			}
 		}
 		return entries;

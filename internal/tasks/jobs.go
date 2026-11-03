@@ -130,7 +130,7 @@ func (s *Service) runDue(ctx context.Context, tx pgx.Tx, t db.ServiceTask, now t
 		return db.TaskRun{}, fmt.Errorf("load service: %w", err)
 	}
 	in := startInput{
-		sc: sc, task: &t, name: t.Name, source: SourceCron, command: decodeArgv(t.Command),
+		sc: sc, task: &t, action: t.Action, name: runName(t, sc), source: SourceCron, command: decodeArgv(t.Command),
 		timeout: int(t.TimeoutSeconds), actor: "schedule", scheduledFor: t.NextRunAt,
 	}
 	skip := func(reason string) (db.TaskRun, error) {

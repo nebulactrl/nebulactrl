@@ -45,9 +45,10 @@ type createTaskInput struct {
 	ID   uuid.UUID `path:"serviceId"`
 	Body struct {
 		Name           string   `json:"name" minLength:"1" maxLength:"64"`
+		Action         string   `json:"action,omitempty" enum:"command,restart" default:"command" doc:"command (default) runs Command in a new container; restart restarts the service's running container on the schedule (brief outage with one replica)."`
 		Schedule       string   `json:"schedule" doc:"5-field cron expression (minute hour day-of-month month day-of-week) or @hourly/@daily/@weekly/@monthly/@yearly, evaluated in timezone." example:"*/15 * * * *"`
 		Timezone       string   `json:"timezone,omitempty" maxLength:"64" doc:"IANA time zone the schedule is evaluated in, e.g. Europe/Berlin. Default UTC." example:"Europe/Berlin"`
-		Command        []string `json:"command" minItems:"1" doc:"Argv, run without a shell in a container of the service's current image. Wrap in [\"sh\",\"-c\",…] for shell syntax."`
+		Command        []string `json:"command,omitempty" doc:"Argv, run without a shell in a container of the service's current image. Wrap in [\"sh\",\"-c\",…] for shell syntax. Required (at least one element) for the command action; must be empty for restart."`
 		Enabled        *bool    `json:"enabled,omitempty" doc:"Default true."`
 		TimeoutSeconds int      `json:"timeoutSeconds,omitempty" minimum:"0" maximum:"86400" doc:"Default 1800 (30 minutes)."`
 		Concurrency    string   `json:"concurrency,omitempty" enum:"forbid,allow" doc:"forbid (default) skips a tick while the previous run is still active."`
@@ -58,6 +59,7 @@ type patchTaskInput struct {
 	ID   uuid.UUID `path:"taskId"`
 	Body struct {
 		Name           *string   `json:"name,omitempty" minLength:"1" maxLength:"64"`
+		Action         *string   `json:"action,omitempty" enum:"command,restart" doc:"Switching to restart clears the command."`
 		Schedule       *string   `json:"schedule,omitempty"`
 		Timezone       *string   `json:"timezone,omitempty" maxLength:"64" doc:"IANA zone; changing it recomputes the next run."`
 		Command        *[]string `json:"command,omitempty"`

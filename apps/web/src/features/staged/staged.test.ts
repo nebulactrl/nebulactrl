@@ -193,6 +193,34 @@ describe("process changes", () => {
 		]);
 	});
 
+	test("the restart policy settings read as labels, not field ids", () => {
+		const result = lines([
+			{ field: "config.restartPolicy", from: "", to: "on-failure" },
+			{ field: "config.restartMaxRetries", from: "", to: "5" },
+			{ field: "config.restartPolicy", from: "on-failure", to: "never" },
+		]);
+		expect(result.map((line) => [line.sign, line.text, line.value])).toEqual([
+			["+", "Restart policy", "on-failure"],
+			["+", "Max restarts", "5"],
+			["~", "Restart policy", "on-failure → never"],
+		]);
+	});
+
+	test("the cron settings read as labels, not field ids", () => {
+		const result = lines([
+			{ field: "config.cron.schedule", from: "", to: "*/5 * * * *" },
+			{ field: "config.cron.timezone", from: "UTC", to: "Europe/Berlin" },
+			{ field: "config.cron.timeoutSeconds", from: "", to: "600" },
+			{ field: "config.cron.concurrency", from: "", to: "allow" },
+		]);
+		expect(result.map((line) => [line.sign, line.text, line.value])).toEqual([
+			["+", "Cron schedule", "*/5 * * * *"],
+			["~", "Cron timezone", "UTC → Europe/Berlin"],
+			["+", "Cron timeout", "600"],
+			["+", "Cron concurrency", "allow"],
+		]);
+	});
+
 	test("a start command is shown the way the settings field types it", () => {
 		const [line] = lines([
 			{

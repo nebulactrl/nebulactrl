@@ -1,0 +1,9 @@
+{
+  "state": "success",
+  "sha": "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+  "total_count": 2,
+  "statuses": [
+    {"id": 10, "state": "success", "context": "ci/legacy"},
+    {"id": 11, "state": "pending", "context": "nebulactrl/api"}
+  ]
+}

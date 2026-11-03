@@ -86,9 +86,11 @@ type ContainerSpec struct {
 	Ports         []PortPublish
 	Mounts        []VolumeMount
 	RestartPolicy string // e.g. "unless-stopped"; empty = no restart
-	MemoryBytes   int64
-	NanoCPUs      int64
-	StopTimeout   *int // seconds; nil = daemon default
+	// RestartMaxRetries caps the "on-failure" policy (0 = no limit); ignored for other policies.
+	RestartMaxRetries int
+	MemoryBytes       int64
+	NanoCPUs          int64
+	StopTimeout       *int // seconds; nil = daemon default
 	// LogConfig sets the container's log driver and options (e.g. json-file
 	// with max-size/max-file). Nil keeps the daemon default.
 	LogConfig *LogConfig

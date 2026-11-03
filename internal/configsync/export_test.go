@@ -118,16 +118,25 @@ func exWithCommand(c *services.Config) {
 	c.PostDeployCommand = []string{"echo", "post"}
 }
 
+// exAsCron makes the config a cron service (a one-shot with a schedule), which
+// the file can only say as a whole.
+func exAsCron(c *services.Config) {
+	c.OneShot = true
+	c.Cron = &services.CronSpec{Schedule: "0 3 * * *"}
+}
+
 var exExamples = map[string]exampleValue{
-	"config.image":            {value: "nginx:2"},
-	"config.port":             {value: 8080},
-	"config.startCommand":     {value: []string{"bun", "run", "worker"}},
-	"config.oneshot":          {value: true},
-	"config.stopGraceSeconds": {value: 45},
-	"config.memoryMb":         {value: 512},
-	"config.cpus":             {value: 1.5},
-	"config.imageRetention":   {value: 9},
-	"config.blockEgress":      {value: true},
+	"config.image":             {value: "nginx:2"},
+	"config.port":              {value: 8080},
+	"config.startCommand":      {value: []string{"bun", "run", "worker"}},
+	"config.oneshot":           {value: true},
+	"config.stopGraceSeconds":  {value: 45},
+	"config.restartPolicy":     {value: "on-failure"},
+	"config.restartMaxRetries": {value: 5, prep: func(c *services.Config) { c.RestartPolicy = "on-failure" }},
+	"config.memoryMb":          {value: 512},
+	"config.cpus":              {value: 1.5},
+	"config.imageRetention":    {value: 9},
+	"config.blockEgress":       {value: true},
 
 	"config.processName": {value: "app"},
 	"config.singleton":   {value: true},
@@ -149,6 +158,11 @@ var exExamples = map[string]exampleValue{
 	"config.healthcheck.deadlineSeconds":    {value: 200},
 	"config.healthcheck.successThreshold":   {value: 4},
 	"config.healthcheck.command":            {value: []string{"CMD", "true"}},
+
+	"config.cron.schedule":       {value: "*/10 * * * *", prep: exAsCron},
+	"config.cron.timezone":       {value: "Europe/Berlin", prep: exAsCron},
+	"config.cron.timeoutSeconds": {value: 600, prep: exAsCron},
+	"config.cron.concurrency":    {value: "allow", prep: exAsCron},
 
 	"config.preDeployCommand":         {value: []string{"bun", "run", "db:migrate"}},
 	"config.preDeployTimeoutSeconds":  {value: 300, prep: exWithCommand},
@@ -292,7 +306,7 @@ func TestExportCoversEveryConfigField(t *testing.T) {
 		"OneShot": true, "Route": true, "Database": true, "PreDeployCommand": true, "PreDeployTimeoutSeconds": true,
 		"PostDeployCommand": true, "PostDeployTimeoutSeconds": true, "BlockEgress": true, "Docker": true, "Stack": true,
 		"Tailnet":     true, // not representable: listed as such
-		"ProcessName": true, "Singleton": true, "Processes": true,
+		"ProcessName": true, "Singleton": true, "Processes": true, "RestartPolicy": true, "RestartMaxRetries": true, "Cron": true,
 	}
 	rt := reflect.TypeOf(services.Config{})
 	for i := range rt.NumField() {
@@ -314,8 +328,9 @@ func exRichEnv() *liveEnv {
 	web.Row.ServerID = new(exID(1))
 	web.Row.Replicas = 2
 	web.Scale = services.Autoscaling{Enabled: true, Min: 2, Max: 5, TargetCPUPercent: 60}
-	web.Git = &db.ServiceGit{ServiceID: web.Row.ID, ConnectionID: exID(3), RepoFullName: "acme/shop", AutoDeploy: false, WatchPaths: []string{"apps/web/**"}}
+	web.Git = &db.ServiceGit{ServiceID: web.Row.ID, ConnectionID: exID(3), RepoFullName: "acme/shop", AutoDeploy: false, WaitForCi: true, WatchPaths: []string{"apps/web/**"}}
 	web.GitConn = "github-acme"
+	web.Poll = &db.ServiceGitPoll{ServiceID: web.Row.ID, IntervalMinutes: 15, Deploy: false}
 	web.Links = []string{"db"}
 	web.Networks = []db.ListServicesNetworksRow{{NetworkID: exID(6), NetworkName: "backplane"}}
 	web.Volumes = []db.Volume{{Name: "uploads", MountPath: "/app/uploads"}}
@@ -404,6 +419,8 @@ func TestExportRichEnvironmentIsDeterministicAndSecretFree(t *testing.T) {
 	// Names, not ids.
 	require.NotContains(t, first, exID(1).String())
 	require.Equal(t, "github-acme", exDeref(res.Services["web"].Def.Git.Connection))
+	require.Equal(t, "15m", exDeref(res.Services["web"].Def.Git.Poll))
+	require.False(t, *res.Services["web"].Def.Git.PollDeploy)
 	require.Equal(t, "builder", exDeref(res.Services["web"].Def.Build.Server))
 	require.Equal(t, "ghcr", exDeref(res.Services["web"].Def.Build.Registry))
 	// A managed upstream is the slug and the port.
@@ -420,6 +437,59 @@ func TestExportRichEnvironmentIsDeterministicAndSecretFree(t *testing.T) {
 	// database credentials default: block_egress true is the default of a database.
 	require.Nil(t, res.Services["db"].Def.BlockEgress)
 	require.Equal(t, "nightly", func() string { k := sortedKeys(res.Services["db"].Def.Backups); return k[0] }())
+}
+
+// "Check for new commits" works for a plain clone URL too; poll_deploy is written only when it is not the default.
+func TestExportGitPoll(t *testing.T) {
+	mk := func(poll *db.ServiceGitPoll) *liveEnv {
+		svc := exSvc("site", services.KindApp, services.SourceGit, services.Config{GitURL: "https://git.example.com/acme/site.git", GitBranch: "main", Port: 80})
+		svc.Poll = poll
+		return exLiveEnv(exTestRefs(), svc)
+	}
+	gitOf := func(env *liveEnv, defaults bool) projectconfig.Git {
+		_, v := exExport(t, env, defaults)
+		return *v.Res.Services["site"].Def.Git
+	}
+
+	g := gitOf(mk(nil), false)
+	require.Nil(t, g.Poll, "off is the default")
+	require.Nil(t, g.PollDeploy)
+	g = gitOf(mk(nil), true)
+	require.Equal(t, "off", exDeref(g.Poll))
+	require.Nil(t, g.PollDeploy, "poll_deploy means nothing while the service does not check")
+
+	g = gitOf(mk(&db.ServiceGitPoll{IntervalMinutes: 5, Deploy: true}), false)
+	require.Equal(t, "5m", exDeref(g.Poll))
+	require.Nil(t, g.PollDeploy)
+	g = gitOf(mk(&db.ServiceGitPoll{IntervalMinutes: 5, Deploy: true}), true)
+	require.True(t, *g.PollDeploy)
+
+	g = gitOf(mk(&db.ServiceGitPoll{IntervalMinutes: 60, Deploy: false}), false)
+	require.Equal(t, "60m", exDeref(g.Poll))
+	require.False(t, *g.PollDeploy)
+	require.Equal(t, "https://git.example.com/acme/site.git", exDeref(g.URL))
+
+	// The exported file says what is live: planning it changes nothing.
+	for _, poll := range []*db.ServiceGitPoll{nil, {IntervalMinutes: 1, Deploy: true}, {IntervalMinutes: 15, Deploy: false}} {
+		env := mk(poll)
+		text, _ := exExport(t, env, true)
+		_, res := exParseResolve(t, text, "")
+		rs := res.Services["site"]
+		ls := env.Services["site"]
+		pc := &planCtx{live: env, res: res, rs: rs}
+		for _, id := range []string{"git.poll", "git.poll_deploy"} {
+			fv, ok := rs.Fields[id]
+			if !ok {
+				require.Nil(t, poll, "the export dropped %s:\n%s", id, text)
+				continue
+			}
+			want, err := gitOps{}.desired(pc, ls, fv)
+			require.NoError(t, err)
+			got, present := gitOps{}.live(pc, ls, id, want.Proj)
+			require.True(t, present)
+			require.Equal(t, got.FP, want.FP, "the file does not say what is live for %s:\n%s", id, text)
+		}
+	}
 }
 
 func exDeref(p *string) string {
@@ -1234,8 +1304,13 @@ func (f *exFixture) production() {
 	})
 	require.NoError(f.t, err)
 	_, err = f.q.InsertServiceTask(bg, db.InsertServiceTaskParams{
-		ServiceID: web.ID, Name: "digest", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: json.RawMessage(`["bun","run","jobs:digest"]`),
+		ServiceID: web.ID, Name: "digest", Action: "command", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: json.RawMessage(`["bun","run","jobs:digest"]`),
 		Enabled: true, TimeoutSeconds: 900, Concurrency: "forbid",
+	})
+	require.NoError(f.t, err)
+	_, err = f.q.InsertServiceTask(bg, db.InsertServiceTaskParams{
+		ServiceID: web.ID, Name: "weekly-restart", Action: "restart", Schedule: "0 4 * * 0", Timezone: "UTC", Command: json.RawMessage(`[]`),
+		Enabled: true, TimeoutSeconds: 300, Concurrency: "forbid",
 	})
 	require.NoError(f.t, err)
 
@@ -1344,7 +1419,7 @@ func TestExportPlansToZero(t *testing.T) {
 	for _, want := range []string{
 		"[services.web]", "[services.worker]", "[services.site]", "[services.db.database]", "[services.printer.route]",
 		"www_redirect = true", `[services.web.domains."shop.acme.com/api"]`, "[services.db.backups.nightly]", "[services.db.backups.schedule-1]",
-		"[services.web.tasks.digest]", "depends_on = [\"db\"]", "networks = [\"backplane\"]", "[services.web.volumes]", `"/etc/app/app.conf"`,
+		"[services.web.tasks.digest]", "[services.web.tasks.weekly-restart]", "action = \"restart\"", "depends_on = [\"db\"]", "networks = [\"backplane\"]", "[services.web.volumes]", `"/etc/app/app.conf"`,
 		"SESSION_SECRET = \"${{secret(48)}}\"", "[environments.production.variables]",
 	} {
 		require.Contains(t, file, want)

@@ -1,0 +1,11 @@
+# expect: invalid_value
+# A cron service is a one-shot: one_shot = false contradicts the cron table.
+schema = 1
+server = "fra-1"
+
+[services.job]
+image = "busybox:1"
+one_shot = false
+
+[services.job.cron]
+schedule = "@daily"

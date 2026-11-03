@@ -531,7 +531,11 @@ func (c *Client) onCommand(cmd agentprotocol.Command) {
 			return
 		}
 		res.CommandID = cmd.ID
-		c.finish(cmd.ID, res)
+		if agentprotocol.EphemeralResultKinds[cmd.Kind] {
+			c.finishEphemeral(cmd.ID, res)
+		} else {
+			c.finish(cmd.ID, res)
+		}
 		if a, ok := h.(ResultObserver); ok {
 			// Queued after the result, so the control plane applies it afterwards.
 			a.ResultSent(c.rootCtx, cmd, res)
@@ -554,6 +558,19 @@ func (c *Client) runHandler(h Handler, cmd agentprotocol.Command) (res agentprot
 func (c *Client) finish(id string, res agentprotocol.ResultFrame) {
 	res.CommandID = id
 	if err := c.cfg.Store.PutResult(res); err != nil {
+		c.log.Error("store result", "command_id", id, "err", err)
+	}
+	c.send(agentprotocol.TypeResult, id, res)
+}
+
+// finishEphemeral is finish for command kinds whose result carries data the
+// agent must not keep (agentprotocol.EphemeralResultKinds, e.g. database rows):
+// the full frame is sent, the durable copy keeps the outcome and error only.
+func (c *Client) finishEphemeral(id string, res agentprotocol.ResultFrame) {
+	res.CommandID = id
+	stored := res
+	stored.Data = nil
+	if err := c.cfg.Store.PutResult(stored); err != nil {
 		c.log.Error("store result", "command_id", id, "err", err)
 	}
 	c.send(agentprotocol.TypeResult, id, res)

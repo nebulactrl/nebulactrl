@@ -27,6 +27,7 @@ const unlinked = (): GitLinkView =>
 		repo: "",
 		repoUrl: "",
 		autoDeploy: false,
+		waitForCi: false,
 	});
 
 async function render(dirty = false) {
@@ -394,6 +395,77 @@ describe("GitLinkRows with a link", () => {
 		expect(
 			await screen.findByText(/A push \(bffeb74\) is waiting/),
 		).toBeInTheDocument();
+	});
+
+	test("the wait-for-CI switch reflects the link and updates it at once", async () => {
+		const { api, ready } = setup({ waitForCi: false });
+		await ready;
+		const sw = await screen.findByRole("switch", {
+			name: "Wait for CI to pass",
+		});
+		expect(sw).not.toBeChecked();
+		expect(sw).not.toHaveAttribute("aria-disabled", "true");
+		expect(
+			screen.getByText(/Deploys a push only after its checks pass\./),
+		).toBeInTheDocument();
+		await userEvent.setup().click(sw);
+		await waitFor(() => expect(putCall(api)).toBeDefined());
+		expect(putCall(api)?.body).toEqual({
+			connectionId: "c1",
+			repo: "acme/api",
+			waitForCi: true,
+		});
+	});
+
+	test("a push waiting for CI is announced with its short sha", async () => {
+		await setup({
+			waitForCi: true,
+			waitingForCi: {
+				sha: "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+				message: "Add services folder",
+				author: "Ada",
+				branch: "main",
+				since: new Date(Date.now() - 5 * 60_000).toISOString(),
+			},
+		}).ready;
+		expect(
+			await screen.findByText(/Waiting for CI on bffeb74 since 5m ago/),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("switch", { name: "Wait for CI to pass" }),
+		).toBeChecked();
+	});
+
+	test("a Bitbucket link cannot wait for CI", async () => {
+		await setup({
+			provider: "bitbucket",
+			webhook: { mode: "manual", status: "active", message: "", url: "" },
+		}).ready;
+		expect(
+			await screen.findByRole("switch", { name: "Wait for CI to pass" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			screen.getByText("This connection cannot read CI results."),
+		).toBeInTheDocument();
+	});
+
+	test("a webhook-only connection cannot wait for CI", async () => {
+		stubApi({
+			[GET_LINK]: { body: link() },
+			[CONNS]: { body: { items: [connection({ authType: "webhook_only" })] } },
+		});
+		await render();
+		expect(
+			await screen.findByRole("switch", { name: "Wait for CI to pass" }),
+		).toHaveAttribute("aria-disabled", "true");
+	});
+
+	test("a connection that can read CI shows no note", async () => {
+		await setup().ready;
+		await screen.findByRole("switch", { name: "Wait for CI to pass" });
+		expect(
+			screen.queryByText("This connection cannot read CI results."),
+		).not.toBeInTheDocument();
 	});
 
 	test("no queued push, no notice", async () => {

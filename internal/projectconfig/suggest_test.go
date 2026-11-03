@@ -52,7 +52,7 @@ func TestValidKeys(t *testing.T) {
 	}{
 		{"root", nil, []string{"$schema", "environments", "project", "schema", "secrets", "server", "services", "variables"}},
 		{"environment", []string{"environments", "staging"}, []string{"secrets", "server", "services", "variables"}},
-		{"git", []string{"services", "web", "git"}, []string{"auto_deploy", "branch", "connection", "repo", "submodules", "url", "watch_paths"}},
+		{"git", []string{"services", "web", "git"}, []string{"auto_deploy", "branch", "connection", "poll", "poll_deploy", "repo", "submodules", "url", "wait_for_ci", "watch_paths"}},
 		{"health check", []string{"services", "web", "health_check"}, []string{"command", "deadline_seconds", "interval_seconds", "path", "port", "start_period_seconds", "success_threshold", "timeout_seconds", "type"}},
 		{"domain by host", []string{"services", "web", "domains", "shop.acme.com"}, []string{"add_prefix", "certificate", "cloudflare", "component", "dns_resolver", "kind", "options", "preserve_path", "process", "redirect_code", "redirect_to", "strip_prefix", "target_port", "tls", "www_redirect"}},
 		{"domain with path prefix key", []string{"services", "web", "domains", "acme.com/api"}, []string{"add_prefix", "certificate", "cloudflare", "component", "dns_resolver", "kind", "options", "preserve_path", "process", "redirect_code", "redirect_to", "strip_prefix", "target_port", "tls", "www_redirect"}},
@@ -147,7 +147,7 @@ func TestSuggest(t *testing.T) {
 		{"distance 3 on 3 letters is too far", git, "bch", nil},
 		{"threshold grows with length", git, "autodeploytt", []string{"auto_deploy"}},
 		{"ties are alphabetical", []string{"services", "web", "scale", "autoscaling"}, "mix", []string{"max", "min"}},
-		{"transposition counts once", testSvcPath, "prot", []string{"port"}},
+		{"transposition counts once", testSvcPath, "prot", []string{"port", "cron"}},
 		{"root typo", nil, "servces", []string{"services", "server"}},
 		{"nothing close", testSvcPath, "completely_unrelated_setting", nil},
 

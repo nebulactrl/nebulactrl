@@ -91,6 +91,10 @@ export interface SettingsDraft {
 	deadlineSeconds: string;
 	successThreshold: string;
 	stopGraceSeconds: string;
+	/** What happens when the container exits on its own; "always" is the unset default. */
+	restartPolicy: RestartPolicy;
+	/** on-failure only: restarts before giving up, as typed; empty is the default (10). */
+	restartMaxRetries: string;
 	imageRetention: string;
 	memoryMb: string;
 	cpus: string;
@@ -105,6 +109,16 @@ export interface SettingsDraft {
 	files: FileDraft[];
 	/** A run-to-completion job: no port, domains or health check. */
 	oneshot: boolean;
+	/** Runs on a schedule (needs `oneshot`): the service starts no container, a cron task runs its command. */
+	cronEnabled: boolean;
+	/** The 5-field expression (or @daily etc.), as typed. */
+	cronSchedule: string;
+	/** IANA zone the schedule is read in. */
+	cronTimezone: string;
+	/** A run is stopped after this many seconds, as typed; empty is the default (1800). */
+	cronTimeoutSeconds: string;
+	/** `forbid` skips a tick while the previous run is active. */
+	cronConcurrency: "forbid" | "allow";
 	/** Reachable over the tailnet; null when the service is not on one. */
 	tailnet: TailnetDraft | null;
 	/** No outbound internet: the service only joins its environment's internal network. */
@@ -119,8 +133,12 @@ export interface SettingsDraft {
 	stackResources: StackResourcesDraft;
 }
 
+export const DEFAULT_CRON_SCHEDULE = "0 3 * * *";
+
 const text = (value: number | undefined): string =>
 	value === undefined || value === 0 ? "" : String(value);
+
+export type RestartPolicy = "always" | "on-failure" | "never";
 
 export function toDraft(service: Service): SettingsDraft {
 	const config = service.config;
@@ -155,6 +173,8 @@ export function toDraft(service: Service): SettingsDraft {
 		deadlineSeconds: String(health.deadlineSeconds),
 		successThreshold: String(health.successThreshold),
 		stopGraceSeconds: String(config.stopGraceSeconds),
+		restartPolicy: config.restartPolicy ?? "always",
+		restartMaxRetries: text(config.restartMaxRetries),
 		imageRetention: String(config.imageRetention),
 		memoryMb: text(config.memoryMb),
 		cpus: text(config.cpus),
@@ -172,6 +192,11 @@ export function toDraft(service: Service): SettingsDraft {
 			content: file.content,
 		})),
 		oneshot: config.oneshot === true,
+		cronEnabled: config.cron !== undefined,
+		cronSchedule: config.cron?.schedule ?? DEFAULT_CRON_SCHEDULE,
+		cronTimezone: config.cron?.timezone || "UTC",
+		cronTimeoutSeconds: text(config.cron?.timeoutSeconds),
+		cronConcurrency: config.cron?.concurrency ?? "forbid",
 		tailnet: toTailnetDraft(config.tailnet),
 		blockEgress: config.blockEgress === true,
 		docker: toDockerForm(config.docker),
@@ -260,6 +285,12 @@ export function validateDraft(
 		"stopGraceSeconds",
 		integerIn(draft.stopGraceSeconds, 1, 3600, "Stop grace period"),
 	);
+	if (draft.restartPolicy === "on-failure") {
+		set(
+			"restartMaxRetries",
+			integerIn(draft.restartMaxRetries, 1, 100, "Max restarts", true),
+		);
+	}
 	set(
 		"imageRetention",
 		integerIn(draft.imageRetention, 1, 50, "Image retention"),
@@ -306,6 +337,14 @@ export function validateDraft(
 	}
 	if (draft.oneshot && draft.port.trim() !== "") {
 		errors.port = "A one-shot job has no port.";
+	}
+	if (draft.oneshot && draft.cronEnabled) {
+		if (draft.cronSchedule.trim() === "")
+			errors.cronSchedule = "A schedule is required.";
+		set(
+			"cronTimeoutSeconds",
+			integerIn(draft.cronTimeoutSeconds, 1, 86400, "Timeout", true),
+		);
 	}
 	if (draft.processName.trim() !== "") {
 		const problem = processNameError(draft.processName.trim());
@@ -389,6 +428,25 @@ export function buildConfig(
 		}));
 	}
 	if (draft.oneshot) config.oneshot = true;
+	if (draft.oneshot && draft.cronEnabled) {
+		config.cron = {
+			schedule: draft.cronSchedule.trim(),
+			timezone: draft.cronTimezone.trim() || "UTC",
+			...(draft.cronTimeoutSeconds.trim() !== ""
+				? { timeoutSeconds: int(draft.cronTimeoutSeconds) }
+				: {}),
+			...(draft.cronConcurrency === "allow" ? { concurrency: "allow" } : {}),
+		};
+	}
+	if (!draft.oneshot && draft.restartPolicy !== "always") {
+		config.restartPolicy = draft.restartPolicy;
+		if (
+			draft.restartPolicy === "on-failure" &&
+			draft.restartMaxRetries.trim() !== ""
+		) {
+			config.restartMaxRetries = int(draft.restartMaxRetries);
+		}
+	}
 	const tailnet = buildTailnetConfig(draft.tailnet);
 	if (tailnet) config.tailnet = tailnet;
 	config.blockEgress = draft.blockEgress;

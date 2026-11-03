@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"regexp"
 	"slices"
 	"strings"
@@ -50,6 +51,35 @@ func validCommand(argv []string) error {
 		return apierr.Unprocessable("invalid_command", err.Error())
 	}
 	return nil
+}
+
+// errTaskHidden is the answer for the hidden schedule row of a cron service:
+// it is managed through the service's config, never as a task.
+func errTaskHidden() error {
+	return apierr.New(http.StatusNotFound, "task_not_found", "task not found")
+}
+
+// validAction checks a task action against the service: restart does not apply
+// to a one-shot, which has no running container to restart.
+func validAction(sc services.Scope, action string) error {
+	switch action {
+	case ActionCommand:
+		return nil
+	case ActionRestart:
+		if sc.Config().OneShot {
+			return apierr.Unprocessable("restart_not_applicable", "a one-shot service has no running container to restart; schedule a command instead")
+		}
+		return nil
+	}
+	return apierr.Unprocessable("invalid_action", "action must be command or restart")
+}
+
+// validCommandFor validates the argv of a command task; a restart task runs none.
+func validCommandFor(action string, argv []string) error {
+	if action == ActionRestart {
+		return nil
+	}
+	return validCommand(argv)
 }
 
 // taskScope loads a task and authorizes scope on its service.
@@ -133,6 +163,15 @@ func (s *Service) CreateTask(ctx context.Context, serviceID uuid.UUID, in TaskIn
 		return TaskView{}, err
 	}
 	in.Name = strings.TrimSpace(in.Name)
+	if in.Action == "" {
+		in.Action = ActionCommand
+	}
+	if err := validAction(sc, in.Action); err != nil {
+		return TaskView{}, err
+	}
+	if in.Action == ActionRestart {
+		in.Command, in.TimeoutSeconds = []string{}, RestartTimeoutSeconds
+	}
 	if in.TimeoutSeconds == 0 {
 		in.TimeoutSeconds = agentprotocol.DefaultTaskTimeoutSeconds
 	}
@@ -140,7 +179,7 @@ func (s *Service) CreateTask(ctx context.Context, serviceID uuid.UUID, in TaskIn
 		in.Concurrency = ConcurrencyForbid
 	}
 	enabled := in.Enabled == nil || *in.Enabled
-	for _, err := range []error{validName(in.Name), validCommand(in.Command), validTimeout(in.TimeoutSeconds), validConcurrency(in.Concurrency)} {
+	for _, err := range []error{validName(in.Name), validCommandFor(in.Action, in.Command), validTimeout(in.TimeoutSeconds), validConcurrency(in.Concurrency)} {
 		if err != nil {
 			return TaskView{}, err
 		}
@@ -155,7 +194,7 @@ func (s *Service) CreateTask(ctx context.Context, serviceID uuid.UUID, in TaskIn
 	if err := requireRunScope(ctx, sc); err != nil {
 		return TaskView{}, err
 	}
-	if err := guardTaskChange(ctx, sc, guardCreateTask, nil, in.Name, strings.TrimSpace(in.Schedule), in.Timezone, in.Command, enabled, in.TimeoutSeconds, in.Concurrency); err != nil {
+	if err := guardTaskChange(ctx, sc, guardCreateTask, nil, in.Name, in.Action, strings.TrimSpace(in.Schedule), in.Timezone, in.Command, enabled, in.TimeoutSeconds, in.Concurrency); err != nil {
 		return TaskView{}, err
 	}
 	var next *time.Time
@@ -173,7 +212,7 @@ func (s *Service) CreateTask(ctx context.Context, serviceID uuid.UUID, in TaskIn
 			return apierr.Unprocessable("too_many_tasks", fmt.Sprintf("a service can have at most %d tasks", MaxTasksPerService))
 		}
 		t, err = q.InsertServiceTask(ctx, db.InsertServiceTaskParams{
-			ServiceID: sc.Service.ID, Name: in.Name, Schedule: strings.TrimSpace(in.Schedule), Timezone: in.Timezone, Command: argvJSON(in.Command),
+			ServiceID: sc.Service.ID, Name: in.Name, Action: in.Action, Schedule: strings.TrimSpace(in.Schedule), Timezone: in.Timezone, Command: argvJSON(in.Command),
 			Enabled: enabled, TimeoutSeconds: int32(in.TimeoutSeconds), Concurrency: in.Concurrency, NextRunAt: next,
 		})
 		if err != nil {
@@ -204,8 +243,20 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, in TaskPatch) (T
 	if err != nil {
 		return TaskView{}, err
 	}
-	name, schedule, tz, command := cur.Name, cur.Schedule, cur.Timezone, decodeArgv(cur.Command)
+	if cur.Action == ActionService {
+		return TaskView{}, errTaskHidden()
+	}
+	name, action, schedule, tz, command := cur.Name, cur.Action, cur.Schedule, cur.Timezone, decodeArgv(cur.Command)
 	enabled, timeout, conc := cur.Enabled, int(cur.TimeoutSeconds), cur.Concurrency
+	if in.Action != nil && *in.Action != cur.Action {
+		action = *in.Action
+		if err := validAction(sc, action); err != nil {
+			return TaskView{}, err
+		}
+		if action == ActionCommand && in.TimeoutSeconds == nil {
+			timeout = agentprotocol.DefaultTaskTimeoutSeconds
+		}
+	}
 	if in.Name != nil {
 		name = strings.TrimSpace(*in.Name)
 	}
@@ -229,17 +280,20 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, in TaskPatch) (T
 			return TaskView{}, err
 		}
 	}
-	for _, err := range []error{validName(name), validCommand(command), validTimeout(timeout), validConcurrency(conc)} {
+	if action == ActionRestart {
+		command, timeout = []string{}, RestartTimeoutSeconds
+	}
+	for _, err := range []error{validName(name), validCommandFor(action, command), validTimeout(timeout), validConcurrency(conc)} {
 		if err != nil {
 			return TaskView{}, err
 		}
 	}
-	if in.Command != nil && !slices.Equal(*in.Command, decodeArgv(cur.Command)) {
+	if action != cur.Action || (in.Command != nil && !slices.Equal(*in.Command, decodeArgv(cur.Command))) {
 		if err := requireRunScope(ctx, sc); err != nil {
 			return TaskView{}, err
 		}
 	}
-	if err := guardTaskChange(ctx, sc, guardUpdateTask, &id, name, schedule, tz, command, enabled, timeout, conc); err != nil {
+	if err := guardTaskChange(ctx, sc, guardUpdateTask, &id, name, action, schedule, tz, command, enabled, timeout, conc); err != nil {
 		return TaskView{}, err
 	}
 	var next *time.Time
@@ -258,7 +312,7 @@ func (s *Service) UpdateTask(ctx context.Context, id uuid.UUID, in TaskPatch) (T
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
 		t, err = db.New(tx).UpdateServiceTask(ctx, db.UpdateServiceTaskParams{
-			ID: id, Name: name, Schedule: schedule, Timezone: tz, Command: argvJSON(command), Enabled: enabled,
+			ID: id, Name: name, Action: action, Schedule: schedule, Timezone: tz, Command: argvJSON(command), Enabled: enabled,
 			TimeoutSeconds: int32(timeout), Concurrency: conc, NextRunAt: next,
 		})
 		if err != nil {
@@ -285,7 +339,10 @@ func (s *Service) DeleteTask(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	if err := guardTaskChange(ctx, sc, guardDeleteTask, &id, t.Name, "", "", nil, false, 0, ""); err != nil {
+	if t.Action == ActionService {
+		return errTaskHidden()
+	}
+	if err := guardTaskChange(ctx, sc, guardDeleteTask, &id, t.Name, t.Action, "", "", nil, false, 0, ""); err != nil {
 		return err
 	}
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {

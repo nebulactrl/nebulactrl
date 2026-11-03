@@ -163,11 +163,13 @@ func TestTimersDefaultToZeroAndParse(t *testing.T) {
 		"NEBULACTRL_MESH_LINK_GRACE":      "30s",
 		"NEBULACTRL_REPLICA_BROKEN_AFTER": " 1m30s ",
 		"NEBULACTRL_UPTIME_INTERVAL":      "2s",
+		"NEBULACTRL_GIT_POLL_UNIT":        "1s",
 	}))
 	require.NoError(t, err)
 	require.Equal(t, 30*time.Second, c.Timers.MeshLinkGrace)
 	require.Equal(t, 90*time.Second, c.Timers.ReplicaBrokenAfter)
 	require.Equal(t, 2*time.Second, c.Timers.UptimeInterval)
+	require.Equal(t, time.Second, c.Timers.GitPollUnit)
 }
 
 func TestTimersRejectBadValues(t *testing.T) {

@@ -154,6 +154,21 @@ func TestFindIssuesSeverityAndLimit(t *testing.T) {
 	require.Equal(t, "not_found", errCode(err))
 }
 
+// A one-shot that ran and exited cleanly is done, not down.
+func TestFindIssuesCompletedOneShotIsHealthy(t *testing.T) {
+	f := newFx(t)
+	done := f.service(svcOpts{env: f.prod, slug: "migrate", oneShot: true, port: 0})
+	f.setObserved(done.ID, "exited", "healthy")
+	failed := f.service(svcOpts{env: f.prod, slug: "broken", oneShot: true})
+	f.setObserved(failed.ID, "exited", "unhealthy")
+
+	m := f.must("find_issues", map[string]any{})
+	b, _ := json.Marshal(m)
+	require.Nil(t, fiFinding(m, "stopped_unexpectedly", "shop/production/migrate"), string(b))
+	require.Nil(t, fiFinding(m, "unhealthy", "shop/production/migrate"), string(b))
+	require.NotNil(t, fiFinding(m, "stopped_unexpectedly", "shop/production/broken"), string(b))
+}
+
 func TestFindIssuesHealthyEstateAndPartialWithoutServers(t *testing.T) {
 	f := newFx(t)
 	f.service(svcOpts{env: f.staging, slug: "web"})

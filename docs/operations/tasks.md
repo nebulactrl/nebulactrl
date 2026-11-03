@@ -21,8 +21,23 @@ runs `["/app/server", "migrate"]` as written.
 
 ## Cron tasks
 
-Per service, up to 20 tasks: `name`, `schedule`, `command`, `enabled`,
+Per service, up to 20 tasks: `name`, `action`, `schedule`, `command`, `enabled`,
 `timeoutSeconds` (default 1800), `concurrency` (`forbid` or `allow`).
+
+- **Action**: `command` (default) runs `command` in a throwaway container as
+  described above. `restart` **restarts the service's running container** on the
+  schedule instead, for services that leak memory or need a periodic refresh; it
+  takes no command or timeout (the runs record a fixed 300 seconds). Every
+  replica restarts, so a service with one replica has a brief outage. A restart
+  task is refused on a one-shot service (`422 restart_not_applicable`), is
+  skipped like any other tick while the service is stopped, and never changes the
+  service's desired state. Its runs appear in the run history with an empty
+  command, finished by the restart's result. In production the guard and the
+  `deployments:write` scope apply as for a command task. Create one with
+  `action: "restart"` on `POST /services/{id}/tasks`,
+  `nebulactrl tasks create --action restart`, `action = "restart"` in
+  `nebula.toml`, or **Action → Restart service** in the task dialog (the card
+  menu's **Schedule task…** opens it for a service).
 
 - **Schedule**: five fields (`minute hour day-of-month month day-of-week`) or
   `@hourly`, `@daily`, `@weekly`, `@monthly`, `@yearly`. Parsed by the in-house
@@ -158,6 +173,43 @@ new deploy of the same service is refused as in progress until then.
 - `GET /services/{id}/task-runs`, `/task-runs/{id}` and the output need
   `projects:read`; creating, editing and deleting tasks needs `projects:write`;
   running needs `deployments:write`.
+
+## Cron services
+
+A **cron service** is a service whose whole job is to run on a schedule, for
+example a nightly report or a cleanup. It is a one-shot service
+(`config.oneshot = true`) with a schedule (`config.cron`):
+
+```json
+{ "oneshot": true, "startCommand": ["sh", "-c", "echo tick"],
+  "cron": { "schedule": "0 3 * * *", "timezone": "Europe/Berlin", "timeoutSeconds": 900, "concurrency": "forbid" } }
+```
+
+`timezone` defaults to UTC, `timeoutSeconds` to 1800 (1-86400) and `concurrency`
+to `forbid` (skip a run while the previous one still runs; `allow` starts it
+anyway). Only app and worker services can have one, and it needs `oneshot`
+(`422 cron_requires_oneshot`, `cron_not_applicable`, `invalid_cron`,
+`cron_never_fires`, `invalid_timezone`, `invalid_timeout`).
+
+- **A deploy starts nothing.** It pulls or builds the image, records the release
+  and ends with "Image ready; runs on schedule". The service has no container
+  between runs, so it is never reconciled, probed or reported missing. Services
+  that depend on it are released as soon as its deploy succeeds.
+- **Runs.** Each run is a [task run](#cron-tasks) of the service's own image
+  with its start command (or the image's `CMD`), variables, volumes, files and
+  Docker options, named after the service. The schedule is a staged setting: it
+  ships with the release and the service's hidden schedule (not listed under
+  tasks) follows the deployed release, rollbacks included. **Run now** and the
+  run history are on the service card (`nebulactrl tasks run <service>`,
+  `nebulactrl tasks runs <service>`).
+- **Stop and Start pause and resume the schedule.** `POST /services/{id}/stop`
+  and `/restart` send no agent command (the response has no `commandId`); ticks of
+  a paused schedule are recorded as skipped ("the service is stopped").
+- **Create one** with the **Cron job** entry of the canvas menu,
+  `nebulactrl services create --image <ref> --cron "0 3 * * *" [--cron-timezone <tz>]`
+  (implies `--one-shot`), or a `[services.<name>.cron]` table in `nebula.toml`.
+  The service view's `cron` carries the hidden task's id, the next run and the
+  last run.
 
 ## Cron task or singleton process
 

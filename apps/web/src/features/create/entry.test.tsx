@@ -49,7 +49,7 @@ function watchFlows() {
 }
 
 describe("openCreateEntry", () => {
-	test.each(["git", "image", "database"] as const)(
+	test.each(["git", "image", "cron", "database"] as const)(
 		"%s opens the service dialog of that kind with the drop position and engine",
 		(id) => {
 			const flows = watchFlows();
@@ -110,6 +110,16 @@ describe("openCreateEntry", () => {
 		expect(flows.templates.current.templateId).toBeNull();
 	});
 
+	test("bucket closes the menu and opens the gallery on the Bucket template", () => {
+		const flows = watchFlows();
+		act(() => createActions.setMenuOpen(true));
+		act(() => openCreateEntry("bucket"));
+		expect(flows.create.current.menu).toBeNull();
+		expect(flows.create.current.request).toBeNull();
+		expect(flows.templates.current.open).toBe(true);
+		expect(flows.templates.current.templateId).toBe("bucket");
+	});
+
 	test("compose closes the menu and opens the Compose import", () => {
 		const flows = watchFlows();
 		act(() => createActions.setMenuOpen(true));
@@ -134,7 +144,9 @@ describe("EntryMark", () => {
 	const MARKS: Array<[MenuEntryId, string]> = [
 		["git", 'use[href$="#brand-github"]'],
 		["image", 'use[href$="#brand-docker"]'],
+		["cron", "svg.lucide-timer"],
 		["database", "svg.lucide-database"],
+		["bucket", "svg.lucide-archive"],
 		["external", "svg.lucide-globe"],
 		["port", "svg.lucide-network"],
 		["stack", "svg.lucide-boxes"],
