@@ -7,6 +7,7 @@ import (
 
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
+	"github.com/nebulactrl/nebulactrl/internal/services"
 )
 
 // scaleOps handles scale.replicas and scale.autoscaling.* (immediate).
@@ -88,13 +89,14 @@ const gitPollOff = "off"
 // gitPollName is the file's name of a check interval ("5m").
 func gitPollName(minutes int) string { return strconv.Itoa(minutes) + "m" }
 
-// gitPollMinutes reads the interval of a git.poll value; ok is false for "off" and anything else.
+// gitPollMinutes reads the interval of a git.poll value; ok is false for "off"
+// and anything that is not one of the intervals.
 func gitPollMinutes(name string) (minutes int, ok bool) {
-	n, err := strconv.Atoi(strings.TrimSuffix(name, "m"))
-	if err != nil || !strings.HasSuffix(name, "m") || n <= 0 {
+	n, err := strconv.ParseInt(strings.TrimSuffix(name, "m"), 10, 32)
+	if err != nil || !strings.HasSuffix(name, "m") || !services.ValidGitPollInterval(int(n)) {
 		return 0, false
 	}
-	return n, true
+	return int(n), true
 }
 
 func isGitPollField(id string) bool { return id == "git.poll" || id == "git.poll_deploy" }
