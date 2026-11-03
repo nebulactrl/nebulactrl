@@ -61,6 +61,17 @@ describe("nebulaMarkSvg", () => {
 			expect(circle.getAttribute("fill")).toBe("#444444");
 		});
 	});
+
+	test("a colour cannot break out of its attribute", () => {
+		const hostile = '"/><script>alert(1)</script><x a="';
+		const svg = nebulaMarkSvg({ ...colors, star: hostile, from: hostile });
+		const parsed = new DOMParser().parseFromString(svg, "image/svg+xml");
+		expect(parsed.querySelector("script")).toBeNull();
+		expect(parsed.querySelector("circle")?.getAttribute("fill")).toBe(hostile);
+		expect(parsed.querySelector("stop")?.getAttribute("stop-color")).toBe(
+			hostile,
+		);
+	});
 });
 
 describe("markTier", () => {

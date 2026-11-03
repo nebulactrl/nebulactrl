@@ -1,3 +1,5 @@
+import { svgAttr } from "./svg-attr";
+
 // Geometry of the NebulaCtrl mark, free of the DOM so it can be rasterised. Petals
 // share one gradient from `from` (bottom left) through `mid` to `to` (top right);
 // the stars sit at their splayed rest positions, which `NebulaMark` passes to the
@@ -34,9 +36,10 @@ export function nebulaMarkSvg(colors: NebulaMarkColors, size = 340): string {
 	const petals = NEBULA_MARK_PETALS.map(
 		(d) => `<path fill="url(#g)" d="${d}"/>`,
 	).join("");
+	const star = svgAttr(colors.star);
 	const stars = NEBULA_MARK_STARS.map(
-		(s) =>
-			`<circle cx="${s.cx}" cy="${s.cy}" r="${s.r}" fill="${colors.star}"/>`,
+		(s) => `<circle cx="${s.cx}" cy="${s.cy}" r="${s.r}" fill="${star}"/>`,
 	).join("");
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${NEBULA_MARK_VIEWBOX}" width="${size}" height="${size}"><defs><linearGradient id="g" x1="22" y1="249" x2="244" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="${colors.from}"/><stop offset=".55" stop-color="${colors.mid}"/><stop offset="1" stop-color="${colors.to}"/></linearGradient></defs>${petals}${stars}</svg>`;
+	const px = svgAttr(size);
+	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${NEBULA_MARK_VIEWBOX}" width="${px}" height="${px}"><defs><linearGradient id="g" x1="22" y1="249" x2="244" y2="23" gradientUnits="userSpaceOnUse"><stop stop-color="${svgAttr(colors.from)}"/><stop offset=".55" stop-color="${svgAttr(colors.mid)}"/><stop offset="1" stop-color="${svgAttr(colors.to)}"/></linearGradient></defs>${petals}${stars}</svg>`;
 }

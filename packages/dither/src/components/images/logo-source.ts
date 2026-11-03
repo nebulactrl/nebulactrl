@@ -1,5 +1,6 @@
 import { toRGB } from "../../lib/tokens";
 import { nebulaMarkSvg } from "./nebula-mark";
+import { svgAttr } from "./svg-attr";
 import { type CrossOrigin, loadImage } from "./use-dithered";
 
 /** Where a logo comes from: any image URL, a brand of the sprite, or our own mark. */
@@ -66,7 +67,7 @@ export async function brandSvg(slug: string, fill: string): Promise<string> {
 	const inner = (match[2] ?? "").replace(/<title>[\s\S]*?<\/title>/, "");
 	const [, , vw = 24, vh = 24] = viewBox.split(/\s+/).map(Number);
 	const scale = SOURCE_SIZE / Math.max(vw, vh);
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${Math.round(vw * scale)}" height="${Math.round(vh * scale)}" fill="${fill}">${inner}</svg>`;
+	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${viewBox}" width="${Math.round(vw * scale)}" height="${Math.round(vh * scale)}" fill="${svgAttr(fill)}">${inner}</svg>`;
 }
 
 const rgbString = (css: string) => {

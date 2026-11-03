@@ -160,8 +160,9 @@ describe("rasterizeField (ordered, few levels)", () => {
 
 	/** The GLSL quantise block of `DITHER_FRAGMENT`, run as JavaScript. */
 	const shaderQuantise = () => {
-		const block =
-			/\/\/ quantise-begin\n([\s\S]*?)\/\/ quantise-end/.exec(DITHER_FRAGMENT)?.[1];
+		const block = /\/\/ quantise-begin\n([\s\S]*?)\/\/ quantise-end/.exec(
+			DITHER_FRAGMENT,
+		)?.[1];
 		expect(block).toBeDefined();
 		const body = (block ?? "")
 			.replace(/^\s*\/\/.*$/gm, "")
@@ -212,11 +213,20 @@ describe("rasterizeField (ordered, few levels)", () => {
 					for (let y = 0; y < 8; y += 1) {
 						for (let x = 0; x < 8; x += 1) {
 							const thr = sampler(x, y);
-							const { q, v } = snap(Math.floor, Math.min, clamp, tone, steps, thr);
+							const { q, v } = snap(
+								Math.floor,
+								Math.min,
+								clamp,
+								tone,
+								steps,
+								thr,
+							);
 							const pos = q * 3;
 							const i = Math.min(Math.floor(pos), 2);
 							const stop = pos - i > v ? i + 1 : i;
-							expect(cpu.data[(y * 8 + x) * 4]).toBe(STOPS[stop]?.[0] as number);
+							expect(cpu.data[(y * 8 + x) * 4]).toBe(
+								STOPS[stop]?.[0] as number,
+							);
 						}
 					}
 				}
