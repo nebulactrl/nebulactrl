@@ -994,7 +994,7 @@ func TestEventTypesCatalog(t *testing.T) {
 	}
 	// Exactly the types of the cross-unit contract.
 	require.ElementsMatch(t, []string{
-		"deploy.succeeded", "deploy.failed", "deploy.rolled_back", "server.offline", "server.online", "server.disk_alert", "server.cleanup", "server.reboot_required",
+		"deploy.succeeded", "deploy.failed", "deploy.rolled_back", "deployment.ci_blocked", "server.offline", "server.online", "server.disk_alert", "server.cleanup", "server.reboot_required",
 		"backup.failed", "backup.succeeded", "task.failed", "preview.created", "preview.deleted", "scale.blocked", "cert.expiring",
 		"dns.sync_failed", "cloudflare.ips_changed", "cloudflare.ips_stale", "maintenance.on", "maintenance.off",
 		"database.replica.broken", "database.replica.lagging",

@@ -2,7 +2,7 @@ import type { Service } from "#/api/models";
 import type { StatusKind } from "#/components/ui/status-icon";
 import { routeSubtitle } from "#/features/proxy/lib/l4";
 import { componentCountText, stackComponents } from "#/features/stacks/model";
-import { nodeStatus } from "../lib/status";
+import { cronCondition, nodeStatus } from "../lib/status";
 
 /** The service's state as one status icon and one word (the `Live` pill). */
 export interface ServicePill {
@@ -12,7 +12,8 @@ export interface ServicePill {
 
 /**
  * The header pill: Live, Building, Deploying, Failed, Stopped, Offline,
- * Degraded, Rolled back or Not deployed. Chosen from the service resource
+ * Degraded, Rolled back or Not deployed; a cron service reads Scheduled,
+ * Running, Paused or Last run failed. Chosen from the service resource
  * alone; the control plane owns the truth, this only names it.
  */
 export function servicePill(service: Service): ServicePill {
@@ -33,6 +34,8 @@ export function servicePill(service: Service): ServicePill {
 		case "deployed":
 			break;
 	}
+	const cron = cronCondition(service);
+	if (cron?.pill === "Paused") return { kind: cron.kind, label: cron.pill };
 	if (service.desiredState === "stopped") {
 		return { kind: "stopped", label: "Stopped" };
 	}
@@ -42,6 +45,7 @@ export function servicePill(service: Service): ServicePill {
 	) {
 		return { kind: "offline", label: "Offline" };
 	}
+	if (cron) return { kind: cron.kind, label: cron.pill };
 	if (service.maintenance?.enabled) {
 		return { kind: "warning", label: "Maintenance" };
 	}

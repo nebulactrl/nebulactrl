@@ -60,6 +60,7 @@ export function taskView(overrides: Partial<TaskView> = {}): TaskView {
 		id: "task-1",
 		serviceId: "svc-1",
 		name: "nightly",
+		action: "command",
 		schedule: "0 3 * * *",
 		timezone: "UTC",
 		command: ["rake", "cleanup"],

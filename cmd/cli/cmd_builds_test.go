@@ -135,3 +135,33 @@ func TestBuildSettingsShowAndSet(t *testing.T) {
 	r = e.run("", "build-settings", "--build-location", "inherit")
 	require.Equal(t, 2, r.code, r.all())
 }
+
+func TestServicesCreateCronImpliesOneShot(t *testing.T) {
+	e := newEnv(t)
+	e.login()
+	e.mustRun("", "projects", "create", "Acme")
+	e.mustRun("", "servers", "enroll-token", "--name", "box1")
+
+	r := e.mustRun("", "--json", "services", "create", "--project", "acme", "--env", "production", "--name", "report",
+		"--image", "busybox:latest", "--server", "box1", "--cron", "0 3 * * *", "--cron-timezone", "Europe/Berlin")
+	cfg := decode[map[string]any](t, r.stdout)["config"].(map[string]any)
+	require.Equal(t, true, cfg["oneshot"], "a cron service is a one-shot")
+	require.Equal(t, map[string]any{"schedule": "0 3 * * *", "timezone": "Europe/Berlin"}, cfg["cron"])
+
+	r = e.mustRun("", "--json", "services", "create", "--project", "acme", "--env", "production", "--name", "once",
+		"--image", "busybox:latest", "--server", "box1", "--one-shot")
+	cfg = decode[map[string]any](t, r.stdout)["config"].(map[string]any)
+	require.Equal(t, true, cfg["oneshot"])
+	require.Nil(t, cfg["cron"])
+
+	r = e.run("", "services", "create", "--project", "acme", "--env", "production", "--name", "bad",
+		"--image", "busybox:latest", "--server", "box1", "--cron", "every day")
+	require.Equal(t, 1, r.code, r.all())
+	require.Contains(t, r.err, "invalid_cron")
+	r = e.run("", "services", "create", "--project", "acme", "--env", "production", "--name", "bad",
+		"--image", "busybox:latest", "--cron", "@daily", "--port", "80")
+	require.Equal(t, 2, r.code, r.all())
+	r = e.run("", "services", "create", "--project", "acme", "--env", "production", "--name", "bad",
+		"--image", "busybox:latest", "--cron-timezone", "UTC")
+	require.Equal(t, 2, r.code, r.all())
+}

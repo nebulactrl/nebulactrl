@@ -369,9 +369,36 @@ type ServiceView struct {
 	// until a deployment provisioned it). The desired side is config.tailnet.
 	Tailnet *TailnetView `json:"tailnet"`
 
+	// Cron is the schedule state of a cron service (config.cron set and
+	// deployed): the hidden task that runs it, the next run and the last run.
+	// Absent for every other service.
+	Cron *CronView `json:"cron,omitempty"`
+
 	// Networks are the team shared networks the service is attached to
 	// (staged until deployed); the alias is its hostname on each.
 	Networks []NetworkRef `json:"networks"`
+}
+
+// CronView is the live schedule state of a cron service.
+type CronView struct {
+	// TaskID is the hidden task that runs the service; use it with the
+	// task-run endpoints ("Run now", run history).
+	TaskID   uuid.UUID `json:"taskId"`
+	Schedule string    `json:"schedule"`
+	Timezone string    `json:"timezone"`
+	// NextRunAt is the next scheduled tick (a tick of a paused schedule is skipped).
+	NextRunAt *time.Time `json:"nextRunAt,omitempty"`
+	// LastRun is the newest run that was not skipped.
+	LastRun *CronRunView `json:"lastRun,omitempty"`
+}
+
+// CronRunView is the newest run of a cron service.
+type CronRunView struct {
+	ID         uuid.UUID  `json:"id"`
+	Status     string     `json:"status"`
+	StartedAt  *time.Time `json:"startedAt,omitempty"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+	ExitCode   *int32     `json:"exitCode,omitempty"`
 }
 
 // MaintenanceView is the maintenance mode of a service.

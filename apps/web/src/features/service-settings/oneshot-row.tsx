@@ -24,6 +24,8 @@ export function OneShotRow({ draft, set }: Pick<DraftProps, "draft" | "set">) {
 							set("port", "");
 							set("healthType", "none");
 							set("tailnet", null);
+						} else {
+							set("cronEnabled", false);
 						}
 					}}
 				/>

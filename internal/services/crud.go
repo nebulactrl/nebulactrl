@@ -652,7 +652,9 @@ func (s *Service) deleteTx(ctx context.Context, tx pgx.Tx, sc Scope, deleteVolum
 
 // ActionResult is returned by restart and stop.
 type ActionResult struct {
-	CommandID uuid.UUID `json:"commandId"`
+	// CommandID is the agent command that carries the action. Absent for a
+	// cron service: stop and start pause and resume its schedule, no command runs.
+	CommandID *uuid.UUID `json:"commandId,omitempty"`
 }
 
 // Restart queues a restart of the running container.
@@ -689,24 +691,21 @@ func (s *Service) action(ctx context.Context, id uuid.UUID, kind, auditAction st
 			return ActionResult{}, err
 		}
 	}
-	deps, err := s.q.ListDeploymentsByIDs(ctx, []uuid.UUID{*sc.Service.CurrentDeploymentID})
-	if err != nil || len(deps) != 1 || deps[0].ServerID == nil {
-		return ActionResult{}, apierr.Conflict("not_deployed", "the service has no running deployment")
-	}
-	srv, err := s.q.LoadServerRow(ctx, db.LoadServerRowParams{ID: *deps[0].ServerID})
+	cron, err := s.currentIsCron(ctx, sc)
 	if err != nil {
-		return ActionResult{}, fmt.Errorf("load server: %w", err)
+		return ActionResult{}, err
 	}
-	if srv.Status == "revoked" {
-		return ActionResult{}, serverNotUsable(srv.Name, "revoked")
+	if cron {
+		return s.pauseResumeCron(ctx, sc, kind, auditAction)
 	}
-	raw, _ := json.Marshal(agentprotocol.ServiceActionPayload{
-		ServiceID: id.String(), StopGraceSeconds: sc.Config().StopGraceSeconds, Stack: sc.Service.Kind == KindStack,
-	})
+	srv, err := s.actionServer(ctx, s.q, sc)
+	if err != nil {
+		return ActionResult{}, err
+	}
 	var cmdID uuid.UUID
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
-		cmdID, err = s.disp.Enqueue(ctx, tx, agents.NewCommand{ServerID: srv.ID, Kind: kind, Payload: raw})
+		cmdID, err = s.enqueueAction(ctx, tx, sc, srv, kind, auditAction, nil)
 		if err != nil {
 			return err
 		}
@@ -714,19 +713,103 @@ func (s *Service) action(ctx context.Context, id uuid.UUID, kind, auditAction st
 		if kind == agentprotocol.KindStopService {
 			desired = DesiredStopped
 		}
-		if err := db.New(tx).SetServiceDesiredState(ctx, db.SetServiceDesiredStateParams{ID: id, DesiredState: desired}); err != nil {
+		return db.New(tx).SetServiceDesiredState(ctx, db.SetServiceDesiredStateParams{ID: id, DesiredState: desired})
+	})
+	if err != nil {
+		return ActionResult{}, fmt.Errorf("%s: %w", auditAction, err)
+	}
+	PublishService(s.bus, EventServiceUpdated, sc)
+	return ActionResult{CommandID: &cmdID}, nil
+}
+
+// currentIsCron reports whether the running release of the service is a cron
+// service (no container: its schedule is the only thing to stop or start).
+func (s *Service) currentIsCron(ctx context.Context, sc Scope) (bool, error) {
+	cur, err := s.q.GetServiceCurrentRelease(ctx, sc.Service.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("get current release: %w", err)
+	}
+	return DecodeSnapshot(cur.Config).Config.Cron != nil, nil
+}
+
+// pauseResumeCron stops or starts the schedule of a cron service: only the
+// desired state changes, and no agent command runs (the service has no
+// container). The scheduler skips the ticks of a stopped service.
+func (s *Service) pauseResumeCron(ctx context.Context, sc Scope, kind, auditAction string) (ActionResult, error) {
+	desired := DesiredRunning
+	if kind == agentprotocol.KindStopService {
+		desired = DesiredStopped
+	}
+	err := db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := db.New(tx).SetServiceDesiredState(ctx, db.SetServiceDesiredStateParams{ID: sc.Service.ID, DesiredState: desired}); err != nil {
 			return err
 		}
 		return audit.Record(ctx, tx, audit.Entry{
-			Action: auditAction, ResourceType: "service", ResourceID: id.String(), ProjectID: &sc.ProjectID,
-			Metadata: map[string]any{"slug": sc.Service.Slug, "server": srv.Name},
+			Action: auditAction, ResourceType: "service", ResourceID: sc.Service.ID.String(), ProjectID: &sc.ProjectID,
+			Metadata: map[string]any{"slug": sc.Service.Slug, "cron": true},
 		})
 	})
 	if err != nil {
 		return ActionResult{}, fmt.Errorf("%s: %w", auditAction, err)
 	}
 	PublishService(s.bus, EventServiceUpdated, sc)
-	return ActionResult{CommandID: cmdID}, nil
+	return ActionResult{}, nil
+}
+
+// actionServer resolves the server the service's current deployment runs on.
+func (s *Service) actionServer(ctx context.Context, q *db.Queries, sc Scope) (db.Server, error) {
+	if sc.Service.CurrentDeploymentID == nil {
+		return db.Server{}, apierr.Conflict("not_deployed", "the service has no running deployment")
+	}
+	deps, err := q.ListDeploymentsByIDs(ctx, []uuid.UUID{*sc.Service.CurrentDeploymentID})
+	if err != nil || len(deps) != 1 || deps[0].ServerID == nil {
+		return db.Server{}, apierr.Conflict("not_deployed", "the service has no running deployment")
+	}
+	srv, err := q.LoadServerRow(ctx, db.LoadServerRowParams{ID: *deps[0].ServerID})
+	if err != nil {
+		return db.Server{}, fmt.Errorf("load server: %w", err)
+	}
+	if srv.Status == "revoked" {
+		return db.Server{}, serverNotUsable(srv.Name, "revoked")
+	}
+	return srv, nil
+}
+
+// enqueueAction enqueues a restart or stop command for the service in tx and
+// records its audit entry; extra is merged into the entry's metadata.
+func (s *Service) enqueueAction(ctx context.Context, tx pgx.Tx, sc Scope, srv db.Server, kind, auditAction string, extra map[string]any) (uuid.UUID, error) {
+	raw, _ := json.Marshal(agentprotocol.ServiceActionPayload{
+		ServiceID: sc.Service.ID.String(), StopGraceSeconds: sc.Config().StopGraceSeconds, Stack: sc.Service.Kind == KindStack,
+	})
+	cmdID, err := s.disp.Enqueue(ctx, tx, agents.NewCommand{ServerID: srv.ID, Kind: kind, Payload: raw})
+	if err != nil {
+		return uuid.Nil, err
+	}
+	meta := map[string]any{"slug": sc.Service.Slug, "server": srv.Name}
+	for k, v := range extra {
+		meta[k] = v
+	}
+	if err := audit.Record(ctx, tx, audit.Entry{
+		Action: auditAction, ResourceType: "service", ResourceID: sc.Service.ID.String(), ProjectID: &sc.ProjectID, Metadata: meta,
+	}); err != nil {
+		return uuid.Nil, err
+	}
+	return cmdID, nil
+}
+
+// RestartForSchedule queues a restart of the service's running container inside
+// tx, for a scheduled restart task. The caller has authorized the action: no
+// policy or production-guard check is made and the desired state is left
+// alone. It returns the agent command id.
+func (s *Service) RestartForSchedule(ctx context.Context, tx pgx.Tx, sc Scope, actorLabel string) (uuid.UUID, error) {
+	srv, err := s.actionServer(ctx, db.New(tx), sc)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return s.enqueueAction(ctx, tx, sc, srv, agentprotocol.KindRestartService, "service.restart", map[string]any{"schedule": actorLabel})
 }
 
 // checkProcessKind refuses processes on a service that is not an app or worker:

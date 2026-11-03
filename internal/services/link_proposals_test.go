@@ -1,12 +1,17 @@
 package services
 
 import (
+	"context"
+	"errors"
+	"io"
+	"log/slog"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nebulactrl/nebulactrl/internal/databases/engines"
+	"github.com/nebulactrl/nebulactrl/internal/db"
 )
 
 func dbConfig(engine string) Config {
@@ -157,4 +162,36 @@ func TestReferencesParseProviders(t *testing.T) {
 	require.Equal(t, [][2]string{{"api", "NEBULA_PRIVATE_HOST"}, {"api", "PORT"}}, References("http://${{api.NEBULA_PRIVATE_HOST}}:${{api.PORT}}"))
 	require.Empty(t, References("postgres://localhost/db"))
 	require.Empty(t, References("${{shared.TOKEN}}"), "shared references are not edges")
+}
+
+type fakeLinkProvider struct {
+	rows []ProposedVariable
+	err  error
+}
+
+func (p fakeLinkProvider) LinkProposals(context.Context, *db.Queries, db.Service) ([]ProposedVariable, error) {
+	return p.rows, p.err
+}
+
+// A link provider's rows follow the generic ones; a key the generic rows (or an
+// earlier provider row) already hold is dropped, and a provider error leaves
+// the generic rows alone.
+func TestProposeLinkAppendsProviderRows(t *testing.T) {
+	to := Scope{Service: db.Service{Slug: "bucket", Kind: KindApp}}
+	to.Service.Config = []byte(`{"port":3900}`)
+	generic := ProposeLinkVariables("bucket", KindApp, to.Config())
+
+	s := &Service{logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	require.Equal(t, generic, s.proposeLink(context.Background(), nil, to), "no provider: the generic rows")
+
+	s.SetLinkProvider(fakeLinkProvider{rows: []ProposedVariable{
+		{Key: "AWS_REGION", Value: "garage", Recommended: true},
+		{Key: "BUCKET_HOST", Value: "clash"},
+		{Key: "AWS_REGION", Value: "dup"},
+	}})
+	got := s.proposeLink(context.Background(), nil, to)
+	require.Equal(t, append(append([]ProposedVariable{}, generic...), ProposedVariable{Key: "AWS_REGION", Value: "garage", Recommended: true}), got)
+
+	s.SetLinkProvider(fakeLinkProvider{err: errors.New("boom")})
+	require.Equal(t, generic, s.proposeLink(context.Background(), nil, to))
 }

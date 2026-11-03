@@ -92,11 +92,16 @@ WHERE w.updated_at < now() - interval '1 hour'
 LIMIT 100;
 
 -- name: UpsertServiceGit :one
-INSERT INTO service_git (service_id, connection_id, repo_full_name, auto_deploy, watch_paths)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO service_git (service_id, connection_id, repo_full_name, auto_deploy, watch_paths, wait_for_ci)
+VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (service_id)
 DO UPDATE SET connection_id = EXCLUDED.connection_id, repo_full_name = EXCLUDED.repo_full_name,
-              auto_deploy = EXCLUDED.auto_deploy, watch_paths = EXCLUDED.watch_paths, updated_at = now()
+              auto_deploy = EXCLUDED.auto_deploy, watch_paths = EXCLUDED.watch_paths, wait_for_ci = EXCLUDED.wait_for_ci,
+              -- A push that waits for CI is forgotten when the wait is turned off or the repository changes.
+              ci_wait = CASE WHEN EXCLUDED.wait_for_ci AND service_git.connection_id = EXCLUDED.connection_id
+                              AND lower(service_git.repo_full_name) = lower(EXCLUDED.repo_full_name)
+                             THEN service_git.ci_wait ELSE NULL END,
+              updated_at = now()
 RETURNING *;
 
 -- name: GetServiceGit :one
@@ -107,7 +112,7 @@ SELECT * FROM service_git WHERE service_id = ANY(sqlc.arg(ids)::uuid[]);
 
 -- name: ListServiceGitRefs :many
 -- The git link of each service with its connection's name and provider (service views).
-SELECT sg.service_id, sg.connection_id, sg.repo_full_name, sg.auto_deploy, sg.watch_paths,
+SELECT sg.service_id, sg.connection_id, sg.repo_full_name, sg.auto_deploy, sg.watch_paths, sg.wait_for_ci,
        c.provider, c.name AS connection_name, c.base_url
 FROM service_git sg
 JOIN git_connections c ON c.id = sg.connection_id
@@ -150,6 +155,29 @@ WHERE sg.pending_commit IS NOT NULL
   AND NOT EXISTS (SELECT 1 FROM deployments d WHERE d.service_id = sg.service_id
                   AND d.status IN ('created','queued','preparing','building','releasing','verifying'))
 LIMIT 100;
+
+-- name: SetServiceGitCIWait :exec
+-- Parks the newest push until its CI checks pass ({sha, message, author, branch, since, checkedAt}).
+UPDATE service_git SET ci_wait = $2 WHERE service_id = $1;
+
+-- name: TouchServiceGitCIWait :exec
+-- Records when the parked push's checks were last read (ignored when a newer push replaced it).
+UPDATE service_git SET ci_wait = jsonb_set(ci_wait, '{checkedAt}', to_jsonb(sqlc.arg(checked_at)::text))
+WHERE service_id = sqlc.arg(service_id) AND ci_wait IS NOT NULL AND ci_wait->>'sha' = sqlc.arg(sha)::text;
+
+-- name: ClearServiceGitCIWait :execrows
+-- Takes the parked push (one row when this caller got it, zero when a newer push replaced it or another sweep took it).
+UPDATE service_git SET ci_wait = NULL
+WHERE service_id = sqlc.arg(service_id) AND ci_wait IS NOT NULL AND ci_wait->>'sha' = sqlc.arg(sha)::text;
+
+-- name: ListServiceGitWaitingCI :many
+-- Links of live services with a push parked for CI.
+SELECT sqlc.embed(sg)
+FROM service_git sg
+JOIN services s ON s.id = sg.service_id AND s.deleted_at IS NULL
+WHERE sg.ci_wait IS NOT NULL
+ORDER BY sg.updated_at
+LIMIT 200;
 
 -- name: InsertGitDeliveryID :execrows
 INSERT INTO git_delivery_ids (connection_id, delivery_id) VALUES ($1, $2) ON CONFLICT DO NOTHING;

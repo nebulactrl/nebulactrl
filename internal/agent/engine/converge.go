@@ -19,7 +19,11 @@ type specLabel struct {
 	Port             int                           `json:"port,omitempty"`
 	Healthcheck      agentprotocol.HealthcheckSpec `json:"healthcheck"`
 	StopGraceSeconds int                           `json:"stopGraceSeconds,omitempty"`
-	MemoryMB         int                           `json:"memoryMb,omitempty"`
+	// RestartPolicy and RestartMaxRetries are the service's restart policy
+	// (replicas keep it).
+	RestartPolicy     string `json:"restartPolicy,omitempty"`
+	RestartMaxRetries int    `json:"restartMaxRetries,omitempty"`
+	MemoryMB          int    `json:"memoryMb,omitempty"`
 	// Docker holds the allow-listed container options (replicas keep them).
 	Docker *agentprotocol.DockerOptions `json:"docker,omitempty"`
 	// DockerPolicy is the server policy the options were validated against.
@@ -46,6 +50,7 @@ func specLabelOf(p agentprotocol.DeployPayload) string {
 	sl := specLabel{
 		Slug: p.ServiceSlug, Port: p.Port, Healthcheck: p.Healthcheck,
 		StopGraceSeconds: p.StopGraceSeconds, MemoryMB: p.MemoryMB, CPUs: p.CPUs, Docker: p.Docker.Normalized(), DockerPolicy: p.DockerPolicy,
+		RestartPolicy: p.RestartPolicy, RestartMaxRetries: p.RestartMaxRetries,
 		BlockEgress: p.BlockEgress, EnvHasEgressBlocked: p.EnvHasEgressBlocked, SharedNetworks: p.SharedNetworks, MeshAlias: p.MeshAlias,
 	}
 	if len(p.Processes) == 1 {
@@ -77,11 +82,12 @@ func payloadFromContainer(c docker.ContainerInfo) (agentprotocol.DeployPayload, 
 		Port:             sl.Port,
 		Healthcheck:      sl.Healthcheck,
 		StopGraceSeconds: sl.StopGraceSeconds,
-		MemoryMB:         sl.MemoryMB,
-		Docker:           sl.Docker,
-		DockerPolicy:     sl.DockerPolicy,
-		CPUs:             sl.CPUs,
-		StartCommand:     c.Cmd,
+		RestartPolicy:    sl.RestartPolicy, RestartMaxRetries: sl.RestartMaxRetries,
+		MemoryMB:     sl.MemoryMB,
+		Docker:       sl.Docker,
+		DockerPolicy: sl.DockerPolicy,
+		CPUs:         sl.CPUs,
+		StartCommand: c.Cmd,
 
 		BlockEgress:         sl.BlockEgress,
 		MeshAlias:           sl.MeshAlias,

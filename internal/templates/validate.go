@@ -24,6 +24,7 @@ const (
 	maxFileBytes  = 64 << 10
 	maxTotalFiles = 256 << 10
 	maxEnvVars    = 200
+	maxProvides   = 24
 )
 
 var (
@@ -43,6 +44,8 @@ var (
 	// refRe matches a cross-service reference ${{key.VAR}} (optional spaces).
 	// `$${{` is the escape for a literal and is not matched.
 	refRe = regexp.MustCompile(`(^|[^$])\$\{\{\s*([a-z0-9][a-z0-9-]*)\.([A-Za-z_][A-Za-z0-9_]*)\s*(\|[^}]*)?\}\}`)
+	// generatorRe matches a generator call ${{fn(...)}}.
+	generatorRe = regexp.MustCompile(`(^|[^$])\$\{\{\s*[A-Za-z_][A-Za-z0-9_]*\s*\(`)
 )
 
 // KnownEngines are the managed database engines a template may request. It
@@ -252,6 +255,7 @@ func (c *checker) service(s *TemplateService, keys map[string]*TemplateService, 
 	}
 	c.health(at, s)
 	c.env(at, s, keys, inputs)
+	c.provides(at, s)
 	c.volumes(at, s)
 	c.files(at, s, inputs)
 	c.ports(at, s)
@@ -417,6 +421,41 @@ func (c *checker) env(at string, s *TemplateService, keys map[string]*TemplateSe
 	for _, k := range s.Secrets {
 		if _, ok := s.Env[k]; !ok {
 			c.addf(at+"secrets lists %q which is not in env", k)
+		}
+	}
+}
+
+// provides checks the link proposals of a service: unique env-style keys,
+// values that reference only the service's own variables, and no inputs or
+// generators (a proposal is static text the consumer adopts).
+func (c *checker) provides(at string, s *TemplateService) {
+	if len(s.Provides) > maxProvides {
+		c.addf(at+"at most %d provides", maxProvides)
+	}
+	seen := map[string]bool{}
+	for _, p := range s.Provides {
+		w := at + "provides " + p.Key + ": "
+		switch {
+		case !envKeyRe.MatchString(p.Key):
+			c.addf(at+"provides key %q is invalid", p.Key)
+			continue
+		case seen[p.Key]:
+			c.addf(at+"duplicate provides key %q", p.Key)
+		}
+		seen[p.Key] = true
+		if strings.TrimSpace(p.Value) == "" {
+			c.add(w + "value is required")
+		}
+		if inputRe.MatchString(p.Value) {
+			c.add(w + "provides cannot use inputs")
+		}
+		if generatorRe.MatchString(p.Value) {
+			c.add(w + "provides cannot use generators")
+		}
+		for _, m := range refRe.FindAllStringSubmatch(p.Value, -1) {
+			if m[2] != s.Key {
+				c.addf(w+"references %q; provides may only reference the service's own variables (%s)", m[2], s.Key)
+			}
 		}
 	}
 }

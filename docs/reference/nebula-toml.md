@@ -52,7 +52,9 @@ Common keys: `name` (immediate), `server` (staged; required for `route`), `only_
 | Section | image, git | database | route | stack |
 |---|---|---|---|---|
 | `port`, `command`, `health_check`, `one_shot` | yes | derived | no | no |
+| `cron` | yes | no | no | no |
 | `stop_grace_seconds`, `memory_mb`, `cpus`, `image_retention`, `block_egress`, `docker` | yes | yes | no | no |
+| `restart_policy`, `restart_max_retries` | yes | no | no | no |
 | `pre_deploy`, `post_deploy`, `files`, `volumes`, `scale`, `tasks` | yes | no | no | no |
 | `process_name`, `singleton`, `processes` | yes | no | no | no |
 | `variables`, `secrets` | yes | yes | no | yes |
@@ -71,11 +73,15 @@ A key not allowed for the kind is `not_allowed_for_kind`.
 | `command` | argv | image default | `[]` clears |
 | `one_shot` | bool | `false` | Runs to completion on every deploy; excludes `pre_deploy` and `post_deploy` |
 | `stop_grace_seconds` | integer | `30` | 1-3600 |
+| `restart_policy` | string | `always` | `always`, `on-failure` or `never`; not with `one_shot`; not for databases |
+| `restart_max_retries` | integer | `10` with `on-failure` | 1-100; only with `restart_policy = "on-failure"` |
 | `memory_mb` | integer | `0` (no limit) | `0` or at least 6 |
 | `cpus` | float | `0` (no limit) | at least 0; the only float in the format |
 | `image_retention` | integer | `5` | 1-50 |
 | `block_egress` | bool | `false` (`true` for a new database) | No outbound internet |
 | `generate_domain` | bool | `false` | Attach the platform-generated hostname when the service has none |
+
+`cron` (staged, each key owned on its own): turns the service into a cron service. `schedule` (required: a 5-field cron expression or `@daily` and friends), `timezone` (`UTC`; an IANA zone), `timeout_seconds` (1800, 1-86400), `concurrency` (`forbid`, `allow`; `forbid` skips a run while the previous one still runs). `one_shot = true` is implied (`one_shot = false` with `[cron]` is an error); a cron service has no `port`, `pre_deploy`, `post_deploy`, `processes` or `tasks`. A deploy pulls or builds the image and starts nothing; the image's own command (or `command`) runs on the schedule. See [cron services](../operations/tasks.md#cron-services).
 
 `health_check`: `type` (`http`, `tcp`, `docker`, `exec`, `none`), `path` (http, starts with `/`), `port`, `interval_seconds` (2), `timeout_seconds` (3), `start_period_seconds` (0), `deadline_seconds` (120, 1-3600), `success_threshold` (2), `command` (exec; first element `CMD` or `CMD-SHELL`). Each key is owned on its own.
 
@@ -91,6 +97,7 @@ A key not allowed for the kind is `not_allowed_for_kind`.
 | `git.branch` | string | Required. |
 | `git.submodules` | `auto`, `on`, `off` | Default `auto`. |
 | `git.auto_deploy` | bool | Default `true` on a new link; needs `connection`. immediate |
+| `git.wait_for_ci` | bool | Default `false`; needs `connection`, and a connection that can read CI (not Bitbucket or webhook-only). A push deploys only after its checks pass. immediate |
 | `git.watch_paths` | array, at most 50 | Replaces the list; globs and `!` exclusions. immediate |
 | `build.type` | `auto`, `dockerfile`, `railpack`, `starter:<node\|python\|go\|ruby\|php\|static>` | Default `auto`. |
 | `build.dockerfile`, `build.context` | relative path | Defaults `Dockerfile` and `.`. No absolute paths, no `..`. |
@@ -149,7 +156,7 @@ A process is owned as a whole: a key you leave out takes its default. `domains."
 - `files."/path"`: `mode` (octal string, `0644`) and exactly one of `content` or `source` (an attachment). At most 16 files, 64 KiB each, 256 KiB in all. The whole set is one unit.
 - `scale` (immediate): `replicas` (1-10), `autoscaling.enabled`, `autoscaling.min`, `autoscaling.max`, `autoscaling.target_cpu_percent` (20-95).
 - `uptime` (immediate, admin scope): `enabled`, `alerts`, `failure_threshold` (3, 1-20), `recovery_threshold` (2, 1-20), `reminder_minutes` (0, 0-1440).
-- `tasks.<name>` (immediate, at most 20): `schedule` (required cron), `timezone` (`UTC`), `command` (argv, required), `enabled`, `timeout_seconds` (1800, 1-86400), `concurrency` (`forbid`, `allow`).
+- `tasks.<name>` (immediate, at most 20): `schedule` (required cron), `timezone` (`UTC`), `action` (`command`, `restart`; `command` by default), `command` (argv, required unless `action = "restart"`, where it must be absent), `enabled`, `timeout_seconds` (1800, 1-86400; not with `restart`), `concurrency` (`forbid`, `allow`). A `restart` task restarts the service's running container on the schedule and is refused on a `one_shot` service.
 - `docker`: staged, each key owned individually. Allowed everywhere: `cap_add`, `cap_drop`, `no_new_privileges`, `read_only_rootfs`, `pids_limit`, `hostname`, `dns`, `sysctls`, `host_sysctls`, `user`, `group_add`, `ulimits`, `shm_size_mb`, `extra_hosts`, `labels`, `init`, `stop_signal`, `tmpfs`, `entrypoint`. Only on unrestricted servers: `devices`, `gpus`, `runtime`, `privileged`, `pid_host`, `seccomp_unconfined`, `apparmor_unconfined` and the capabilities `NET_ADMIN` and `SYS_ADMIN`.
 
 ## Environments

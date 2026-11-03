@@ -27,6 +27,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/events"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
 	"github.com/nebulactrl/nebulactrl/internal/netguard"
+	"github.com/nebulactrl/nebulactrl/internal/notifications"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/secretbox"
 	"github.com/nebulactrl/nebulactrl/internal/services"
@@ -46,6 +47,8 @@ type Deps struct {
 	Config   *config.Config
 	Services *services.Service
 	Deployer Deployer
+	// Notifier announces pushes that wait-for-CI refused to deploy (nil: none).
+	Notifier notifications.Emitter
 	// HTTP is the client for provider APIs. The default (20 s timeout) refuses
 	// loopback, private, link-local and metadata destinations, since a
 	// connection's base URL is set by a team admin (see netguard). Tests inject
@@ -67,6 +70,7 @@ type Service struct {
 	cfg  *config.Config
 	svcs *services.Service
 	dep  Deployer
+	ntf  notifications.Emitter
 	hc   *http.Client
 	log  *slog.Logger
 	now  func() time.Time
@@ -107,7 +111,7 @@ func NewService(d Deps) *Service {
 		d.Config = &config.Config{}
 	}
 	s := &Service{
-		pool: d.Pool, bus: d.Bus, jobs: d.Jobs, box: d.Box, cfg: d.Config, svcs: d.Services, dep: d.Deployer,
+		pool: d.Pool, bus: d.Bus, jobs: d.Jobs, box: d.Box, cfg: d.Config, svcs: d.Services, dep: d.Deployer, ntf: d.Notifier,
 		hc: d.HTTP, log: d.Logger.With("component", "gitproviders"), now: time.Now, pushHookWait: d.PushHookWait,
 		instTokens: map[uuid.UUID]cachedToken{}, rejectLimiters: map[uuid.UUID]*rate.Limiter{},
 	}

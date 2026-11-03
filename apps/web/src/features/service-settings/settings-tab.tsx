@@ -33,6 +33,7 @@ import { TasksSection } from "#/features/tasks";
 import { TemplateOrigin } from "#/features/templates/template-origin";
 import { MonitorSection } from "#/features/uptime";
 import { BuildSection } from "./build-section";
+import { CronRows } from "./cron-rows";
 import { DangerZone } from "./danger-zone";
 import { dockerErrorMessage, REQUIRES_UNRESTRICTED } from "./docker-options";
 import { DockerOptionsSection } from "./docker-options-section";
@@ -237,6 +238,10 @@ export function SettingsTab({
 					<Section title="Identity">
 						<NameRow draft={draft} errors={errors} set={set} />
 						{isStack(service) ? null : <OneShotRow draft={draft} set={set} />}
+						{draft.oneshot &&
+						(service.kind === "app" || service.kind === "worker") ? (
+							<CronRows draft={draft} errors={errors} set={set} />
+						) : null}
 					</Section>
 				);
 			case "source":

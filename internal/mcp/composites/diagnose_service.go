@@ -492,6 +492,13 @@ func diagServiceVerdict(v services.ServiceView) string {
 		}
 		return diagUnknown
 	}
+	if isCronService(v) {
+		// No container between runs: the last run is the evidence.
+		if cronLastRunFailed(v) {
+			return diagDegraded
+		}
+		return diagHealthy
+	}
 	o := v.Observed
 	if o == nil || v.Stale {
 		return diagUnknown

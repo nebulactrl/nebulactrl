@@ -22,16 +22,16 @@ const (
 func tkTaskList() map[string]any {
 	return map[string]any{"items": []any{
 		map[string]any{
-			"id": tkID, "name": "Nightly", "schedule": "0 3 * * *", "timezone": "Europe/Berlin", "enabled": true,
+			"id": tkID, "name": "Nightly", "action": "command", "schedule": "0 3 * * *", "timezone": "Europe/Berlin", "enabled": true,
 			"command": []string{"rake", "db:cleanup"}, "nextRunAt": "2026-03-01T02:00:00Z",
 			"lastRun": map[string]any{"status": "succeeded"},
 		},
 		map[string]any{
-			"id": tkID2, "name": "paused", "schedule": "@daily", "timezone": "Nowhere/Land", "enabled": false,
+			"id": tkID2, "name": "paused", "action": "command", "schedule": "@daily", "timezone": "Nowhere/Land", "enabled": false,
 			"command": []string{"sh", "-c", "echo hi"}, "nextRunAt": "2026-03-01T02:00:00Z",
 		},
 		map[string]any{
-			"id": "15151515-1111-4111-8111-151515151515", "name": "utc", "schedule": "@hourly", "timezone": "", "enabled": true,
+			"id": "15151515-1111-4111-8111-151515151515", "name": "utc", "action": "command", "schedule": "@hourly", "timezone": "", "enabled": true,
 			"command": nil, "nextRunAt": "2026-03-01T02:30:00Z",
 		},
 	}}
@@ -60,13 +60,13 @@ func TestTasksLsShowsScheduleInTheTasksZoneAndFallsBackToUTC(t *testing.T) {
 	r := f.run("tasks", "ls", fakeSvcID)
 	require.Equal(t, 0, r.code, r.all())
 	nightly := bkLine(t, r.stdout, "Nightly")
-	require.Equal(t, []string{"Nightly", "0", "3", "*", "*", "*", "Europe/Berlin", "yes", "2026-03-01", "03:00", "CET", "succeeded", "rake", "db:cleanup", tkID}, nightly,
+	require.Equal(t, []string{"Nightly", "command", "0", "3", "*", "*", "*", "Europe/Berlin", "yes", "2026-03-01", "03:00", "CET", "succeeded", "rake", "db:cleanup", tkID}, nightly,
 		"the next run is shown in the task's own zone; the last run is its status")
 	paused := bkLine(t, r.stdout, "paused")
-	require.Equal(t, []string{"paused", "@daily", "Nowhere/Land", "no", "-", "-", "sh", "-c", "echo", "hi", tkID2}, paused,
+	require.Equal(t, []string{"paused", "command", "@daily", "Nowhere/Land", "no", "-", "-", "sh", "-c", "echo", "hi", tkID2}, paused,
 		"a disabled task has no next run")
 	utc := bkLine(t, r.stdout, "@hourly")
-	require.Equal(t, []string{"utc", "@hourly"}, utc[0:2])
+	require.Equal(t, []string{"utc", "command", "@hourly"}, utc[0:3])
 	require.Contains(t, strings.Join(utc, " "), "2026-03-01 02:30 UTC", "an empty zone renders as UTC")
 	require.Contains(t, r.stdout, "NEXT RUN")
 
@@ -117,7 +117,7 @@ func TestTasksCreateSendsEveryFlagAndAnnouncesTheTask(t *testing.T) {
 	require.Equal(t, "Task \"digest\" created ("+tkID+")\n", r.stdout)
 	post := f.only("POST", tkTasks)
 	require.Equal(t, map[string]any{
-		"name": "digest", "schedule": "*/15 * * * *", "command": []any{"sh", "-c", "echo hi"},
+		"name": "digest", "action": "command", "schedule": "*/15 * * * *", "command": []any{"sh", "-c", "echo hi"},
 		"timezone": "Europe/Berlin", "enabled": false, "timeoutSeconds": float64(90), "concurrency": "allow",
 	}, post.json(t))
 	require.Equal(t, "k-1", post.header.Get("Idempotency-Key"))
@@ -128,7 +128,28 @@ func TestTasksCreateSendsEveryFlagAndAnnouncesTheTask(t *testing.T) {
 	got := decode[map[string]any](t, r.stdout)
 	require.Equal(t, tkID, got["id"])
 	require.Equal(t, "digest", got["name"])
-	require.Equal(t, map[string]any{"name": "digest", "schedule": "@daily", "command": []any{"rake"}}, f.calls("POST", tkTasks)[1].json(t))
+	require.Equal(t, map[string]any{"name": "digest", "action": "command", "schedule": "@daily", "command": []any{"rake"}}, f.calls("POST", tkTasks)[1].json(t))
+}
+
+func TestTasksCreateRestartSendsNoCommand(t *testing.T) {
+	f := newCfgFake(t)
+	f.reply("POST", tkTasks, 201, map[string]any{"id": tkID, "name": "weekly", "action": "restart"})
+
+	r := f.run("tasks", "create", fakeSvcID, "--name", "weekly", "--action", "restart", "--schedule", "0 4 * * 0")
+	require.Equal(t, 0, r.code, r.all())
+	require.Equal(t, map[string]any{"name": "weekly", "action": "restart", "schedule": "0 4 * * 0"}, f.only("POST", tkTasks).json(t))
+
+	before := f.total()
+	for name, args := range map[string][]string{
+		"command given":  {"tasks", "create", fakeSvcID, "--name", "n", "--action", "restart", "--schedule", "@daily", "--", "ls"},
+		"timeout given":  {"tasks", "create", fakeSvcID, "--name", "n", "--action", "restart", "--schedule", "@daily", "--timeout", "90s"},
+		"unknown action": {"tasks", "create", fakeSvcID, "--name", "n", "--action", "reboot", "--schedule", "@daily", "--", "ls"},
+		"restart no svc": {"tasks", "create", "--name", "n", "--action", "restart", "--schedule", "@daily"},
+	} {
+		r := f.run(args...)
+		require.Equal(t, 2, r.code, "%s: %s", name, r.all())
+	}
+	require.Equal(t, before, f.total(), "usage errors never reach the API")
 }
 
 func TestTasksCreateSurfacesAServerRefusal(t *testing.T) {
@@ -222,6 +243,23 @@ func TestTasksRunStartsTheTaskAndStreamsItsOutput(t *testing.T) {
 	r = f.run("--json", "tasks", "run", fakeSvcID, "nightly")
 	require.Equal(t, 0, r.code, r.all())
 	require.Equal(t, `{"line":"cleaning"}`+"\n"+`{"line":"done"}`+"\n", r.stdout, "--json passes the events through")
+}
+
+func TestTasksRunOfACronServiceNeedsNoTaskName(t *testing.T) {
+	f := newCfgFake(t)
+	f.reply("GET", svSvc, 200, map[string]any{"id": fakeSvcID, "cron": map[string]any{"taskId": tkID, "schedule": "0 3 * * *", "timezone": "UTC"}})
+	f.reply("POST", cfgAPI+"/tasks/"+tkID+"/run", 202, map[string]any{"id": tkRunID})
+
+	r := f.run("tasks", "run", fakeSvcID, "--detach")
+	require.Equal(t, 0, r.code, r.all())
+	require.Equal(t, "Run "+tkRunID+" started\n", r.stdout)
+	require.Len(t, f.calls("POST", cfgAPI+"/tasks/"+tkID+"/run"), 1)
+
+	// A service without a schedule needs the task named.
+	f.reply("GET", svSvc, 200, map[string]any{"id": fakeSvcID})
+	r = f.run("tasks", "run", fakeSvcID, "--detach")
+	require.Equal(t, 2, r.code, r.all())
+	require.Contains(t, r.err, "is not a cron service")
 }
 
 func TestTasksRunDetachStartsWithoutFollowing(t *testing.T) {

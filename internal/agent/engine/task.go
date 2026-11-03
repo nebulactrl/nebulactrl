@@ -57,6 +57,20 @@ type oneShot struct {
 	Log func(ts time.Time, text string)
 	// Net is the network membership (the service's plan, without an alias).
 	Net netPlan
+	// Service, when set, runs the service's own image command (a cron
+	// service's scheduled run): Argv is empty and the container takes the
+	// service's entrypoint, start command, volumes, files and Docker options.
+	Service *serviceRun
+}
+
+// serviceRun is the container setup of a cron service's scheduled run.
+type serviceRun struct {
+	Slug string
+	// Cmd is the resolved start command (nil: the image's own CMD).
+	Cmd     []string
+	Docker  *agentprotocol.DockerOptions
+	Volumes []agentprotocol.VolumeMount
+	Files   []agentprotocol.FileSpec
 }
 
 // oneShotOutcome is how a one-shot container ended.
@@ -116,7 +130,7 @@ func (e *Engine) runOneShot(ctx context.Context, r oneShot) oneShotOutcome {
 			return out
 		}
 		spec := docker.ContainerSpec{
-			Name: r.Name, Image: r.Image, Env: r.Env, Entrypoint: r.Argv[:1], Cmd: r.Argv[1:],
+			Name: r.Name, Image: r.Image, Env: r.Env,
 			Labels: map[string]string{
 				agentprotocol.LabelManaged:     "true",
 				agentprotocol.LabelEnvironment: r.EnvironmentID,
@@ -127,6 +141,18 @@ func (e *Engine) runOneShot(ctx context.Context, r oneShot) oneShotOutcome {
 			},
 			Networks:  plan.Attachments(),
 			LogConfig: &docker.LogConfig{Type: "json-file", Config: map[string]string{"max-size": taskLogMaxSize, "max-file": "2"}},
+		}
+		if r.Service == nil {
+			spec.Entrypoint, spec.Cmd = r.Argv[:1], r.Argv[1:]
+		} else {
+			spec.Cmd = r.Service.Cmd
+			mounts, err := ensureVolumeMounts(ctx, eng, r.ServiceID, r.Service.Volumes)
+			if err != nil {
+				out.Err = err
+				return out
+			}
+			spec.Mounts = mounts
+			applyDockerOptions(&spec, r.Service.Docker, r.Service.Slug, 0, 1)
 		}
 		if r.MemoryMB > 0 {
 			spec.MemoryBytes = int64(r.MemoryMB) * 1024 * 1024
@@ -139,6 +165,13 @@ func (e *Engine) runOneShot(ctx context.Context, r oneShot) oneShotOutcome {
 		if err != nil {
 			out.Err = fmt.Errorf("create container: %w", err)
 			return out
+		}
+		if r.Service != nil {
+			if err := copyFiles(ctx, eng, id, r.Service.Files); err != nil {
+				out.Err = fmt.Errorf("write files into %s: %w", r.Name, err)
+				e.removeTaskContainer(ctx, id)
+				return out
+			}
 		}
 		if err := eng.ContainerStart(ctx, id); err != nil {
 			out.Err = fmt.Errorf("start container: %w", err)
@@ -303,7 +336,16 @@ func (e *Engine) handleRunTask(ctx context.Context, cmd agentprotocol.Command) a
 	case p.RunID == "" || p.ServiceID == "" || p.ServiceSlug == "" || p.EnvironmentID == "":
 		return failedResult(cmd.ID, "invalid run_task payload: runId, serviceId, serviceSlug and environmentId are required")
 	}
-	if err := agentprotocol.ValidTaskCommand(p.Command); err != nil {
+	if p.ServiceRun {
+		if len(p.Command) > 0 {
+			return failedResult(cmd.ID, "invalid run_task payload: a service run takes no command")
+		}
+		if err := validateDockerOptions(agentprotocol.DeployPayload{
+			Docker: p.Docker, DockerPolicy: p.DockerPolicy, Files: p.Files, Volumes: p.Volumes,
+		}); err != nil {
+			return failedResult(cmd.ID, "invalid run_task payload: docker options: "+err.Error())
+		}
+	} else if err := agentprotocol.ValidTaskCommand(p.Command); err != nil {
 		return failedResult(cmd.ID, "invalid run_task payload: "+err.Error())
 	}
 	timeout := time.Duration(p.TimeoutSeconds) * time.Second
@@ -345,14 +387,27 @@ func (e *Engine) handleRunTask(ctx context.Context, cmd agentprotocol.Command) a
 		return fail(err.Error())
 	}
 
-	lb.Add("[nebulactrl] $ " + red.apply(shellJoin(p.Command)))
-	log.Info("task started", "container", agentprotocol.TaskContainerName(p.ServiceSlug, p.RunID))
-	o := e.runOneShot(ctx, oneShot{
+	run := oneShot{
 		Name: agentprotocol.TaskContainerName(p.ServiceSlug, p.RunID), Image: image, Argv: p.Command, Env: env,
 		Kind: "task", RunID: p.RunID, ServiceID: p.ServiceID, EnvironmentID: p.EnvironmentID,
 		MemoryMB: p.MemoryMB, CPUs: p.CPUs, Timeout: timeout, Net: planOfTask(p),
 		Log: func(ts time.Time, text string) { lb.AddAt(ts, text) },
-	})
+	}
+	if p.ServiceRun {
+		var entrypoint []string
+		if p.Docker != nil {
+			entrypoint = p.Docker.Entrypoint
+		}
+		run.Service = &serviceRun{
+			Slug: p.ServiceSlug, Docker: p.Docker, Volumes: p.Volumes, Files: p.Files,
+			Cmd: resolveStartCommand(ctx, e.cfg.Docker, image, p.StartCommand, entrypoint),
+		}
+		lb.Add("[nebulactrl] running the service's own command" + serviceRunCommandNote(run.Service.Cmd, entrypoint, red.apply))
+	} else {
+		lb.Add("[nebulactrl] $ " + red.apply(shellJoin(p.Command)))
+	}
+	log.Info("task started", "container", agentprotocol.TaskContainerName(p.ServiceSlug, p.RunID))
+	o := e.runOneShot(ctx, run)
 	res := agentprotocol.RunTaskResult{StartedAt: o.StartedAt, FinishedAt: o.FinishedAt, ExitCode: o.ExitCode}
 	switch {
 	case o.Interrupted:
@@ -405,6 +460,16 @@ func (e *Engine) taskImage(ctx context.Context, p agentprotocol.RunTaskPayload, 
 		return "", fmt.Errorf("inspect pulled image: %w", err)
 	}
 	return info.ID, nil
+}
+
+// serviceRunCommandNote is the log suffix naming the command of a service run
+// (empty when the image's own command runs).
+func serviceRunCommandNote(cmd, entrypoint []string, redact func(string) string) string {
+	words := append(append([]string(nil), entrypoint...), cmd...)
+	if len(words) == 0 {
+		return ""
+	}
+	return ": " + redact(shellJoin(words))
 }
 
 // shellJoin renders argv for display, quoting words that need it.

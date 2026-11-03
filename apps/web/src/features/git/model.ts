@@ -137,6 +137,18 @@ export function watchPathProblem(paths: readonly string[]): string | undefined {
 	return undefined;
 }
 
+/**
+ * Whether a connection can report the CI results of a commit (Wait for CI):
+ * every provider with an API does, Bitbucket and webhook-only connections
+ * do not. An unknown connection is assumed capable.
+ */
+export function canReadCi(
+	provider: string | undefined,
+	authType: string | undefined,
+): boolean {
+	return provider !== "bitbucket" && authType !== "webhook_only";
+}
+
 export function shortSha(sha: string): string {
 	return sha.slice(0, 7);
 }

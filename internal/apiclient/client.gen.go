@@ -882,6 +882,27 @@ func (e ComposeStackComponentAction) Valid() bool {
 	}
 }
 
+// Defines values for ConfigRestartPolicy.
+const (
+	Always    ConfigRestartPolicy = "always"
+	Never     ConfigRestartPolicy = "never"
+	OnFailure ConfigRestartPolicy = "on-failure"
+)
+
+// Valid indicates whether the value is a known member of the ConfigRestartPolicy enum.
+func (e ConfigRestartPolicy) Valid() bool {
+	switch e {
+	case Always:
+		return true
+	case Never:
+		return true
+	case OnFailure:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ConfigAppliedServiceAction.
 const (
 	ConfigAppliedServiceActionCreate    ConfigAppliedServiceAction = "create"
@@ -2076,6 +2097,24 @@ func (e CreateServiceInputBodySourceType) Valid() bool {
 	}
 }
 
+// Defines values for CreateTaskInputBodyAction.
+const (
+	CreateTaskInputBodyActionCommand CreateTaskInputBodyAction = "command"
+	CreateTaskInputBodyActionRestart CreateTaskInputBodyAction = "restart"
+)
+
+// Valid indicates whether the value is a known member of the CreateTaskInputBodyAction enum.
+func (e CreateTaskInputBodyAction) Valid() bool {
+	switch e {
+	case CreateTaskInputBodyActionCommand:
+		return true
+	case CreateTaskInputBodyActionRestart:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for CreateTaskInputBodyConcurrency.
 const (
 	CreateTaskInputBodyConcurrencyAllow  CreateTaskInputBodyConcurrency = "allow"
@@ -2148,6 +2187,24 @@ func (e CreatedTokenKind) Valid() bool {
 	case CreatedTokenKindMcp:
 		return true
 	case CreatedTokenKindRest:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CronSpecConcurrency.
+const (
+	CronSpecConcurrencyAllow  CronSpecConcurrency = "allow"
+	CronSpecConcurrencyForbid CronSpecConcurrency = "forbid"
+)
+
+// Valid indicates whether the value is a known member of the CronSpecConcurrency enum.
+func (e CronSpecConcurrency) Valid() bool {
+	switch e {
+	case CronSpecConcurrencyAllow:
+		return true
+	case CronSpecConcurrencyForbid:
 		return true
 	default:
 		return false
@@ -2307,6 +2364,27 @@ func (e DashboardCertificateStatus) Valid() bool {
 	case DashboardCertificateStatusPending:
 		return true
 	case DashboardCertificateStatusUnknown:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for DataTableKind.
+const (
+	DataTableKindOther DataTableKind = "other"
+	DataTableKindTable DataTableKind = "table"
+	DataTableKindView  DataTableKind = "view"
+)
+
+// Valid indicates whether the value is a known member of the DataTableKind enum.
+func (e DataTableKind) Valid() bool {
+	switch e {
+	case DataTableKindOther:
+		return true
+	case DataTableKindTable:
+		return true
+	case DataTableKindView:
 		return true
 	default:
 		return false
@@ -4296,6 +4374,24 @@ func (e PatchRunTrigger) Valid() bool {
 	case PatchRunTriggerManual:
 		return true
 	case PatchRunTriggerScheduled:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchTaskInputBodyAction.
+const (
+	PatchTaskInputBodyActionCommand PatchTaskInputBodyAction = "command"
+	PatchTaskInputBodyActionRestart PatchTaskInputBodyAction = "restart"
+)
+
+// Valid indicates whether the value is a known member of the PatchTaskInputBodyAction enum.
+func (e PatchTaskInputBodyAction) Valid() bool {
+	switch e {
+	case PatchTaskInputBodyActionCommand:
+		return true
+	case PatchTaskInputBodyActionRestart:
 		return true
 	default:
 		return false
@@ -6720,6 +6816,24 @@ func (e TailscaleIntegrationProvider) Valid() bool {
 	}
 }
 
+// Defines values for TaskViewAction.
+const (
+	TaskViewActionCommand TaskViewAction = "command"
+	TaskViewActionRestart TaskViewAction = "restart"
+)
+
+// Valid indicates whether the value is a known member of the TaskViewAction enum.
+func (e TaskViewAction) Valid() bool {
+	switch e {
+	case TaskViewActionCommand:
+		return true
+	case TaskViewActionRestart:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for TaskViewConcurrency.
 const (
 	TaskViewConcurrencyAllow  TaskViewConcurrency = "allow"
@@ -8510,7 +8624,7 @@ type AccountRef struct {
 
 // ActionResult defines model for ActionResult.
 type ActionResult struct {
-	CommandId string `json:"commandId"`
+	CommandId *string `json:"commandId,omitempty"`
 }
 
 // AddReplicaInputBody defines model for AddReplicaInputBody.
@@ -8794,6 +8908,16 @@ type Blocker struct {
 // BranchesOutputBody defines model for BranchesOutputBody.
 type BranchesOutputBody struct {
 	Items *[]string `json:"items"`
+}
+
+// BrowseTableInputBody defines model for BrowseTableInputBody.
+type BrowseTableInputBody struct {
+	// Offset Rows to skip; pages are 100 rows
+	Offset int64 `json:"offset"`
+
+	// Schema Schema of the table (PostgreSQL schema, MySQL/MariaDB/ClickHouse database), as listed by the tables operation
+	Schema *string `json:"schema,omitempty"`
+	Table  string  `json:"table"`
 }
 
 // BuildInfo defines model for BuildInfo.
@@ -9873,39 +9997,45 @@ type ComposeStackPlan struct {
 
 // Config defines model for Config.
 type Config struct {
-	BlockEgress              *bool            `json:"blockEgress,omitempty"`
-	BuildContext             *string          `json:"buildContext,omitempty"`
-	BuildLocation            *string          `json:"buildLocation,omitempty"`
-	BuildServerId            *string          `json:"buildServerId,omitempty"`
-	BuildType                *string          `json:"buildType,omitempty"`
-	Cpus                     *float64         `json:"cpus,omitempty"`
-	Database                 *Spec            `json:"database,omitempty"`
-	Docker                   *DockerOptions   `json:"docker,omitempty"`
-	DockerfilePath           *string          `json:"dockerfilePath,omitempty"`
-	Files                    *[]FileMount     `json:"files,omitempty"`
-	GitBranch                *string          `json:"gitBranch,omitempty"`
-	GitUrl                   *string          `json:"gitUrl,omitempty"`
-	Healthcheck              Healthcheck      `json:"healthcheck"`
-	Image                    *string          `json:"image,omitempty"`
-	ImageRetention           int64            `json:"imageRetention"`
-	MemoryMb                 *int64           `json:"memoryMb,omitempty"`
-	Oneshot                  *bool            `json:"oneshot,omitempty"`
-	Port                     *int64           `json:"port,omitempty"`
-	PostDeployCommand        *[]string        `json:"postDeployCommand,omitempty"`
-	PostDeployTimeoutSeconds *int64           `json:"postDeployTimeoutSeconds,omitempty"`
-	PreDeployCommand         *[]string        `json:"preDeployCommand,omitempty"`
-	PreDeployTimeoutSeconds  *int64           `json:"preDeployTimeoutSeconds,omitempty"`
-	ProcessName              *string          `json:"processName,omitempty"`
-	Processes                *[]ProcessConfig `json:"processes,omitempty"`
-	RegistryId               *string          `json:"registryId,omitempty"`
-	Route                    *RouteConfig     `json:"route,omitempty"`
-	Singleton                *bool            `json:"singleton,omitempty"`
-	Stack                    *StackConfig     `json:"stack,omitempty"`
-	StartCommand             *[]string        `json:"startCommand,omitempty"`
-	StopGraceSeconds         int64            `json:"stopGraceSeconds"`
-	Submodules               *string          `json:"submodules,omitempty"`
-	Tailnet                  *TailnetConfig   `json:"tailnet,omitempty"`
+	BlockEgress              *bool                `json:"blockEgress,omitempty"`
+	BuildContext             *string              `json:"buildContext,omitempty"`
+	BuildLocation            *string              `json:"buildLocation,omitempty"`
+	BuildServerId            *string              `json:"buildServerId,omitempty"`
+	BuildType                *string              `json:"buildType,omitempty"`
+	Cpus                     *float64             `json:"cpus,omitempty"`
+	Cron                     *CronSpec            `json:"cron,omitempty"`
+	Database                 *Spec                `json:"database,omitempty"`
+	Docker                   *DockerOptions       `json:"docker,omitempty"`
+	DockerfilePath           *string              `json:"dockerfilePath,omitempty"`
+	Files                    *[]FileMount         `json:"files,omitempty"`
+	GitBranch                *string              `json:"gitBranch,omitempty"`
+	GitUrl                   *string              `json:"gitUrl,omitempty"`
+	Healthcheck              Healthcheck          `json:"healthcheck"`
+	Image                    *string              `json:"image,omitempty"`
+	ImageRetention           int64                `json:"imageRetention"`
+	MemoryMb                 *int64               `json:"memoryMb,omitempty"`
+	Oneshot                  *bool                `json:"oneshot,omitempty"`
+	Port                     *int64               `json:"port,omitempty"`
+	PostDeployCommand        *[]string            `json:"postDeployCommand,omitempty"`
+	PostDeployTimeoutSeconds *int64               `json:"postDeployTimeoutSeconds,omitempty"`
+	PreDeployCommand         *[]string            `json:"preDeployCommand,omitempty"`
+	PreDeployTimeoutSeconds  *int64               `json:"preDeployTimeoutSeconds,omitempty"`
+	ProcessName              *string              `json:"processName,omitempty"`
+	Processes                *[]ProcessConfig     `json:"processes,omitempty"`
+	RegistryId               *string              `json:"registryId,omitempty"`
+	RestartMaxRetries        *int64               `json:"restartMaxRetries,omitempty"`
+	RestartPolicy            *ConfigRestartPolicy `json:"restartPolicy,omitempty"`
+	Route                    *RouteConfig         `json:"route,omitempty"`
+	Singleton                *bool                `json:"singleton,omitempty"`
+	Stack                    *StackConfig         `json:"stack,omitempty"`
+	StartCommand             *[]string            `json:"startCommand,omitempty"`
+	StopGraceSeconds         int64                `json:"stopGraceSeconds"`
+	Submodules               *string              `json:"submodules,omitempty"`
+	Tailnet                  *TailnetConfig       `json:"tailnet,omitempty"`
 }
+
+// ConfigRestartPolicy defines model for Config.RestartPolicy.
+type ConfigRestartPolicy string
 
 // ConfigAppliedService defines model for ConfigAppliedService.
 type ConfigAppliedService struct {
@@ -10049,6 +10179,9 @@ type ConfigInput struct {
 	BuildType *string  `json:"buildType,omitempty"`
 	Cpus      *float64 `json:"cpus,omitempty"`
 
+	// Cron Run the service on a schedule: a deploy only pulls or builds the image and the image's own command runs on the schedule. Requires oneshot: true and an app or worker service. schedule is a 5-field cron expression, timezone an IANA zone (default UTC), timeoutSeconds 1-86400 (default 1800), concurrency forbid (skip while the previous run still runs; default) or allow. On PATCH the object replaces the whole schedule; Stop and Start pause and resume it.
+	Cron *CronSpec `json:"cron,omitempty"`
+
 	// Docker Typed container options. On every server: capAdd, capDrop, noNewPrivileges, readOnlyRootfs, pidsLimit, hostname (default: the service slug), dns, sysctls, hostSysctls (host requirements, only warned about), user, groupAdd, ulimits, shmSizeMb, extraHosts, labels, init, stopSignal, tmpfs, entrypoint. Only on a server an instance admin made unrestricted: devices, gpus, runtime, privileged, pidHost, seccompUnconfined, apparmorUnconfined and the capabilities NET_ADMIN and SYS_ADMIN (422 requires_unrestricted_server otherwise). Never host networking, ip, restart or log options, host binds or the socket.
 	Docker                   *DockerOptions    `json:"docker,omitempty"`
 	DockerfilePath           *string           `json:"dockerfilePath,omitempty"`
@@ -10074,6 +10207,12 @@ type ConfigInput struct {
 
 	// RegistryId Registry the build is pushed to; omitted inherits the project or team default
 	RegistryId *string `json:"registryId,omitempty"`
+
+	// RestartMaxRetries Restart limit for the on-failure policy (1-100; 0 means 10).
+	RestartMaxRetries *int64 `json:"restartMaxRetries,omitempty"`
+
+	// RestartPolicy What happens when the container exits on its own: always (the default; restart unless stopped), on-failure or never. Not available for one-shot services, stacks, routes or databases.
+	RestartPolicy *string `json:"restartPolicy,omitempty"`
 
 	// Singleton The default process never runs two instances at once: the old instance stops before the new one starts, and scaling is off
 	Singleton *bool `json:"singleton,omitempty"`
@@ -11229,8 +11368,11 @@ type CreateServiceInputBodySourceType string
 
 // CreateTaskInputBody defines model for CreateTaskInputBody.
 type CreateTaskInputBody struct {
-	// Command Argv, run without a shell in a container of the service's current image. Wrap in ["sh","-c",…] for shell syntax.
-	Command *[]string `json:"command"`
+	// Action command (default) runs Command in a new container; restart restarts the service's running container on the schedule (brief outage with one replica).
+	Action *CreateTaskInputBodyAction `json:"action,omitempty"`
+
+	// Command Argv, run without a shell in a container of the service's current image. Wrap in ["sh","-c",…] for shell syntax. Required (at least one element) for the command action; must be empty for restart.
+	Command *[]string `json:"command,omitempty"`
 
 	// Concurrency forbid (default) skips a tick while the previous run is still active.
 	Concurrency *CreateTaskInputBodyConcurrency `json:"concurrency,omitempty"`
@@ -11252,6 +11394,9 @@ type CreateTaskInputBody struct {
 	// Examples: Europe/Berlin
 	Timezone *string `json:"timezone,omitempty"`
 }
+
+// CreateTaskInputBodyAction command (default) runs Command in a new container; restart restarts the service's running container on the schedule (brief outage with one replica).
+type CreateTaskInputBodyAction string
 
 // CreateTaskInputBodyConcurrency forbid (default) skips a tick while the previous run is still active.
 type CreateTaskInputBodyConcurrency string
@@ -11361,6 +11506,35 @@ type CreatedTokenKind string
 // CredentialsOutputBody defines model for CredentialsOutputBody.
 type CredentialsOutputBody struct {
 	Items *[]DNSCredential `json:"items"`
+}
+
+// CronRunView defines model for CronRunView.
+type CronRunView struct {
+	ExitCode   *int32     `json:"exitCode,omitempty"`
+	FinishedAt *time.Time `json:"finishedAt,omitempty"`
+	Id         string     `json:"id"`
+	StartedAt  *time.Time `json:"startedAt,omitempty"`
+	Status     string     `json:"status"`
+}
+
+// CronSpec defines model for CronSpec.
+type CronSpec struct {
+	Concurrency    *CronSpecConcurrency `json:"concurrency,omitempty"`
+	Schedule       string               `json:"schedule"`
+	TimeoutSeconds *int64               `json:"timeoutSeconds,omitempty"`
+	Timezone       *string              `json:"timezone,omitempty"`
+}
+
+// CronSpecConcurrency defines model for CronSpec.Concurrency.
+type CronSpecConcurrency string
+
+// CronView defines model for CronView.
+type CronView struct {
+	LastRun   *CronRunView `json:"lastRun,omitempty"`
+	NextRunAt *time.Time   `json:"nextRunAt,omitempty"`
+	Schedule  string       `json:"schedule"`
+	TaskId    string       `json:"taskId"`
+	Timezone  string       `json:"timezone"`
 }
 
 // DNSCredential defines model for DNSCredential.
@@ -11592,6 +11766,54 @@ type DashboardResolverOption struct {
 	// Provider The lego provider code, for example cloudflare
 	Provider     string `json:"provider"`
 	ProviderName string `json:"providerName"`
+}
+
+// DataColumn defines model for DataColumn.
+type DataColumn struct {
+	Name string `json:"name"`
+
+	// Type The engine's name for the column type
+	Type string `json:"type"`
+}
+
+// DataResult defines model for DataResult.
+type DataResult struct {
+	DurationMs int64            `json:"durationMs"`
+	Results    *[]DataResultSet `json:"results"`
+
+	// TruncatedCells Some cell was longer than the per-cell limit and is clipped
+	TruncatedCells *bool `json:"truncatedCells,omitempty"`
+}
+
+// DataResultSet defines model for DataResultSet.
+type DataResultSet struct {
+	Columns *[]DataColumn `json:"columns"`
+
+	// CommandTag The server's completion tag, for example INSERT 0 1
+	CommandTag *string       `json:"commandTag,omitempty"`
+	RowCount   int64         `json:"rowCount"`
+	Rows       *[]*[]*string `json:"rows"`
+
+	// Truncated More rows existed than are returned
+	Truncated *bool `json:"truncated,omitempty"`
+}
+
+// DataTable defines model for DataTable.
+type DataTable struct {
+	Kind DataTableKind `json:"kind"`
+	Name string        `json:"name"`
+
+	// RowEstimate Approximate row count from the engine's statistics; absent when unknown
+	RowEstimate *int64 `json:"rowEstimate,omitempty"`
+	Schema      string `json:"schema"`
+}
+
+// DataTableKind defines model for DataTable.Kind.
+type DataTableKind string
+
+// DataTables defines model for DataTables.
+type DataTables struct {
+	Tables *[]DataTable `json:"tables"`
 }
 
 // DatabaseView defines model for DatabaseView.
@@ -12789,6 +13011,8 @@ type GitLinkView struct {
 	QueuedCommit   string               `json:"queuedCommit"`
 	Repo           string               `json:"repo"`
 	RepoUrl        string               `json:"repoUrl"`
+	WaitForCi      bool                 `json:"waitForCi"`
+	WaitingForCi   *QueuedCommit        `json:"waitingForCi,omitempty"`
 	WatchPaths     *[]string            `json:"watchPaths"`
 	Webhook        HookStatusView       `json:"webhook"`
 }
@@ -12803,6 +13027,7 @@ type GitRef struct {
 	ConnectionName string         `json:"connectionName"`
 	Provider       GitRefProvider `json:"provider"`
 	Repo           string         `json:"repo"`
+	WaitForCi      bool           `json:"waitForCi"`
 	WatchPaths     *[]string      `json:"watchPaths"`
 }
 
@@ -13401,6 +13626,9 @@ type LinkInputBody struct {
 
 	// Repo owner/name (or a clone URL)
 	Repo string `json:"repo"`
+
+	// WaitForCi Deploy a push only after its CI checks pass (default: keep the current setting, false for a new link). A push with no checks deploys after 2 minutes. 422 ci_not_supported on Bitbucket and webhook-only connections.
+	WaitForCi *bool `json:"waitForCi,omitempty"`
 
 	// WatchPaths Monorepo watch paths: globs relative to the repository root ('apps/api/**', 'packages/*/src', '!**/*.md'); a push only deploys when a changed file matches. Empty watches everything.
 	WatchPaths *[]string `json:"watchPaths,omitempty"`
@@ -14555,6 +14783,8 @@ type PatchScheduleInputBody struct {
 
 // PatchTaskInputBody defines model for PatchTaskInputBody.
 type PatchTaskInputBody struct {
+	// Action Switching to restart clears the command.
+	Action         *PatchTaskInputBodyAction      `json:"action,omitempty"`
 	Command        *[]string                      `json:"command,omitempty"`
 	Concurrency    *PatchTaskInputBodyConcurrency `json:"concurrency,omitempty"`
 	Enabled        *bool                          `json:"enabled,omitempty"`
@@ -14565,6 +14795,9 @@ type PatchTaskInputBody struct {
 	// Timezone IANA zone; changing it recomputes the next run.
 	Timezone *string `json:"timezone,omitempty"`
 }
+
+// PatchTaskInputBodyAction Switching to restart clears the command.
+type PatchTaskInputBodyAction string
 
 // PatchTaskInputBodyConcurrency defines model for PatchTaskInputBody.Concurrency.
 type PatchTaskInputBodyConcurrency string
@@ -15646,6 +15879,27 @@ type PutTeamSettingsInputBody struct {
 
 // PutTeamSettingsInputBodyBuildLocation Where services build by default: on their own server (target) or on a build server.
 type PutTeamSettingsInputBodyBuildLocation string
+
+// QueryDatabaseInputBody defines model for QueryDatabaseInputBody.
+type QueryDatabaseInputBody struct {
+	// AllowWrites Lift the read-only session so statements may change data. Off by default.
+	AllowWrites *bool `json:"allowWrites,omitempty"`
+
+	// Confirm Required with allowWrites in a production environment: the service slug
+	Confirm *string `json:"confirm,omitempty"`
+
+	// Sql One or more statements
+	Sql string `json:"sql"`
+}
+
+// QueuedCommit defines model for QueuedCommit.
+type QueuedCommit struct {
+	Author  string    `json:"author"`
+	Branch  string    `json:"branch"`
+	Message string    `json:"message"`
+	Sha     string    `json:"sha"`
+	Since   time.Time `json:"since"`
+}
 
 // RangeInfo defines model for RangeInfo.
 type RangeInfo struct {
@@ -17265,6 +17519,7 @@ type ServiceView struct {
 	AppliedGeneration   int64                   `json:"appliedGeneration"`
 	Config              Config                  `json:"config"`
 	CreatedAt           time.Time               `json:"createdAt"`
+	Cron                *CronView               `json:"cron,omitempty"`
 	CurrentDeploymentId *string                 `json:"currentDeploymentId"`
 	CurrentRelease      *ReleaseRef             `json:"currentRelease"`
 	DesiredState        ServiceViewDesiredState `json:"desiredState"`
@@ -18106,6 +18361,9 @@ type TaskMove struct {
 
 // TaskView defines model for TaskView.
 type TaskView struct {
+	// Action What the task does: run a command in a new container (command) or restart the service (restart).
+	Action TaskViewAction `json:"action"`
+
 	// Command Argv, run without a shell.
 	Command     *[]string           `json:"command"`
 	Concurrency TaskViewConcurrency `json:"concurrency"`
@@ -18126,6 +18384,9 @@ type TaskView struct {
 	Timezone  string    `json:"timezone"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
+
+// TaskViewAction What the task does: run a command in a new container (command) or restart the service (restart).
+type TaskViewAction string
 
 // TaskViewConcurrency defines model for TaskView.Concurrency.
 type TaskViewConcurrency string
@@ -18486,6 +18747,15 @@ type TemplatePort struct {
 	Publish  bool   `json:"publish"`
 }
 
+// TemplateProvide defines model for TemplateProvide.
+type TemplateProvide struct {
+	Description *string `json:"description,omitempty"`
+	Key         string  `json:"key"`
+	Recommended *bool   `json:"recommended,omitempty"`
+	Secret      *bool   `json:"secret,omitempty"`
+	Value       string  `json:"value"`
+}
+
 // TemplateRequires defines model for TemplateRequires.
 type TemplateRequires struct {
 	Arch     *[]string `json:"arch"`
@@ -18511,6 +18781,7 @@ type TemplateService struct {
 	Oneshot          *bool              `json:"oneshot,omitempty"`
 	Port             *int64             `json:"port,omitempty"`
 	Ports            *[]TemplatePort    `json:"ports,omitempty"`
+	Provides         *[]TemplateProvide `json:"provides,omitempty"`
 	Resources        *TemplateLimits    `json:"resources,omitempty"`
 	Secrets          *[]string          `json:"secrets,omitempty"`
 	StopGraceSeconds *int64             `json:"stopGraceSeconds,omitempty"`
@@ -21491,6 +21762,9 @@ type SetDatabasePublicPortJSONRequestBody = SetPublicPortInputBody
 // RevealDatabasePublicConnectionJSONRequestBody defines body for RevealDatabasePublicConnection for application/json ContentType.
 type RevealDatabasePublicConnectionJSONRequestBody = PublicConnectionInputBody
 
+// QueryDatabaseJSONRequestBody defines body for QueryDatabase for application/json ContentType.
+type QueryDatabaseJSONRequestBody = QueryDatabaseInputBody
+
 // RebuildDatabaseReplicaJSONRequestBody defines body for RebuildDatabaseReplica for application/json ContentType.
 type RebuildDatabaseReplicaJSONRequestBody = RebuildInputBody
 
@@ -21502,6 +21776,9 @@ type RevealDatabaseExportJSONRequestBody = RevealInputBody
 
 // RotateDatabaseCredentialsJSONRequestBody defines body for RotateDatabaseCredentials for application/json ContentType.
 type RotateDatabaseCredentialsJSONRequestBody = RotateInputBody
+
+// BrowseDatabaseTableJSONRequestBody defines body for BrowseDatabaseTable for application/json ContentType.
+type BrowseDatabaseTableJSONRequestBody = BrowseTableInputBody
 
 // UpgradeDatabaseJSONRequestBody defines body for UpgradeDatabase for application/json ContentType.
 type UpgradeDatabaseJSONRequestBody = UpgradeInputBody
@@ -25320,6 +25597,24 @@ type ClientInterface interface {
 	// Corresponds with POST /services/{serviceId}/database/public-port/connection (the `RevealDatabasePublicConnection` operationId).
 	RevealDatabasePublicConnection(ctx context.Context, serviceId string, body RevealDatabasePublicConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// QueryDatabaseWithBody Run SQL on a database (audited)
+	//
+	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /services/{serviceId}/database/query (the `QueryDatabase` operationId).
+	QueryDatabaseWithBody(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// QueryDatabase Run SQL on a database (audited)
+	//
+	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /services/{serviceId}/database/query (the `QueryDatabase` operationId).
+	QueryDatabase(ctx context.Context, serviceId string, body QueryDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// RebuildDatabaseReplicaWithBody Rebuild a replica, or a fenced old primary as a replica
 	//
 	// Clones the primary again into a new data volume (the old volume is kept until it is deleted). On a fenced old primary the body may name the new primary to follow. Asynchronous.
@@ -25410,6 +25705,31 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /services/{serviceId}/database/rotate-credentials (the `RotateDatabaseCredentials` operationId).
 	RotateDatabaseCredentials(ctx context.Context, serviceId string, body RotateDatabaseCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BrowseDatabaseTableWithBody Read a page of a table (audited)
+	//
+	// Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /services/{serviceId}/database/rows (the `BrowseDatabaseTable` operationId).
+	BrowseDatabaseTableWithBody(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// BrowseDatabaseTable Read a page of a table (audited)
+	//
+	// Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /services/{serviceId}/database/rows (the `BrowseDatabaseTable` operationId).
+	BrowseDatabaseTable(ctx context.Context, serviceId string, body BrowseDatabaseTableJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListDatabaseTables List the tables of a SQL database
+	//
+	// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.
+	//
+	// Corresponds with GET /services/{serviceId}/database/tables (the `ListDatabaseTables` operationId).
+	ListDatabaseTables(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpgradeDatabaseWithBody Upgrade the database version
 	//
@@ -25588,7 +25908,7 @@ type ClientInterface interface {
 
 	// LinkServiceGitWithBody Link a service to a repository and set auto-deploy
 	//
-	// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
+	// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -25597,7 +25917,7 @@ type ClientInterface interface {
 
 	// LinkServiceGit Link a service to a repository and set auto-deploy
 	//
-	// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
+	// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -35092,6 +35412,44 @@ func (c *Client) RevealDatabasePublicConnection(ctx context.Context, serviceId s
 	return c.Client.Do(req)
 }
 
+// QueryDatabaseWithBody Run SQL on a database (audited)
+//
+// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /services/{serviceId}/database/query (the `QueryDatabase` operationId).
+func (c *Client) QueryDatabaseWithBody(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewQueryDatabaseRequestWithBody(c.Server, serviceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// QueryDatabase Run SQL on a database (audited)
+//
+// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /services/{serviceId}/database/query (the `QueryDatabase` operationId).
+func (c *Client) QueryDatabase(ctx context.Context, serviceId string, body QueryDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewQueryDatabaseRequest(c.Server, serviceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // RebuildDatabaseReplicaWithBody Rebuild a replica, or a fenced old primary as a replica
 //
 // Clones the primary again into a new data volume (the old volume is kept until it is deleted). On a fenced old primary the body may name the new primary to follow. Asynchronous.
@@ -35283,6 +35641,61 @@ func (c *Client) RotateDatabaseCredentialsWithBody(ctx context.Context, serviceI
 // Corresponds with POST /services/{serviceId}/database/rotate-credentials (the `RotateDatabaseCredentials` operationId).
 func (c *Client) RotateDatabaseCredentials(ctx context.Context, serviceId string, body RotateDatabaseCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewRotateDatabaseCredentialsRequest(c.Server, serviceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// BrowseDatabaseTableWithBody Read a page of a table (audited)
+//
+// Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /services/{serviceId}/database/rows (the `BrowseDatabaseTable` operationId).
+func (c *Client) BrowseDatabaseTableWithBody(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBrowseDatabaseTableRequestWithBody(c.Server, serviceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// BrowseDatabaseTable Read a page of a table (audited)
+//
+// Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /services/{serviceId}/database/rows (the `BrowseDatabaseTable` operationId).
+func (c *Client) BrowseDatabaseTable(ctx context.Context, serviceId string, body BrowseDatabaseTableJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewBrowseDatabaseTableRequest(c.Server, serviceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListDatabaseTables List the tables of a SQL database
+//
+// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.
+//
+// Corresponds with GET /services/{serviceId}/database/tables (the `ListDatabaseTables` operationId).
+func (c *Client) ListDatabaseTables(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListDatabaseTablesRequest(c.Server, serviceId)
 	if err != nil {
 		return nil, err
 	}
@@ -35700,7 +36113,7 @@ func (c *Client) GetServiceGit(ctx context.Context, serviceId string, reqEditors
 
 // LinkServiceGitWithBody Link a service to a repository and set auto-deploy
 //
-// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
+// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
 //
 // Takes any type of body and a specified content type.
 //
@@ -35719,7 +36132,7 @@ func (c *Client) LinkServiceGitWithBody(ctx context.Context, serviceId string, c
 
 // LinkServiceGit Link a service to a repository and set auto-deploy
 //
-// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
+// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -53543,6 +53956,53 @@ func NewRevealDatabasePublicConnectionRequestWithBody(server string, serviceId s
 	return req, nil
 }
 
+// NewQueryDatabaseRequest calls the generic QueryDatabase builder with application/json body
+func NewQueryDatabaseRequest(server string, serviceId string, body QueryDatabaseJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewQueryDatabaseRequestWithBody(server, serviceId, "application/json", bodyReader)
+}
+
+// NewQueryDatabaseRequestWithBody constructs an http.Request for the QueryDatabase method, with any body, and a specified content type
+func NewQueryDatabaseRequestWithBody(server string, serviceId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/database/query", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewRebuildDatabaseReplicaRequest calls the generic RebuildDatabaseReplica builder with application/json body
 func NewRebuildDatabaseReplicaRequest(server string, serviceId string, params *RebuildDatabaseReplicaParams, body RebuildDatabaseReplicaJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -53874,6 +54334,87 @@ func NewRotateDatabaseCredentialsRequestWithBody(server string, serviceId string
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewBrowseDatabaseTableRequest calls the generic BrowseDatabaseTable builder with application/json body
+func NewBrowseDatabaseTableRequest(server string, serviceId string, body BrowseDatabaseTableJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewBrowseDatabaseTableRequestWithBody(server, serviceId, "application/json", bodyReader)
+}
+
+// NewBrowseDatabaseTableRequestWithBody constructs an http.Request for the BrowseDatabaseTable method, with any body, and a specified content type
+func NewBrowseDatabaseTableRequestWithBody(server string, serviceId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/database/rows", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewListDatabaseTablesRequest constructs an http.Request for the ListDatabaseTables method
+func NewListDatabaseTablesRequest(server string, serviceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/database/tables", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	return req, nil
 }
@@ -64338,6 +64879,24 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with POST /services/{serviceId}/database/public-port/connection (the `RevealDatabasePublicConnection` operationId).
 	RevealDatabasePublicConnectionWithResponse(ctx context.Context, serviceId string, body RevealDatabasePublicConnectionJSONRequestBody, reqEditors ...RequestEditorFn) (*RevealDatabasePublicConnectionResponse, error)
 
+	// QueryDatabaseWithBodyWithResponse Run SQL on a database (audited)
+	//
+	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /services/{serviceId}/database/query (the `QueryDatabase` operationId).
+	QueryDatabaseWithBodyWithResponse(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueryDatabaseResponse, error)
+
+	// QueryDatabaseWithResponse Run SQL on a database (audited)
+	//
+	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /services/{serviceId}/database/query (the `QueryDatabase` operationId).
+	QueryDatabaseWithResponse(ctx context.Context, serviceId string, body QueryDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*QueryDatabaseResponse, error)
+
 	// RebuildDatabaseReplicaWithBodyWithResponse Rebuild a replica, or a fenced old primary as a replica
 	//
 	// Clones the primary again into a new data volume (the old volume is kept until it is deleted). On a fenced old primary the body may name the new primary to follow. Asynchronous.
@@ -64434,6 +64993,33 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /services/{serviceId}/database/rotate-credentials (the `RotateDatabaseCredentials` operationId).
 	RotateDatabaseCredentialsWithResponse(ctx context.Context, serviceId string, body RotateDatabaseCredentialsJSONRequestBody, reqEditors ...RequestEditorFn) (*RotateDatabaseCredentialsResponse, error)
+
+	// BrowseDatabaseTableWithBodyWithResponse Read a page of a table (audited)
+	//
+	// Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /services/{serviceId}/database/rows (the `BrowseDatabaseTable` operationId).
+	BrowseDatabaseTableWithBodyWithResponse(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BrowseDatabaseTableResponse, error)
+
+	// BrowseDatabaseTableWithResponse Read a page of a table (audited)
+	//
+	// Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /services/{serviceId}/database/rows (the `BrowseDatabaseTable` operationId).
+	BrowseDatabaseTableWithResponse(ctx context.Context, serviceId string, body BrowseDatabaseTableJSONRequestBody, reqEditors ...RequestEditorFn) (*BrowseDatabaseTableResponse, error)
+
+	// ListDatabaseTablesWithResponse List the tables of a SQL database
+	//
+	// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /services/{serviceId}/database/tables (the `ListDatabaseTables` operationId).
+	ListDatabaseTablesWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*ListDatabaseTablesResponse, error)
 
 	// UpgradeDatabaseWithBodyWithResponse Upgrade the database version
 	//
@@ -64634,7 +65220,7 @@ type ClientWithResponsesInterface interface {
 
 	// LinkServiceGitWithBodyWithResponse Link a service to a repository and set auto-deploy
 	//
-	// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
+	// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -64643,7 +65229,7 @@ type ClientWithResponsesInterface interface {
 
 	// LinkServiceGitWithResponse Link a service to a repository and set auto-deploy
 	//
-	// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
+	// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -93460,6 +94046,117 @@ func (r RevealDatabasePublicConnectionResponse) ContentType() string {
 	return ""
 }
 
+// QueryDatabaseResponse200Headers the declared response headers of an HTTP 200 response for QueryDatabase
+type QueryDatabaseResponse200Headers struct {
+	CacheControl *string
+}
+
+type QueryDatabaseResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *DataResult
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Error
+	// ApplicationproblemJSON504 the response for an HTTP 504 `application/problem+json` response
+	ApplicationproblemJSON504 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *QueryDatabaseResponse200Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r QueryDatabaseResponse) GetJSON200() *DataResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSON503() *Error {
+	return r.ApplicationproblemJSON503
+}
+
+// GetApplicationproblemJSON504 returns the response for an HTTP 504 `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSON504() *Error {
+	return r.ApplicationproblemJSON504
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r QueryDatabaseResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r QueryDatabaseResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r QueryDatabaseResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r QueryDatabaseResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r QueryDatabaseResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type RebuildDatabaseReplicaResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -94099,6 +94796,228 @@ func (r RotateDatabaseCredentialsResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r RotateDatabaseCredentialsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// BrowseDatabaseTableResponse200Headers the declared response headers of an HTTP 200 response for BrowseDatabaseTable
+type BrowseDatabaseTableResponse200Headers struct {
+	CacheControl *string
+}
+
+type BrowseDatabaseTableResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *DataResult
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Error
+	// ApplicationproblemJSON504 the response for an HTTP 504 `application/problem+json` response
+	ApplicationproblemJSON504 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *BrowseDatabaseTableResponse200Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r BrowseDatabaseTableResponse) GetJSON200() *DataResult {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSON503() *Error {
+	return r.ApplicationproblemJSON503
+}
+
+// GetApplicationproblemJSON504 returns the response for an HTTP 504 `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSON504() *Error {
+	return r.ApplicationproblemJSON504
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r BrowseDatabaseTableResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r BrowseDatabaseTableResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r BrowseDatabaseTableResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r BrowseDatabaseTableResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r BrowseDatabaseTableResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+// ListDatabaseTablesResponse200Headers the declared response headers of an HTTP 200 response for ListDatabaseTables
+type ListDatabaseTablesResponse200Headers struct {
+	CacheControl *string
+}
+
+type ListDatabaseTablesResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *DataTables
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Error
+	// ApplicationproblemJSON504 the response for an HTTP 504 `application/problem+json` response
+	ApplicationproblemJSON504 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+	// Headers200 the parsed response headers for an HTTP 200 response
+	Headers200 *ListDatabaseTablesResponse200Headers
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListDatabaseTablesResponse) GetJSON200() *DataTables {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSON503() *Error {
+	return r.ApplicationproblemJSON503
+}
+
+// GetApplicationproblemJSON504 returns the response for an HTTP 504 `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSON504() *Error {
+	return r.ApplicationproblemJSON504
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListDatabaseTablesResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListDatabaseTablesResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListDatabaseTablesResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListDatabaseTablesResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListDatabaseTablesResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -112230,6 +113149,36 @@ func (c *ClientWithResponses) RevealDatabasePublicConnectionWithResponse(ctx con
 	return ParseRevealDatabasePublicConnectionResponse(rsp)
 }
 
+// QueryDatabaseWithBodyWithResponse Run SQL on a database (audited)
+//
+// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /services/{serviceId}/database/query (the `QueryDatabase` operationId).
+func (c *ClientWithResponses) QueryDatabaseWithBodyWithResponse(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*QueryDatabaseResponse, error) {
+	rsp, err := c.QueryDatabaseWithBody(ctx, serviceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQueryDatabaseResponse(rsp)
+}
+
+// QueryDatabaseWithResponse Run SQL on a database (audited)
+//
+// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /services/{serviceId}/database/query (the `QueryDatabase` operationId).
+func (c *ClientWithResponses) QueryDatabaseWithResponse(ctx context.Context, serviceId string, body QueryDatabaseJSONRequestBody, reqEditors ...RequestEditorFn) (*QueryDatabaseResponse, error) {
+	rsp, err := c.QueryDatabase(ctx, serviceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseQueryDatabaseResponse(rsp)
+}
+
 // RebuildDatabaseReplicaWithBodyWithResponse Rebuild a replica, or a fenced old primary as a replica
 //
 // Clones the primary again into a new data volume (the old volume is kept until it is deleted). On a fenced old primary the body may name the new primary to follow. Asynchronous.
@@ -112391,6 +113340,51 @@ func (c *ClientWithResponses) RotateDatabaseCredentialsWithResponse(ctx context.
 		return nil, err
 	}
 	return ParseRotateDatabaseCredentialsResponse(rsp)
+}
+
+// BrowseDatabaseTableWithBodyWithResponse Read a page of a table (audited)
+//
+// Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /services/{serviceId}/database/rows (the `BrowseDatabaseTable` operationId).
+func (c *ClientWithResponses) BrowseDatabaseTableWithBodyWithResponse(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*BrowseDatabaseTableResponse, error) {
+	rsp, err := c.BrowseDatabaseTableWithBody(ctx, serviceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBrowseDatabaseTableResponse(rsp)
+}
+
+// BrowseDatabaseTableWithResponse Read a page of a table (audited)
+//
+// Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /services/{serviceId}/database/rows (the `BrowseDatabaseTable` operationId).
+func (c *ClientWithResponses) BrowseDatabaseTableWithResponse(ctx context.Context, serviceId string, body BrowseDatabaseTableJSONRequestBody, reqEditors ...RequestEditorFn) (*BrowseDatabaseTableResponse, error) {
+	rsp, err := c.BrowseDatabaseTable(ctx, serviceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseBrowseDatabaseTableResponse(rsp)
+}
+
+// ListDatabaseTablesWithResponse List the tables of a SQL database
+//
+// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /services/{serviceId}/database/tables (the `ListDatabaseTables` operationId).
+func (c *ClientWithResponses) ListDatabaseTablesWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*ListDatabaseTablesResponse, error) {
+	rsp, err := c.ListDatabaseTables(ctx, serviceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListDatabaseTablesResponse(rsp)
 }
 
 // UpgradeDatabaseWithBodyWithResponse Upgrade the database version
@@ -112730,7 +113724,7 @@ func (c *ClientWithResponses) GetServiceGitWithResponse(ctx context.Context, ser
 
 // LinkServiceGitWithBodyWithResponse Link a service to a repository and set auto-deploy
 //
-// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
+// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -112745,7 +113739,7 @@ func (c *ClientWithResponses) LinkServiceGitWithBodyWithResponse(ctx context.Con
 
 // LinkServiceGitWithResponse Link a service to a repository and set auto-deploy
 //
-// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
+// Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -137709,6 +138703,108 @@ func ParseRevealDatabasePublicConnectionResponse(rsp *http.Response) (*RevealDat
 	return response, nil
 }
 
+// ParseQueryDatabaseResponse parses an HTTP response from a QueryDatabaseWithResponse call
+func ParseQueryDatabaseResponse(rsp *http.Response) (*QueryDatabaseResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &QueryDatabaseResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DataResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON504 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers QueryDatabaseResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	}
+
+	return response, nil
+}
+
 // ParseRebuildDatabaseReplicaResponse parses an HTTP response from a RebuildDatabaseReplicaWithResponse call
 func ParseRebuildDatabaseReplicaResponse(rsp *http.Response) (*RebuildDatabaseReplicaResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -138256,6 +139352,210 @@ func ParseRotateDatabaseCredentialsResponse(rsp *http.Response) (*RotateDatabase
 		}
 		response.ApplicationproblemJSONDefault = &dest
 
+	}
+
+	return response, nil
+}
+
+// ParseBrowseDatabaseTableResponse parses an HTTP response from a BrowseDatabaseTableWithResponse call
+func ParseBrowseDatabaseTableResponse(rsp *http.Response) (*BrowseDatabaseTableResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &BrowseDatabaseTableResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DataResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON504 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers BrowseDatabaseTableResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
+	}
+
+	return response, nil
+}
+
+// ParseListDatabaseTablesResponse parses an HTTP response from a ListDatabaseTablesWithResponse call
+func ParseListDatabaseTablesResponse(rsp *http.Response) (*ListDatabaseTablesResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListDatabaseTablesResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest DataTables
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON504 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	switch {
+	case rsp.StatusCode == 200:
+		var headers ListDatabaseTablesResponse200Headers
+		if values := rsp.Header.Values("Cache-Control"); len(values) > 0 {
+			var value string
+			if err := runtime.BindStyledParameterWithOptions("simple", "Cache-Control", values[0], &value, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationHeader, Explode: false, Required: false, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			}
+			headers.CacheControl = &value
+		}
+		response.Headers200 = &headers
 	}
 
 	return response, nil

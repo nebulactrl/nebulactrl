@@ -77,7 +77,7 @@ func (uptimeOps) desired(_ *planCtx, _ *liveService, fv projectconfig.FieldValue
 	return view(n, display(n)), nil
 }
 
-// gitOps handles git.link, git.auto_deploy and git.watch_paths (immediate).
+// gitOps handles git.link, git.auto_deploy, git.wait_for_ci and git.watch_paths (immediate).
 type gitOps struct{}
 
 func (gitOps) live(pc *planCtx, ls *liveService, id, _ string) (fieldView, bool) {
@@ -90,6 +90,8 @@ func (gitOps) live(pc *planCtx, ls *liveService, id, _ string) (fieldView, bool)
 		return view(map[string]any{"connection": g.ConnectionID.String(), "repo": strings.ToLower(g.RepoFullName)}, ls.GitConn+":"+g.RepoFullName), true
 	case "git.auto_deploy":
 		return view(g.AutoDeploy, display(g.AutoDeploy)), true
+	case "git.wait_for_ci":
+		return view(g.WaitForCi, display(g.WaitForCi)), true
 	case "git.watch_paths":
 		wp := nonNil(g.WatchPaths)
 		return view(wp, display(wp)), true
@@ -122,6 +124,9 @@ func (gitOps) desired(pc *planCtx, _ *liveService, fv projectconfig.FieldValue) 
 	case "git.auto_deploy":
 		b, _ := asBool(fv.Value)
 		return view(b, display(b)), nil
+	case "git.wait_for_ci":
+		b, _ := asBool(fv.Value)
+		return view(b, display(b)), nil
 	case "git.watch_paths":
 		wp, _ := asStrings(fv.Value)
 		wp = nonNil(wp)
@@ -137,7 +142,7 @@ func taskValueOf(t liveTask) projectconfig.TaskValue {
 	var cmd []string
 	_ = json.Unmarshal(t.Command, &cmd)
 	return projectconfig.TaskValue{
-		Name: t.Name, Schedule: t.Schedule, Timezone: t.Timezone, Command: nonNil(cmd), Enabled: t.Enabled,
+		Name: t.Name, Action: t.Action, Schedule: t.Schedule, Timezone: t.Timezone, Command: nonNil(cmd), Enabled: t.Enabled,
 		TimeoutSeconds: int(t.TimeoutSeconds), Concurrency: t.Concurrency,
 	}
 }

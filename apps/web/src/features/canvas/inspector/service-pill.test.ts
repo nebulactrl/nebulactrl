@@ -267,3 +267,64 @@ describe("sourceLine kinds", () => {
 		expect(line).toEqual({ kind: "empty", parts: [], domain: null });
 	});
 });
+
+describe("servicePill: a cron service", () => {
+	const cron = with_({
+		kind: "worker",
+		observed: null,
+		config: {
+			image: "busybox",
+			oneshot: true,
+			cron: { schedule: "* * * * *" },
+		},
+		cron: { taskId: "t", schedule: "* * * * *", timezone: "UTC" },
+	});
+
+	test("between runs it is Scheduled, not Live", () => {
+		expect(servicePill(cron)).toEqual({ kind: "live", label: "Scheduled" });
+	});
+
+	test("a run in progress is Running; a failed last run says so", () => {
+		const run = (status: string) =>
+			with_({
+				...cron,
+				cron: {
+					taskId: "t",
+					schedule: "* * * * *",
+					timezone: "UTC",
+					lastRun: { id: "r", status },
+				},
+			});
+		expect(servicePill(run("running"))).toEqual({
+			kind: "deploying",
+			label: "Running",
+		});
+		expect(servicePill(run("timed_out"))).toEqual({
+			kind: "failed",
+			label: "Last run failed",
+		});
+		expect(servicePill(run("succeeded")).label).toBe("Scheduled");
+	});
+
+	test("stopped is Paused, and an offline server outranks Scheduled", () => {
+		expect(servicePill(with_({ ...cron, desiredState: "stopped" }))).toEqual({
+			kind: "stopped",
+			label: "Paused",
+		});
+		expect(
+			servicePill(with_({ ...cron, server: { status: "offline", name: "x" } }))
+				.label,
+		).toBe("Offline");
+	});
+
+	test("a build in flight keeps its own pill", () => {
+		expect(
+			servicePill(
+				with_({
+					...cron,
+					latestDeployment: { status: "building", finishedAt: null },
+				}),
+			).label,
+		).toBe("Building");
+	});
+});

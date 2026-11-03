@@ -55,7 +55,8 @@ function TaskRow({
 	onEdit: (task: TaskView) => void;
 	onDelete: (task: TaskView) => void;
 }) {
-	const command = commandText(task.command);
+	const command =
+		task.action === "restart" ? "Restart" : commandText(task.command);
 	const described = describeCron(task.schedule);
 	const last = task.lastRun;
 	const lastPresentation = last ? runPresentation(last.status) : null;

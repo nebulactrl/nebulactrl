@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -124,19 +125,32 @@ type HookStatusView struct {
 
 // GitLinkView is a service's repository link.
 type GitLinkView struct {
-	Linked         bool           `json:"linked"`
-	ConnectionID   *uuid.UUID     `json:"connectionId"`
-	Provider       Provider       `json:"provider,omitempty" enum:"github,gitlab,gitea,forgejo,bitbucket"`
-	ConnectionName string         `json:"connectionName"`
-	Repo           string         `json:"repo"`
-	RepoURL        string         `json:"repoUrl"`
-	Branch         string         `json:"branch"`
-	AutoDeploy     bool           `json:"autoDeploy"`
-	WatchPaths     []string       `json:"watchPaths"`
-	Webhook        HookStatusView `json:"webhook"`
+	Linked         bool       `json:"linked"`
+	ConnectionID   *uuid.UUID `json:"connectionId"`
+	Provider       Provider   `json:"provider,omitempty" enum:"github,gitlab,gitea,forgejo,bitbucket"`
+	ConnectionName string     `json:"connectionName"`
+	Repo           string     `json:"repo"`
+	RepoURL        string     `json:"repoUrl"`
+	Branch         string     `json:"branch"`
+	AutoDeploy     bool       `json:"autoDeploy"`
+	WatchPaths     []string   `json:"watchPaths"`
+	// WaitForCI holds a push until the commit's checks pass.
+	WaitForCI bool           `json:"waitForCi"`
+	Webhook   HookStatusView `json:"webhook"`
 	// QueuedCommit is the newest push waiting for the running deployment to
 	// finish (empty when none).
 	QueuedCommit string `json:"queuedCommit"`
+	// WaitingForCI is the push held back until its checks pass (absent when none).
+	WaitingForCI *QueuedCommit `json:"waitingForCi,omitempty"`
+}
+
+// QueuedCommit is a push waiting for its CI checks.
+type QueuedCommit struct {
+	SHA     string    `json:"sha"`
+	Message string    `json:"message"`
+	Author  string    `json:"author"`
+	Branch  string    `json:"branch"`
+	Since   time.Time `json:"since"`
 }
 
 // LinkInput links a git service to a repository of a connection.
@@ -150,6 +164,15 @@ type LinkInput struct {
 	AutoDeploy *bool
 	// WatchPaths defaults to the current patterns (none for a new link).
 	WatchPaths *[]string
+	// WaitForCI holds a push until the commit's checks pass (default: keep the
+	// current setting, false for a new link). Needs a connection that can read CI.
+	WaitForCI *bool
+}
+
+// canReadCI says whether the connection's provider can report CI results.
+func canReadCI(c db.GitConnection) bool {
+	drv := driverFor(Provider(c.Provider))
+	return drv != nil && drv.hasAPI() && c.AuthType != AuthWebhookOnly
 }
 
 func hookMode(c db.GitConnection) string {
@@ -187,7 +210,7 @@ func (s *Service) linkView(ctx context.Context, sc services.Scope) (GitLinkView,
 	v := GitLinkView{
 		Linked: true, ConnectionID: &c.ID, Provider: Provider(c.Provider), ConnectionName: c.Name, Repo: sg.RepoFullName,
 		RepoURL: drv.repoURL(c.BaseUrl, sg.RepoFullName), Branch: sc.Config().GitBranch, AutoDeploy: sg.AutoDeploy,
-		WatchPaths: sg.WatchPaths, Webhook: s.hookStatus(ctx, c, sg.RepoFullName),
+		WatchPaths: sg.WatchPaths, WaitForCI: sg.WaitForCi, Webhook: s.hookStatus(ctx, c, sg.RepoFullName),
 	}
 	if v.WatchPaths == nil {
 		v.WatchPaths = []string{}
@@ -196,6 +219,12 @@ func (s *Service) linkView(ctx context.Context, sc services.Scope) (GitLinkView,
 		var pc pendingCommit
 		if jsonUnmarshal(sg.PendingCommit, &pc) == nil {
 			v.QueuedCommit = pc.SHA
+		}
+	}
+	if len(sg.CiWait) > 0 {
+		var w ciWait
+		if jsonUnmarshal(sg.CiWait, &w) == nil && w.SHA != "" {
+			v.WaitingForCI = &QueuedCommit{SHA: w.SHA, Message: w.Message, Author: w.Author, Branch: w.Branch, Since: w.Since}
 		}
 	}
 	return v, nil
@@ -257,12 +286,21 @@ func (s *Service) Link(ctx context.Context, serviceID uuid.UUID, in LinkInput) (
 	if curErr != nil && !errors.Is(curErr, pgx.ErrNoRows) {
 		return GitLinkView{}, curErr
 	}
-	autoDeploy, watch := true, []string{}
+	autoDeploy, watch, waitForCI := true, []string{}, false
 	if curErr == nil {
-		autoDeploy, watch = cur.AutoDeploy, cur.WatchPaths
+		autoDeploy, watch, waitForCI = cur.AutoDeploy, cur.WatchPaths, cur.WaitForCi
 	}
 	if in.AutoDeploy != nil {
 		autoDeploy = *in.AutoDeploy
+	}
+	if in.WaitForCI != nil {
+		waitForCI = *in.WaitForCI
+		if waitForCI && !canReadCI(c) {
+			return GitLinkView{}, apierr.Unprocessable("ci_not_supported", "This connection cannot read CI results ("+c.Provider+" connections without API access cannot wait for CI): turn Wait for CI off or use a connection with API access.")
+		}
+	}
+	if !canReadCI(c) {
+		waitForCI = false // an inherited setting does not outlive a move to a connection that cannot read CI
 	}
 	if in.WatchPaths != nil {
 		if watch, err = ValidateWatchPaths(*in.WatchPaths); err != nil {
@@ -275,9 +313,9 @@ func (s *Service) Link(ctx context.Context, serviceID uuid.UUID, in LinkInput) (
 	if err := sc.Guard(ctx, guardLinkGit, fmt.Sprintf("Link %s in production to the repository %s (%s / %s)", sc.Service.Name, repo, sc.ProjectName, sc.EnvName), false,
 		[]string{
 			"The repository, branch and auto-deploy setting apply at once; with auto-deploy a push to the branch deploys the service.",
-			"Repository: " + repo + ", branch: " + branch + ", auto-deploy: " + fmt.Sprint(autoDeploy) + ".",
+			"Repository: " + repo + ", branch: " + branch + ", auto-deploy: " + fmt.Sprint(autoDeploy) + ", wait for CI: " + fmt.Sprint(waitForCI) + ".",
 		},
-		c.ID, repo, branch, autoDeploy, strings.Join(watch, ",")); err != nil {
+		c.ID, repo, branch, autoDeploy, strings.Join(watch, ","), waitForCI); err != nil {
 		return GitLinkView{}, err
 	}
 
@@ -290,13 +328,13 @@ func (s *Service) Link(ctx context.Context, serviceID uuid.UUID, in LinkInput) (
 	}
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		if _, err := db.New(tx).UpsertServiceGit(ctx, db.UpsertServiceGitParams{
-			ServiceID: serviceID, ConnectionID: c.ID, RepoFullName: repo, AutoDeploy: autoDeploy, WatchPaths: watch,
+			ServiceID: serviceID, ConnectionID: c.ID, RepoFullName: repo, AutoDeploy: autoDeploy, WatchPaths: watch, WaitForCi: waitForCI,
 		}); err != nil {
 			return err
 		}
 		return audit.Record(ctx, tx, audit.Entry{
 			Action: "service.git.link", ResourceType: "service", ResourceID: serviceID.String(), ProjectID: &sc.ProjectID,
-			Metadata: map[string]any{"connection": c.Name, "provider": c.Provider, "repo": repo, "branch": branch, "autoDeploy": autoDeploy, "watchPaths": len(watch)},
+			Metadata: map[string]any{"connection": c.Name, "provider": c.Provider, "repo": repo, "branch": branch, "autoDeploy": autoDeploy, "watchPaths": len(watch), "waitForCi": waitForCI},
 		})
 	})
 	if err != nil {

@@ -10,7 +10,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -215,4 +217,132 @@ func TestGiteaPushDeploysAndReportsStatus(t *testing.T) {
 		_, raw := g.do("GET", "/repos/tester/app/hooks", nil)
 		return strings.TrimSpace(string(raw)) == "[]"
 	}), "the webhook was not removed")
+}
+
+// commitFile adds a file to the main branch of tester/app and returns the commit sha.
+func (g *giteaAPI) commitFile(path, message string) string {
+	g.t.Helper()
+	code, raw := g.do("POST", "/repos/tester/app/contents/"+path, map[string]any{
+		"content": base64.StdEncoding.EncodeToString([]byte("FROM scratch\nLABEL nebulactrl.test=" + path + "\n")), "message": message, "branch": "main",
+	})
+	require.Equal(g.t, http.StatusCreated, code, string(raw))
+	var out struct {
+		Commit struct {
+			Sha string `json:"sha"`
+		} `json:"commit"`
+	}
+	require.NoError(g.t, json.Unmarshal(raw, &out))
+	require.Len(g.t, out.Commit.Sha, 40)
+	return out.Commit.Sha
+}
+
+// setStatus sets the ci/test commit status (the CI result) on a commit.
+func (g *giteaAPI) setStatus(sha, state string) {
+	g.t.Helper()
+	code, raw := g.do("POST", "/repos/tester/app/statuses/"+sha, map[string]any{"state": state, "context": "ci/test", "description": "itest " + state})
+	require.Equal(g.t, http.StatusCreated, code, string(raw))
+}
+
+// TestGiteaWaitForCI: with Wait for CI on, a pushed commit is parked while its
+// status is pending, deploys once the status turns green, and is not deployed
+// (and announced as deployment.ci_blocked) when the status turns red.
+func TestGiteaWaitForCI(t *testing.T) {
+	requireTier(t, tierFull)
+	g := startGitea(t)
+	s := ExclusiveStack(t, StackOptions{ListenAll: true})
+	port := s.Srv.Listener.Addr().(interface{ String() string }).String()
+	port = port[strings.LastIndex(port, ":")+1:]
+	s.App.Config.PublicURL = "http://host.docker.internal:" + port
+
+	code, raw := g.do("POST", "/user/repos", map[string]any{"name": "app", "auto_init": true, "default_branch": "main", "private": true})
+	require.Equal(t, http.StatusCreated, code, string(raw))
+
+	// A webhook channel that receives deployment.ci_blocked.
+	var mu sync.Mutex
+	var blocked []string // the raw bodies
+	sink := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+		var b struct {
+			Type string `json:"type"`
+			Test bool   `json:"test"`
+		}
+		if json.Unmarshal(body, &b) == nil && !b.Test && b.Type == "deployment.ci_blocked" {
+			mu.Lock()
+			blocked = append(blocked, string(body))
+			mu.Unlock()
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(sink.Close)
+	r := s.Do("POST", "/notifications/channels", map[string]any{
+		"name": "ci-" + s.hostBase, "kind": "webhook", "secrets": map[string]any{"url": sink.URL},
+		"rule": map[string]any{"eventTypes": []string{"deployment.ci_blocked"}, "allProjects": false, "projectIds": []string{s.ProjectID}},
+	})
+	require.Equal(t, http.StatusCreated, r.Status, string(r.Raw))
+	channelID := r.JSON().Obj("channel").Str("id")
+	t.Cleanup(func() { s.Do("DELETE", "/notifications/channels/"+channelID, nil) })
+
+	r = s.Do("POST", "/git/connections", map[string]any{"provider": "gitea", "name": "itest gitea", "baseUrl": g.base, "authType": "token", "token": g.token})
+	require.Equal(t, http.StatusCreated, r.Status, string(r.Raw))
+	connID := r.JSON().Obj("connection").Str("id")
+
+	svc := s.NewService(SvcSpec{
+		Name: "app", GitURL: g.base + "/tester/app.git", Health: map[string]any{"type": "none"},
+		Config: map[string]any{"stopGraceSeconds": 1},
+	})
+	r = s.Do("PUT", "/services/"+svc.ID+"/git", map[string]any{"connectionId": connID, "repo": "tester/app", "branch": "main", "waitForCi": true})
+	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
+	require.True(t, r.JSON().Bool("waitForCi"), string(r.Raw))
+
+	pushDeployments := func() []J {
+		var out []J
+		for _, d := range s.Do("GET", "/services/"+svc.ID+"/deployments", nil).JSON().Items() {
+			if d.Str("trigger") == "git_push" {
+				out = append(out, d)
+			}
+		}
+		return out
+	}
+	waiting := func() string {
+		return s.Do("GET", "/services/"+svc.ID+"/git", nil).JSON().Obj("waitingForCi").Str("sha")
+	}
+
+	// 1. Pending: the push is parked, nothing deploys.
+	sha := g.commitFile("Dockerfile", "Add Dockerfile")
+	g.setStatus(sha, "pending")
+	require.True(t, eventually(30*time.Second, time.Second, func() bool { return waiting() == sha }), "the push was not parked")
+	time.Sleep(40 * time.Second)
+	require.Empty(t, pushDeployments(), "a push with pending checks must not deploy")
+	require.Equal(t, sha, waiting())
+
+	// 2. Green: the parked push deploys.
+	g.setStatus(sha, "success")
+	var dep J
+	require.True(t, eventually(60*time.Second, time.Second, func() bool {
+		if ds := pushDeployments(); len(ds) > 0 {
+			dep = ds[0]
+			return true
+		}
+		return false
+	}), "the green push did not deploy")
+	require.Equal(t, sha, dep.Obj("commit").Str("sha"))
+	require.Empty(t, waiting())
+	s.WaitDeployment(dep.Str("id"), 3*time.Minute)
+
+	// 3. Red: nothing deploys and the block is announced.
+	sha2 := g.commitFile("second.txt", "Break CI")
+	g.setStatus(sha2, "pending")
+	require.True(t, eventually(30*time.Second, time.Second, func() bool { return waiting() == sha2 }), "the second push was not parked")
+	g.setStatus(sha2, "failure")
+	require.True(t, eventually(60*time.Second, time.Second, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
+		return len(blocked) > 0
+	}), "no deployment.ci_blocked notification")
+	mu.Lock()
+	require.Contains(t, blocked[0], "CI failed: ci/test")
+	mu.Unlock()
+	require.Empty(t, waiting(), "a failed push is dropped")
+	time.Sleep(15 * time.Second)
+	require.Len(t, pushDeployments(), 1, "the failing commit must not deploy")
 }

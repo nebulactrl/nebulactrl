@@ -48,6 +48,18 @@ describe("serviceMenu", () => {
 		{ id: "restart", label: "Restart", disabled: false, destructive: false },
 		{ id: "toggle", label: "Stop", disabled: false, destructive: false },
 		{
+			id: "run-command",
+			label: "Run command…",
+			disabled: false,
+			destructive: false,
+		},
+		{
+			id: "schedule-task",
+			label: "Schedule task…",
+			disabled: false,
+			destructive: false,
+		},
+		{
 			id: "copy-host",
 			label: "Copy private host",
 			disabled: false,
@@ -66,6 +78,8 @@ describe("serviceMenu", () => {
 			"Scale…",
 			"Restart",
 			"Stop",
+			"Run command…",
+			"Schedule task…",
 			"Copy private host",
 			"Delete…",
 		]);
@@ -199,7 +213,9 @@ describe("paneMenu", () => {
 		expect(create).toEqual([
 			{ type: "create", source: "git", at },
 			{ type: "create", source: "image", at },
+			{ type: "create", source: "cron", at },
 			{ type: "create", source: "database", at },
+			{ type: "create", source: "bucket", at },
 			{ type: "create", source: "templates", at },
 			{ type: "create", source: "compose", at },
 			{ type: "create", source: "coolify", at },

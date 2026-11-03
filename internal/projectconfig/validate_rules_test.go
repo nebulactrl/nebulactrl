@@ -129,6 +129,12 @@ func t2SectionCases() []t2case {
 		{name: "task timeout too long", toml: t2doc(t2web + "[services.web.tasks.job]\nschedule = \"0 7 * * *\"\ncommand = [\"run\"]\ntimeout_seconds = 90000\n"), code: CodeInvalidValue, path: "services.web.tasks.job.timeout_seconds"},
 		{name: "task concurrency value", toml: t2doc(t2web + "[services.web.tasks.job]\nschedule = \"0 7 * * *\"\ncommand = [\"run\"]\nconcurrency = \"replace\"\n"), code: CodeInvalidValue, path: "services.web.tasks.job.concurrency"},
 		{name: "task name invalid", toml: t2doc(t2web + "[services.web.tasks.\"Bad Name\"]\nschedule = \"0 7 * * *\"\ncommand = [\"run\"]\n"), code: CodeInvalidValue, path: "services.web.tasks.\"Bad Name\""},
+		{name: "restart task needs no command", toml: t2doc(t2web + "[services.web.tasks.job]\nschedule = \"0 7 * * *\"\naction = \"restart\"\n"), code: CodeMissingRequired, absent: true},
+		{name: "restart task with command", toml: t2doc(t2web + "[services.web.tasks.job]\nschedule = \"0 7 * * *\"\naction = \"restart\"\ncommand = [\"run\"]\n"), code: CodeInvalidValue, path: "services.web.tasks.job.command"},
+		{name: "restart task with timeout", toml: t2doc(t2web + "[services.web.tasks.job]\nschedule = \"0 7 * * *\"\naction = \"restart\"\ntimeout_seconds = 60\n"), code: CodeInvalidValue, path: "services.web.tasks.job.timeout_seconds"},
+		{name: "restart task on a one-shot service", toml: t2doc("[services.w]\nimage = \"nginx:1\"\none_shot = true\n\n[services.w.tasks.job]\nschedule = \"0 7 * * *\"\naction = \"restart\"\n"), code: CodeInvalidValue, path: "services.w.tasks.job.action"},
+		{name: "task action value", toml: t2doc(t2web + "[services.web.tasks.job]\nschedule = \"0 7 * * *\"\naction = \"reboot\"\ncommand = [\"run\"]\n"), code: CodeInvalidValue, path: "services.web.tasks.job.action"},
+		{name: "command task still needs a command", toml: t2doc(t2web + "[services.web.tasks.job]\nschedule = \"0 7 * * *\"\naction = \"command\"\n"), code: CodeMissingRequired, path: "services.web.tasks.job.command"},
 
 		{name: "process without command", toml: t2doc(t2web + "[services.web.processes.worker]\nstop_grace_seconds = 5\n"), code: CodeProcessCommandRequired, path: "services.web.processes.worker.command"},
 		{name: "process with empty command", toml: t2doc(t2web + "[services.web.processes.worker]\ncommand = []\n"), code: CodeProcessCommandRequired, path: "services.web.processes.worker.command"},

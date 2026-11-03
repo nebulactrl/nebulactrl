@@ -1,0 +1,9 @@
+{
+  "state": "failure",
+  "sha": "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c",
+  "total_count": 2,
+  "statuses": [
+    {"id": 1, "status": "pending", "context": "ci/lint"},
+    {"id": 2, "status": "failure", "context": "ci/test"}
+  ]
+}

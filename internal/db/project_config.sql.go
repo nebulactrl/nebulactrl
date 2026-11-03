@@ -629,7 +629,7 @@ func (q *Queries) ListGitEnvironmentsForRepo(ctx context.Context, arg ListGitEnv
 }
 
 const listServiceTasksForServices = `-- name: ListServiceTasksForServices :many
-SELECT id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone FROM service_tasks WHERE service_id = ANY($1::uuid[]) ORDER BY service_id, name
+SELECT id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone, action FROM service_tasks WHERE service_id = ANY($1::uuid[]) AND action <> 'service' ORDER BY service_id, name
 `
 
 func (q *Queries) ListServiceTasksForServices(ctx context.Context, ids []uuid.UUID) ([]ServiceTask, error) {
@@ -655,6 +655,7 @@ func (q *Queries) ListServiceTasksForServices(ctx context.Context, ids []uuid.UU
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Timezone,
+			&i.Action,
 		); err != nil {
 			return nil, err
 		}

@@ -224,16 +224,23 @@ func (e *Engine) runningDB(ctx context.Context, serviceID string) *docker.Contai
 // execPlanIn runs a plan in the container and returns its stdout. A non-zero
 // exit code is an error carrying the (redacted, truncated) output.
 func (e *Engine) execPlanIn(ctx context.Context, containerID string, plan engines.ExecPlan, rd *redactor, timeout time.Duration) (string, error) {
+	out, _, err := e.execPlanLimit(ctx, containerID, plan, rd, timeout, execOutputLimit)
+	return out, err
+}
+
+// execPlanLimit is execPlanIn keeping up to limit bytes of stdout. It reports
+// whether stdout had to be cut.
+func (e *Engine) execPlanLimit(ctx context.Context, containerID string, plan engines.ExecPlan, rd *redactor, timeout time.Duration, limit int) (string, bool, error) {
 	if plan.User != "" && plan.User != "postgres" {
-		return "", fmt.Errorf("refusing to exec as user %q", plan.User)
+		return "", false, fmt.Errorf("refusing to exec as user %q", plan.User)
 	}
-	var stdout, stderr limitedBuffer
+	stdout, stderr := limitedBuffer{limit: limit}, limitedBuffer{}
 	execCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	code, err := e.cfg.Docker.ContainerExec(execCtx, containerID, plan.Argv,
 		docker.ExecSpec{Env: plan.Env, User: plan.User, Stdin: strings.NewReader(plan.Stdin)}, &stdout, &stderr)
 	if err != nil {
-		return "", errors.New(rd.apply("exec in database container: " + err.Error()))
+		return "", false, errors.New(rd.apply("exec in database container: " + err.Error()))
 	}
 	if code != 0 {
 		msg := strings.TrimSpace(stderr.String())
@@ -243,9 +250,9 @@ func (e *Engine) execPlanIn(ctx context.Context, containerID string, plan engine
 		if len(msg) > 600 {
 			msg = msg[:600] + "…"
 		}
-		return "", errors.New(rd.apply(fmt.Sprintf("%s exited with code %d: %s", plan.Argv[0], code, msg)))
+		return "", false, errors.New(rd.apply(fmt.Sprintf("%s exited with code %d: %s", plan.Argv[0], code, msg)))
 	}
-	return stdout.String(), nil
+	return stdout.String(), stdout.truncated, nil
 }
 
 // handleReplAdmin runs the replication actions of db_admin (repl_*).

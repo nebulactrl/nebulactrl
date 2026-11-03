@@ -459,6 +459,12 @@ func (s *Service) Rollback(ctx context.Context, targetDeploymentID uuid.UUID) (R
 	if b := processesNeedAgent(snap.Config, &srv); b != nil {
 		return RollbackView{}, blockingError([]PlanBlocking{*b})
 	}
+	if b := restartPolicyNeedsAgent(snap.Config, &srv); b != nil {
+		return RollbackView{}, blockingError([]PlanBlocking{*b})
+	}
+	if b := cronNeedsAgent(snap.Config, &srv); b != nil {
+		return RollbackView{}, blockingError([]PlanBlocking{*b})
+	}
 	vols, err := s.q.ListServiceVolumes(ctx, sc.Service.ID)
 	if err != nil {
 		return RollbackView{}, fmt.Errorf("list volumes: %w", err)

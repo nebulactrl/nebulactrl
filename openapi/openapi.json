@@ -213,9 +213,6 @@
             "type": "string"
           }
         },
-        "required": [
-          "commandId"
-        ],
         "type": "object"
       },
       "AddReplicaInputBody": {
@@ -973,6 +970,33 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "BrowseTableInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "offset": {
+            "description": "Rows to skip; pages are 100 rows",
+            "format": "int64",
+            "maximum": 1000000000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "schema": {
+            "description": "Schema of the table (PostgreSQL schema, MySQL/MariaDB/ClickHouse database), as listed by the tables operation",
+            "maxLength": 256,
+            "type": "string"
+          },
+          "table": {
+            "maxLength": 256,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "table",
+          "offset"
         ],
         "type": "object"
       },
@@ -4249,6 +4273,9 @@
             "format": "double",
             "type": "number"
           },
+          "cron": {
+            "$ref": "#/components/schemas/CronSpec"
+          },
           "database": {
             "$ref": "#/components/schemas/Spec"
           },
@@ -4333,6 +4360,18 @@
             ]
           },
           "registryId": {
+            "type": "string"
+          },
+          "restartMaxRetries": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "restartPolicy": {
+            "enum": [
+              "always",
+              "on-failure",
+              "never"
+            ],
             "type": "string"
           },
           "route": {
@@ -4683,6 +4722,10 @@
             "format": "double",
             "type": "number"
           },
+          "cron": {
+            "$ref": "#/components/schemas/CronSpec",
+            "description": "Run the service on a schedule: a deploy only pulls or builds the image and the image's own command runs on the schedule. Requires oneshot: true and an app or worker service. schedule is a 5-field cron expression, timezone an IANA zone (default UTC), timeoutSeconds 1-86400 (default 1800), concurrency forbid (skip while the previous run still runs; default) or allow. On PATCH the object replaces the whole schedule; Stop and Start pause and resume it."
+          },
           "docker": {
             "$ref": "#/components/schemas/DockerOptions",
             "description": "Typed container options. On every server: capAdd, capDrop, noNewPrivileges, readOnlyRootfs, pidsLimit, hostname (default: the service slug), dns, sysctls, hostSysctls (host requirements, only warned about), user, groupAdd, ulimits, shmSizeMb, extraHosts, labels, init, stopSignal, tmpfs, entrypoint. Only on a server an instance admin made unrestricted: devices, gpus, runtime, privileged, pidHost, seccompUnconfined, apparmorUnconfined and the capabilities NET_ADMIN and SYS_ADMIN (422 requires_unrestricted_server otherwise). Never host networking, ip, restart or log options, host binds or the socket."
@@ -4771,6 +4814,15 @@
           },
           "registryId": {
             "description": "Registry the build is pushed to; omitted inherits the project or team default",
+            "type": "string"
+          },
+          "restartMaxRetries": {
+            "description": "Restart limit for the on-failure policy (1-100; 0 means 10).",
+            "format": "int64",
+            "type": "integer"
+          },
+          "restartPolicy": {
+            "description": "What happens when the container exits on its own: always (the default; restart unless stopped), on-failure or never. Not available for one-shot services, stacks, routes or databases.",
             "type": "string"
           },
           "singleton": {
@@ -7804,12 +7856,20 @@
       "CreateTaskInputBody": {
         "additionalProperties": false,
         "properties": {
+          "action": {
+            "default": "command",
+            "description": "command (default) runs Command in a new container; restart restarts the service's running container on the schedule (brief outage with one replica).",
+            "enum": [
+              "command",
+              "restart"
+            ],
+            "type": "string"
+          },
           "command": {
-            "description": "Argv, run without a shell in a container of the service's current image. Wrap in [\"sh\",\"-c\",…] for shell syntax.",
+            "description": "Argv, run without a shell in a container of the service's current image. Wrap in [\"sh\",\"-c\",…] for shell syntax. Required (at least one element) for the command action; must be empty for restart.",
             "items": {
               "type": "string"
             },
-            "minItems": 1,
             "type": [
               "array",
               "null"
@@ -7857,8 +7917,7 @@
         },
         "required": [
           "name",
-          "schedule",
-          "command"
+          "schedule"
         ],
         "type": "object"
       },
@@ -8139,6 +8198,87 @@
         },
         "required": [
           "items"
+        ],
+        "type": "object"
+      },
+      "CronRunView": {
+        "additionalProperties": false,
+        "properties": {
+          "exitCode": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "status"
+        ],
+        "type": "object"
+      },
+      "CronSpec": {
+        "additionalProperties": false,
+        "properties": {
+          "concurrency": {
+            "enum": [
+              "forbid",
+              "allow"
+            ],
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "timeoutSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timezone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schedule"
+        ],
+        "type": "object"
+      },
+      "CronView": {
+        "additionalProperties": false,
+        "properties": {
+          "lastRun": {
+            "$ref": "#/components/schemas/CronRunView"
+          },
+          "nextRunAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "taskId": {
+            "type": "string"
+          },
+          "timezone": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "taskId",
+          "schedule",
+          "timezone"
         ],
         "type": "object"
       },
@@ -8760,6 +8900,148 @@
           "provider",
           "providerName",
           "applied"
+        ],
+        "type": "object"
+      },
+      "DataColumn": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "description": "The engine's name for the column type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "type"
+        ],
+        "type": "object"
+      },
+      "DataResult": {
+        "additionalProperties": false,
+        "properties": {
+          "durationMs": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/DataResultSet"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "truncatedCells": {
+            "description": "Some cell was longer than the per-cell limit and is clipped",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "results",
+          "durationMs"
+        ],
+        "type": "object"
+      },
+      "DataResultSet": {
+        "additionalProperties": false,
+        "properties": {
+          "columns": {
+            "items": {
+              "$ref": "#/components/schemas/DataColumn"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "commandTag": {
+            "description": "The server's completion tag, for example INSERT 0 1",
+            "type": "string"
+          },
+          "rowCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rows": {
+            "items": {
+              "items": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "type": [
+                "array",
+                "null"
+              ]
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "truncated": {
+            "description": "More rows existed than are returned",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "columns",
+          "rows",
+          "rowCount"
+        ],
+        "type": "object"
+      },
+      "DataTable": {
+        "additionalProperties": false,
+        "properties": {
+          "kind": {
+            "enum": [
+              "table",
+              "view",
+              "other"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "rowEstimate": {
+            "description": "Approximate row count from the engine's statistics; absent when unknown",
+            "format": "int64",
+            "type": "integer"
+          },
+          "schema": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "schema",
+          "name",
+          "kind"
+        ],
+        "type": "object"
+      },
+      "DataTables": {
+        "additionalProperties": false,
+        "properties": {
+          "tables": {
+            "items": {
+              "$ref": "#/components/schemas/DataTable"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "tables"
         ],
         "type": "object"
       },
@@ -12504,6 +12786,12 @@
           "repoUrl": {
             "type": "string"
           },
+          "waitForCi": {
+            "type": "boolean"
+          },
+          "waitingForCi": {
+            "$ref": "#/components/schemas/QueuedCommit"
+          },
           "watchPaths": {
             "items": {
               "type": "string"
@@ -12526,6 +12814,7 @@
           "branch",
           "autoDeploy",
           "watchPaths",
+          "waitForCi",
           "webhook",
           "queuedCommit"
         ],
@@ -12556,6 +12845,9 @@
           "repo": {
             "type": "string"
           },
+          "waitForCi": {
+            "type": "boolean"
+          },
           "watchPaths": {
             "items": {
               "type": "string"
@@ -12572,7 +12864,8 @@
           "connectionName",
           "repo",
           "autoDeploy",
-          "watchPaths"
+          "watchPaths",
+          "waitForCi"
         ],
         "type": "object"
       },
@@ -14148,6 +14441,10 @@
             "maxLength": 300,
             "minLength": 3,
             "type": "string"
+          },
+          "waitForCi": {
+            "description": "Deploy a push only after its CI checks pass (default: keep the current setting, false for a new link). A push with no checks deploys after 2 minutes. 422 ci_not_supported on Bitbucket and webhook-only connections.",
+            "type": "boolean"
           },
           "watchPaths": {
             "description": "Monorepo watch paths: globs relative to the repository root ('apps/api/**', 'packages/*/src', '!**/*.md'); a push only deploys when a changed file matches. Empty watches everything.",
@@ -17550,6 +17847,14 @@
       "PatchTaskInputBody": {
         "additionalProperties": false,
         "properties": {
+          "action": {
+            "description": "Switching to restart clears the command.",
+            "enum": [
+              "command",
+              "restart"
+            ],
+            "type": "string"
+          },
           "command": {
             "items": {
               "type": "string"
@@ -20642,6 +20947,58 @@
         },
         "required": [
           "buildLocation"
+        ],
+        "type": "object"
+      },
+      "QueryDatabaseInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "allowWrites": {
+            "description": "Lift the read-only session so statements may change data. Off by default.",
+            "type": "boolean"
+          },
+          "confirm": {
+            "description": "Required with allowWrites in a production environment: the service slug",
+            "type": "string"
+          },
+          "sql": {
+            "description": "One or more statements",
+            "maxLength": 65536,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "sql"
+        ],
+        "type": "object"
+      },
+      "QueuedCommit": {
+        "additionalProperties": false,
+        "properties": {
+          "author": {
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "sha": {
+            "type": "string"
+          },
+          "since": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha",
+          "message",
+          "author",
+          "branch",
+          "since"
         ],
         "type": "object"
       },
@@ -25242,6 +25599,9 @@
             "format": "date-time",
             "type": "string"
           },
+          "cron": {
+            "$ref": "#/components/schemas/CronView"
+          },
           "currentDeploymentId": {
             "type": [
               "string",
@@ -27671,6 +28031,14 @@
       "TaskView": {
         "additionalProperties": false,
         "properties": {
+          "action": {
+            "description": "What the task does: run a command in a new container (command) or restart the service (restart).",
+            "enum": [
+              "command",
+              "restart"
+            ],
+            "type": "string"
+          },
           "command": {
             "description": "Argv, run without a shell.",
             "items": {
@@ -27736,6 +28104,7 @@
           "id",
           "serviceId",
           "name",
+          "action",
           "schedule",
           "timezone",
           "command",
@@ -28857,6 +29226,31 @@
         ],
         "type": "object"
       },
+      "TemplateProvide": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "recommended": {
+            "type": "boolean"
+          },
+          "secret": {
+            "type": "boolean"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "value"
+        ],
+        "type": "object"
+      },
       "TemplateRequires": {
         "additionalProperties": false,
         "properties": {
@@ -28964,6 +29358,15 @@
           "ports": {
             "items": {
               "$ref": "#/components/schemas/TemplatePort"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "provides": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateProvide"
             },
             "type": [
               "array",
@@ -68980,6 +69383,157 @@
         ]
       }
     },
+    "/services/{serviceId}/database/query": {
+      "post": {
+        "description": "Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.",
+        "operationId": "queryDatabase",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QueryDatabaseInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResult"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "deployments:write"
+            ]
+          },
+          {
+            "cookie": [
+              "deployments:write"
+            ]
+          }
+        ],
+        "summary": "Run SQL on a database (audited)",
+        "tags": [
+          "databases"
+        ]
+      }
+    },
     "/services/{serviceId}/database/rebuild": {
       "post": {
         "description": "Clones the primary again into a new data volume (the old volume is kept until it is deleted). On a fenced old primary the body may name the new primary to follow. Asynchronous.",
@@ -69871,6 +70425,298 @@
           }
         ],
         "summary": "Rotate the database password",
+        "tags": [
+          "databases"
+        ]
+      }
+    },
+    "/services/{serviceId}/database/rows": {
+      "post": {
+        "description": "Returns 100 rows of one table from `offset`, read-only, and records `database.browse` in the audit log. Cells longer than 4 KiB are clipped. Same preconditions and 409 codes as the table listing; 422 `query_failed` carries the database's error.",
+        "operationId": "browseDatabaseTable",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrowseTableInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataResult"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "deployments:write"
+            ]
+          },
+          {
+            "cookie": [
+              "deployments:write"
+            ]
+          }
+        ],
+        "summary": "Read a page of a table (audited)",
+        "tags": [
+          "databases"
+        ]
+      }
+    },
+    "/services/{serviceId}/database/tables": {
+      "get": {
+        "description": "Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.",
+        "operationId": "listDatabaseTables",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataTables"
+                }
+              }
+            },
+            "description": "OK",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "deployments:write"
+            ]
+          },
+          {
+            "cookie": [
+              "deployments:write"
+            ]
+          }
+        ],
+        "summary": "List the tables of a SQL database",
         "tags": [
           "databases"
         ]
@@ -71883,7 +72729,7 @@
         ]
       },
       "put": {
-        "description": "Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.",
+        "description": "Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.",
         "operationId": "linkServiceGit",
         "parameters": [
           {

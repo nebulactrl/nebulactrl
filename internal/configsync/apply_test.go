@@ -2006,6 +2006,33 @@ func TestApplyPartialWhenTheTaskStoreFailsThenConverges(t *testing.T) {
 	require.Equal(t, configsync.StatusNoop, f.mustApply(file).Status)
 }
 
+// A restart task applies through the same path as a command task, stores no
+// command, and the file converges: the live value (restart, fixed timeout)
+// equals the file's.
+func TestApplyRestartTaskConverges(t *testing.T) {
+	f := newApplyFixture(t)
+	file := applyWebFile(8080, "\n[services.web.tasks.weekly]\nschedule = \"0 4 * * 0\"\naction = \"restart\"\n")
+
+	res := f.mustApply(file)
+	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
+	web := f.svcRow(f.staging, "web")
+	row, ok := f.taskRows(web.ID)["weekly"]
+	require.True(t, ok)
+	require.Equal(t, tasks.ActionRestart, row.Action)
+	require.JSONEq(t, `[]`, string(row.Command))
+	require.Equal(t, int32(tasks.RestartTimeoutSeconds), row.TimeoutSeconds)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(file).Status)
+
+	// Back to a command task: the file changes the action and gives a command.
+	file = applyWebFile(8080, "\n[services.web.tasks.weekly]\nschedule = \"0 4 * * 0\"\ncommand = [\"echo\", \"hi\"]\n")
+	res = f.mustApply(file)
+	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
+	row = f.taskRows(web.ID)["weekly"]
+	require.Equal(t, tasks.ActionCommand, row.Action)
+	require.JSONEq(t, `["echo","hi"]`, string(row.Command))
+	require.Equal(t, configsync.StatusNoop, f.mustApply(file).Status)
+}
+
 const applyDeferFile = `schema = 1
 server = "agent1"
 

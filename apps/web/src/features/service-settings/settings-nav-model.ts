@@ -295,6 +295,8 @@ const FIELD_CATEGORY = {
 	postDeployCommand: "deploy",
 	postDeployTimeoutSeconds: "deploy",
 	stopGraceSeconds: "deploy",
+	restartPolicy: "deploy",
+	restartMaxRetries: "deploy",
 	imageRetention: "deploy",
 	gitToken: "general",
 	clearGitToken: "general",
@@ -302,6 +304,11 @@ const FIELD_CATEGORY = {
 	registryPassword: "general",
 	clearRegistryAuth: "general",
 	oneshot: "general",
+	cronEnabled: "general",
+	cronSchedule: "general",
+	cronTimezone: "general",
+	cronTimeoutSeconds: "general",
+	cronConcurrency: "general",
 	port: "networking",
 	blockEgress: "networking",
 	tailnet: "networking",
@@ -398,7 +405,10 @@ const CONFIG_CATEGORY: Record<string, CategoryId> = {
 	postDeployCommand: "deploy",
 	postDeployTimeoutSeconds: "deploy",
 	stopGraceSeconds: "deploy",
+	restartPolicy: "deploy",
+	restartMaxRetries: "deploy",
 	imageRetention: "deploy",
+	cron: "general",
 	processName: "deploy",
 	singleton: "deploy",
 	processes: "deploy",
@@ -470,6 +480,8 @@ export interface SearchEntry {
 	only?: "image" | "git" | "compose";
 	/** Absent for this source type. */
 	not?: "compose";
+	/** Present only while the service is a one-shot job. */
+	needsOneshot?: true;
 }
 
 const entry = (
@@ -499,6 +511,17 @@ export const SEARCH_ENTRIES: readonly SearchEntry[] = [
 		undefined,
 		"compose",
 	),
+	{
+		...entry(
+			"identity",
+			"Cron schedule",
+			"set-cron",
+			["cron", "schedule", "timer", "job"],
+			undefined,
+			"compose",
+		),
+		needsOneshot: true,
+	},
 	entry(
 		"source",
 		"Change source",
@@ -608,6 +631,12 @@ export const SEARCH_ENTRIES: readonly SearchEntry[] = [
 		"rollback",
 		"prune",
 		"cleanup",
+	]),
+	entry("releases", "Restart policy", "set-restart-policy", [
+		"restart",
+		"crash",
+		"on-failure",
+		"never",
 	]),
 	entry("deploy", "Start command", "set-command", ["entrypoint", "cmd", "run"]),
 	entry("deploy", "Pre-deploy command", "set-predeploy", [
@@ -1241,6 +1270,7 @@ export function searchSettings(
 	const results: (SearchResult & { order: number })[] = [];
 	SEARCH_ENTRIES.forEach((candidate, order) => {
 		if (candidate.only && candidate.only !== subject.sourceType) return;
+		if (candidate.needsOneshot && !subject.oneshot) return;
 		if (candidate.not !== undefined && candidate.not === subject.sourceType)
 			return;
 		const category = categories.find((c) =>
@@ -1302,6 +1332,7 @@ export function categoryCommands(subject: SettingsSubject): CategoryCommand[] {
 		for (const candidate of SEARCH_ENTRIES) {
 			if (!sections.has(candidate.section)) continue;
 			if (candidate.only && candidate.only !== subject.sourceType) continue;
+			if (candidate.needsOneshot && !subject.oneshot) continue;
 			if (candidate.not !== undefined && candidate.not === subject.sourceType)
 				continue;
 			keywords.add(candidate.label.toLowerCase());

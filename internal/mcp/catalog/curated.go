@@ -93,7 +93,7 @@ var curatedEntries = map[string]Curated{
 	},
 	"createService": {
 		Name: "service_create", Toolset: ToolsetConfig, Hints: hCreate,
-		Description: "Create a service in an environment from a Docker image (config.image) or a git repository (config.gitUrl, gitBranch). Arguments: environmentId, name (required), kind (app, worker or stack), sourceType (image, git or compose), serverId, config {port, healthcheck, startCommand, memoryMb, cpus, ...}. Staged: nothing runs until apply_changes. For databases use database_create; for templates install_template; for a compose file compose_import.",
+		Description: "Create a service in an environment from a Docker image (config.image) or a git repository (config.gitUrl, gitBranch). Arguments: environmentId, name (required), kind (app, worker or stack), sourceType (image, git or compose), serverId, config {port, healthcheck, startCommand, memoryMb, cpus, ...}; a scheduled job is config.oneshot=true plus config.cron {schedule, timezone}. Staged: nothing runs until apply_changes. For databases use database_create; for templates install_template; for a compose file compose_import.",
 	},
 	"updateService": {
 		Name: "service_update", Toolset: ToolsetConfig, Hints: hStage,

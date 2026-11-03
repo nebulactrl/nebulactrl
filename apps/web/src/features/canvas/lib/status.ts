@@ -103,6 +103,64 @@ export function canCancel(service: Service): boolean {
 	);
 }
 
+/** A cron service's state as the card and the inspector's pill name it. */
+export interface CronCondition {
+	kind: StatusKind;
+	pill: "Running" | "Paused" | "Last run failed" | "Scheduled";
+}
+
+/**
+ * The state of a deployed cron service, from its schedule and last run;
+ * null for any other service, or while the cron service is not deployed.
+ * A cron service has no container, so nothing observed enters into it.
+ */
+export function cronCondition(service: Service): CronCondition | null {
+	const deployed =
+		service.currentDeploymentId !== null ||
+		service.latestDeployment?.status === "succeeded";
+	if (!service.config.cron || !deployed) return null;
+	const status = service.cron?.lastRun?.status;
+	if (status === "queued" || status === "running") {
+		return { kind: "deploying", pill: "Running" };
+	}
+	if (service.desiredState === "stopped") {
+		return { kind: "stopped", pill: "Paused" };
+	}
+	if (status === "failed" || status === "timed_out") {
+		return { kind: "failed", pill: "Last run failed" };
+	}
+	return { kind: "live", pill: "Scheduled" };
+}
+
+/** "next in 6m · last ok 2m ago", "next in 6m · never ran". */
+function cronLine(service: Service, condition: CronCondition): string {
+	const run = service.cron?.lastRun;
+	if (condition.pill === "Running") {
+		const since = relativeTime(run?.startedAt);
+		return since ? `Running · started ${since}` : "Running";
+	}
+	const parts: string[] = [];
+	if (condition.pill === "Paused") {
+		parts.push("Paused");
+	} else {
+		const next = relativeTime(service.cron?.nextRunAt);
+		if (next) parts.push(`next ${next}`);
+	}
+	if (!run) {
+		parts.push("never ran");
+	} else {
+		const verdict =
+			run.status === "succeeded"
+				? "ok"
+				: run.status === "failed" || run.status === "timed_out"
+					? "failed"
+					: run.status;
+		const when = relativeTime(run.finishedAt ?? run.startedAt);
+		parts.push(when ? `last ${verdict} ${when}` : `last ${verdict}`);
+	}
+	return parts.join(" · ");
+}
+
 /**
  * The card's status from the service resource alone. The control plane owns
  * the truth; this only chooses words and a glyph for it.
@@ -140,7 +198,7 @@ export function nodeStatus(service: Service): NodeStatus {
 	if (service.desiredState === "stopped") {
 		return {
 			group: "stopped",
-			label: "Stopped",
+			label: service.config.cron ? "Paused" : "Stopped",
 			kind: "stopped",
 			inFlight: false,
 		};
@@ -181,6 +239,15 @@ export function nodeStatus(service: Service): NodeStatus {
 
 	// Succeeded, or canceled while an earlier release still serves.
 	if (serving || latest?.status === "succeeded") {
+		const cron = cronCondition(service);
+		if (cron) {
+			return {
+				group: "deployed",
+				label: cron.pill,
+				kind: cron.kind,
+				inFlight: false,
+			};
+		}
 		const observed = service.observed;
 		const via = sourceLabel(service);
 		if (observed && observed.state !== "running") {
@@ -385,6 +452,37 @@ export function cardStatus(
 		});
 	}
 
+	const cron = cronCondition(service);
+	const deployFailed =
+		latest?.status === "failed" ||
+		latest?.status === "rollback_failed" ||
+		latest?.status === "rolled_back";
+	if (
+		cron &&
+		!deployFailed &&
+		(cron.pill === "Paused" || !(service.server && serverUnreachable(service)))
+	) {
+		return make({
+			kind: cron.kind,
+			pill: cron.pill,
+			phases:
+				cron.pill === "Scheduled"
+					? ALL_DONE
+					: cron.pill === "Last run failed"
+						? ["done", "done", "fail"]
+						: OFF,
+			line: cronLine(service, cron),
+			lineTone:
+				cron.pill === "Scheduled"
+					? "ok"
+					: cron.pill === "Running"
+						? "accent"
+						: cron.pill === "Paused"
+							? "muted"
+							: "bad",
+		});
+	}
+
 	if (service.desiredState === "stopped") {
 		return make({
 			kind: "stopped",
@@ -435,6 +533,19 @@ export function cardStatus(
 			});
 		}
 		const observed = service.observed;
+		if (
+			service.config.oneshot &&
+			observed?.state === "exited" &&
+			observed.health === "healthy"
+		) {
+			return make({
+				kind: "live",
+				pill: "Completed",
+				phases: ALL_DONE,
+				line: "Ran to completion",
+				lineTone: "ok",
+			});
+		}
 		if (observed && observed.state !== "running") {
 			return make({
 				kind: "failed",

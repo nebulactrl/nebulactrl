@@ -315,6 +315,42 @@ describe("phases", () => {
 		expect(s.line).toBe("Container missing");
 	});
 
+	test("a one-shot that exited cleanly reads Completed, not Failed", () => {
+		const base = makeService();
+		const done = cardStatus(
+			makeService({
+				config: { ...base.config, oneshot: true },
+				currentDeploymentId: "dep-1",
+				latestDeployment: makeDeployment("succeeded"),
+				observed: makeObserved({ state: "exited", health: "healthy" }),
+			}),
+		);
+		expect(done.pill).toBe("Completed");
+		expect(done.line).toBe("Ran to completion");
+		expect(done.kind).toBe("live");
+		expect(done.lineTone).toBe("ok");
+
+		// A one-shot that exited unhealthy (non-zero) is still a failure, and a
+		// long-running service that exited is too.
+		const crashed = cardStatus(
+			makeService({
+				config: { ...base.config, oneshot: true },
+				currentDeploymentId: "dep-1",
+				latestDeployment: makeDeployment("succeeded"),
+				observed: makeObserved({ state: "exited", health: "unhealthy" }),
+			}),
+		);
+		expect(crashed.pill).toBe("Failed");
+		const longRunning = cardStatus(
+			makeService({
+				currentDeploymentId: "dep-1",
+				latestDeployment: makeDeployment("succeeded"),
+				observed: makeObserved({ state: "exited", health: "healthy" }),
+			}),
+		);
+		expect(longRunning.pill).toBe("Failed");
+	});
+
 	test("rolled back is degraded at the step that failed", () => {
 		const s = cardStatus(
 			makeService({
@@ -326,6 +362,129 @@ describe("phases", () => {
 		);
 		expect(s.pill).toBe("Degraded");
 		expect(s.phases).toEqual(["done", "done", "fail"]);
+	});
+});
+
+describe("cron services", () => {
+	const never = (): never => {
+		throw new Error("the fixture has no cron view");
+	};
+	const iso = (offsetMs: number) =>
+		new Date(Date.now() + offsetMs).toISOString();
+	const cronService = (over: Parameters<typeof makeService>[0] = {}) => {
+		const base = makeService();
+		return makeService({
+			kind: "worker",
+			config: {
+				...base.config,
+				oneshot: true,
+				cron: { schedule: "* * * * *", timezone: "UTC" },
+			},
+			currentDeploymentId: "dep-1",
+			latestDeployment: makeDeployment("succeeded"),
+			cron: {
+				taskId: "task-1",
+				schedule: "* * * * *",
+				timezone: "UTC",
+				nextRunAt: iso(6 * 60_000 + 5_000),
+				lastRun: {
+					id: "run-1",
+					status: "succeeded",
+					startedAt: iso(-130_000),
+					finishedAt: iso(-125_000),
+				},
+			},
+			...over,
+		});
+	};
+
+	test("between runs it reads Scheduled with the next and the last run", () => {
+		const s = cardStatus(cronService());
+		expect(s.pill).toBe("Scheduled");
+		expect(s.kind).toBe("live");
+		expect(s.lineTone).toBe("ok");
+		expect(s.line).toBe("next in 6m · last ok 2m ago");
+	});
+
+	test("a service that has not run yet says so", () => {
+		const { lastRun: _lastRun, ...noRun } = cronService().cron ?? never();
+		const s = cardStatus(cronService({ cron: noRun }));
+		expect(s.pill).toBe("Scheduled");
+		expect(s.line).toBe("next in 6m · never ran");
+	});
+
+	test("a run in progress reads Running, whatever the schedule says", () => {
+		const cron = cronService().cron ?? never();
+		for (const status of ["queued", "running"]) {
+			const s = cardStatus(
+				cronService({
+					cron: {
+						...cron,
+						lastRun: { id: "run-2", status, startedAt: iso(-20_000) },
+					},
+				}),
+			);
+			expect(s.pill).toBe("Running");
+			expect(s.kind).toBe("deploying");
+			expect(s.inFlight).toBe(false);
+			expect(s.line).toBe("Running · started 20s ago");
+		}
+	});
+
+	test("a failed or timed out last run reads Last run failed", () => {
+		const cron = cronService().cron ?? never();
+		for (const status of ["failed", "timed_out"]) {
+			const s = cardStatus(
+				cronService({
+					cron: {
+						...cron,
+						lastRun: { id: "run-3", status, finishedAt: iso(-125_000) },
+					},
+				}),
+			);
+			expect(s.pill).toBe("Last run failed");
+			expect(s.kind).toBe("failed");
+			expect(s.lineTone).toBe("bad");
+			expect(s.line).toBe("next in 6m · last failed 2m ago");
+		}
+	});
+
+	test("a stopped cron service reads Paused, not Stopped", () => {
+		const s = cardStatus(cronService({ desiredState: "stopped" }));
+		expect(s.pill).toBe("Paused");
+		expect(s.kind).toBe("stopped");
+		expect(s.line).toBe("Paused · last ok 2m ago");
+		expect(nodeStatus(cronService({ desiredState: "stopped" })).label).toBe(
+			"Paused",
+		);
+	});
+
+	test("an observed container never changes it: there is none to observe", () => {
+		const s = cardStatus(
+			cronService({
+				observed: makeObserved({ state: "missing", health: "none" }),
+			}),
+		);
+		expect(s.pill).toBe("Scheduled");
+	});
+
+	test("a deploy in progress or never finished keeps its own states", () => {
+		expect(
+			cardStatus(cronService({ latestDeployment: makeDeployment("building") }))
+				.pill,
+		).toBe("Building");
+		expect(
+			cardStatus(
+				cronService({
+					currentDeploymentId: null,
+					latestDeployment: null,
+				}),
+			).pill,
+		).toBe("Not deployed");
+		expect(
+			cardStatus(cronService({ latestDeployment: makeDeployment("failed") }))
+				.pill,
+		).toBe("Failed");
 	});
 });
 

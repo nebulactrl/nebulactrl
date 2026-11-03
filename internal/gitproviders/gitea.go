@@ -291,6 +291,43 @@ func (giteaDriver) setStatus(ctx context.Context, c *apiClient, repo, sha string
 	return err
 }
 
+// readCI evaluates the commit's statuses one by one; Gitea has no check runs.
+// https://docs.gitea.com/api/ (GET /repos/{owner}/{repo}/commits/{ref}/status)
+func (giteaDriver) readCI(ctx context.Context, c *apiClient, repo, sha string) (CIResult, error) {
+	var out struct {
+		Statuses []struct {
+			// Gitea names the state "status"; "state" is accepted for forks of the API.
+			Status  string `json:"status"`
+			State   string `json:"state"`
+			Context string `json:"context"`
+		} `json:"statuses"`
+	}
+	q := url.Values{"limit": {"100"}}
+	if err := c.do(ctx, http.MethodGet, "/repos/"+repo+"/commits/"+url.PathEscape(sha)+"/status", q, nil, &out); err != nil {
+		return CIResult{}, err
+	}
+	var acc ciAcc
+	for _, s := range out.Statuses {
+		st := s.Status
+		if st == "" {
+			st = s.State
+		}
+		switch st {
+		case "success":
+			acc.add(s.Context, ciSuccess)
+		case "failure", "error":
+			acc.add(s.Context, ciFailure)
+		default: // pending, warning (not a failure), unknown
+			if st == "warning" {
+				acc.add(s.Context, ciSuccess)
+			} else {
+				acc.add(s.Context, ciPending)
+			}
+		}
+	}
+	return acc.result(), nil
+}
+
 func (giteaDriver) upsertComment(ctx context.Context, c *apiClient, repo string, number int, marker, body string) error {
 	base := "/repos/" + repo + "/issues"
 	for page := 1; page <= 10; page++ {

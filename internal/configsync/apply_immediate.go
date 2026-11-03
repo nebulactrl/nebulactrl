@@ -232,7 +232,7 @@ func (a *applier) runGit(ctx context.Context, sp *svcPlan, id uuid.UUID, fs []*f
 	case sp.ls != nil && sp.ls.Git != nil:
 		in.ConnectionID, in.Repo = sp.ls.Git.ConnectionID, sp.ls.Git.RepoFullName
 	default:
-		return refErr("invalid_value", "auto_deploy and watch_paths need a git connection and repository")
+		return refErr("invalid_value", "auto_deploy, wait_for_ci and watch_paths need a git connection and repository")
 	}
 	if b := sp.field("config.gitBranch"); b != nil {
 		in.Branch = asString(b.fv.Value)
@@ -242,6 +242,9 @@ func (a *applier) runGit(ctx context.Context, sp *svcPlan, id uuid.UUID, fs []*f
 		case "git.auto_deploy":
 			v, _ := asBool(f.fv.Value)
 			in.AutoDeploy = &v
+		case "git.wait_for_ci":
+			v, _ := asBool(f.fv.Value)
+			in.WaitForCI = &v
 		case "git.watch_paths":
 			v, _ := asStrings(f.fv.Value)
 			v = nonNil(append([]string(nil), v...))
@@ -299,14 +302,14 @@ func (a *applier) runTask(ctx context.Context, sp *svcPlan, id uuid.UUID, f *fie
 	if sp.ls != nil {
 		if cur, exists := sp.ls.Tasks[name]; exists {
 			_, err := a.s.Tasks.UpdateTask(ctx, cur.ID, tasks.TaskPatch{
-				Schedule: &v.Schedule, Timezone: &v.Timezone, Command: &v.Command, Enabled: &v.Enabled,
+				Action: &v.Action, Schedule: &v.Schedule, Timezone: &v.Timezone, Command: &v.Command, Enabled: &v.Enabled,
 				TimeoutSeconds: &v.TimeoutSeconds, Concurrency: &v.Concurrency,
 			})
 			return err
 		}
 	}
 	_, err := a.s.Tasks.CreateTask(ctx, id, tasks.TaskInput{
-		Name: name, Schedule: v.Schedule, Timezone: v.Timezone, Command: v.Command, Enabled: &v.Enabled,
+		Name: name, Action: v.Action, Schedule: v.Schedule, Timezone: v.Timezone, Command: v.Command, Enabled: &v.Enabled,
 		TimeoutSeconds: v.TimeoutSeconds, Concurrency: v.Concurrency,
 	})
 	return err

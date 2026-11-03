@@ -121,6 +121,7 @@ type linkInput struct {
 		Branch       string    `json:"branch,omitempty" maxLength:"250" doc:"Defaults to the service's branch for the same repository, else the repository's default branch"`
 		AutoDeploy   *bool     `json:"autoDeploy,omitempty" doc:"Deploy on every push to the branch (default: keep the current setting, true for a new link)"`
 		WatchPaths   *[]string `json:"watchPaths,omitempty" maxItems:"50" doc:"Monorepo watch paths: globs relative to the repository root ('apps/api/**', 'packages/*/src', '!**/*.md'); a push only deploys when a changed file matches. Empty watches everything."`
+		WaitForCI    *bool     `json:"waitForCi,omitempty" doc:"Deploy a push only after its CI checks pass (default: keep the current setting, false for a new link). A push with no checks deploys after 2 minutes. 422 ci_not_supported on Bitbucket and webhook-only connections."`
 	}
 }
 
@@ -321,12 +322,12 @@ func Register(h huma.API, s *Service) {
 		OperationID: "linkServiceGit", Method: http.MethodPut, Path: "/services/{serviceId}/git", Tags: []string{"services", "git"},
 		Summary: "Link a service to a repository and set auto-deploy",
 		Description: "Points the service's clone URL and branch at the repository (a staged change when they differ) and stores the auto-deploy settings, which are operational: they are applied immediately, never staged and never rolled back. " +
-			"A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. " +
+			"A push to the branch deploys the service (trigger `git_push`) when a changed file matches the watch paths; a push during a running deployment is queued and the newest one deploys next. With `waitForCi` a push deploys only after the commit's checks pass (the link reports it as `waitingForCi` meanwhile). " +
 			"Webhooks are registered for GitLab, Gitea and Forgejo; GitHub uses the App's webhook and Bitbucket a webhook you create (see the connection). The `webhook` field reports the state.",
 		Errors: append(errs, http.StatusNotFound, http.StatusConflict, http.StatusPreconditionFailed, http.StatusUnprocessableEntity, http.StatusBadGateway),
 	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *linkInput) (*linkOutput, error) {
 		v, err := s.Link(ctx, in.ID, LinkInput{
-			ConnectionID: in.Body.ConnectionID, Repo: in.Body.Repo, Branch: in.Body.Branch, AutoDeploy: in.Body.AutoDeploy, WatchPaths: in.Body.WatchPaths,
+			ConnectionID: in.Body.ConnectionID, Repo: in.Body.Repo, Branch: in.Body.Branch, AutoDeploy: in.Body.AutoDeploy, WatchPaths: in.Body.WatchPaths, WaitForCI: in.Body.WaitForCI,
 		})
 		if err != nil {
 			return nil, err

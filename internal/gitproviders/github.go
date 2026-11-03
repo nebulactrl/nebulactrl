@@ -3,6 +3,7 @@ package gitproviders
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -297,6 +298,75 @@ func (githubDriver) setStatus(ctx context.Context, c *apiClient, repo, sha strin
 		body["target_url"] = st.TargetURL
 	}
 	err := ghClient(c).do(ctx, http.MethodPost, "/repos/"+repo+"/statuses/"+sha, nil, body, nil)
+	return err
+}
+
+// readCI folds the commit's check runs and commit statuses.
+// https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference
+// https://docs.github.com/en/rest/commits/statuses#get-the-combined-status-for-a-specific-reference
+func (githubDriver) readCI(ctx context.Context, c *apiClient, repo, sha string) (CIResult, error) {
+	ghClient(c)
+	var acc ciAcc
+	base := "/repos/" + repo + "/commits/" + url.PathEscape(sha)
+	for page, seen := 1, 0; page <= 5; page++ {
+		var out struct {
+			TotalCount int `json:"total_count"`
+			CheckRuns  []struct {
+				Name       string `json:"name"`
+				Status     string `json:"status"`
+				Conclusion string `json:"conclusion"`
+			} `json:"check_runs"`
+		}
+		q := url.Values{"per_page": {"100"}, "page": {strconv.Itoa(page)}}
+		if err := c.do(ctx, http.MethodGet, base+"/check-runs", q, nil, &out); err != nil {
+			return CIResult{}, ciError(err)
+		}
+		for _, r := range out.CheckRuns {
+			state := ciPending
+			if r.Status == "completed" {
+				switch r.Conclusion {
+				case "success", "neutral", "skipped":
+					state = ciSuccess
+				default:
+					state = ciFailure
+				}
+			}
+			acc.add(r.Name, state)
+		}
+		seen += len(out.CheckRuns)
+		if len(out.CheckRuns) == 0 || seen >= out.TotalCount {
+			break
+		}
+	}
+	var st struct {
+		Statuses []struct {
+			State   string `json:"state"`
+			Context string `json:"context"`
+		} `json:"statuses"`
+	}
+	if err := c.do(ctx, http.MethodGet, base+"/status", url.Values{"per_page": {"100"}}, nil, &st); err != nil {
+		return CIResult{}, ciError(err)
+	}
+	for _, s := range st.Statuses {
+		switch s.State {
+		case "success":
+			acc.add(s.Context, ciSuccess)
+		case "failure", "error":
+			acc.add(s.Context, ciFailure)
+		default: // pending
+			acc.add(s.Context, ciPending)
+		}
+	}
+	return acc.result(), nil
+}
+
+// ciError maps a provider refusal to errCIPermission. A rate limit is also a
+// 403 on GitHub; it stays a plain error so the gate keeps waiting.
+func ciError(err error) error {
+	var ae *apiError
+	if errors.As(err, &ae) && ae.Status == http.StatusForbidden && ae.Message != "rate limited" {
+		return errCIPermission
+	}
 	return err
 }
 

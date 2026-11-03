@@ -90,9 +90,12 @@ func (s *Service) enqueueStatus(ctx context.Context, deploymentID uuid.UUID) {
 	}
 }
 
-// Sweep deploys queued pushes of idle services and reports the commit status
+// Sweep deploys the pushes whose CI passed, deploys queued pushes of idle services and reports the commit status
 // of every linked deployment whose provider status is behind.
 func (s *Service) Sweep(ctx context.Context) error {
+	if err := s.checkCI(ctx); err != nil {
+		s.log.Warn("check CI", "err", err)
+	}
 	if _, err := s.deployQueued(ctx); err != nil {
 		return err
 	}

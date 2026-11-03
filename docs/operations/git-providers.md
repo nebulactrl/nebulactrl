@@ -32,6 +32,19 @@ Link a git service to a repository in its Source settings (or pick the repositor
 - **Busy services**: a push during a running deployment is queued (the newest wins) and deploys when that deployment ends.
 - Auto-deploy ships the service's current configuration, including staged changes, exactly like a manual deploy.
 
+## Wait for CI
+
+With **Wait for CI to pass** on (`waitForCi` on the link, `git.wait_for_ci` in `nebula.toml`), a push does not deploy at once: NebulaCtrl parks it and reads the commit's checks every 30 seconds. The newest push replaces an older parked one, and the link shows `waitingForCi` (sha, message, author, branch, since) meanwhile.
+
+- All checks pass: the push deploys (trigger `git_push`, same busy-service queueing as above). A commit with no checks at all deploys after 2 minutes.
+- A check fails: the push is not deployed and a `deployment.ci_blocked` notification names the failing check. Push again (or deploy manually) to continue.
+- Checks still pending after 2 hours: the push is dropped with a `deployment.ci_blocked` notification.
+- Turning auto-deploy or Wait for CI off, or changing the branch, drops the parked push without deploying it.
+
+What counts as a check: GitHub check runs (a run that is not `completed` is pending; `success`, `neutral` and `skipped` pass) and commit statuses; GitLab's newest pipeline of the commit; Gitea and Forgejo commit statuses. Statuses named `nebulactrl/…` (the deployment status NebulaCtrl reports itself) are ignored. Bitbucket and webhook-only connections cannot read CI results (`422 ci_not_supported`).
+
+GitHub Apps created by NebulaCtrl ask for the **Checks: read** permission. An App created earlier does not gain it automatically: grant it in the App's settings and accept the new permission on the installation. Until then a waiting push is dropped with a notification that says so.
+
 ## Commit statuses
 
 Every deployment of a linked service reports `nebulactrl/<service>` on its commit: pending while it queues, builds and verifies, then success, or failure (failed, rolled back) / error (canceled), with a link to the deployment. Each state is sent once; failures are retried for several minutes. Reconcile and drain redeployments are not reported. Bitbucket has no status API.

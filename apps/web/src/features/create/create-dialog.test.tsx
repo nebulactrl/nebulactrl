@@ -12,6 +12,7 @@ import type {
 } from "#/api/gen/types.gen";
 import { type Server, toServer } from "#/api/models";
 import { onOpenStagedReview } from "#/features/deploy-button/open-review";
+import { browserTimezone } from "#/features/tasks/model";
 import { stubApi } from "#/test/api";
 import { make, problem } from "#/test/factories";
 import { renderWithProviders } from "#/test/render";
@@ -66,6 +67,7 @@ describe("isServiceRequest", () => {
 	test("Git and image requests are service requests; a database one is not", () => {
 		expect(isServiceRequest({ kind: "git" })).toBe(true);
 		expect(isServiceRequest({ kind: "image" })).toBe(true);
+		expect(isServiceRequest({ kind: "cron" })).toBe(true);
 		expect(isServiceRequest({ kind: "database" })).toBe(false);
 	});
 });
@@ -324,7 +326,7 @@ function Harness({
 }
 
 async function openDialog(
-	kind: "git" | "image",
+	kind: "git" | "image" | "cron",
 	props: Parameters<typeof Harness>[0] = {},
 	options: Parameters<typeof createActions.open>[1] = {},
 ) {
@@ -1562,5 +1564,152 @@ describe("CreateServiceDialog: Git repository, connected account", () => {
 		expect(
 			screen.queryByRole("group", { name: "Where the repository comes from" }),
 		).toBeNull();
+	});
+});
+
+describe("CreateServiceDialog: Cron job", () => {
+	const SCHEDULE_PREVIEW = "POST /task-schedules/preview";
+	const preview = {
+		[SCHEDULE_PREVIEW]: {
+			body: { valid: true, description: "At 03:00", nextRuns: [] },
+		},
+	};
+	const submitCron = () =>
+		screen.getByRole("button", { name: /Create cron job/ });
+
+	test("asks for a source, a schedule, a zone and an optional command, with no port or replicas", async () => {
+		stubApi({ ...preview, [CONNECTIONS]: { body: { items: [] } } });
+		await openDialog("cron");
+		expect(screen.getByText("New cron job")).toBeVisible();
+		// Docker image is the default source.
+		expect(screen.getByLabelText("Image")).toBeVisible();
+		expect(screen.queryByLabelText("Repository URL")).toBeNull();
+		expect(
+			screen.getByRole("button", { name: "Docker image", pressed: true }),
+		).toBeVisible();
+		expect(screen.getByLabelText("Cron expression")).toHaveValue("0 3 * * *");
+		expect(
+			screen.getByRole("combobox", { name: "Schedule" }),
+		).toHaveTextContent("Daily 03:00");
+		expect(screen.getByLabelText("Command")).toHaveValue("");
+		expect(screen.queryByLabelText("Port")).toBeNull();
+		expect(screen.queryByText("Replicas")).toBeNull();
+		expect(submitCron()).toBeDisabled();
+	});
+
+	test("the time zone starts at the browser's, UTC when the browser's is not an IANA zone", async () => {
+		stubApi({ ...preview, [CONNECTIONS]: { body: { items: [] } } });
+		await openDialog("cron");
+		const zone = browserTimezone();
+		expect(
+			screen.getByRole("combobox", { name: "Time zone" }),
+		).toHaveTextContent(zone);
+	});
+
+	test("creates a one-shot worker with the schedule and zone, and no port", async () => {
+		const api = stubApi({
+			...preview,
+			[CONNECTIONS]: { body: { items: [] } },
+			[SERVICES]: createReply([], { name: "busybox", kind: "worker" }),
+		});
+		const user = userEvent.setup();
+		await openDialog("cron");
+		await user.type(screen.getByLabelText("Image"), "busybox");
+		expect(screen.getByLabelText("Name")).toHaveValue("busybox");
+		await user.click(submitCron());
+		await screen.findByText("Created busybox");
+		expect(createCalls(api)[0]).toMatchObject({
+			method: "POST",
+			body: {
+				name: "busybox",
+				serverId: "srv-1",
+				kind: "worker",
+				sourceType: "image",
+				config: {
+					image: "busybox",
+					oneshot: true,
+					cron: { schedule: "0 3 * * *", timezone: browserTimezone() },
+				},
+			},
+		});
+		expect(createCalls(api)[0]?.body).not.toHaveProperty("config.port");
+		expect(createCalls(api)[0]?.body).not.toHaveProperty("config.startCommand");
+		expect(
+			screen.getByText("Nothing runs until it is deployed."),
+		).toBeVisible();
+	});
+
+	test("a preset, a custom expression and a command are sent as typed", async () => {
+		const api = stubApi({
+			...preview,
+			[CONNECTIONS]: { body: { items: [] } },
+			[SERVICES]: createReply([], { name: "cleanup", kind: "worker" }),
+		});
+		const user = userEvent.setup();
+		await openDialog("cron");
+		await user.type(screen.getByLabelText("Image"), "acme/tools:2");
+		await user.click(screen.getByRole("combobox", { name: "Schedule" }));
+		await user.click(await screen.findByRole("option", { name: "Hourly" }));
+		expect(screen.getByLabelText("Cron expression")).toHaveValue("@hourly");
+		await user.clear(screen.getByLabelText("Cron expression"));
+		await user.type(screen.getByLabelText("Cron expression"), "*/5 * * * *");
+		expect(
+			screen.getByRole("combobox", { name: "Schedule" }),
+		).toHaveTextContent("Custom");
+		await user.type(
+			screen.getByLabelText("Command"),
+			'sh -c "rake cleanup && rake report"',
+		);
+		await user.click(submitCron());
+		await screen.findByText("Created cleanup");
+		expect(createCalls(api)[0]?.body).toMatchObject({
+			kind: "worker",
+			config: {
+				image: "acme/tools:2",
+				oneshot: true,
+				startCommand: ["sh", "-c", "rake cleanup && rake report"],
+				cron: { schedule: "*/5 * * * *" },
+			},
+		});
+	});
+
+	test("an empty schedule blocks Create", async () => {
+		stubApi({ ...preview, [CONNECTIONS]: { body: { items: [] } } });
+		const user = userEvent.setup();
+		await openDialog("cron");
+		await user.type(screen.getByLabelText("Image"), "busybox");
+		expect(submitCron()).toBeEnabled();
+		await user.clear(screen.getByLabelText("Cron expression"));
+		expect(submitCron()).toBeDisabled();
+	});
+
+	test("the Git repository source asks for a repository and sends its url and branch", async () => {
+		const api = stubApi({
+			...preview,
+			[CONNECTIONS]: { body: { items: [] } },
+			[PREVIEW]: { body: NO_SCAN },
+			[SCAN]: { body: NO_SCAN },
+			[SERVICES]: createReply([], { name: "shop", kind: "worker" }),
+		});
+		const user = userEvent.setup();
+		await openDialog("cron");
+		await user.click(screen.getByRole("button", { name: "Git repository" }));
+		expect(screen.queryByLabelText("Image")).toBeNull();
+		await user.type(
+			await screen.findByLabelText("Repository URL"),
+			"https://github.com/acme/shop.git",
+		);
+		await user.click(submitCron());
+		await screen.findByText("Created shop");
+		expect(createCalls(api)[0]?.body).toMatchObject({
+			kind: "worker",
+			sourceType: "git",
+			config: {
+				gitUrl: "https://github.com/acme/shop.git",
+				gitBranch: "main",
+				oneshot: true,
+				cron: { schedule: "0 3 * * *" },
+			},
+		});
 	});
 });

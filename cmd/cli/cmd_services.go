@@ -122,10 +122,11 @@ func newServicesLsCmd(c *cli) *cobra.Command {
 }
 
 func newServicesCreateCmd(c *cli) *cobra.Command {
-	var project, env, name, image, git, branch, server, buildType, location, buildServer, registry string
+	var project, env, name, image, git, branch, server, buildType, location, buildServer, registry, cron, cronTZ string
 	var port int
+	var oneShot bool
 	cmd := &cobra.Command{
-		Use:   "create --project <project> --env <env> --name <name> (--image <ref> | --git <url> [--branch <b>]) [--server <server>] [--port <n>]",
+		Use:   "create --project <project> --env <env> --name <name> (--image <ref> | --git <url> [--branch <b>]) [--server <server>] [--port <n>] [--one-shot] [--cron <expr> [--cron-timezone <tz>]]",
 		Short: "Create a service (staged until deployed)",
 		Args:  noArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -137,6 +138,12 @@ func newServicesCreateCmd(c *cli) *cobra.Command {
 			}
 			if (branch != "" || buildType != "" || location != "" || buildServer != "" || registry != "") && git == "" {
 				return usagef("--branch, --build-type, --build-location, --build-server and --registry only apply with --git")
+			}
+			if cronTZ != "" && cron == "" {
+				return usagef("--cron-timezone needs --cron")
+			}
+			if cron != "" && port > 0 {
+				return usagef("--cron runs the service to completion on a schedule: it has no --port")
 			}
 			loc := ""
 			if location != "" {
@@ -187,6 +194,16 @@ func newServicesCreateCmd(c *cli) *cobra.Command {
 				portN := int64(port)
 				cfg.Port = &portN
 			}
+			if oneShot || cron != "" { // a cron service is a one-shot
+				cfg.Oneshot = new(true)
+			}
+			if cron != "" {
+				spec := &apiclient.CronSpec{Schedule: cron}
+				if cronTZ != "" {
+					spec.Timezone = &cronTZ
+				}
+				cfg.Cron = spec
+			}
 			in.Config = &cfg
 			if buildServer != "" {
 				bs, err := c.resolveServer(ctx, buildServer)
@@ -227,6 +244,9 @@ func newServicesCreateCmd(c *cli) *cobra.Command {
 	f.StringVar(&buildServer, "build-server", "", "pin the build server (ID or name); with --build-location build-server")
 	f.StringVar(&registry, "registry", "", "registry ID the build is pushed to (default: the project or team registry)")
 	f.IntVar(&port, "port", 0, "HTTP/internal port the service listens on (0 = none)")
+	f.BoolVar(&oneShot, "one-shot", false, "run the container to completion on every deploy (exit code 0 = success)")
+	f.StringVar(&cron, "cron", "", `run the service's command on a schedule, e.g. "0 3 * * *" (implies --one-shot; a deploy only pulls or builds the image)`)
+	f.StringVar(&cronTZ, "cron-timezone", "", "IANA time zone of --cron (default UTC)")
 	return cmd
 }
 
@@ -307,7 +327,11 @@ func newServicesRestartCmd(c *cli) *cobra.Command {
 			if c.asJSON {
 				return c.printJSON(r.JSON202)
 			}
-			c.info("Restart requested (command %s)", r.JSON202.CommandId)
+			if r.JSON202.CommandId == nil {
+				c.info("Schedule resumed") // a cron service: no container to restart
+				return nil
+			}
+			c.info("Restart requested (command %s)", *r.JSON202.CommandId)
 			return nil
 		},
 	}

@@ -1,0 +1,10 @@
+# expect: invalid_value
+# The schedule of a cron service is a cron expression with 5 fields, or @daily and friends.
+schema = 1
+server = "fra-1"
+
+[services.job]
+image = "busybox:1"
+
+[services.job.cron]
+schedule = "when the moon is full"

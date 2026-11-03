@@ -1,7 +1,7 @@
 import { type ComponentType, lazy } from "react";
 import type { Service } from "#/api/models";
 import { Skeleton } from "#/components/ui/skeleton";
-import type { InspectorTab } from "./tab-ids";
+import { hasDataTab, type InspectorTab, type TabService } from "./tab-ids";
 import type { ServiceTabProps } from "./tabs/types";
 
 type TabBody = ComponentType<ServiceTabProps>;
@@ -42,6 +42,10 @@ const SettingsTab = lazyTab(() =>
 const BackupsTab = lazyTab(() =>
 	import("./tabs/backups").then((m) => ({ default: m.BackupsTab })),
 );
+// The Data tab carries the SQL editor: its chunk is fetched only for a service that has the tab.
+const DataTab = lazyTab(() =>
+	import("./tabs/data").then((m) => ({ default: m.DataTab })),
+);
 const RouteOverviewTab = lazyTab(() =>
 	import("#/features/proxy/inspector/route-overview").then((m) => ({
 		default: m.RouteOverviewTab,
@@ -57,6 +61,7 @@ export const TAB_BODY: Record<InspectorTab, TabBody & { preload: Loader }> = {
 	overview: OverviewTab,
 	deployments: DeploymentsTab,
 	variables: VariablesTab,
+	data: DataTab,
 	metrics: MetricsTab,
 	analytics: AnalyticsTab,
 	logs: LogsTab,
@@ -94,12 +99,21 @@ export function preloadOverview(service: Pick<Service, "kind">): void {
 		.catch(() => undefined);
 }
 
-/** Downloads every other tab of a service while the browser has nothing to do. */
-export function preloadRemainingTabs(service: Pick<Service, "kind">): void {
+/**
+ * Downloads every other tab of a service while the browser has nothing to do.
+ * The Data tab (the SQL editor) is left out unless the service has it.
+ */
+export function preloadRemainingTabs(
+	service: Pick<Service, "kind"> & Partial<Pick<TabService, "config">>,
+): void {
 	const bodies =
 		service.kind === "route"
 			? [RouteOverviewTab, DeploymentsTab, RouteSettingsTab]
-			: Object.values(TAB_BODY);
+			: Object.values(TAB_BODY).filter(
+					(body) =>
+						body !== DataTab ||
+						hasDataTab({ kind: service.kind, config: service.config ?? {} }),
+				);
 	for (const body of bodies) void body.preload().catch(() => undefined);
 }
 

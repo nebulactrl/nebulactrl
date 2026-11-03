@@ -66,9 +66,6 @@ type deploy struct {
 	buildInfo *agentprotocol.BuildInfo
 	// tailnet is the outcome of the tailnet step (nil without a tailnet spec).
 	tailnet *agentprotocol.ServiceTailnetStatus
-	// shellEntry caches whether the image's entrypoint is `<shell> -c`
-	// (Railpack images), see startCommand.
-	shellEntry *bool
 	// ctl is the cancel handle of a running deploy command (nil for scale and
 	// other silent deploys, which cannot be canceled).
 	ctl *deployRun
@@ -165,6 +162,10 @@ func validatePayload(p agentprotocol.DeployPayload) error {
 		return fmt.Errorf("replicas %d is out of range", p.Replicas)
 	case (p.Image == nil) == (p.Git == nil):
 		return errors.New("exactly one of image or git is required")
+	case p.NoStart && !p.OneShot:
+		return errors.New("noStart needs a one-shot service")
+	case p.NoStart && len(p.Processes) > 0:
+		return errors.New("noStart does not apply to a service with processes")
 	}
 	if err := validateProcessSpecs(p); err != nil {
 		return err
@@ -264,6 +265,11 @@ func (d *deploy) run(ctx context.Context) agentprotocol.DeployResult {
 			return d.interrupted(ctx, st, false)
 		}
 		return d.fail(err.Error())
+	}
+
+	// A cron service starts nothing: its image is ready and its runs start it.
+	if d.p.NoStart {
+		return d.noStart(ctx, st)
 	}
 
 	// 1b. Pre-deploy command (migrations) in a container of the new image.
@@ -663,14 +669,12 @@ func (d *deploy) createAndStartAll(ctx context.Context, env []string, resumed []
 	if err := d.ensureNetworks(ctx); err != nil {
 		return "", err
 	}
-	mounts := make([]docker.VolumeMount, 0, len(p.Volumes))
+	mounts, err := ensureVolumeMounts(ctx, eng, p.ServiceID, p.Volumes)
+	if err != nil {
+		d.event(agentprotocol.StepCreate, agentprotocol.StepFailed, err.Error())
+		return "", err
+	}
 	for _, v := range p.Volumes {
-		if err := eng.EnsureVolume(ctx, v.Name, map[string]string{
-			agentprotocol.LabelManaged: "true", agentprotocol.LabelService: p.ServiceID,
-		}); err != nil {
-			return "", d.stepErr(agentprotocol.StepCreate, "ensure volume "+v.Name, err)
-		}
-		mounts = append(mounts, docker.VolumeMount{Volume: v.Name, Target: v.MountPath})
 		d.debugf("docker volume %s ensured, mounted at %s", v.Name, v.MountPath)
 	}
 
@@ -723,6 +727,21 @@ func (d *deploy) createAndStartAll(ctx context.Context, env []string, resumed []
 	return "", nil
 }
 
+// ensureVolumeMounts creates (when missing) the service's named volumes and
+// returns their container mounts.
+func ensureVolumeMounts(ctx context.Context, eng docker.Engine, serviceID string, volumes []agentprotocol.VolumeMount) ([]docker.VolumeMount, error) {
+	mounts := make([]docker.VolumeMount, 0, len(volumes))
+	for _, v := range volumes {
+		if err := eng.EnsureVolume(ctx, v.Name, map[string]string{
+			agentprotocol.LabelManaged: "true", agentprotocol.LabelService: serviceID,
+		}); err != nil {
+			return nil, fmt.Errorf("ensure volume %s: %w", v.Name, err)
+		}
+		mounts = append(mounts, docker.VolumeMount{Volume: v.Name, Target: v.MountPath})
+	}
+	return mounts, nil
+}
+
 // spec is the container spec of replica i.
 func (d *deploy) spec(i int, env []string, mounts []docker.VolumeMount) docker.ContainerSpec {
 	p := d.p
@@ -745,6 +764,7 @@ func (d *deploy) spec(i int, env []string, mounts []docker.VolumeMount) docker.C
 		RestartPolicy: "unless-stopped",
 		StopTimeout:   &grace,
 	}
+	spec.RestartPolicy, spec.RestartMaxRetries = dockerRestartPolicy(p.RestartPolicy, p.RestartMaxRetries)
 	if pr := d.proc(); pr != nil {
 		spec.Labels[agentprotocol.LabelProcess] = pr.Name
 	}

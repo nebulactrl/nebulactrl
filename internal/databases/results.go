@@ -52,7 +52,7 @@ func (s *Service) SecretsForCommand(ctx context.Context, _ uuid.UUID, kind strin
 	if err != nil {
 		return nil, err
 	}
-	creds, _, err := s.credentials(ctx, s.q, sc, spec, eng)
+	creds, err := s.credentials(ctx, s.q, sc, spec, eng)
 	if err != nil {
 		return nil, fmt.Errorf("resolve credentials: %w", err)
 	}

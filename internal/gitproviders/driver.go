@@ -2,6 +2,7 @@ package gitproviders
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -26,6 +27,71 @@ type parsed struct {
 	pr     *PullRequestEvent
 	// installationID is set for GitHub App installation events.
 	installationID int64
+}
+
+// CI states of a commit as the wait-for-CI gate sees them.
+const (
+	ciPending = "pending"
+	ciSuccess = "success"
+	ciFailure = "failure"
+	// ciNone: the provider reports no check for the commit.
+	ciNone = "none"
+)
+
+// ciOwnContextPrefix marks the statuses NebulaCtrl itself reports for a
+// deployment; they never count as CI, or a push would wait for its own deploy.
+const ciOwnContextPrefix = "nebulactrl/"
+
+// CIResult is the state of a commit's checks.
+type CIResult struct {
+	// State is pending, success, failure or none.
+	State string
+	// Summary names the first failing or pending check ("" when none).
+	Summary string
+}
+
+var (
+	// errCINotSupported: the provider has no API to read checks from (Bitbucket).
+	errCINotSupported = errors.New("this provider cannot report CI results")
+	// errCIPermission: the credentials may not read the commit's checks.
+	errCIPermission = errors.New("the connection may not read check runs")
+)
+
+// ciAcc folds the checks of a commit into one result: a failure beats pending,
+// pending beats success, and no check at all is "none".
+type ciAcc struct {
+	n       int
+	failed  string
+	pending string
+}
+
+func (a *ciAcc) add(name, state string) {
+	if strings.HasPrefix(strings.ToLower(name), ciOwnContextPrefix) {
+		return
+	}
+	a.n++
+	switch state {
+	case ciFailure:
+		if a.failed == "" {
+			a.failed = orDefault(name, "a check")
+		}
+	case ciPending:
+		if a.pending == "" {
+			a.pending = orDefault(name, "a check")
+		}
+	}
+}
+
+func (a *ciAcc) result() CIResult {
+	switch {
+	case a.failed != "":
+		return CIResult{State: ciFailure, Summary: a.failed}
+	case a.pending != "":
+		return CIResult{State: ciPending, Summary: a.pending}
+	case a.n == 0:
+		return CIResult{State: ciNone}
+	}
+	return CIResult{State: ciSuccess}
 }
 
 // driver is everything provider specific. Webhook methods are pure; API
@@ -64,6 +130,10 @@ type driver interface {
 	deleteHook(ctx context.Context, c *apiClient, repo, id string) error
 	// findHook returns the id of a hook already delivering to hookURL ("" if none).
 	findHook(ctx context.Context, c *apiClient, repo, hookURL string) (string, error)
+	// readCI reads the state of the checks of the commit sha. Statuses and
+	// checks named "nebulactrl/..." are ignored. It returns errCIPermission when
+	// the credentials may not read them and errCINotSupported without an API.
+	readCI(ctx context.Context, c *apiClient, repo, sha string) (CIResult, error)
 }
 
 // driverFor returns the driver of p.
@@ -109,6 +179,9 @@ func (noAPI) createHook(context.Context, *apiClient, string, string, string) (st
 func (noAPI) deleteHook(context.Context, *apiClient, string, string) error { return errNoAPI }
 func (noAPI) findHook(context.Context, *apiClient, string, string) (string, error) {
 	return "", errNoAPI
+}
+func (noAPI) readCI(context.Context, *apiClient, string, string) (CIResult, error) {
+	return CIResult{}, errCINotSupported
 }
 
 // RepoFullNameFromURL returns "owner/repo" (GitLab: "group/subgroup/repo") from

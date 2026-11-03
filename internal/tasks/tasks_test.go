@@ -133,7 +133,7 @@ func newFixture(t *testing.T) *fixture {
 	notif := &recNotifier{}
 	f := &fixture{t: t, pool: pool, q: q, box: box, disp: disp, notif: notif, svcs: svcs, ws: ws, proj: prj, env: env, server: srv,
 		clock: time.Date(2026, 10, 26, 12, 3, 10, 0, time.UTC)}
-	f.svc = NewService(Deps{Pool: pool, Bus: bus, Box: box, Dispatcher: disp, Redactor: svcs, Notifier: notif, Logger: logger})
+	f.svc = NewService(Deps{Pool: pool, Bus: bus, Box: box, Dispatcher: disp, Redactor: svcs, Restarter: svcs, Notifier: notif, Logger: logger})
 	f.svc.now = func() time.Time { return f.clock }
 	f.ctx = auth.WithPrincipal(bg, &auth.Principal{Type: auth.TypeUser, UserID: u.ID, WorkspaceID: ws.ID, Label: "owner@example.com", Scopes: policy.AllScopes})
 	return f
@@ -254,6 +254,162 @@ func TestSchedulerEveryMinuteTask(t *testing.T) {
 		f.clock = f.clock.Truncate(time.Minute).Add(time.Minute + time.Second)
 		require.NoError(t, f.svc.Tick(f.ctx))
 		require.Len(t, f.runs(sv.ID), i, "one run per minute")
+	}
+}
+
+// ---- restart tasks ----
+
+func (f *fixture) restartTask(serviceID uuid.UUID, schedule string) TaskView {
+	f.t.Helper()
+	return f.task(serviceID, schedule, func(in *TaskInput) {
+		in.Name, in.Action, in.Command = "nightly-restart", ActionRestart, nil
+	})
+}
+
+func TestRestartTaskEnqueuesRestartAndTheResultFinishesTheRun(t *testing.T) {
+	f := newFixture(t)
+	sv := f.deployed()
+	task := f.restartTask(sv.ID, "*/5 * * * *") // created at 12:03:10
+	require.Equal(t, ActionRestart, task.Action)
+	require.Empty(t, task.Command)
+	require.Equal(t, RestartTimeoutSeconds, task.TimeoutSeconds)
+
+	f.clock = time.Date(2026, 10, 26, 12, 5, 1, 0, time.UTC)
+	require.NoError(t, f.svc.Tick(f.ctx))
+	runs := f.runs(sv.ID)
+	require.Len(t, runs, 1)
+	require.Equal(t, SourceCron, runs[0].Source)
+	require.Equal(t, StatusQueued, runs[0].Status)
+	require.Equal(t, "nightly-restart", runs[0].Name)
+	require.Empty(t, runs[0].Command)
+
+	require.Len(t, f.disp.cmds, 1, "one agent command is enqueued")
+	cmd, cmdID := f.disp.last()
+	require.Equal(t, agentprotocol.KindRestartService, cmd.Kind)
+	require.Equal(t, f.server.ID, cmd.ServerID)
+	var payload agentprotocol.ServiceActionPayload
+	require.NoError(t, json.Unmarshal(cmd.Payload, &payload))
+	require.Equal(t, sv.ID.String(), payload.ServiceID)
+
+	run, err := f.q.GetTaskRunInternal(f.ctx, runs[0].ID)
+	require.NoError(t, err)
+	require.NotNil(t, run.CommandID)
+	require.Equal(t, cmdID, *run.CommandID)
+
+	require.NoError(t, f.svc.HandleResult(f.ctx, cmdID, agentprotocol.ResultFrame{CommandID: cmdID.String(), Outcome: agentprotocol.OutcomeSucceeded}))
+	got, err := f.svc.GetRun(f.ctx, runs[0].ID)
+	require.NoError(t, err)
+	require.Equal(t, StatusSucceeded, got.Status)
+
+	// A restart is not a stop or a start: the desired state is untouched.
+	cur, err := f.q.GetServiceScopeInternal(f.ctx, sv.ID)
+	require.NoError(t, err)
+	require.Equal(t, services.DesiredRunning, cur.Service.DesiredState)
+}
+
+func TestRestartTaskIsSkippedWhileTheServiceIsStopped(t *testing.T) {
+	f := newFixture(t)
+	sv := f.deployed()
+	f.restartTask(sv.ID, "*/5 * * * *")
+	_, err := f.pool.Exec(context.Background(), "UPDATE services SET desired_state = 'stopped' WHERE id = $1", sv.ID)
+	require.NoError(t, err)
+
+	f.clock = time.Date(2026, 10, 26, 12, 5, 1, 0, time.UTC)
+	require.NoError(t, f.svc.Tick(f.ctx))
+	runs := f.runs(sv.ID)
+	require.Len(t, runs, 1)
+	require.Equal(t, StatusSkipped, runs[0].Status)
+	require.Equal(t, "the service is stopped", runs[0].Error)
+	require.Empty(t, f.disp.cmds, "a stopped service is never restarted by a schedule")
+}
+
+func TestRestartTaskRunNowRefusesAStoppedService(t *testing.T) {
+	f := newFixture(t)
+	sv := f.deployed()
+	task := f.restartTask(sv.ID, "@daily")
+	_, err := f.pool.Exec(context.Background(), "UPDATE services SET desired_state = 'stopped' WHERE id = $1", sv.ID)
+	require.NoError(t, err)
+	_, err = f.svc.RunTaskNow(f.ctx, task.ID)
+	requireAPIError(t, err, "service_stopped")
+	require.Empty(t, f.disp.cmds)
+}
+
+func TestRestartTaskRunNowQueuesARestart(t *testing.T) {
+	f := newFixture(t)
+	sv := f.deployed()
+	task := f.restartTask(sv.ID, "@daily")
+	run, err := f.svc.RunTaskNow(f.ctx, task.ID)
+	require.NoError(t, err)
+	require.Equal(t, SourceManual, run.Source)
+	cmd, _ := f.disp.last()
+	require.Equal(t, agentprotocol.KindRestartService, cmd.Kind)
+}
+
+func TestRestartTaskIsRejectedOnAOneShotService(t *testing.T) {
+	f := newFixture(t)
+	sv := f.deployed()
+	_, err := f.pool.Exec(context.Background(), `UPDATE services SET config = jsonb_set(config, '{oneshot}', 'true') WHERE id = $1`, sv.ID)
+	require.NoError(t, err)
+	_, err = f.svc.CreateTask(f.ctx, sv.ID, TaskInput{Name: "r", Action: ActionRestart, Schedule: "@daily"})
+	requireAPIError(t, err, "restart_not_applicable")
+
+	// Switching a command task to restart is refused the same way.
+	cmdTask := f.task(sv.ID, "@daily")
+	restart := ActionRestart
+	_, err = f.svc.UpdateTask(f.ctx, cmdTask.ID, TaskPatch{Action: &restart})
+	requireAPIError(t, err, "restart_not_applicable")
+}
+
+func TestUpdateTaskSwitchesBetweenCommandAndRestart(t *testing.T) {
+	f := newFixture(t)
+	sv := f.deployed()
+	task := f.task(sv.ID, "@daily")
+	restart := ActionRestart
+	v, err := f.svc.UpdateTask(f.ctx, task.ID, TaskPatch{Action: &restart})
+	require.NoError(t, err)
+	require.Equal(t, ActionRestart, v.Action)
+	require.Empty(t, v.Command)
+	require.Equal(t, RestartTimeoutSeconds, v.TimeoutSeconds)
+
+	// Back to a command: the command is required again.
+	command := ActionCommand
+	_, err = f.svc.UpdateTask(f.ctx, task.ID, TaskPatch{Action: &command})
+	requireAPIError(t, err, "invalid_command")
+	v, err = f.svc.UpdateTask(f.ctx, task.ID, TaskPatch{Action: &command, Command: &[]string{"rake", "cleanup"}})
+	require.NoError(t, err)
+	require.Equal(t, ActionCommand, v.Action)
+	require.Equal(t, agentprotocol.DefaultTaskTimeoutSeconds, v.TimeoutSeconds)
+
+	bogus := "reboot"
+	_, err = f.svc.UpdateTask(f.ctx, task.ID, TaskPatch{Action: &bogus})
+	requireAPIError(t, err, "invalid_action")
+}
+
+// The hidden schedule row of a cron service is never listed or edited as a
+// task, but can be run.
+func TestServiceActionTaskRowIsHidden(t *testing.T) {
+	f := newFixture(t)
+	sv := f.deployed()
+	visible := f.task(sv.ID, "@daily")
+	var hidden uuid.UUID
+	require.NoError(t, f.pool.QueryRow(context.Background(),
+		`INSERT INTO service_tasks (service_id, name, action, schedule, command, enabled, timeout_seconds)
+		 VALUES ($1, '__cron', 'service', '* * * * *', '[]', true, 1800) RETURNING id`, sv.ID).Scan(&hidden))
+
+	list, err := f.svc.ListTasks(f.ctx, sv.ID)
+	require.NoError(t, err)
+	require.Len(t, list, 1)
+	require.Equal(t, visible.ID, list[0].ID)
+
+	name := "x"
+	_, err = f.svc.UpdateTask(f.ctx, hidden, TaskPatch{Name: &name})
+	requireAPIError(t, err, "task_not_found")
+	requireAPIError(t, f.svc.DeleteTask(f.ctx, hidden), "task_not_found")
+
+	// Not counted against the per-service limit.
+	for i := 1; i < MaxTasksPerService; i++ {
+		_, err := f.svc.CreateTask(f.ctx, sv.ID, TaskInput{Name: fmt.Sprintf("t%d", i), Schedule: "@daily", Command: []string{"true"}})
+		require.NoError(t, err)
 	}
 }
 

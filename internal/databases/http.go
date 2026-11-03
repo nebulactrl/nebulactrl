@@ -203,4 +203,5 @@ func Register(h huma.API, svc *Service) {
 
 	registerPublicPort(h, svc)
 	registerReplicas(h, svc)
+	registerData(h, svc)
 }

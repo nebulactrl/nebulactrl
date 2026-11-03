@@ -249,6 +249,12 @@ func (in *inputs) blocking() []PlanBlocking {
 	if b := processesNeedAgent(in.cfg, in.server); b != nil {
 		out = append(out, *b)
 	}
+	if b := restartPolicyNeedsAgent(in.cfg, in.server); b != nil {
+		out = append(out, *b)
+	}
+	if b := cronNeedsAgent(in.cfg, in.server); b != nil {
+		out = append(out, *b)
+	}
 	if in.sc.Service.SourceType == services.SourceGit {
 		if b := submodulesNeedAgent(in.cfg, in.server); b != nil {
 			out = append(out, *b)

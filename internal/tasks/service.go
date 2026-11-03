@@ -28,18 +28,25 @@ type Redactor interface {
 	RedactorFor(ctx context.Context, serviceID uuid.UUID) (func(string) string, error)
 }
 
+// Restarter queues the restart of a service's running container inside tx on
+// behalf of a schedule. *services.Service implements it.
+type Restarter interface {
+	RestartForSchedule(ctx context.Context, tx pgx.Tx, sc services.Scope, actorLabel string) (uuid.UUID, error)
+}
+
 // Service implements the task use cases.
 type Service struct {
-	pool     *pgxpool.Pool
-	q        *db.Queries
-	bus      *events.Bus
-	jm       *jobs.Manager
-	box      *secretbox.Box
-	disp     agents.Dispatcher
-	redactor Redactor
-	ext      *services.ExtSecrets
-	notifier notifications.Emitter
-	log      *slog.Logger
+	pool      *pgxpool.Pool
+	q         *db.Queries
+	bus       *events.Bus
+	jm        *jobs.Manager
+	box       *secretbox.Box
+	disp      agents.Dispatcher
+	redactor  Redactor
+	ext       *services.ExtSecrets
+	restarter Restarter
+	notifier  notifications.Emitter
+	log       *slog.Logger
 
 	now func() time.Time
 }
@@ -58,13 +65,16 @@ type Deps struct {
 	Logger   *slog.Logger
 	// ExtSecrets fetches `${{vault:…}}` values at command send time (nil: none).
 	ExtSecrets *services.ExtSecrets
+	// Restarter queues the restart of a service for restart tasks.
+	// *services.Service implements it. May be nil for OpenAPI generation only.
+	Restarter Restarter
 }
 
 // NewService returns a Service.
 func NewService(d Deps) *Service {
 	s := &Service{
 		pool: d.Pool, bus: d.Bus, jm: d.Jobs, box: d.Box, disp: d.Dispatcher, redactor: d.Redactor,
-		notifier: d.Notifier, log: d.Logger, now: time.Now, ext: d.ExtSecrets,
+		notifier: d.Notifier, log: d.Logger, now: time.Now, ext: d.ExtSecrets, restarter: d.Restarter,
 	}
 	if s.log == nil {
 		s.log = slog.Default()
@@ -100,13 +110,13 @@ func clip(s string) string {
 }
 
 // serverState reports whether the server can take commands now.
-func serverState(ctx context.Context, q *db.Queries, serverID uuid.UUID) (name string, online bool, err error) {
-	srv, err := q.GetServerByID(ctx, serverID)
+func serverState(ctx context.Context, q *db.Queries, serverID uuid.UUID) (srv db.Server, online bool, err error) {
+	srv, err = q.GetServerByID(ctx, serverID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return "", false, nil
+		return db.Server{}, false, nil
 	}
 	if err != nil {
-		return "", false, fmt.Errorf("load server: %w", err)
+		return db.Server{}, false, fmt.Errorf("load server: %w", err)
 	}
-	return srv.Name, srv.Status == "online", nil
+	return srv, srv.Status == "online", nil
 }

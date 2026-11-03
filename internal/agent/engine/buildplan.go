@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/nebulactrl/nebulactrl/internal/agent/build"
+	"github.com/nebulactrl/nebulactrl/internal/agent/docker"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
@@ -102,33 +103,44 @@ func shellQuoteWord(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
-// startCommand is the container Cmd for the service's StartCommand. For an
-// image whose entrypoint is `<shell> -c` (Railpack) an argv such as
+// imageInspector is the part of the Docker engine resolveStartCommand needs.
+type imageInspector interface {
+	ImageInspect(ctx context.Context, ref string) (docker.ImageInfo, error)
+}
+
+// startCommand is the container Cmd for the service's StartCommand (see
+// resolveStartCommand).
+func (d *deploy) startCommand() []string {
+	var entrypoint []string
+	if d.p.Docker != nil {
+		entrypoint = d.p.Docker.Entrypoint
+	}
+	return resolveStartCommand(context.Background(), d.e.cfg.Docker, d.imageID, d.p.StartCommand, entrypoint)
+}
+
+// resolveStartCommand is the container Cmd for a service's start command. For
+// an image whose entrypoint is `<shell> -c` (Railpack) an argv such as
 // ["node","server.js"] would run only `node`, so it is joined into one quoted
 // script. A single-element command is already a script and is kept as is.
-func (d *deploy) startCommand() []string {
-	cmd := d.p.StartCommand
-	if len(cmd) <= 1 || (d.p.Docker != nil && len(d.p.Docker.Entrypoint) > 0) {
-		// An entrypoint override replaces the image's shell entrypoint, so
-		// the command is plain argv for the override.
-		return cmd
+// dockerEntrypoint is the service's entrypoint override: it replaces the
+// image's shell entrypoint, so the command is plain argv for the override.
+func resolveStartCommand(ctx context.Context, img imageInspector, image string, startCommand, dockerEntrypoint []string) []string {
+	if len(startCommand) <= 1 || len(dockerEntrypoint) > 0 {
+		return startCommand
 	}
-	if d.shellEntry == nil {
-		v := false
-		if d.imageID != "" {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-			if info, err := d.e.cfg.Docker.ImageInspect(ctx, d.imageID); err == nil {
-				v = isShellEntrypoint(info.Entrypoint)
-			}
-			cancel()
+	shell := false
+	if image != "" {
+		ictx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		if info, err := img.ImageInspect(ictx, image); err == nil {
+			shell = isShellEntrypoint(info.Entrypoint)
 		}
-		d.shellEntry = &v
+		cancel()
 	}
-	if !*d.shellEntry {
-		return cmd
+	if !shell {
+		return startCommand
 	}
-	words := make([]string, len(cmd))
-	for i, w := range cmd {
+	words := make([]string, len(startCommand))
+	for i, w := range startCommand {
 		words[i] = shellQuoteWord(w)
 	}
 	return []string{strings.Join(words, " ")}

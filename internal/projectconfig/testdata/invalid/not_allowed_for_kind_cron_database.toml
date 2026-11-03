@@ -1,0 +1,12 @@
+# expect: not_allowed_for_kind
+# A managed database is not scheduled: cron only applies to image and git services.
+schema = 1
+server = "fra-1"
+
+[services.db]
+
+[services.db.database]
+engine = "postgres"
+
+[services.db.cron]
+schedule = "@daily"

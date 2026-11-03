@@ -85,6 +85,10 @@ func (s *Service) onPush(ctx context.Context, conn db.GitConnection, ev PushEven
 			notes = append(notes, name+": no changed file matches the watch paths")
 			continue
 		}
+		if sg.WaitForCi {
+			notes = append(notes, s.parkForCI(ctx, sg.ServiceID, ev, name))
+			continue
+		}
 		commit := &deployments.CommitInfo{SHA: ev.CommitSHA, Message: ev.CommitMessage, Author: ev.Author, Branch: ev.Branch}
 		id, note := s.deployPush(ctx, sg.ServiceID, commit, name)
 		if id != uuid.Nil {

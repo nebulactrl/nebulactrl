@@ -172,6 +172,20 @@ type TemplateService struct {
 	Docker           *DockerBlock    `yaml:"docker,omitempty" json:"docker,omitempty"`
 	Resources        *TemplateLimits `yaml:"resources,omitempty" json:"resources,omitempty"`
 	StopGraceSeconds int             `yaml:"stopGraceSeconds,omitempty" json:"stopGraceSeconds,omitempty"`
+	// Provides are the variables linking another service to this one proposes
+	// on top of the generic host/port rows (a Bucket offers the S3 settings).
+	Provides []TemplateProvide `yaml:"provides,omitempty" json:"provides,omitempty"`
+}
+
+// TemplateProvide is one variable a link to the service proposes to the
+// consumer. Value references only the providing service's own variables
+// (${{<key>.VAR}}); no inputs and no generators.
+type TemplateProvide struct {
+	Key         string `yaml:"key" json:"key"`
+	Value       string `yaml:"value" json:"value"`
+	Description string `yaml:"description,omitempty" json:"description,omitempty"`
+	Secret      bool   `yaml:"secret,omitempty" json:"secret,omitempty"`
+	Recommended bool   `yaml:"recommended,omitempty" json:"recommended,omitempty"`
 }
 
 // TemplateDatabase is a managed database companion.

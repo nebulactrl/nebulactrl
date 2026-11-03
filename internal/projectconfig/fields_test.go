@@ -51,7 +51,7 @@ func TestCatalogSanity(t *testing.T) {
 		}
 		sort.Strings(got)
 		want := []string{
-			"backups.*", "domains.*.cloudflare", "git.auto_deploy", "git.link", "git.watch_paths", "name",
+			"backups.*", "domains.*.cloudflare", "git.auto_deploy", "git.link", "git.wait_for_ci", "git.watch_paths", "name",
 			"processes.*.scale.autoscaling.enabled", "processes.*.scale.autoscaling.max", "processes.*.scale.autoscaling.min",
 			"processes.*.scale.autoscaling.targetCpuPercent", "processes.*.scale.replicas",
 			"scale.autoscaling.enabled", "scale.autoscaling.max", "scale.autoscaling.min", "scale.autoscaling.targetCpuPercent",
@@ -204,6 +204,8 @@ port = 8080
 command = ["run", "--fast"]
 one_shot = false
 stop_grace_seconds = 45
+restart_policy = "on-failure"
+restart_max_retries = 5
 memory_mb = 512
 cpus = 1.5
 image_retention = 7
@@ -374,6 +376,10 @@ concurrency = "allow"
 schedule = "@daily"
 command = ["run"]
 
+[services.img.tasks.restarter]
+schedule = "0 4 * * 0"
+action = "restart"
+
 # ---- image with an exec health check ----
 [services.ex]
 image = "busybox:1"
@@ -381,6 +387,17 @@ image = "busybox:1"
 [services.ex.health_check]
 type = "exec"
 command = ["CMD", "true"]
+
+# ---- a cron service: one_shot is implied ----
+[services.cr]
+image = "busybox:1"
+command = ["sh", "-c", "date"]
+
+[services.cr.cron]
+schedule = "*/10 * * * *"
+timezone = "Europe/Berlin"
+timeout_seconds = 600
+concurrency = "allow"
 
 # ---- git, connected ----
 [services.gt]
@@ -397,6 +414,7 @@ repo = "acme/gt"
 branch = "main"
 submodules = "on"
 auto_deploy = true
+wait_for_ci = true
 watch_paths = ["apps/gt/**"]
 
 [services.gt.build]
@@ -576,7 +594,7 @@ func t2KindsResolved(t *testing.T) *Resolved {
 
 func TestFieldsPerKind(t *testing.T) {
 	r := t2KindsResolved(t)
-	kinds := map[string]string{"img": KindImage, "ex": KindImage, "gt": KindGit, "gu": KindGit, "dbs": KindDatabase, "rt": KindRoute, "tcp": KindRoute, "stk": KindStack}
+	kinds := map[string]string{"img": KindImage, "ex": KindImage, "cr": KindImage, "gt": KindGit, "gu": KindGit, "dbs": KindDatabase, "rt": KindRoute, "tcp": KindRoute, "stk": KindStack}
 	require.Len(t, r.Services, len(kinds))
 	for slug, kind := range kinds {
 		require.Equal(t, kind, r.Services[slug].Kind, slug)
@@ -592,7 +610,8 @@ func TestFieldsPerKind(t *testing.T) {
 	want := map[string][]string{
 		"img": docker(
 			"name", "server", "generate_domain", "links.dbs", "networks.backplane",
-			"config.image", "config.port", "config.startCommand", "config.oneshot", "config.stopGraceSeconds", "config.memoryMb",
+			"config.image", "config.port", "config.startCommand", "config.oneshot", "config.stopGraceSeconds",
+			"config.restartPolicy", "config.restartMaxRetries", "config.memoryMb",
 			"config.cpus", "config.imageRetention", "config.blockEgress",
 			"config.healthcheck.type", "config.healthcheck.path", "config.healthcheck.port", "config.healthcheck.intervalSeconds",
 			"config.healthcheck.timeoutSeconds", "config.healthcheck.startPeriodSeconds", "config.healthcheck.deadlineSeconds",
@@ -603,12 +622,16 @@ func TestFieldsPerKind(t *testing.T) {
 			"domains.shop.acme.com", "domains.shop.acme.com.cloudflare", "domains.shop.acme.com/api", "domains.plain.acme.com",
 			"scale.replicas", "scale.autoscaling.enabled", "scale.autoscaling.min", "scale.autoscaling.max", "scale.autoscaling.targetCpuPercent",
 			"uptime.enabled", "uptime.alerts", "uptime.failureThreshold", "uptime.recoveryThreshold", "uptime.reminderMinutes",
-			"tasks.digest", "tasks.minimal",
+			"tasks.digest", "tasks.minimal", "tasks.restarter",
 		),
 		"ex": {"server", "config.image", "config.healthcheck.type", "config.healthcheck.command"},
+		"cr": {
+			"server", "config.image", "config.startCommand", "config.oneshot",
+			"config.cron.schedule", "config.cron.timezone", "config.cron.timeoutSeconds", "config.cron.concurrency",
+		},
 		"gt": {
 			"name", "server", "links.img", "config.port", "config.startCommand",
-			"config.gitBranch", "config.submodules", "git.link", "git.auto_deploy", "git.watch_paths",
+			"config.gitBranch", "config.submodules", "git.link", "git.auto_deploy", "git.wait_for_ci", "git.watch_paths",
 			"config.buildType", "config.dockerfilePath", "config.buildContext", "config.buildLocation", "config.buildServerId", "config.registryId",
 			"variables.BUILD_FLAG",
 			"config.processName", "config.singleton", "config.processes.worker", "config.processes.clock",
@@ -675,7 +698,7 @@ func TestFieldsPerKind(t *testing.T) {
 				require.NotZero(t, fv.Pos.Line, "%s/%s", slug, id)
 			}
 		}
-		immediate := []string{"name", "scale.replicas", "processes.worker.scale.replicas", "git.link", "git.auto_deploy", "git.watch_paths", "uptime.enabled", "tasks.digest", "backups.nightly", "domains.shop.acme.com.cloudflare"}
+		immediate := []string{"name", "scale.replicas", "processes.worker.scale.replicas", "git.link", "git.auto_deploy", "git.wait_for_ci", "git.watch_paths", "uptime.enabled", "tasks.digest", "backups.nightly", "domains.shop.acme.com.cloudflare"}
 		for slug, id := range map[string]string{"img": "name", "gt": "git.link"} {
 			require.Equal(t, AppliesImmediate, r.Services[slug].Fields[id].Applies)
 		}
@@ -710,6 +733,8 @@ func TestFieldValuesOfTheImageService(t *testing.T) {
 	require.Equal(t, 8080, val("config.port"))
 	require.Equal(t, 1.5, val("config.cpus"))
 	require.Equal(t, false, val("config.oneshot"))
+	require.Equal(t, "on-failure", val("config.restartPolicy"))
+	require.Equal(t, 5, val("config.restartMaxRetries"))
 	require.Equal(t, []string{"run", "--fast"}, val("config.startCommand"))
 	require.Equal(t, "http", val("config.healthcheck.type"))
 	require.Equal(t, 3, val("config.healthcheck.successThreshold"))
@@ -818,8 +843,9 @@ func TestFieldValuesOfTheImageService(t *testing.T) {
 	})
 
 	t.Run("tasks have their defaults filled", func(t *testing.T) {
-		require.Equal(t, TaskValue{Name: "digest", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: []string{"bun", "run", "digest"}, Enabled: false, TimeoutSeconds: 900, Concurrency: "allow"}, val("tasks.digest"))
-		require.Equal(t, TaskValue{Name: "minimal", Schedule: "@daily", Timezone: "UTC", Command: []string{"run"}, Enabled: true, TimeoutSeconds: 1800, Concurrency: "forbid"}, val("tasks.minimal"))
+		require.Equal(t, TaskValue{Name: "digest", Action: "command", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: []string{"bun", "run", "digest"}, Enabled: false, TimeoutSeconds: 900, Concurrency: "allow"}, val("tasks.digest"))
+		require.Equal(t, TaskValue{Name: "minimal", Action: "command", Schedule: "@daily", Timezone: "UTC", Command: []string{"run"}, Enabled: true, TimeoutSeconds: 1800, Concurrency: "forbid"}, val("tasks.minimal"))
+		require.Equal(t, TaskValue{Name: "restarter", Action: "restart", Schedule: "0 4 * * 0", Timezone: "UTC", Command: []string{}, Enabled: true, TimeoutSeconds: 300, Concurrency: "forbid"}, val("tasks.restarter"))
 	})
 }
 

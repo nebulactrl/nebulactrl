@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from "react";
 
-export type CreateKind = "git" | "image" | "database";
+export type CreateKind = "git" | "image" | "cron" | "database";
 
 export interface CreateOptions {
 	/** Canvas coordinates the new node is dropped at; unset lets the canvas place it. */

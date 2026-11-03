@@ -50,6 +50,15 @@ func (q *Queries) CountTaskRunLogs(ctx context.Context, runID uuid.UUID) (int64,
 	return column_1, err
 }
 
+const deleteServiceCronTask = `-- name: DeleteServiceCronTask :exec
+DELETE FROM service_tasks WHERE service_id = $1 AND action = 'service'
+`
+
+func (q *Queries) DeleteServiceCronTask(ctx context.Context, serviceID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, deleteServiceCronTask, serviceID)
+	return err
+}
+
 const deleteServiceTask = `-- name: DeleteServiceTask :exec
 DELETE FROM service_tasks WHERE id = $1
 `
@@ -204,7 +213,7 @@ func (q *Queries) GetServiceCurrentRelease(ctx context.Context, id uuid.UUID) (G
 }
 
 const getServiceTask = `-- name: GetServiceTask :one
-SELECT id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone FROM service_tasks WHERE id = $1
+SELECT id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone, action FROM service_tasks WHERE id = $1
 `
 
 func (q *Queries) GetServiceTask(ctx context.Context, id uuid.UUID) (ServiceTask, error) {
@@ -224,6 +233,7 @@ func (q *Queries) GetServiceTask(ctx context.Context, id uuid.UUID) (ServiceTask
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Timezone,
+		&i.Action,
 	)
 	return i, err
 }
@@ -381,14 +391,15 @@ func (q *Queries) GetTaskRunViewInternal(ctx context.Context, id uuid.UUID) (Get
 
 const insertServiceTask = `-- name: InsertServiceTask :one
 
-INSERT INTO service_tasks (service_id, name, schedule, timezone, command, enabled, timeout_seconds, concurrency, next_run_at)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-RETURNING id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone
+INSERT INTO service_tasks (service_id, name, action, schedule, timezone, command, enabled, timeout_seconds, concurrency, next_run_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+RETURNING id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone, action
 `
 
 type InsertServiceTaskParams struct {
 	ServiceID      uuid.UUID       `json:"serviceId"`
 	Name           string          `json:"name"`
+	Action         string          `json:"action"`
 	Schedule       string          `json:"schedule"`
 	Timezone       string          `json:"timezone"`
 	Command        json.RawMessage `json:"command"`
@@ -403,6 +414,7 @@ func (q *Queries) InsertServiceTask(ctx context.Context, arg InsertServiceTaskPa
 	row := q.db.QueryRow(ctx, insertServiceTask,
 		arg.ServiceID,
 		arg.Name,
+		arg.Action,
 		arg.Schedule,
 		arg.Timezone,
 		arg.Command,
@@ -426,6 +438,7 @@ func (q *Queries) InsertServiceTask(ctx context.Context, arg InsertServiceTaskPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Timezone,
+		&i.Action,
 	)
 	return i, err
 }
@@ -498,7 +511,7 @@ func (q *Queries) InsertTaskRun(ctx context.Context, arg InsertTaskRunParams) (T
 }
 
 const listDueServiceTasks = `-- name: ListDueServiceTasks :many
-SELECT id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone FROM service_tasks
+SELECT id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone, action FROM service_tasks
 WHERE enabled AND next_run_at IS NOT NULL AND next_run_at <= $1
 ORDER BY next_run_at, id
 LIMIT 500
@@ -529,6 +542,7 @@ func (q *Queries) ListDueServiceTasks(ctx context.Context, nextRunAt *time.Time)
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Timezone,
+			&i.Action,
 		); err != nil {
 			return nil, err
 		}
@@ -585,6 +599,65 @@ func (q *Queries) ListLatestTaskRuns(ctx context.Context, serviceID uuid.UUID) (
 			&i.TaskRun.StartedAt,
 			&i.TaskRun.FinishedAt,
 			&i.EffectiveStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listServiceCronState = `-- name: ListServiceCronState :many
+SELECT t.service_id, t.id AS task_id, t.schedule, t.timezone, t.next_run_at,
+       r.id AS run_id, r.status AS run_status, r.started_at AS run_started_at,
+       r.finished_at AS run_finished_at, r.exit_code AS run_exit_code
+FROM service_tasks t
+LEFT JOIN task_runs r ON r.id = (
+    SELECT id FROM task_runs
+    WHERE task_id = t.id AND status <> 'skipped'
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+)
+WHERE t.action = 'service' AND t.service_id = ANY($1::uuid[])
+`
+
+type ListServiceCronStateRow struct {
+	ServiceID     uuid.UUID  `json:"serviceId"`
+	TaskID        uuid.UUID  `json:"taskId"`
+	Schedule      string     `json:"schedule"`
+	Timezone      string     `json:"timezone"`
+	NextRunAt     *time.Time `json:"nextRunAt"`
+	RunID         *uuid.UUID `json:"runId"`
+	RunStatus     *string    `json:"runStatus"`
+	RunStartedAt  *time.Time `json:"runStartedAt"`
+	RunFinishedAt *time.Time `json:"runFinishedAt"`
+	RunExitCode   *int32     `json:"runExitCode"`
+}
+
+// The schedule and newest non-skipped run of each cron service.
+func (q *Queries) ListServiceCronState(ctx context.Context, dollar_1 []uuid.UUID) ([]ListServiceCronStateRow, error) {
+	rows, err := q.db.Query(ctx, listServiceCronState, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListServiceCronStateRow{}
+	for rows.Next() {
+		var i ListServiceCronStateRow
+		if err := rows.Scan(
+			&i.ServiceID,
+			&i.TaskID,
+			&i.Schedule,
+			&i.Timezone,
+			&i.NextRunAt,
+			&i.RunID,
+			&i.RunStatus,
+			&i.RunStartedAt,
+			&i.RunFinishedAt,
+			&i.RunExitCode,
 		); err != nil {
 			return nil, err
 		}
@@ -661,9 +734,10 @@ func (q *Queries) ListServiceTaskRuns(ctx context.Context, arg ListServiceTaskRu
 }
 
 const listServiceTasks = `-- name: ListServiceTasks :many
-SELECT id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone FROM service_tasks WHERE service_id = $1 ORDER BY lower(name), id
+SELECT id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone, action FROM service_tasks WHERE service_id = $1 AND action <> 'service' ORDER BY lower(name), id
 `
 
+// Hidden rows (action 'service': the schedule of a cron service) are not tasks the user manages.
 func (q *Queries) ListServiceTasks(ctx context.Context, serviceID uuid.UUID) ([]ServiceTask, error) {
 	rows, err := q.db.Query(ctx, listServiceTasks, serviceID)
 	if err != nil {
@@ -687,6 +761,7 @@ func (q *Queries) ListServiceTasks(ctx context.Context, serviceID uuid.UUID) ([]
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.Timezone,
+			&i.Action,
 		); err != nil {
 			return nil, err
 		}
@@ -802,20 +877,22 @@ func (q *Queries) SetTaskRunLogLines(ctx context.Context, arg SetTaskRunLogLines
 const updateServiceTask = `-- name: UpdateServiceTask :one
 UPDATE service_tasks SET
     name = $1,
-    schedule = $2,
-    timezone = $3,
-    command = $4,
-    enabled = $5,
-    timeout_seconds = $6,
-    concurrency = $7,
-    next_run_at = $8,
+    action = $2,
+    schedule = $3,
+    timezone = $4,
+    command = $5,
+    enabled = $6,
+    timeout_seconds = $7,
+    concurrency = $8,
+    next_run_at = $9,
     updated_at = now()
-WHERE id = $9
-RETURNING id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone
+WHERE id = $10
+RETURNING id, service_id, name, schedule, command, enabled, timeout_seconds, concurrency, next_run_at, last_run_at, created_at, updated_at, timezone, action
 `
 
 type UpdateServiceTaskParams struct {
 	Name           string          `json:"name"`
+	Action         string          `json:"action"`
 	Schedule       string          `json:"schedule"`
 	Timezone       string          `json:"timezone"`
 	Command        json.RawMessage `json:"command"`
@@ -829,6 +906,7 @@ type UpdateServiceTaskParams struct {
 func (q *Queries) UpdateServiceTask(ctx context.Context, arg UpdateServiceTaskParams) (ServiceTask, error) {
 	row := q.db.QueryRow(ctx, updateServiceTask,
 		arg.Name,
+		arg.Action,
 		arg.Schedule,
 		arg.Timezone,
 		arg.Command,
@@ -853,6 +931,43 @@ func (q *Queries) UpdateServiceTask(ctx context.Context, arg UpdateServiceTaskPa
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.Timezone,
+		&i.Action,
 	)
 	return i, err
+}
+
+const upsertServiceCronTask = `-- name: UpsertServiceCronTask :exec
+INSERT INTO service_tasks (service_id, name, action, schedule, timezone, command, enabled, timeout_seconds, concurrency, next_run_at)
+VALUES ($1, '__cron', 'service', $2, $3, '[]', true, $4, $5, $6)
+ON CONFLICT (service_id, name) DO UPDATE SET
+    schedule = EXCLUDED.schedule,
+    timezone = EXCLUDED.timezone,
+    timeout_seconds = EXCLUDED.timeout_seconds,
+    concurrency = EXCLUDED.concurrency,
+    next_run_at = EXCLUDED.next_run_at,
+    enabled = true,
+    updated_at = now()
+`
+
+type UpsertServiceCronTaskParams struct {
+	ServiceID      uuid.UUID  `json:"serviceId"`
+	Schedule       string     `json:"schedule"`
+	Timezone       string     `json:"timezone"`
+	TimeoutSeconds int32      `json:"timeoutSeconds"`
+	Concurrency    string     `json:"concurrency"`
+	NextRunAt      *time.Time `json:"nextRunAt"`
+}
+
+// The hidden task row (action 'service') that runs a cron service on its schedule;
+// kept in step with the deployed release's config.cron.
+func (q *Queries) UpsertServiceCronTask(ctx context.Context, arg UpsertServiceCronTaskParams) error {
+	_, err := q.db.Exec(ctx, upsertServiceCronTask,
+		arg.ServiceID,
+		arg.Schedule,
+		arg.Timezone,
+		arg.TimeoutSeconds,
+		arg.Concurrency,
+		arg.NextRunAt,
+	)
+	return err
 }

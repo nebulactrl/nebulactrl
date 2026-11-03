@@ -94,6 +94,16 @@ const PROCESS_FIELD_LABEL: Readonly<Record<string, string>> = {
 	"healthcheck.successThreshold": "Health check success threshold",
 };
 
+/** Service settings whose review line reads as a label instead of the field id. */
+const CONFIG_FIELD_LABEL: Readonly<Record<string, string>> = {
+	"config.restartPolicy": "Restart policy",
+	"config.restartMaxRetries": "Max restarts",
+	"config.cron.schedule": "Cron schedule",
+	"config.cron.timezone": "Cron timezone",
+	"config.cron.timeoutSeconds": "Cron timeout",
+	"config.cron.concurrency": "Cron concurrency",
+};
+
 /** A command the control plane sends as a JSON array, shown the way the settings field types it. */
 function readable(value: string): string {
 	if (!value.startsWith("[")) return value;
@@ -219,16 +229,17 @@ function lineFor(serviceId: string, change: FieldChange): ReviewLine {
 	) {
 		return { ...base, sign: "~", text: change.field, value: change.to };
 	}
+	const text = CONFIG_FIELD_LABEL[change.field] ?? change.field;
 	if (change.from === "" && change.to !== "") {
-		return { ...base, sign: "+", text: change.field, value: change.to };
+		return { ...base, sign: "+", text, value: change.to };
 	}
 	if (change.to === "" && change.from !== "") {
-		return { ...base, sign: "−", text: change.field, value: change.from };
+		return { ...base, sign: "−", text, value: change.from };
 	}
 	return {
 		...base,
 		sign: "~",
-		text: change.field,
+		text,
 		value: `${change.from} → ${change.to}`,
 	};
 }

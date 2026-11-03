@@ -1,0 +1,10 @@
+# expect: missing_required
+# The cron table needs a schedule.
+schema = 1
+server = "fra-1"
+
+[services.job]
+image = "busybox:1"
+
+[services.job.cron]
+timezone = "UTC"

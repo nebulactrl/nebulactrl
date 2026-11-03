@@ -326,8 +326,20 @@ const INVALIDATES: Record<string, readonly string[]> = {
 		"listNotificationDeliveries",
 	],
 	// Cron tasks of a service and the runs (history, output) of tasks and one-off commands.
-	"task.updated": ["listServiceTasks", "listServiceTaskRuns"],
-	"task.run.updated": ["listServiceTasks", "listServiceTaskRuns", "getTaskRun"],
+	// The service views too: a cron service's card shows its next and last run.
+	"task.updated": [
+		"listServiceTasks",
+		"listServiceTaskRuns",
+		"listServices",
+		"getService",
+	],
+	"task.run.updated": [
+		"listServiceTasks",
+		"listServiceTaskRuns",
+		"getTaskRun",
+		"listServices",
+		"getService",
+	],
 	// A preview's status, its environment (switcher grouping) and its services.
 	"preview.updated": [
 		"listPreviews",

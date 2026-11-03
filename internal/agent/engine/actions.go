@@ -136,6 +136,7 @@ func (e *Engine) handleRestart(ctx context.Context, cmd agentprotocol.Command) a
 		return failedResult(cmd.ID, "service has no container on this host; deploy it first")
 	}
 	grace := graceOf(p.StopGraceSeconds)
+	completed := 0
 	e.log.Info("restarting service", "service_id", p.ServiceID, "replicas", len(reps))
 	// One replica at a time: with several replicas the others keep serving.
 	for _, c := range reps {
@@ -157,8 +158,19 @@ func (e *Engine) handleRestart(ctx context.Context, cmd agentprotocol.Command) a
 			return failedResult(cmd.ID, "inspect container "+c.Name+": "+err.Error())
 		}
 		if !after.Running {
+			// A one-shot that ran and exited cleanly did what a restart asks of it.
+			if after.Labels[agentprotocol.LabelOneShot] == "true" && after.ExitCode == 0 {
+				completed++
+				continue
+			}
 			return failedResult(cmd.ID, fmt.Sprintf("container %s exited with code %d right after restart", c.Name, after.ExitCode))
 		}
+	}
+	if completed == len(reps) {
+		if len(reps) == 1 {
+			return okResult(cmd.ID, reps[0].ID, "Ran "+reps[0].Name+" to completion")
+		}
+		return okResult(cmd.ID, reps[0].ID, fmt.Sprintf("Ran %d replicas to completion", len(reps)))
 	}
 	if len(reps) == 1 {
 		return okResult(cmd.ID, reps[0].ID, "Restarted "+reps[0].Name)

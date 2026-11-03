@@ -182,6 +182,7 @@ export type ApiRouteKey =
 	| `GET /services/${string}/database`
 	| `GET /services/${string}/database/public-port`
 	| `GET /services/${string}/database/replication`
+	| `GET /services/${string}/database/tables`
 	| `GET /services/${string}/deploy-hook`
 	| `GET /services/${string}/deployments`
 	| `GET /services/${string}/domains`
@@ -387,11 +388,13 @@ export type ApiRouteKey =
 	| `POST /services/${string}/config-source/release`
 	| `POST /services/${string}/database/promote`
 	| `POST /services/${string}/database/public-port/connection`
+	| `POST /services/${string}/database/query`
 	| `POST /services/${string}/database/rebuild`
 	| `POST /services/${string}/database/refresh`
 	| `POST /services/${string}/database/replicas`
 	| `POST /services/${string}/database/reveal`
 	| `POST /services/${string}/database/rotate-credentials`
+	| `POST /services/${string}/database/rows`
 	| `POST /services/${string}/database/upgrade`
 	| `POST /services/${string}/database/upgrade/plan`
 	| `POST /services/${string}/deploy-hook/rotate`

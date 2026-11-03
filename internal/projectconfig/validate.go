@@ -190,6 +190,7 @@ func (v *view) validateService(c *svcCtx) {
 	c.checkUptime()
 	c.checkProcesses()
 	c.checkTasks()
+	c.checkCronTable()
 	c.checkBackups()
 	if c.def.Database != nil {
 		c.checkDatabase()
@@ -251,7 +252,10 @@ func (c *svcCtx) checkKind() {
 	forbid("command", d.Command != nil)
 	forbid("health_check", d.HealthCheck != nil)
 	forbid("one_shot", d.OneShot != nil)
+	forbid("cron", d.Cron != nil)
 	forbid("stop_grace_seconds", d.StopGraceSeconds != nil)
+	forbid("restart_policy", d.RestartPolicy != nil)
+	forbid("restart_max_retries", d.RestartMaxRetries != nil)
 	forbid("memory_mb", d.MemoryMB != nil)
 	forbid("cpus", d.CPUs != nil)
 	forbid("image_retention", d.ImageRetention != nil)
@@ -310,7 +314,7 @@ func matrix(kind, key string) int {
 		if !runtime && kind != KindDatabase {
 			return mxForbidden
 		}
-	case "pre_deploy", "post_deploy", "files", "scale", "tasks", "generate_domain", "processes", "process_name", "singleton":
+	case "pre_deploy", "post_deploy", "files", "scale", "tasks", "generate_domain", "processes", "process_name", "singleton", "restart_policy", "restart_max_retries", "cron":
 		if !runtime {
 			return mxForbidden
 		}
@@ -427,7 +431,7 @@ func (c *svcCtx) checkRuntime() {
 			c.err(CodeInvalidValue, rp("command"), "command: %s", err)
 		}
 	}
-	if d.OneShot != nil && *d.OneShot {
+	if oneShotOf(d) {
 		if d.Port != nil && *d.Port != 0 {
 			c.err(CodeInvalidValue, rp("port"), "a one-shot service runs to completion and has no port")
 		}
@@ -435,6 +439,29 @@ func (c *svcCtx) checkRuntime() {
 			c.err(CodeInvalidValue, rp("one_shot"), "a one-shot service is itself a command; it has no pre_deploy or post_deploy")
 		}
 	}
+	if d.RestartPolicy != nil {
+		switch *d.RestartPolicy {
+		case "always", "on-failure", "never":
+		default:
+			c.err(CodeInvalidValue, rp("restart_policy"), "restart_policy must be always, on-failure or never")
+		}
+		if oneShotOf(d) {
+			c.err(CodeInvalidValue, rp("restart_policy"), "a one-shot service runs to completion and is never restarted; it has no restart_policy")
+		}
+	}
+	c.intIn(rp("restart_max_retries"), d.RestartMaxRetries, 1, 100)
+	if d.RestartMaxRetries != nil && (d.RestartPolicy == nil || *d.RestartPolicy != "on-failure") {
+		c.err(CodeInvalidValue, rp("restart_max_retries"), "restart_max_retries only applies with restart_policy = \"on-failure\"")
+	}
+}
+
+// oneShotOf reports whether the service runs to completion: one_shot = true, or a
+// cron table that leaves one_shot unset (a cron service is a one-shot).
+func oneShotOf(d *Service) bool {
+	if d.OneShot != nil {
+		return *d.OneShot
+	}
+	return d.Cron != nil
 }
 
 func (c *svcCtx) checkHealth() {

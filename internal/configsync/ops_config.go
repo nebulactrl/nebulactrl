@@ -8,6 +8,7 @@ import (
 
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
 	"github.com/nebulactrl/nebulactrl/internal/services"
+	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
 // cfgField reads and writes one atom of services.Config by field id. get returns the
@@ -89,25 +90,52 @@ func serverNameOf(pc *planCtx, id *uuid.UUID) string {
 	return id.String()
 }
 
+// restartPolicyField compares an unset policy as "always", its meaning, so a file that
+// writes the default plans to zero against a service that never set it.
+var restartPolicyField = func() cfgField {
+	f := scalar(func(c *services.Config) *string { return &c.RestartPolicy })
+	f.get = func(_ *planCtx, c services.Config) any {
+		if c.RestartPolicy == "" {
+			return services.RestartAlways
+		}
+		return c.RestartPolicy
+	}
+	return f
+}()
+
+// restartMaxRetriesField reads 0 as 10 under on-failure, which is what the agent runs.
+var restartMaxRetriesField = func() cfgField {
+	f := scalar(func(c *services.Config) *int { return &c.RestartMaxRetries })
+	f.get = func(_ *planCtx, c services.Config) any {
+		if c.RestartPolicy == services.RestartOnFailure && c.RestartMaxRetries == 0 {
+			return agentprotocol.DefaultRestartMaxRetries
+		}
+		return c.RestartMaxRetries
+	}
+	return f
+}()
+
 var cfgFields = map[string]cfgField{
-	"config.image":            scalar(func(c *services.Config) *string { return &c.Image }),
-	"config.gitUrl":           scalar(func(c *services.Config) *string { return &c.GitURL }),
-	"config.gitBranch":        scalar(func(c *services.Config) *string { return &c.GitBranch }),
-	"config.submodules":       scalar(func(c *services.Config) *string { return &c.Submodules }),
-	"config.dockerfilePath":   scalar(func(c *services.Config) *string { return &c.DockerfilePath }),
-	"config.buildContext":     scalar(func(c *services.Config) *string { return &c.BuildContext }),
-	"config.buildType":        scalar(func(c *services.Config) *string { return &c.BuildType }),
-	"config.buildLocation":    scalar(func(c *services.Config) *string { return &c.BuildLocation }),
-	"config.port":             scalar(func(c *services.Config) *int { return &c.Port }),
-	"config.startCommand":     scalar(func(c *services.Config) *[]string { return &c.StartCommand }),
-	"config.oneshot":          scalar(func(c *services.Config) *bool { return &c.OneShot }),
-	"config.processName":      processNameField,
-	"config.singleton":        scalar(func(c *services.Config) *bool { return &c.Singleton }),
-	"config.stopGraceSeconds": scalar(func(c *services.Config) *int { return &c.StopGraceSeconds }),
-	"config.memoryMb":         scalar(func(c *services.Config) *int { return &c.MemoryMB }),
-	"config.cpus":             scalar(func(c *services.Config) *float64 { return &c.CPUs }),
-	"config.imageRetention":   scalar(func(c *services.Config) *int { return &c.ImageRetention }),
-	"config.blockEgress":      scalar(func(c *services.Config) *bool { return &c.BlockEgress }),
+	"config.image":             scalar(func(c *services.Config) *string { return &c.Image }),
+	"config.gitUrl":            scalar(func(c *services.Config) *string { return &c.GitURL }),
+	"config.gitBranch":         scalar(func(c *services.Config) *string { return &c.GitBranch }),
+	"config.submodules":        scalar(func(c *services.Config) *string { return &c.Submodules }),
+	"config.dockerfilePath":    scalar(func(c *services.Config) *string { return &c.DockerfilePath }),
+	"config.buildContext":      scalar(func(c *services.Config) *string { return &c.BuildContext }),
+	"config.buildType":         scalar(func(c *services.Config) *string { return &c.BuildType }),
+	"config.buildLocation":     scalar(func(c *services.Config) *string { return &c.BuildLocation }),
+	"config.port":              scalar(func(c *services.Config) *int { return &c.Port }),
+	"config.startCommand":      scalar(func(c *services.Config) *[]string { return &c.StartCommand }),
+	"config.oneshot":           scalar(func(c *services.Config) *bool { return &c.OneShot }),
+	"config.processName":       processNameField,
+	"config.singleton":         scalar(func(c *services.Config) *bool { return &c.Singleton }),
+	"config.stopGraceSeconds":  scalar(func(c *services.Config) *int { return &c.StopGraceSeconds }),
+	"config.restartPolicy":     restartPolicyField,
+	"config.restartMaxRetries": restartMaxRetriesField,
+	"config.memoryMb":          scalar(func(c *services.Config) *int { return &c.MemoryMB }),
+	"config.cpus":              scalar(func(c *services.Config) *float64 { return &c.CPUs }),
+	"config.imageRetention":    scalar(func(c *services.Config) *int { return &c.ImageRetention }),
+	"config.blockEgress":       scalar(func(c *services.Config) *bool { return &c.BlockEgress }),
 
 	"config.healthcheck.type":               scalar(func(c *services.Config) *string { return &c.Healthcheck.Type }),
 	"config.healthcheck.path":               scalar(func(c *services.Config) *string { return &c.Healthcheck.Path }),

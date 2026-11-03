@@ -145,6 +145,10 @@ func ConfigError(err error) error {
 	if errors.As(err, &pe) {
 		return InvalidComposeError(pe.err, nil)
 	}
+	var ce *codedConfigError
+	if errors.As(err, &ce) {
+		return apierr.Unprocessable(ce.code, ce.msg)
+	}
 	if errors.Is(err, ErrInvalidConfig) {
 		return apierr.Unprocessable("invalid_config", strings.TrimPrefix(err.Error(), ErrInvalidConfig.Error()+": "))
 	}

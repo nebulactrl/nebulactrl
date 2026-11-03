@@ -30,15 +30,16 @@ type Service struct {
 	disp   agents.Dispatcher
 	logger *slog.Logger
 
-	redactors   redactorCache
-	routeHook   RouteHook
-	tailnetHook TailnetHook
-	dnsHook     DNSHook
-	sourceHook  SourceHook
-	gitLinkHook GitLinkHook
-	mesh        MeshLinker
-	dbGuard     DatabaseGuard
-	ext         *ExtSecrets
+	redactors    redactorCache
+	routeHook    RouteHook
+	tailnetHook  TailnetHook
+	dnsHook      DNSHook
+	sourceHook   SourceHook
+	gitLinkHook  GitLinkHook
+	mesh         MeshLinker
+	linkProvider LinkProvider
+	dbGuard      DatabaseGuard
+	ext          *ExtSecrets
 }
 
 // NewService returns a Service (pool, box and disp may be nil for OpenAPI generation).
@@ -149,7 +150,7 @@ func BuildViews(ctx context.Context, q *db.Queries, box *secretbox.Box, rows []d
 		}
 		gitBySvc[g.ServiceID] = &GitRef{
 			ConnectionID: g.ConnectionID, Provider: g.Provider, ConnectionName: g.ConnectionName, Repo: g.RepoFullName,
-			AutoDeploy: g.AutoDeploy, WatchPaths: wp,
+			AutoDeploy: g.AutoDeploy, WatchPaths: wp, WaitForCI: g.WaitForCi,
 		}
 	}
 
@@ -204,6 +205,9 @@ func BuildViews(ctx context.Context, q *db.Queries, box *secretbox.Box, rows []d
 		return nil, err
 	}
 	if err := decorateTailnet(ctx, q, rows, out); err != nil {
+		return nil, err
+	}
+	if err := decorateCron(ctx, q, rows, out); err != nil {
 		return nil, err
 	}
 	if err := decorateNetworks(ctx, q, rows, out); err != nil {

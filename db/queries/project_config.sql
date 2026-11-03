@@ -69,7 +69,7 @@ UPDATE backup_schedules SET config_key = sqlc.narg(config_key) WHERE id = sqlc.a
 UPDATE services SET generation = sqlc.arg(generation) WHERE id = sqlc.arg(id) AND generation > sqlc.arg(generation);
 
 -- name: ListServiceTasksForServices :many
-SELECT * FROM service_tasks WHERE service_id = ANY(sqlc.arg(ids)::uuid[]) ORDER BY service_id, name;
+SELECT * FROM service_tasks WHERE service_id = ANY(sqlc.arg(ids)::uuid[]) AND action <> 'service' ORDER BY service_id, name;
 
 -- name: ListBackupSchedulesForServices :many
 SELECT * FROM backup_schedules WHERE service_id = ANY(sqlc.arg(ids)::uuid[]) ORDER BY service_id, created_at, id;

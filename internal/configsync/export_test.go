@@ -118,16 +118,25 @@ func exWithCommand(c *services.Config) {
 	c.PostDeployCommand = []string{"echo", "post"}
 }
 
+// exAsCron makes the config a cron service (a one-shot with a schedule), which
+// the file can only say as a whole.
+func exAsCron(c *services.Config) {
+	c.OneShot = true
+	c.Cron = &services.CronSpec{Schedule: "0 3 * * *"}
+}
+
 var exExamples = map[string]exampleValue{
-	"config.image":            {value: "nginx:2"},
-	"config.port":             {value: 8080},
-	"config.startCommand":     {value: []string{"bun", "run", "worker"}},
-	"config.oneshot":          {value: true},
-	"config.stopGraceSeconds": {value: 45},
-	"config.memoryMb":         {value: 512},
-	"config.cpus":             {value: 1.5},
-	"config.imageRetention":   {value: 9},
-	"config.blockEgress":      {value: true},
+	"config.image":             {value: "nginx:2"},
+	"config.port":              {value: 8080},
+	"config.startCommand":      {value: []string{"bun", "run", "worker"}},
+	"config.oneshot":           {value: true},
+	"config.stopGraceSeconds":  {value: 45},
+	"config.restartPolicy":     {value: "on-failure"},
+	"config.restartMaxRetries": {value: 5, prep: func(c *services.Config) { c.RestartPolicy = "on-failure" }},
+	"config.memoryMb":          {value: 512},
+	"config.cpus":              {value: 1.5},
+	"config.imageRetention":    {value: 9},
+	"config.blockEgress":       {value: true},
 
 	"config.processName": {value: "app"},
 	"config.singleton":   {value: true},
@@ -149,6 +158,11 @@ var exExamples = map[string]exampleValue{
 	"config.healthcheck.deadlineSeconds":    {value: 200},
 	"config.healthcheck.successThreshold":   {value: 4},
 	"config.healthcheck.command":            {value: []string{"CMD", "true"}},
+
+	"config.cron.schedule":       {value: "*/10 * * * *", prep: exAsCron},
+	"config.cron.timezone":       {value: "Europe/Berlin", prep: exAsCron},
+	"config.cron.timeoutSeconds": {value: 600, prep: exAsCron},
+	"config.cron.concurrency":    {value: "allow", prep: exAsCron},
 
 	"config.preDeployCommand":         {value: []string{"bun", "run", "db:migrate"}},
 	"config.preDeployTimeoutSeconds":  {value: 300, prep: exWithCommand},
@@ -292,7 +306,7 @@ func TestExportCoversEveryConfigField(t *testing.T) {
 		"OneShot": true, "Route": true, "Database": true, "PreDeployCommand": true, "PreDeployTimeoutSeconds": true,
 		"PostDeployCommand": true, "PostDeployTimeoutSeconds": true, "BlockEgress": true, "Docker": true, "Stack": true,
 		"Tailnet":     true, // not representable: listed as such
-		"ProcessName": true, "Singleton": true, "Processes": true,
+		"ProcessName": true, "Singleton": true, "Processes": true, "RestartPolicy": true, "RestartMaxRetries": true, "Cron": true,
 	}
 	rt := reflect.TypeOf(services.Config{})
 	for i := range rt.NumField() {
@@ -314,7 +328,7 @@ func exRichEnv() *liveEnv {
 	web.Row.ServerID = new(exID(1))
 	web.Row.Replicas = 2
 	web.Scale = services.Autoscaling{Enabled: true, Min: 2, Max: 5, TargetCPUPercent: 60}
-	web.Git = &db.ServiceGit{ServiceID: web.Row.ID, ConnectionID: exID(3), RepoFullName: "acme/shop", AutoDeploy: false, WatchPaths: []string{"apps/web/**"}}
+	web.Git = &db.ServiceGit{ServiceID: web.Row.ID, ConnectionID: exID(3), RepoFullName: "acme/shop", AutoDeploy: false, WaitForCi: true, WatchPaths: []string{"apps/web/**"}}
 	web.GitConn = "github-acme"
 	web.Links = []string{"db"}
 	web.Networks = []db.ListServicesNetworksRow{{NetworkID: exID(6), NetworkName: "backplane"}}
@@ -1234,8 +1248,13 @@ func (f *exFixture) production() {
 	})
 	require.NoError(f.t, err)
 	_, err = f.q.InsertServiceTask(bg, db.InsertServiceTaskParams{
-		ServiceID: web.ID, Name: "digest", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: json.RawMessage(`["bun","run","jobs:digest"]`),
+		ServiceID: web.ID, Name: "digest", Action: "command", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: json.RawMessage(`["bun","run","jobs:digest"]`),
 		Enabled: true, TimeoutSeconds: 900, Concurrency: "forbid",
+	})
+	require.NoError(f.t, err)
+	_, err = f.q.InsertServiceTask(bg, db.InsertServiceTaskParams{
+		ServiceID: web.ID, Name: "weekly-restart", Action: "restart", Schedule: "0 4 * * 0", Timezone: "UTC", Command: json.RawMessage(`[]`),
+		Enabled: true, TimeoutSeconds: 300, Concurrency: "forbid",
 	})
 	require.NoError(f.t, err)
 
@@ -1344,7 +1363,7 @@ func TestExportPlansToZero(t *testing.T) {
 	for _, want := range []string{
 		"[services.web]", "[services.worker]", "[services.site]", "[services.db.database]", "[services.printer.route]",
 		"www_redirect = true", `[services.web.domains."shop.acme.com/api"]`, "[services.db.backups.nightly]", "[services.db.backups.schedule-1]",
-		"[services.web.tasks.digest]", "depends_on = [\"db\"]", "networks = [\"backplane\"]", "[services.web.volumes]", `"/etc/app/app.conf"`,
+		"[services.web.tasks.digest]", "[services.web.tasks.weekly-restart]", "action = \"restart\"", "depends_on = [\"db\"]", "networks = [\"backplane\"]", "[services.web.volumes]", `"/etc/app/app.conf"`,
 		"SESSION_SECRET = \"${{secret(48)}}\"", "[environments.production.variables]",
 	} {
 		require.Contains(t, file, want)

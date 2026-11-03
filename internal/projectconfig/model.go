@@ -16,28 +16,30 @@ const MaxFileBytes = 256 << 10
 // Limits of the format. They are enforced by Parse/Resolve with
 // limit_exceeded; the JSON Schema repeats the ones it can express.
 const (
-	MaxAttachments         = 8
-	MaxAttachmentBytes     = 256 << 10
-	MaxAttachmentsTotal    = 1 << 20
-	MaxServices            = 64
-	MaxVariablesPerLayer   = 500
-	MaxDomainsPerService   = 50
-	MaxFilesPerService     = 16
-	MaxFileContentBytes    = 64 << 10
-	MaxFilesTotalBytes     = 256 << 10
-	MaxTasksPerService     = 20
-	MaxProcessesPerService = 9 // named processes; the service's own process makes ten
-	MaxBackupsPerService   = 20
-	MaxVolumesPerService   = 32
-	MaxWatchPaths          = 50
-	MaxUpstreams           = 20
-	MaxEnvironments        = 32
-	MaxTableDepth          = 10
-	MaxStringBytes         = 64 << 10
-	MaxUnsetPaths          = 200
-	MaxSecretKeys          = 500
-	MaxComposeBytes        = 256 << 10
-	maxDocumentCollection  = 4096 // sanity bound for any map/array of the document
+	MaxAttachments       = 8
+	MaxAttachmentBytes   = 256 << 10
+	MaxAttachmentsTotal  = 1 << 20
+	MaxServices          = 64
+	MaxVariablesPerLayer = 500
+	MaxDomainsPerService = 50
+	MaxFilesPerService   = 16
+	MaxFileContentBytes  = 64 << 10
+	MaxFilesTotalBytes   = 256 << 10
+	MaxTasksPerService   = 20
+	// RestartTaskTimeoutSeconds is the timeout the control plane records on the runs of a restart task.
+	RestartTaskTimeoutSeconds = 300
+	MaxProcessesPerService    = 9 // named processes; the service's own process makes ten
+	MaxBackupsPerService      = 20
+	MaxVolumesPerService      = 32
+	MaxWatchPaths             = 50
+	MaxUpstreams              = 20
+	MaxEnvironments           = 32
+	MaxTableDepth             = 10
+	MaxStringBytes            = 64 << 10
+	MaxUnsetPaths             = 200
+	MaxSecretKeys             = 500
+	MaxComposeBytes           = 256 << 10
+	maxDocumentCollection     = 4096 // sanity bound for any map/array of the document
 )
 
 // File is the typed model of a nebula.toml document exactly as written
@@ -90,24 +92,26 @@ type Variable struct {
 // the source key is optional). Field order is the order Render writes keys:
 // scalars first, then sub-tables.
 type Service struct {
-	Name             *string  `toml:"name" json:"name,omitempty" doc:"Display name of the service. Defaults to the slug." example:"Web" minLength:"1" maxLength:"120"`
-	Server           *string  `toml:"server" json:"server,omitempty" doc:"Server, by name, the service runs on. Overrides the environment and root server. Required for route services." example:"fra-1" minLength:"1" maxLength:"200"`
-	OnlyIn           []string `toml:"only_in" json:"only_in,omitempty" doc:"Environment slugs in which this service exists in the file. Absent means every environment. Not allowed in environment overrides." example:"[\"production\"]"`
-	DependsOn        []string `toml:"depends_on" json:"depends_on,omitempty" doc:"Slugs of services that deploy before this one. References in variables add dependencies on their own." example:"[\"db\"]"`
-	Unset            []string `toml:"unset" json:"unset,omitempty" doc:"Environment overrides only: TOML key paths removed from the merged service. The removed keys are simply not managed by the file in that environment; nothing live is deleted." example:"[\"scale\", \"domains.\\\"shop.acme.com\\\"\"]" maxItems:"200"`
-	Networks         []string `toml:"networks" json:"networks,omitempty" doc:"Names of shared networks to attach the service to. The file never creates networks." example:"[\"backplane\"]"`
-	GenerateDomain   *bool    `toml:"generate_domain" json:"generate_domain,omitempty" doc:"Attach the platform-generated hostname on the server's base domain when the service has no domain." example:"true" default:"false"`
-	Image            *string  `toml:"image" json:"image,omitempty" doc:"Source key: container image to run, as repo[:tag][@digest]. Registry credentials are never written in the file." example:"ghcr.io/acme/web:1.4.2" minLength:"1" maxLength:"512" pattern:"^\\S+$"`
-	Port             *int     `toml:"port" json:"port,omitempty" doc:"TCP port the service listens on for HTTP. 0 or absent makes it a worker: no HTTP health check and no domain." example:"3000" minimum:"0" maximum:"65535"`
-	Command          []string `toml:"command" json:"command,omitempty" doc:"Start command as an argv array, run without a shell. An empty array clears it and uses the image's CMD." example:"[\"bun\", \"run\", \"worker\"]" minItems:"0" maxItems:"64"`
-	ProcessName      *string  `toml:"process_name" json:"process_name,omitempty" doc:"Name of the service's own process (port, command, health_check, stop_grace_seconds, memory_mb, cpus). Only matters when the service has processes: it is the name logs, scaling and domains use for it." example:"web" pattern:"^[a-z0-9]([a-z0-9-]{0,29}[a-z0-9])?$" default:"web"`
-	Singleton        *bool    `toml:"singleton" json:"singleton,omitempty" doc:"The service's own process never runs two instances at once: the old container stops before the new one starts, and scaling is off." example:"false" default:"false"`
-	OneShot          *bool    `toml:"one_shot" json:"one_shot,omitempty" doc:"Run the container to completion on every deploy. Excludes pre_deploy and post_deploy and a port." example:"false" default:"false"`
-	StopGraceSeconds *int     `toml:"stop_grace_seconds" json:"stop_grace_seconds,omitempty" doc:"Seconds a container gets to stop before it is killed." example:"30" minimum:"1" maximum:"3600" default:"30"`
-	MemoryMB         *int     `toml:"memory_mb" json:"memory_mb,omitempty" doc:"Memory limit in MiB. 0 means no limit; otherwise at least 6." example:"512" minimum:"0"`
-	CPUs             *float64 `toml:"cpus" json:"cpus,omitempty" doc:"CPU limit in cores. 0 means no limit." example:"1.5" minimum:"0"`
-	ImageRetention   *int     `toml:"image_retention" json:"image_retention,omitempty" doc:"How many previous images are kept on the server." example:"5" minimum:"1" maximum:"50" default:"5"`
-	BlockEgress      *bool    `toml:"block_egress" json:"block_egress,omitempty" doc:"Block outbound internet access. The service then only reaches its environment's internal network and cannot join shared networks." example:"false" default:"false"`
+	Name              *string  `toml:"name" json:"name,omitempty" doc:"Display name of the service. Defaults to the slug." example:"Web" minLength:"1" maxLength:"120"`
+	Server            *string  `toml:"server" json:"server,omitempty" doc:"Server, by name, the service runs on. Overrides the environment and root server. Required for route services." example:"fra-1" minLength:"1" maxLength:"200"`
+	OnlyIn            []string `toml:"only_in" json:"only_in,omitempty" doc:"Environment slugs in which this service exists in the file. Absent means every environment. Not allowed in environment overrides." example:"[\"production\"]"`
+	DependsOn         []string `toml:"depends_on" json:"depends_on,omitempty" doc:"Slugs of services that deploy before this one. References in variables add dependencies on their own." example:"[\"db\"]"`
+	Unset             []string `toml:"unset" json:"unset,omitempty" doc:"Environment overrides only: TOML key paths removed from the merged service. The removed keys are simply not managed by the file in that environment; nothing live is deleted." example:"[\"scale\", \"domains.\\\"shop.acme.com\\\"\"]" maxItems:"200"`
+	Networks          []string `toml:"networks" json:"networks,omitempty" doc:"Names of shared networks to attach the service to. The file never creates networks." example:"[\"backplane\"]"`
+	GenerateDomain    *bool    `toml:"generate_domain" json:"generate_domain,omitempty" doc:"Attach the platform-generated hostname on the server's base domain when the service has no domain." example:"true" default:"false"`
+	Image             *string  `toml:"image" json:"image,omitempty" doc:"Source key: container image to run, as repo[:tag][@digest]. Registry credentials are never written in the file." example:"ghcr.io/acme/web:1.4.2" minLength:"1" maxLength:"512" pattern:"^\\S+$"`
+	Port              *int     `toml:"port" json:"port,omitempty" doc:"TCP port the service listens on for HTTP. 0 or absent makes it a worker: no HTTP health check and no domain." example:"3000" minimum:"0" maximum:"65535"`
+	Command           []string `toml:"command" json:"command,omitempty" doc:"Start command as an argv array, run without a shell. An empty array clears it and uses the image's CMD." example:"[\"bun\", \"run\", \"worker\"]" minItems:"0" maxItems:"64"`
+	ProcessName       *string  `toml:"process_name" json:"process_name,omitempty" doc:"Name of the service's own process (port, command, health_check, stop_grace_seconds, memory_mb, cpus). Only matters when the service has processes: it is the name logs, scaling and domains use for it." example:"web" pattern:"^[a-z0-9]([a-z0-9-]{0,29}[a-z0-9])?$" default:"web"`
+	Singleton         *bool    `toml:"singleton" json:"singleton,omitempty" doc:"The service's own process never runs two instances at once: the old container stops before the new one starts, and scaling is off." example:"false" default:"false"`
+	OneShot           *bool    `toml:"one_shot" json:"one_shot,omitempty" doc:"Run the container to completion on every deploy. Excludes pre_deploy and post_deploy and a port." example:"false" default:"false"`
+	StopGraceSeconds  *int     `toml:"stop_grace_seconds" json:"stop_grace_seconds,omitempty" doc:"Seconds a container gets to stop before it is killed." example:"30" minimum:"1" maximum:"3600" default:"30"`
+	RestartPolicy     *string  `toml:"restart_policy" json:"restart_policy,omitempty" doc:"What happens when the container exits on its own: always restarts it unless it was stopped, on-failure restarts it after a non-zero exit (up to restart_max_retries times), never leaves it stopped. Not for one_shot services." example:"on-failure" enum:"always,on-failure,never" default:"always"`
+	RestartMaxRetries *int     `toml:"restart_max_retries" json:"restart_max_retries,omitempty" doc:"How many times on-failure restarts the container before giving up. Only with restart_policy = \"on-failure\"." example:"5" minimum:"1" maximum:"100" default:"10"`
+	MemoryMB          *int     `toml:"memory_mb" json:"memory_mb,omitempty" doc:"Memory limit in MiB. 0 means no limit; otherwise at least 6." example:"512" minimum:"0"`
+	CPUs              *float64 `toml:"cpus" json:"cpus,omitempty" doc:"CPU limit in cores. 0 means no limit." example:"1.5" minimum:"0"`
+	ImageRetention    *int     `toml:"image_retention" json:"image_retention,omitempty" doc:"How many previous images are kept on the server." example:"5" minimum:"1" maximum:"50" default:"5"`
+	BlockEgress       *bool    `toml:"block_egress" json:"block_egress,omitempty" doc:"Block outbound internet access. The service then only reaches its environment's internal network and cannot join shared networks." example:"false" default:"false"`
 
 	Git         *Git         `toml:"git" json:"git,omitempty" doc:"Source key: build the service from a git repository."`
 	Build       *Build       `toml:"build" json:"build,omitempty" doc:"How a git service is built."`
@@ -115,6 +119,7 @@ type Service struct {
 	Route       *Route       `toml:"route" json:"route,omitempty" doc:"Source key: an external route to an upstream the platform does not run, or a TCP/UDP exposure."`
 	Stack       *Stack       `toml:"stack" json:"stack,omitempty" doc:"Source key: a Docker Compose project run as one service."`
 	HealthCheck *HealthCheck `toml:"health_check" json:"health_check,omitempty" doc:"How a new container is judged healthy. Each key is owned individually."`
+	Cron        *Cron        `toml:"cron" json:"cron,omitempty" doc:"Run the service on a schedule: a deploy only pulls or builds the image and records the release, and the image's own command (or command) runs on the schedule. Implies one_shot = true; excludes port, pre_deploy, post_deploy, processes and tasks. Each key is owned individually."`
 	PreDeploy   *Hook        `toml:"pre_deploy" json:"pre_deploy,omitempty" doc:"Command run before the new release starts. A non-zero exit fails the deploy."`
 	PostDeploy  *Hook        `toml:"post_deploy" json:"post_deploy,omitempty" doc:"Command run after the new release is live. A failure only warns."`
 	Docker      *Docker      `toml:"docker" json:"docker,omitempty" doc:"Typed container options. Each key is owned individually. Devices, GPUs, runtime and host-level options need an unrestricted server."`
@@ -139,6 +144,7 @@ type Git struct {
 	Branch     *string  `toml:"branch" json:"branch,omitempty" doc:"Branch to build." example:"main" minLength:"1" maxLength:"255"`
 	Submodules *string  `toml:"submodules" json:"submodules,omitempty" doc:"How submodules are checked out: auto, on or off." example:"auto" enum:"auto,on,off" default:"auto"`
 	AutoDeploy *bool    `toml:"auto_deploy" json:"auto_deploy,omitempty" doc:"Deploy on every push to the branch. Needs connection. Applied immediately." example:"true" default:"true"`
+	WaitForCI  *bool    `toml:"wait_for_ci" json:"wait_for_ci,omitempty" doc:"Deploy a push only after its CI checks pass (GitHub check runs and statuses, GitLab pipelines, Gitea/Forgejo statuses); a push with no checks deploys after 2 minutes. Needs connection, and a connection that can read CI (not Bitbucket or webhook-only). Applied immediately." example:"true" default:"false"`
 	WatchPaths []string `toml:"watch_paths" json:"watch_paths,omitempty" doc:"Monorepo filter: only pushes touching these globs deploy; a leading ! excludes. Replaces the whole list. Needs connection. Applied immediately." example:"[\"apps/web/**\", \"!**/*.md\"]" maxItems:"50"`
 }
 
@@ -163,6 +169,14 @@ type HealthCheck struct {
 	DeadlineSeconds    *int     `toml:"deadline_seconds" json:"deadline_seconds,omitempty" doc:"Seconds the deploy waits for the service to become healthy." example:"90" minimum:"1" maximum:"3600" default:"120"`
 	SuccessThreshold   *int     `toml:"success_threshold" json:"success_threshold,omitempty" doc:"Consecutive successful probes needed." example:"2" minimum:"1" default:"2"`
 	Command            []string `toml:"command" json:"command,omitempty" doc:"argv of an exec check; the first element is CMD or CMD-SHELL." example:"[\"CMD\", \"true\"]" minItems:"2"`
+}
+
+// Cron is the [services.<slug>.cron] table of a cron service.
+type Cron struct {
+	Schedule       *string `toml:"schedule" json:"schedule,omitempty" doc:"Standard 5-field cron expression (or @daily, @hourly, ...), evaluated in timezone." example:"0 3 * * *" minLength:"1" maxLength:"200"`
+	Timezone       *string `toml:"timezone" json:"timezone,omitempty" doc:"IANA time zone the schedule is evaluated in." example:"Europe/Berlin" maxLength:"64" default:"UTC"`
+	TimeoutSeconds *int    `toml:"timeout_seconds" json:"timeout_seconds,omitempty" doc:"Seconds before a run is killed." example:"600" minimum:"1" maximum:"86400" default:"1800"`
+	Concurrency    *string `toml:"concurrency" json:"concurrency,omitempty" doc:"forbid skips a run while the previous one is still running; allow starts it anyway." example:"forbid" enum:"forbid,allow" default:"forbid"`
 }
 
 // Hook is a [services.<slug>.pre_deploy] or post_deploy table.
@@ -346,7 +360,8 @@ type Process struct {
 type Task struct {
 	Schedule       *string  `toml:"schedule" json:"schedule,omitempty" doc:"Cron expression with 5 fields, or @hourly, @daily, @weekly, @monthly, @yearly." example:"0 7 * * 1-5" minLength:"1" maxLength:"200"`
 	Timezone       *string  `toml:"timezone" json:"timezone,omitempty" doc:"IANA time zone of the schedule." example:"Europe/Berlin" maxLength:"64" default:"UTC"`
-	Command        []string `toml:"command" json:"command,omitempty" doc:"The command as an argv array, run without a shell in the service's image." example:"[\"bun\", \"run\", \"jobs:digest\"]" minItems:"1" maxItems:"64"`
+	Action         *string  `toml:"action" json:"action,omitempty" doc:"What the task does: command runs the command in a new container of the service's image; restart restarts the service's running container on the schedule (brief outage with one replica; not for one-shot services). A restart task takes no command or timeout_seconds." example:"restart" enum:"command,restart" default:"command"`
+	Command        []string `toml:"command" json:"command,omitempty" doc:"The command as an argv array, run without a shell in the service's image. Required unless action is restart, where it must be absent." example:"[\"bun\", \"run\", \"jobs:digest\"]" minItems:"1" maxItems:"64"`
 	Enabled        *bool    `toml:"enabled" json:"enabled,omitempty" doc:"Run the task on schedule." example:"true" default:"true"`
 	TimeoutSeconds *int     `toml:"timeout_seconds" json:"timeout_seconds,omitempty" doc:"Seconds before a run is killed." example:"900" minimum:"1" maximum:"86400" default:"1800"`
 	Concurrency    *string  `toml:"concurrency" json:"concurrency,omitempty" doc:"forbid skips a run while the previous one is still running; allow starts it anyway." example:"forbid" enum:"forbid,allow" default:"forbid"`

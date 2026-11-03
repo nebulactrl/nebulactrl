@@ -71,6 +71,175 @@ describe("settings draft", () => {
 		expect(validateDraft(baseline, service.sourceType)).toEqual({});
 	});
 
+	test("the restart policy is left out of the config while it is always", () => {
+		expect(baseline.restartPolicy).toBe("always");
+		const never = buildConfig({ ...baseline, restartPolicy: "never" }, "image");
+		expect(never.restartPolicy).toBe("never");
+		const always = buildConfig(
+			{ ...baseline, restartPolicy: "always", restartMaxRetries: "3" },
+			"image",
+		);
+		expect(always.restartPolicy).toBeUndefined();
+		expect(always.restartMaxRetries).toBeUndefined();
+		const failing = buildConfig(
+			{ ...baseline, restartPolicy: "on-failure", restartMaxRetries: "" },
+			"image",
+		);
+		expect(failing.restartPolicy).toBe("on-failure");
+		expect(failing.restartMaxRetries).toBeUndefined();
+		// A one-shot job has no policy, whatever the draft remembers.
+		const job = buildConfig(
+			{ ...baseline, oneshot: true, restartPolicy: "never" },
+			"image",
+		);
+		expect(job.restartPolicy).toBeUndefined();
+	});
+
+	test("the restart policy round-trips through toDraft", () => {
+		const stored = makeService({
+			config: {
+				...service.config,
+				restartPolicy: "on-failure",
+				restartMaxRetries: 4,
+			},
+		});
+		const draft = toDraft(stored);
+		expect(draft.restartPolicy).toBe("on-failure");
+		expect(draft.restartMaxRetries).toBe("4");
+		expect(buildConfig(draft, "image").restartMaxRetries).toBe(4);
+	});
+
+	test("max restarts is validated only for on-failure", () => {
+		const bad = { ...baseline, restartMaxRetries: "101" };
+		expect(validateDraft(bad, "image").restartMaxRetries).toBeUndefined();
+		expect(
+			validateDraft({ ...bad, restartPolicy: "on-failure" }, "image")
+				.restartMaxRetries,
+		).toBe("Max restarts must be between 1 and 100.");
+		expect(
+			validateDraft(
+				{ ...bad, restartPolicy: "on-failure", restartMaxRetries: "100" },
+				"image",
+			).restartMaxRetries,
+		).toBeUndefined();
+	});
+
+	test("a cron schedule is sent only while the service is a one-shot and it is on", () => {
+		expect(baseline.cronEnabled).toBe(false);
+		expect(baseline.cronSchedule).toBe("0 3 * * *");
+		expect(baseline.cronTimezone).toBe("UTC");
+		expect(baseline.cronConcurrency).toBe("forbid");
+		const on = { ...baseline, oneshot: true, cronEnabled: true };
+		expect(buildConfig(on, "image").cron).toEqual({
+			schedule: "0 3 * * *",
+			timezone: "UTC",
+		});
+		expect(
+			buildConfig({ ...baseline, cronEnabled: true }, "image").cron,
+		).toBeUndefined();
+		expect(
+			buildConfig({ ...on, cronEnabled: false }, "image").cron,
+		).toBeUndefined();
+		expect(
+			buildConfig(
+				{
+					...on,
+					cronSchedule: " */5 * * * * ",
+					cronTimezone: "Europe/Berlin",
+					cronTimeoutSeconds: "600",
+					cronConcurrency: "allow",
+				},
+				"image",
+			).cron,
+		).toEqual({
+			schedule: "*/5 * * * *",
+			timezone: "Europe/Berlin",
+			timeoutSeconds: 600,
+			concurrency: "allow",
+		});
+	});
+
+	test("a stored cron schedule round-trips through toDraft", () => {
+		const stored = makeService({
+			kind: "worker",
+			config: {
+				...service.config,
+				oneshot: true,
+				cron: {
+					schedule: "@hourly",
+					timezone: "Europe/Berlin",
+					timeoutSeconds: 90,
+					concurrency: "allow",
+				},
+			},
+		});
+		const draft = toDraft(stored);
+		expect(draft).toMatchObject({
+			oneshot: true,
+			cronEnabled: true,
+			cronSchedule: "@hourly",
+			cronTimezone: "Europe/Berlin",
+			cronTimeoutSeconds: "90",
+			cronConcurrency: "allow",
+		});
+		expect(buildConfig(draft, "image").cron).toEqual(stored.config.cron);
+		expect(buildPatch(draft, { ...draft }, "image")).toBeNull();
+	});
+
+	test("switching the schedule off removes it from the saved config", () => {
+		const stored = makeService({
+			kind: "worker",
+			config: {
+				...service.config,
+				oneshot: true,
+				cron: { schedule: "@daily", timezone: "UTC" },
+			},
+		});
+		const before = toDraft(stored);
+		const patch = buildPatch(
+			before,
+			{ ...before, cronEnabled: false },
+			"image",
+		);
+		expect(patch?.config?.oneshot).toBe(true);
+		expect(patch?.config?.cron).toBeUndefined();
+	});
+
+	test("cron fields are validated only while the schedule is on", () => {
+		const on = {
+			...baseline,
+			oneshot: true,
+			port: "",
+			cronEnabled: true,
+		};
+		expect(validateDraft(on, "image")).toEqual({});
+		expect(
+			validateDraft({ ...on, cronSchedule: "  " }, "image").cronSchedule,
+		).toBe("A schedule is required.");
+		expect(
+			validateDraft({ ...on, cronTimeoutSeconds: "86401" }, "image")
+				.cronTimeoutSeconds,
+		).toBe("Timeout must be between 1 and 86400.");
+		expect(
+			validateDraft({ ...on, cronTimeoutSeconds: "0" }, "image")
+				.cronTimeoutSeconds,
+		).toBeDefined();
+		expect(
+			validateDraft({ ...on, cronTimeoutSeconds: "86400" }, "image"),
+		).toEqual({});
+		expect(
+			validateDraft(
+				{
+					...on,
+					cronEnabled: false,
+					cronSchedule: "",
+					cronTimeoutSeconds: "x",
+				},
+				"image",
+			),
+		).toEqual({});
+	});
+
 	test("git paths cannot leave the repository", () => {
 		const errors = validateDraft(
 			{

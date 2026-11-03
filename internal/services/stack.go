@@ -114,8 +114,8 @@ func (c Config) validateStack() error {
 		return invalid("image and git sources are not available for Compose stacks")
 	case c.Port != 0 || len(c.StartCommand) > 0:
 		return invalid("port and startCommand are not available for Compose stacks: declare them in the compose file")
-	case len(c.Files) > 0 || c.OneShot || c.Route != nil || c.Database != nil:
-		return invalid("files, oneshot, route and database settings are not available for Compose stacks")
+	case len(c.Files) > 0 || c.OneShot || c.Route != nil || c.Database != nil || c.RestartPolicy != "" || c.RestartMaxRetries != 0:
+		return invalid("files, oneshot, restart policy, route and database settings are not available for Compose stacks")
 	case len(c.PreDeployCommand) > 0 || len(c.PostDeployCommand) > 0:
 		return invalid("pre/post-deploy commands are not available for Compose stacks")
 	case c.Tailnet != nil:

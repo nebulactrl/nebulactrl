@@ -1,10 +1,14 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
 	BanIcon,
+	CalendarClockIcon,
 	ConstructionIcon,
 	CopyIcon,
 	FolderOpenIcon,
 	HammerIcon,
+	HistoryIcon,
 	type LucideIcon,
+	PauseIcon,
 	PlayIcon,
 	RefreshCwIcon,
 	RocketIcon,
@@ -15,6 +19,8 @@ import {
 	WorkflowIcon,
 } from "lucide-react";
 import { useMemo } from "react";
+import { runServiceTask } from "#/api/gen/sdk.gen";
+import { invalidateServices } from "#/api/invalidate";
 import type { Service } from "#/api/models";
 import { useConfirm } from "#/components/common/confirm-dialog";
 import { toast } from "#/components/ui/toast";
@@ -27,7 +33,13 @@ import {
 	useSetMaintenance,
 } from "#/features/maintenance";
 import { useStackNavigation } from "#/features/stacks/url";
-import { openRunCommand } from "#/features/tasks";
+import {
+	invalidateTasks,
+	openRunCommand,
+	openRunHistory,
+	openTaskDialog,
+	startErrorMessage,
+} from "#/features/tasks";
 import { openFiles, openShell } from "#/features/terminal";
 import { deployLabel } from "./lib/deploy-label";
 import { canCancel } from "./lib/status";
@@ -40,6 +52,9 @@ export type ServiceActionId =
 	| "cancel"
 	| "maintenance"
 	| "run-command"
+	| "run-now"
+	| "run-history"
+	| "schedule-task"
 	| "shell"
 	| "files"
 	| "copy-host"
@@ -90,6 +105,26 @@ export function useServiceActions(
 	const { deploy, confirmDeployNoCache, restart, stop, cancel } = actions;
 	const maintenance = useSetMaintenance(service);
 	const stopped = service.desiredState === "stopped";
+	const cron = service.cron;
+	const queryClient = useQueryClient();
+	const runNow = useMutation({
+		mutationFn: async (taskId: string) => {
+			await runServiceTask({ path: { taskId } });
+		},
+		onSuccess: async (_data, taskId) => {
+			toast.success(
+				`Started ${service.name}`,
+				"Its output is in the run history.",
+			);
+			openRunHistory(service.id, taskId);
+			await Promise.all([
+				invalidateTasks(queryClient),
+				invalidateServices(queryClient),
+			]);
+		},
+		onError: (error) =>
+			toast.error(`Could not run ${service.name}`, startErrorMessage(error)),
+	});
 	const { show } = useStackNavigation();
 
 	return useMemo<ServiceActions>(() => {
@@ -112,23 +147,38 @@ export function useServiceActions(
 				disabled: deploy.isPending,
 				destructive: false,
 			},
-			stopped
+			// A cron service has no container: stopping and starting it pauses and
+			// resumes its schedule.
+			service.config.cron
 				? {
 						id: "toggle",
-						label: "Start",
-						icon: PlayIcon,
-						run: () => restart.mutate(),
-						disabled: restart.isPending || service.currentDeploymentId === null,
+						label: stopped ? "Resume schedule" : "Pause schedule",
+						icon: stopped ? PlayIcon : PauseIcon,
+						run: () => (stopped ? restart.mutate() : stop.mutate()),
+						disabled:
+							(stopped ? restart.isPending : stop.isPending) ||
+							service.currentDeploymentId === null,
 						destructive: false,
 					}
-				: {
-						id: "restart",
-						label: "Restart",
-						icon: RefreshCwIcon,
-						run: () => restart.mutate(),
-						disabled: restart.isPending || service.currentDeploymentId === null,
-						destructive: false,
-					},
+				: stopped
+					? {
+							id: "toggle",
+							label: "Start",
+							icon: PlayIcon,
+							run: () => restart.mutate(),
+							disabled:
+								restart.isPending || service.currentDeploymentId === null,
+							destructive: false,
+						}
+					: {
+							id: "restart",
+							label: "Restart",
+							icon: RefreshCwIcon,
+							run: () => restart.mutate(),
+							disabled:
+								restart.isPending || service.currentDeploymentId === null,
+							destructive: false,
+						},
 		];
 		// A clean rebuild only means something for a git source; the confirmation
 		// explains the cost, in production too.
@@ -142,7 +192,11 @@ export function useServiceActions(
 				destructive: false,
 			});
 		}
-		if (!stopped && service.currentDeploymentId !== null) {
+		if (
+			!service.config.cron &&
+			!stopped &&
+			service.currentDeploymentId !== null
+		) {
 			menu.push({
 				id: "toggle",
 				label: "Stop",
@@ -194,28 +248,60 @@ export function useServiceActions(
 				disabled: false,
 				destructive: false,
 			});
-			menu.push(
-				{
-					id: "shell",
-					label: "Open shell…",
-					icon: TerminalSquareIcon,
-					run: () => openShell(service.id),
+			if (!service.config.oneshot && service.kind !== "stack") {
+				menu.push({
+					id: "schedule-task",
+					label: "Schedule task…",
+					icon: CalendarClockIcon,
+					run: () => openTaskDialog(service.id),
 					disabled: false,
 					destructive: false,
-				},
-				{
-					id: "files",
-					label: "Browse files…",
-					icon: FolderOpenIcon,
-					run: () => openFiles(service.id),
-					disabled: false,
-					destructive: false,
-				},
-			);
+				});
+			}
+			if (cron) {
+				menu.push(
+					{
+						id: "run-now",
+						label: "Run now",
+						icon: PlayIcon,
+						run: () => runNow.mutate(cron.taskId),
+						disabled: runNow.isPending,
+						destructive: false,
+					},
+					{
+						id: "run-history",
+						label: "Run history",
+						icon: HistoryIcon,
+						run: () => openRunHistory(service.id, cron.taskId),
+						disabled: false,
+						destructive: false,
+					},
+				);
+			} else {
+				menu.push(
+					{
+						id: "shell",
+						label: "Open shell…",
+						icon: TerminalSquareIcon,
+						run: () => openShell(service.id),
+						disabled: false,
+						destructive: false,
+					},
+					{
+						id: "files",
+						label: "Browse files…",
+						icon: FolderOpenIcon,
+						run: () => openFiles(service.id),
+						disabled: false,
+						destructive: false,
+					},
+				);
+			}
 		}
 		// Processes run from the service's image (git or image source); a stack, a
 		// database or a route has none to add.
 		if (
+			!service.config.cron &&
 			(service.kind === "app" || service.kind === "worker") &&
 			(service.sourceType === "git" || service.sourceType === "image")
 		) {
@@ -265,6 +351,8 @@ export function useServiceActions(
 	}, [
 		service,
 		stopped,
+		cron,
+		runNow,
 		isProduction,
 		confirm,
 		confirmDeployNoCache,

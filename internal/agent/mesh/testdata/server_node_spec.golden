@@ -42,6 +42,7 @@
     }
   ],
   "RestartPolicy": "unless-stopped",
+  "RestartMaxRetries": 0,
   "MemoryBytes": 268435456,
   "NanoCPUs": 0,
   "StopTimeout": null,

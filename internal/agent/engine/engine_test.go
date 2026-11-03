@@ -471,6 +471,43 @@ func TestRestartStopAndRemove(t *testing.T) {
 	require.Equal(t, "other", r.px.Current()[0].ServiceID)
 }
 
+// A one-shot that runs and exits cleanly right after a restart did its job.
+func TestRestartOneShotThatExitsZeroSucceeds(t *testing.T) {
+	r := newRig(t, nil)
+	r.dk.seed(oldCtr, svcID, depV1, true, time.Hour).Labels[agentprotocol.LabelOneShot] = "true"
+	r.dk.onStart = func(c *docker.ContainerInfo) { c.State, c.Running, c.ExitCode = "exited", false, 0 }
+	payload, _ := json.Marshal(agentprotocol.ServiceActionPayload{ServiceID: svcID, StopGraceSeconds: 3})
+
+	res := r.eng.HandleCommand(context.Background(), agentprotocol.Command{ID: "a", Kind: agentprotocol.KindRestartService, Payload: payload})
+	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, res.Error)
+	var dr agentprotocol.DeployResult
+	require.NoError(t, json.Unmarshal(res.Data, &dr))
+	require.Equal(t, "Ran "+oldCtr+" to completion", dr.Message)
+	require.Equal(t, []string{oldCtr}, r.dk.started)
+}
+
+func TestRestartOneShotThatExitsNonZeroFails(t *testing.T) {
+	r := newRig(t, nil)
+	r.dk.seed(oldCtr, svcID, depV1, true, time.Hour).Labels[agentprotocol.LabelOneShot] = "true"
+	r.dk.onStart = func(c *docker.ContainerInfo) { c.State, c.Running, c.ExitCode = "exited", false, 2 }
+	payload, _ := json.Marshal(agentprotocol.ServiceActionPayload{ServiceID: svcID, StopGraceSeconds: 3})
+
+	res := r.eng.HandleCommand(context.Background(), agentprotocol.Command{ID: "a", Kind: agentprotocol.KindRestartService, Payload: payload})
+	require.Equal(t, agentprotocol.OutcomeFailed, res.Outcome)
+	require.Contains(t, res.Error, "exited with code 2")
+}
+
+// A long-running container that dies right after a restart still fails it.
+func TestRestartLongRunningThatExitsZeroFails(t *testing.T) {
+	r := newRig(t, nil)
+	r.previous()
+	r.dk.onStart = func(c *docker.ContainerInfo) { c.State, c.Running, c.ExitCode = "exited", false, 0 }
+	payload, _ := json.Marshal(agentprotocol.ServiceActionPayload{ServiceID: svcID, StopGraceSeconds: 3})
+
+	res := r.eng.HandleCommand(context.Background(), agentprotocol.Command{ID: "a", Kind: agentprotocol.KindRestartService, Payload: payload})
+	require.Equal(t, agentprotocol.OutcomeFailed, res.Outcome)
+}
+
 // A volume the daemon still holds is reported as an incomplete removal (the
 // control plane keeps the replica and sends the command again), and the same
 // command sent again finishes the job: nothing is left half-removed for good.

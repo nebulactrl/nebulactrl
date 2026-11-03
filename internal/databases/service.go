@@ -42,6 +42,8 @@ type Service struct {
 	ext    *services.ExtSecrets
 	now    func() time.Time
 	rep    ReplicaDeps
+	// req asks agents the Data tab's questions (SetRequester).
+	req DataRequester
 	// brokenAfter is BrokenAfter unless SetBrokenAfter overrides it.
 	brokenAfter time.Duration
 }
@@ -109,12 +111,12 @@ func (s *Service) resolved(ctx context.Context, q *db.Queries, sc services.Scope
 }
 
 // credentials returns the database's resolved credentials.
-func (s *Service) credentials(ctx context.Context, q *db.Queries, sc services.Scope, spec engines.Spec, eng *engines.Engine) (engines.Credentials, map[string]string, error) {
+func (s *Service) credentials(ctx context.Context, q *db.Queries, sc services.Scope, spec engines.Spec, eng *engines.Engine) (engines.Credentials, error) {
 	vars, err := s.resolved(ctx, q, sc)
 	if err != nil {
-		return engines.Credentials{}, nil, err
+		return engines.Credentials{}, err
 	}
-	return eng.Creds(spec, func(k string) (string, bool) { v, ok := vars[k]; return v, ok }), vars, nil
+	return eng.Creds(spec, func(k string) (string, bool) { v, ok := vars[k]; return v, ok }), nil
 }
 
 func (s *Service) publish(sc services.Scope) {
@@ -124,24 +126,33 @@ func (s *Service) publish(sc services.Scope) {
 
 // currentServer returns the server running the database's current deployment.
 func (s *Service) currentServer(ctx context.Context, q *db.Queries, sc services.Scope) (uuid.UUID, error) {
+	srv, err := s.currentServerRow(ctx, q, sc)
+	if err != nil {
+		return uuid.Nil, err
+	}
+	return srv.ID, nil
+}
+
+// currentServerRow is currentServer returning the server's row.
+func (s *Service) currentServerRow(ctx context.Context, q *db.Queries, sc services.Scope) (db.Server, error) {
 	if sc.Service.CurrentDeploymentID == nil {
-		return uuid.Nil, apierr.Conflict("not_deployed", "the database has not been deployed yet")
+		return db.Server{}, apierr.Conflict(CodeNotDeployed, "the database has not been deployed yet")
 	}
 	deps, err := q.ListDeploymentsByIDs(ctx, []uuid.UUID{*sc.Service.CurrentDeploymentID})
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("current deployment: %w", err)
+		return db.Server{}, fmt.Errorf("current deployment: %w", err)
 	}
 	if len(deps) != 1 || deps[0].ServerID == nil {
-		return uuid.Nil, apierr.Conflict("not_deployed", "the database has no running deployment")
+		return db.Server{}, apierr.Conflict(CodeNotDeployed, "the database has no running deployment")
 	}
 	srv, err := q.LoadServerRow(ctx, db.LoadServerRowParams{ID: *deps[0].ServerID})
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("load server: %w", err)
+		return db.Server{}, fmt.Errorf("load server: %w", err)
 	}
 	if srv.Status == "revoked" {
-		return uuid.Nil, apierr.Unprocessable("server_unavailable", fmt.Sprintf("server %q is revoked", srv.Name))
+		return db.Server{}, apierr.Unprocessable("server_unavailable", fmt.Sprintf("server %q is revoked", srv.Name))
 	}
-	return srv.ID, nil
+	return srv, nil
 }
 
 // referrers lists the services of the database's environment whose variables

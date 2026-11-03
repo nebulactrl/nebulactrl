@@ -426,7 +426,7 @@ func (s *Service) CreateLinkTx(ctx context.Context, tx pgx.Tx, env EnvScope, fro
 	for _, v := range vars {
 		have[v.Key] = true
 	}
-	for _, p := range ProposeLinkVariables(to.Service.Slug, to.Service.Kind, to.Config()) {
+	for _, p := range s.proposeLink(ctx, q, to) {
 		if !have[p.Key] {
 			res.ProposedVariables = append(res.ProposedVariables, p)
 		}

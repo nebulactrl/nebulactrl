@@ -17,4 +17,6 @@ type GitRef struct {
 	// WatchPaths restrict auto-deploy to pushes touching matching files
 	// (monorepos); empty means every push.
 	WatchPaths []string `json:"watchPaths"`
+	// WaitForCI holds a push until the commit's checks pass.
+	WaitForCI bool `json:"waitForCi"`
 }

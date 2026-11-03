@@ -56,6 +56,7 @@ export function link(over: Overrides<GitLinkView> = {}): GitLinkView {
 		connectionName: "Acme GitHub",
 		provider: "github",
 		queuedCommit: "",
+		waitForCi: false,
 		repo: "acme/api",
 		repoUrl: "https://github.com/acme/api",
 		watchPaths: null,

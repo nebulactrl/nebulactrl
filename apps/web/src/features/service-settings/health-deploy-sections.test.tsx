@@ -926,4 +926,71 @@ describe("ReleasesSection", () => {
 		expect(retention).toHaveAttribute("aria-invalid", "true");
 		await waitFor(() => screen.getByText(/Next deploy:/));
 	});
+
+	describe("restart policy", () => {
+		const planStub = () =>
+			stubApi({
+				"POST /services/:serviceId/deployments/plan": {
+					body: plan({ strategy: "rolling" }),
+				},
+			});
+
+		test("shows Always by default and stages nothing for it", async () => {
+			planStub();
+			const { ui, seen, baseline } = releases();
+			await renderWithProviders(ui);
+			expect(
+				screen.getByRole("combobox", { name: "Restart policy" }),
+			).toHaveTextContent("Always");
+			expect(screen.queryByLabelText("Max restarts")).toBeNull();
+			expect(buildPatch(baseline, seen.draft, "image")).toBeNull();
+			await screen.findByText(/Next deploy:/);
+		});
+
+		test("choosing On failure reveals Max restarts and stages both", async () => {
+			planStub();
+			const user = userEvent.setup();
+			const { ui, seen, baseline } = releases();
+			await renderWithProviders(ui);
+			await user.click(
+				screen.getByRole("combobox", { name: "Restart policy" }),
+			);
+			await user.click(
+				await screen.findByRole("option", { name: "On failure" }),
+			);
+			fireEvent.change(screen.getByLabelText("Max restarts"), {
+				target: { value: "5" },
+			});
+			const config = buildPatch(baseline, seen.draft, "image")?.config;
+			expect(config?.restartPolicy).toBe("on-failure");
+			expect(config?.restartMaxRetries).toBe(5);
+			await screen.findByText(/Next deploy:/);
+		});
+
+		test("Never stages the policy without retries", async () => {
+			planStub();
+			const user = userEvent.setup();
+			const { ui, seen, baseline } = releases({ restartMaxRetries: "7" });
+			await renderWithProviders(ui);
+			await user.click(
+				screen.getByRole("combobox", { name: "Restart policy" }),
+			);
+			await user.click(await screen.findByRole("option", { name: "Never" }));
+			expect(screen.queryByLabelText("Max restarts")).toBeNull();
+			const config = buildPatch(baseline, seen.draft, "image")?.config;
+			expect(config?.restartPolicy).toBe("never");
+			expect(config?.restartMaxRetries).toBeUndefined();
+			await screen.findByText(/Next deploy:/);
+		});
+
+		test("a one-shot job has no restart policy", async () => {
+			planStub();
+			const { ui } = releases({ oneshot: true });
+			await renderWithProviders(ui);
+			expect(
+				screen.queryByRole("combobox", { name: "Restart policy" }),
+			).toBeNull();
+			await screen.findByText(/Next deploy:/);
+		});
+	});
 });

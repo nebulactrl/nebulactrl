@@ -434,6 +434,8 @@ func (e *Engine) HandleCommand(ctx context.Context, cmd agentprotocol.Command) a
 		return e.handleEnvScan(ctx, cmd)
 	case agentprotocol.KindDBAdmin:
 		return e.handleDBAdmin(ctx, cmd)
+	case agentprotocol.KindDBQuery:
+		return e.handleDBQuery(ctx, cmd)
 	case agentprotocol.KindDBUpgrade:
 		return e.handleDBUpgrade(ctx, cmd)
 	case agentprotocol.KindDBReplicaClone:

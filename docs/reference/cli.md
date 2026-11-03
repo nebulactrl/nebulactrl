@@ -64,6 +64,7 @@ Exit codes: `0` success, `1` failure, `2` wrong flags or arguments.
 | [`nebulactrl databases engines`](#nebulactrl-databases-engines) | List the database engines and versions |
 | [`nebulactrl databases info`](#nebulactrl-databases-info) | Show a database's engine, exports and last reported state |
 | [`nebulactrl databases promote`](#nebulactrl-databases-promote) | Promote a read replica to primary (manual) |
+| [`nebulactrl databases query`](#nebulactrl-databases-query) | Run SQL on a database (audited) |
 | [`nebulactrl databases rebuild`](#nebulactrl-databases-rebuild) | Rebuild a replica, or a fenced old primary as a replica of the new primary |
 | [`nebulactrl databases replicas`](#nebulactrl-databases-replicas) | Manage PostgreSQL read replicas |
 | [`nebulactrl databases replicas add`](#nebulactrl-databases-replicas-add) | Add a read replica of a PostgreSQL primary |
@@ -72,6 +73,7 @@ Exit codes: `0` success, `1` failure, `2` wrong flags or arguments.
 | [`nebulactrl databases restore`](#nebulactrl-databases-restore) | Restore a database from a dump file on this machine |
 | [`nebulactrl databases reveal`](#nebulactrl-databases-reveal) | Print a connection string (audited as secret.reveal) |
 | [`nebulactrl databases rotate`](#nebulactrl-databases-rotate) | Rotate the database password and stage its consumers |
+| [`nebulactrl databases tables`](#nebulactrl-databases-tables) | List the tables and views of a SQL database |
 | [`nebulactrl databases upgrade`](#nebulactrl-databases-upgrade) | Plan (default) or run a database version upgrade |
 | [`nebulactrl deployments`](#nebulactrl-deployments) | Inspect and roll back deployments |
 | [`nebulactrl deployments cancel`](#nebulactrl-deployments-cancel) | Cancel a running deployment |
@@ -146,13 +148,13 @@ Exit codes: `0` success, `1` failure, `2` wrong flags or arguments.
 | [`nebulactrl services shell`](#nebulactrl-services-shell) | Open an interactive shell in a service's container |
 | [`nebulactrl services update`](#nebulactrl-services-update) | Set where and how a service is built |
 | [`nebulactrl tasks`](#nebulactrl-tasks) | Cron tasks and their runs |
-| [`nebulactrl tasks create`](#nebulactrl-tasks-create) | Schedule a recurring command |
+| [`nebulactrl tasks create`](#nebulactrl-tasks-create) | Schedule a recurring command or a restart |
 | [`nebulactrl tasks logs`](#nebulactrl-tasks-logs) | Print the output of a run (follows a run that is still active) |
 | [`nebulactrl tasks ls`](#nebulactrl-tasks-ls) | List a service's cron tasks |
 | [`nebulactrl tasks rm`](#nebulactrl-tasks-rm) | Delete a cron task and its run history |
-| [`nebulactrl tasks run`](#nebulactrl-tasks-run) | Run a cron task now and follow its output |
+| [`nebulactrl tasks run`](#nebulactrl-tasks-run) | Run a cron task (or a cron service) now and follow its output |
 | [`nebulactrl tasks runs`](#nebulactrl-tasks-runs) | Run history of a service's tasks and one-off commands |
-| [`nebulactrl tasks update`](#nebulactrl-tasks-update) | Change a cron task's schedule, time zone or whether it runs |
+| [`nebulactrl tasks update`](#nebulactrl-tasks-update) | Change a cron task's schedule, time zone, action or whether it runs |
 | [`nebulactrl teams`](#nebulactrl-teams) | Manage teams |
 | [`nebulactrl teams create`](#nebulactrl-teams-create) | Create a team (you become its owner; needs an admin-scope token) |
 | [`nebulactrl teams ls`](#nebulactrl-teams-ls) | List your teams and the saved token per team |
@@ -726,6 +728,34 @@ Options:
 | `--accept-data-loss` | bool |  | accept losing what the replica had not received (forced promote) |
 | `--yes` | bool |  | promote |
 
+### nebulactrl databases query
+
+Run SQL on a database (audited).
+
+```
+nebulactrl databases query <service> [--file f.sql] [--allow-writes] [--confirm <slug>] [-- <sql>] [flags]
+```
+
+Runs one or more statements on a running PostgreSQL, MySQL, MariaDB or ClickHouse database through its agent, with a 30 second timeout.
+The SQL is the words after `--`, else the file given with --file, else standard input. The session is read-only unless --allow-writes is set;
+in a production environment a write also needs --confirm <service slug>. Up to 1000 rows per result set are returned.
+The run is recorded in the audit log with the first SQL keyword, never the statement. Needs the deployments:write scope.
+
+Examples:
+
+```sh
+nebulactrl db query acme/production/main -- 'SELECT count(*) FROM users'
+  nebulactrl databases query acme/staging/main --allow-writes --file migrate.sql
+```
+
+Options:
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--allow-writes` | bool |  | lift the read-only session so statements may change data |
+| `--confirm` | string |  | the service slug, required for a write in a production environment |
+| `--file` | string |  | read the SQL from this file (`-` for stdin) |
+
 ### nebulactrl databases rebuild
 
 Rebuild a replica, or a fenced old primary as a replica of the new primary.
@@ -858,6 +888,16 @@ Options:
 | Flag | Type | Default | Description |
 |---|---|---|---|
 | `--dry-run` | bool |  | only print the plan |
+
+### nebulactrl databases tables
+
+List the tables and views of a SQL database.
+
+```
+nebulactrl databases tables <service>
+```
+
+Lists the tables and views of a running PostgreSQL, MySQL, MariaDB or ClickHouse database through its agent. The row count is the engine's own estimate.
 
 ### nebulactrl databases upgrade
 
@@ -1652,7 +1692,7 @@ nebulactrl services combine status <combine-id>
 Create a service (staged until deployed).
 
 ```
-nebulactrl services create --project <project> --env <env> --name <name> (--image <ref> | --git <url> [--branch <b>]) [--server <server>] [--port <n>] [flags]
+nebulactrl services create --project <project> --env <env> --name <name> (--image <ref> | --git <url> [--branch <b>]) [--server <server>] [--port <n>] [--one-shot] [--cron <expr> [--cron-timezone <tz>]] [flags]
 ```
 
 Options:
@@ -1663,10 +1703,13 @@ Options:
 | `--build-location` | string |  | where the git source is built: inherit (default), target or build-server |
 | `--build-server` | string |  | pin the build server (ID or name); with --build-location build-server |
 | `--build-type` | string |  | how a git source is built: auto (default), dockerfile, railpack or starter:<node\|python\|go\|ruby\|php\|static> |
+| `--cron` | string |  | run the service's command on a schedule, e.g. "0 3 * * *" (implies --one-shot; a deploy only pulls or builds the image) |
+| `--cron-timezone` | string |  | IANA time zone of --cron (default UTC) |
 | `--env` | string |  | environment ID, slug or name |
 | `--git` | string |  | Git repository URL (built on the target server, or on a build server) |
 | `--image` | string |  | Docker image, e.g. traefik/whoami:latest |
 | `--name` | string |  | service name |
+| `--one-shot` | bool |  | run the container to completion on every deploy (exit code 0 = success) |
 | `--port` | int |  | HTTP/internal port the service listens on (0 = none) |
 | `--project` | string |  | project ID, slug or name |
 | `--registry` | string |  | registry ID the build is pushed to (default: the project or team registry) |
@@ -2070,26 +2113,36 @@ nebulactrl tasks
 
 ### nebulactrl tasks create
 
-Schedule a recurring command.
+Schedule a recurring command or a restart.
 
 ```
-nebulactrl tasks create <service> --name <name> --schedule <cron> -- <command...> [flags]
+nebulactrl tasks create <service> --name <name> --schedule <cron> [--action command|restart] [-- <command...>] [flags]
 ```
 
-Runs the command (argv, no shell; use `-- sh -c '...'` for shell syntax) in a throwaway container of the service's
-current image with its environment. The schedule is a 5-field cron expression or @hourly/@daily/@weekly/@monthly,
+With --action command (the default) runs the command (argv, no shell; use `-- sh -c '...'` for shell syntax) in a throwaway
+container of the service's current image with its environment. With --action restart it restarts the service's running
+container instead (brief outage with one replica; takes no command and not for one-shot services).
+The schedule is a 5-field cron expression or @hourly/@daily/@weekly/@monthly,
 evaluated in --timezone (an IANA name such as Europe/Berlin; default UTC). Daylight-saving changes keep the wall-clock
 time: a run in the skipped hour is skipped for that day, a repeated hour runs once.
+
+Examples:
+
+```sh
+nebulactrl tasks create acme/production/web --name nightly --schedule '0 3 * * *' -- rake cleanup
+  nebulactrl tasks create acme/production/web --name weekly-restart --action restart --schedule '0 4 * * 0'
+```
 
 Options:
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--action` | string | `command` | command (run the -- command in a new container) or restart (restart the service; no command) |
 | `--concurrency` | string |  | forbid (default: skip a tick while the previous run is active) or allow |
 | `--disabled` | bool |  | create the task disabled |
 | `--name` | string |  | task name, unique per service |
 | `--schedule` | string |  | cron expression, e.g. "*/15 * * * *" or @daily, evaluated in --timezone |
-| `--timeout` | duration | `0s` | stop a run after this long (default 30m) |
+| `--timeout` | duration | `0s` | stop a run after this long (default 30m; not for restart) |
 | `--timezone` | string |  | IANA time zone of the schedule, e.g. Europe/Berlin (default UTC) |
 
 ### nebulactrl tasks logs
@@ -2118,13 +2171,13 @@ nebulactrl tasks rm <service> <task>
 
 ### nebulactrl tasks run
 
-Run a cron task now and follow its output.
+Run a cron task (or a cron service) now and follow its output.
 
 ```
-nebulactrl tasks run <service> <task> [flags]
+nebulactrl tasks run <service> [task] [flags]
 ```
 
-Starts a run immediately (whatever the schedule), prints its output and exits with the command's exit code.
+Starts a run immediately (whatever the schedule), prints its output and exits with the command's exit code. A cron service (created with --cron) is run by naming only the service.
 
 Options:
 
@@ -2149,10 +2202,10 @@ Options:
 
 ### nebulactrl tasks update
 
-Change a cron task's schedule, time zone or whether it runs.
+Change a cron task's schedule, time zone, action or whether it runs.
 
 ```
-nebulactrl tasks update <service> <task> [--schedule <cron>] [--timezone <zone>] [--enable|--disable] [flags]
+nebulactrl tasks update <service> <task> [--schedule <cron>] [--timezone <zone>] [--action restart] [--enable|--disable] [flags]
 ```
 
 Changing the schedule or the time zone recomputes the next run from now; the new next run is printed.
@@ -2172,6 +2225,7 @@ Options:
 
 | Flag | Type | Default | Description |
 |---|---|---|---|
+| `--action` | string |  | restart turns the task into a service restart (its command is dropped); command needs a command and is only possible through the API or the web app |
 | `--disable` | bool |  | turn the task off; it is kept and does not run on schedule |
 | `--enable` | bool |  | turn the task on, so its schedule starts runs |
 | `--schedule` | string |  | new cron expression |

@@ -1481,6 +1481,8 @@ type ServiceGit struct {
 	WatchPaths    []string        `json:"watchPaths"`
 	PendingCommit json.RawMessage `json:"pendingCommit"`
 	UpdatedAt     time.Time       `json:"updatedAt"`
+	WaitForCi     bool            `json:"waitForCi"`
+	CiWait        json.RawMessage `json:"ciWait"`
 }
 
 type ServiceIncident struct {
@@ -1588,6 +1590,7 @@ type ServiceTask struct {
 	CreatedAt      time.Time       `json:"createdAt"`
 	UpdatedAt      time.Time       `json:"updatedAt"`
 	Timezone       string          `json:"timezone"`
+	Action         string          `json:"action"`
 }
 
 type ServiceVariable struct {

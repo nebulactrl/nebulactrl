@@ -215,6 +215,8 @@ export interface Service {
 	tailnet: Gen.TailnetView | null;
 	/** The team shared networks the service is attached to (staged until deployed), with its hostname on each. */
 	networks: Gen.NetworkRef[];
+	/** The schedule of a cron service and how its last run went; absent for every other service. */
+	cron?: Gen.CronView;
 }
 
 export type ServiceLink = Gen.LinkView;
@@ -462,6 +464,7 @@ export function toService(view: Gen.ServiceView): Service {
 		git: view.git?.connectionId ? view.git : null,
 		tailnet: view.tailnet?.state ? view.tailnet : null,
 		networks: view.networks ?? [],
+		...(view.cron?.taskId ? { cron: view.cron } : {}),
 		processes: (view.processes ?? []).map(toProcess),
 	};
 }

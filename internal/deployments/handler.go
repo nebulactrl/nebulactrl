@@ -480,6 +480,9 @@ func (s *Service) finalizeSuccess(ctx context.Context, tx pgx.Tx, dc depCtx, dep
 		// A service deployed without eligibility (volume added, port removed)
 		// runs one replica from now on.
 		snap := services.DecodeSnapshot(rel.Config)
+		if err := syncCronTask(ctx, q, sc.Service.ID, snap.Config, time.Now()); err != nil {
+			return err
+		}
 		vols, err := q.CountServiceVolumes(ctx, sc.Service.ID)
 		if err != nil {
 			return err

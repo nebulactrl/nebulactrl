@@ -41,6 +41,7 @@ const WIDE_TABS: Partial<Record<InspectorTab, true>> = {
 	logs: true,
 	settings: true,
 	backups: true,
+	data: true,
 };
 
 export function widthClassOf(tab: InspectorTab): WidthClass {

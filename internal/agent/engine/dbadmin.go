@@ -16,18 +16,27 @@ import (
 
 const execOutputLimit = 64 << 10
 
-// limitedBuffer keeps the first execOutputLimit bytes written to it.
-type limitedBuffer struct{ bytes.Buffer }
+// limitedBuffer keeps the first limit bytes written to it (execOutputLimit when
+// limit is zero) and remembers whether it had to drop any.
+type limitedBuffer struct {
+	bytes.Buffer
+	limit     int
+	truncated bool
+}
 
 func (b *limitedBuffer) Write(p []byte) (int, error) {
-	if room := execOutputLimit - b.Len(); room > 0 {
-		if len(p) > room {
-			b.Buffer.Write(p[:room])
-		} else {
-			b.Buffer.Write(p)
-		}
+	limit := b.limit
+	if limit == 0 {
+		limit = execOutputLimit
 	}
-	return len(p), nil
+	room := max(limit-b.Len(), 0)
+	n := len(p)
+	if n > room {
+		b.truncated = true
+		p = p[:room]
+	}
+	b.Buffer.Write(p)
+	return n, nil
 }
 
 func dbAdminResult(id string, outcome string, res agentprotocol.DBAdminResult, errMsg string) agentprotocol.ResultFrame {

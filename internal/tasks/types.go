@@ -41,11 +41,25 @@ const (
 	ConcurrencyAllow  = "allow"
 )
 
+// Task actions: what a task does when it is due.
+const (
+	// ActionCommand runs argv in a throwaway container of the service's image.
+	ActionCommand = "command"
+	// ActionRestart restarts the service's running container.
+	ActionRestart = "restart"
+	// ActionService is the hidden schedule of a cron service: it runs the
+	// service's own command. Such rows are never listed or edited as tasks.
+	ActionService = "service"
+)
+
 // Limits.
 const (
 	// HistoryPerTask is how many finished runs are kept per task (and for the
 	// one-off runs of a service).
 	HistoryPerTask = 50
+	// RestartTimeoutSeconds is the timeout recorded on the runs of a restart
+	// task; the agent restart itself is not bounded by it.
+	RestartTimeoutSeconds = 300
 	// MaxTasksPerService bounds the cron tasks of one service.
 	MaxTasksPerService = 20
 	// MaxRunLogLines caps the stored output of one run.
@@ -76,6 +90,7 @@ type TaskView struct {
 	ID             uuid.UUID  `json:"id"`
 	ServiceID      uuid.UUID  `json:"serviceId"`
 	Name           string     `json:"name"`
+	Action         string     `json:"action" enum:"command,restart" doc:"What the task does: run a command in a new container (command) or restart the service (restart)."`
 	Schedule       string     `json:"schedule" doc:"5-field cron expression or @macro, evaluated in timezone."`
 	Timezone       string     `json:"timezone" doc:"IANA time zone the schedule is evaluated in (default UTC). A daylight-saving gap skips that day's run; a repeated hour runs once."`
 	Command        []string   `json:"command" doc:"Argv, run without a shell."`
@@ -129,6 +144,7 @@ type SchedulePreview struct {
 // TaskInput creates a task.
 type TaskInput struct {
 	Name           string
+	Action         string // empty means command
 	Schedule       string
 	Timezone       string
 	Command        []string
@@ -140,6 +156,7 @@ type TaskInput struct {
 // TaskPatch changes a task; nil fields stay as they are.
 type TaskPatch struct {
 	Name           *string
+	Action         *string
 	Schedule       *string
 	Timezone       *string
 	Command        *[]string
@@ -177,7 +194,7 @@ func utc(t *time.Time) *time.Time {
 
 func taskView(t db.ServiceTask) TaskView {
 	return TaskView{
-		ID: t.ID, ServiceID: t.ServiceID, Name: t.Name, Schedule: t.Schedule, Timezone: t.Timezone, Command: decodeArgv(t.Command),
+		ID: t.ID, ServiceID: t.ServiceID, Name: t.Name, Action: t.Action, Schedule: t.Schedule, Timezone: t.Timezone, Command: decodeArgv(t.Command),
 		Enabled: t.Enabled, TimeoutSeconds: int(t.TimeoutSeconds), Concurrency: t.Concurrency,
 		NextRunAt: utc(t.NextRunAt), LastRunAt: utc(t.LastRunAt), CreatedAt: t.CreatedAt.UTC(), UpdatedAt: t.UpdatedAt.UTC(),
 	}
