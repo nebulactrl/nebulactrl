@@ -86,6 +86,14 @@ function typeSql(text: string) {
 	});
 }
 
+/** Waits for the SQL console and its editor, which mounts after the region. */
+async function consoleShown() {
+	await screen.findByRole("region", { name: "SQL console" });
+	await waitFor(() =>
+		expect(document.querySelector(".cm-editor")).not.toBeNull(),
+	);
+}
+
 const calls = (api: ApiStub, key: string) =>
 	api.calls.filter((call) => `${call.method} ${call.path}`.startsWith(key));
 
@@ -281,7 +289,7 @@ describe("the SQL console", () => {
 			...routes,
 		});
 		const view = await open(false);
-		await screen.findByRole("region", { name: "SQL console" });
+		await consoleShown();
 		return { api, view };
 	}
 
@@ -407,7 +415,7 @@ describe("the SQL console", () => {
 			[QUERY]: { body: result([set([], [], { commandTag: "DELETE 1" })]) },
 		});
 		await open(true);
-		await screen.findByRole("region", { name: "SQL console" });
+		await consoleShown();
 		const user = userEvent.setup();
 		typeSql("DELETE FROM t");
 		await user.click(screen.getByRole("switch", { name: "Allow writes" }));
@@ -440,7 +448,7 @@ describe("the SQL console", () => {
 			[QUERY]: { body: result([set(["a"], [["1"]])]) },
 		});
 		await open(true);
-		await screen.findByRole("region", { name: "SQL console" });
+		await consoleShown();
 		typeSql("SELECT 1");
 		await userEvent.setup().click(screen.getByRole("button", { name: /Run/ }));
 		await screen.findByText("1 row · 12 ms");
@@ -471,7 +479,7 @@ describe("the SQL console", () => {
 			},
 		});
 		await open(false);
-		await screen.findByRole("region", { name: "SQL console" });
+		await consoleShown();
 		const user = userEvent.setup();
 		typeSql("DELETE FROM t");
 		await user.click(screen.getByRole("switch", { name: "Allow writes" }));
