@@ -374,6 +374,12 @@ type ServiceView struct {
 	// Absent for every other service.
 	Cron *CronView `json:"cron,omitempty"`
 
+	// GitPoll is the "check for new commits" state of a git service (null
+	// when it does not check): the interval, the branch head the last check
+	// saw and whether it differs from the running commit. It is an
+	// operational setting, never staged.
+	GitPoll *GitPollView `json:"gitPoll"`
+
 	// Networks are the team shared networks the service is attached to
 	// (staged until deployed); the alias is its hostname on each.
 	Networks []NetworkRef `json:"networks"`

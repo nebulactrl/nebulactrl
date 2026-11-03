@@ -1,5 +1,6 @@
 import type { DeploymentStatus, Service } from "#/api/models";
 import type { StatusKind } from "#/components/ui/status-icon";
+import { newCommitHint } from "#/features/git/git-poll-model";
 import { relativeTime } from "#/lib/format";
 
 /**
@@ -391,6 +392,16 @@ export interface CardStatus {
 }
 
 /**
+ * A healthy card's line, plus the hint that checking found a commit the
+ * running release was not built from. Only ever added to a line that is
+ * already fine: a failure, a deploy in flight or a stop says its own thing.
+ */
+function withNewCommit(line: string, service: Service): string {
+	const hint = newCommitHint(service.gitPoll);
+	return hint ? `${line} · ${hint}` : line;
+}
+
+/**
  * The card's pill, LED strip and caption. `now` only feeds the in-flight
  * clock, so a test can pin it; relative times ("2h ago") read the wall clock.
  */
@@ -471,7 +482,10 @@ export function cardStatus(
 					: cron.pill === "Last run failed"
 						? ["done", "done", "fail"]
 						: OFF,
-			line: cronLine(service, cron),
+			line:
+				cron.pill === "Scheduled"
+					? withNewCommit(cronLine(service, cron), service)
+					: cronLine(service, cron),
 			lineTone:
 				cron.pill === "Scheduled"
 					? "ok"
@@ -596,7 +610,7 @@ export function cardStatus(
 			kind: "live",
 			pill: "Live",
 			phases: ALL_DONE,
-			line: when ? `Live · ${when}` : "Live",
+			line: withNewCommit(when ? `Live · ${when}` : "Live", service),
 			lineTone: "ok",
 		});
 	}

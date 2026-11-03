@@ -4320,6 +4320,32 @@ export type GitLinkView = {
     webhook: HookStatusView;
 };
 
+export type GitPollInputBody = {
+    /**
+     * Deploy a new commit found by checking (default true); false only shows it
+     */
+    deploy?: boolean;
+    /**
+     * Check the branch head on a schedule (false: stop checking)
+     */
+    enabled: boolean;
+    /**
+     * Minutes between checks (default 5)
+     */
+    intervalMinutes?: 1 | 5 | 15 | 60;
+};
+
+export type GitPollView = {
+    checkedAt?: string;
+    deploy: boolean;
+    enabled: boolean;
+    error?: string;
+    headBranch?: string;
+    headSha?: string;
+    intervalMinutes: 1 | 5 | 15 | 60;
+    updateAvailable: boolean;
+};
+
 export type GitRef = {
     autoDeploy: boolean;
     connectionId: string;
@@ -8675,6 +8701,7 @@ export type ServiceView = {
     environmentId: string;
     generation: number;
     git: GitRef | null;
+    gitPoll: GitPollView | null;
     gitTokenSet: boolean;
     hasStagedChanges: boolean;
     id: string;
@@ -29212,6 +29239,151 @@ export type LinkServiceGitResponses = {
 };
 
 export type LinkServiceGitResponse = LinkServiceGitResponses[keyof LinkServiceGitResponses];
+
+export type GetServiceGitPollData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/git-poll';
+};
+
+export type GetServiceGitPollErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type GetServiceGitPollError = GetServiceGitPollErrors[keyof GetServiceGitPollErrors];
+
+export type GetServiceGitPollResponses = {
+    /**
+     * OK
+     */
+    200: GitPollView;
+};
+
+export type GetServiceGitPollResponse = GetServiceGitPollResponses[keyof GetServiceGitPollResponses];
+
+export type SetServiceGitPollData = {
+    body: GitPollInputBody;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/git-poll';
+};
+
+export type SetServiceGitPollErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Precondition Failed
+     */
+    412: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type SetServiceGitPollError = SetServiceGitPollErrors[keyof SetServiceGitPollErrors];
+
+export type SetServiceGitPollResponses = {
+    /**
+     * OK
+     */
+    200: GitPollView;
+};
+
+export type SetServiceGitPollResponse = SetServiceGitPollResponses[keyof SetServiceGitPollResponses];
+
+export type CheckServiceGitPollData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/git-poll/check';
+};
+
+export type CheckServiceGitPollErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type CheckServiceGitPollError = CheckServiceGitPollErrors[keyof CheckServiceGitPollErrors];
+
+export type CheckServiceGitPollResponses = {
+    /**
+     * OK
+     */
+    200: GitPollView;
+};
+
+export type CheckServiceGitPollResponse = CheckServiceGitPollResponses[keyof CheckServiceGitPollResponses];
 
 export type ListServiceIncidentsData = {
     body?: never;

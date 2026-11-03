@@ -7,6 +7,7 @@ import {
 	CalendarClockIcon,
 	FileCodeIcon,
 	FolderOpenIcon,
+	GitCommitHorizontalIcon,
 	LayersIcon,
 	PlusIcon,
 	RefreshCwIcon,
@@ -157,6 +158,25 @@ export function useCanvasCommands({
 					run: () => void deploy(service),
 				},
 			);
+			// Checking found a commit the running release was not built from.
+			if (service.gitPoll?.updateAvailable) {
+				entries.push({
+					id: `service:deploy-latest:${service.id}`,
+					label: `Deploy latest commit of ${service.name}`,
+					group: "Action",
+					hint: isProduction ? "review, then confirm" : "found by checking",
+					icon: GitCommitHorizontalIcon,
+					keywords: [
+						"deploy",
+						"latest",
+						"commit",
+						"update",
+						"new",
+						service.slug,
+					],
+					run: () => void deploy(service),
+				});
+			}
 			// A cron service has no container to restart: Pause/Resume is its toggle.
 			if (!service.config.cron) {
 				entries.push({

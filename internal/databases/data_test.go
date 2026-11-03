@@ -50,13 +50,6 @@ func dataOK(res agentprotocol.DBQueryResult) agentprotocol.ResultFrame {
 
 func (f *fixture) withRequester(r *fakeRequester) { f.dbs.SetRequester(r) }
 
-func (f *fixture) setServerFacts(caps ...string) {
-	f.t.Helper()
-	facts, _ := json.Marshal(agentprotocol.Facts{OS: "linux", Capabilities: caps})
-	_, err := f.pool.Exec(context.Background(), "UPDATE servers SET facts = $2 WHERE id = $1", f.server.ID, facts)
-	require.NoError(f.t, err)
-}
-
 func httpStatus(t *testing.T, err error) int {
 	t.Helper()
 	e, ok := apierr.As(err)
@@ -132,13 +125,6 @@ func TestDataPreflightCodes(t *testing.T) {
 	_, err = f.pool.Exec(context.Background(), "DELETE FROM database_fences WHERE service_id = $1", pg.ID)
 	require.NoError(t, err)
 
-	f.setServerFacts(agentprotocol.CapProcesses)
-	_, err = f.dbs.ListTables(person, pg.ID)
-	require.Equal(t, databases.CodeAgentTooOld, apiCode(t, err))
-	require.Contains(t, err.Error(), "Update the agent on agent1 to use the Data tab.")
-	require.Empty(t, rq.calls, "nothing reached the agent")
-
-	f.setServerFacts(agentprotocol.CapDBQuery)
 	_, err = f.dbs.ListTables(person, pg.ID)
 	require.NoError(t, err)
 	require.Len(t, rq.calls, 1)
@@ -162,6 +148,25 @@ func TestDataNeedsTheDeployRoleAndScope(t *testing.T) {
 	})
 	_, err = f.dbs.ListTables(readOnlyToken, pg.ID)
 	require.Equal(t, http.StatusForbidden, httpStatus(t, err), "deployments:write is required")
+}
+
+func TestQueryWritesAreForOwnersAndAdmins(t *testing.T) {
+	f := newFixture(t)
+	rq := &fakeRequester{}
+	f.withRequester(rq)
+	pg := f.createDB("pg", "postgres", "17")
+	f.deploy(pg.ID)
+	developer := auth.WithPrincipal(context.Background(), &auth.Principal{
+		Type: auth.TypeUser, UserID: f.userID, WorkspaceID: f.ws.ID, Role: auth.RoleDeveloper, Label: "d", Scopes: policy.AllScopes,
+	})
+
+	_, err := f.dbs.Query(developer, pg.ID, databases.QueryInput{SQL: "DELETE FROM t", AllowWrites: true, Confirm: "pg"})
+	require.Equal(t, http.StatusForbidden, httpStatus(t, err), "a developer cannot write")
+	require.Empty(t, rq.calls)
+
+	_, err = f.dbs.Query(developer, pg.ID, databases.QueryInput{SQL: "SELECT 1"})
+	require.NoError(t, err, "a developer still reads")
+	require.False(t, rq.calls[0].payload.AllowWrites)
 }
 
 func TestListTablesAsksTheAgentWithTheApplicationCredentials(t *testing.T) {
@@ -326,7 +331,7 @@ func TestQueryWritesAreRefusedOnAReadReplica(t *testing.T) {
 	rq := &fakeRequester{}
 	f.withRequester(rq)
 	for _, id := range []uuid.UUID{f.server.ID, f.server2.ID} {
-		facts, _ := json.Marshal(agentprotocol.Facts{OS: "linux", Capabilities: []string{agentprotocol.CapReplication, agentprotocol.CapDBQuery, "mesh"}})
+		facts, _ := json.Marshal(agentprotocol.Facts{OS: "linux", Capabilities: []string{agentprotocol.CapReplication, "mesh"}})
 		_, err := f.pool.Exec(context.Background(), "UPDATE servers SET facts = $2 WHERE id = $1", id, facts)
 		require.NoError(t, err)
 	}

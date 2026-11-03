@@ -226,6 +226,27 @@ describe("ServiceNode: status", () => {
 		expect(screen.getAllByText("Stopped").length).toBeGreaterThan(0);
 	});
 
+	test("a new commit found by checking is hinted on a live card, and only there", async () => {
+		const gitPoll = {
+			enabled: true,
+			intervalMinutes: 5,
+			deploy: false,
+			headSha: "abc1234def5678",
+			headBranch: "main",
+			updateAvailable: true,
+		} as const;
+		const { unmount } = await card({ ...liveWeb(), gitPoll });
+		expect(screen.getByText(/ · New commit abc1234$/)).toBeInTheDocument();
+		unmount();
+		await card({
+			...liveWeb(),
+			latestDeployment: makeDeployment("failed", { failedStep: "health" }),
+			gitPoll,
+		});
+		expect(screen.getByText("Failed at Verify")).toBeInTheDocument();
+		expect(screen.queryByText(/New commit/)).not.toBeInTheDocument();
+	});
+
 	test("a never-deployed service says Not deployed and counts wanted replicas", async () => {
 		await card(makeService());
 		expect(screen.getAllByText("Not deployed").length).toBeGreaterThan(0);

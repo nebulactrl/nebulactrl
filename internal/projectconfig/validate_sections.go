@@ -166,6 +166,13 @@ func (c *svcCtx) checkGit() {
 			c.err(CodeInvalidValue, rp("git", "submodules"), "git.submodules must be auto, on or off")
 		}
 	}
+	if g.Poll != nil {
+		switch *g.Poll {
+		case "off", "1m", "5m", "15m", "60m":
+		default:
+			c.err(CodeInvalidValue, rp("git", "poll"), "git.poll must be off, 1m, 5m, 15m or 60m")
+		}
+	}
 	if g.WatchPaths != nil {
 		if len(g.WatchPaths) > MaxWatchPaths {
 			c.err(CodeLimitExceeded, rp("git", "watch_paths"), "%d watch paths; at most %d", len(g.WatchPaths), MaxWatchPaths)

@@ -51,7 +51,7 @@ func TestCatalogSanity(t *testing.T) {
 		}
 		sort.Strings(got)
 		want := []string{
-			"backups.*", "domains.*.cloudflare", "git.auto_deploy", "git.link", "git.wait_for_ci", "git.watch_paths", "name",
+			"backups.*", "domains.*.cloudflare", "git.auto_deploy", "git.link", "git.poll", "git.poll_deploy", "git.wait_for_ci", "git.watch_paths", "name",
 			"processes.*.scale.autoscaling.enabled", "processes.*.scale.autoscaling.max", "processes.*.scale.autoscaling.min",
 			"processes.*.scale.autoscaling.targetCpuPercent", "processes.*.scale.replicas",
 			"scale.autoscaling.enabled", "scale.autoscaling.max", "scale.autoscaling.min", "scale.autoscaling.targetCpuPercent",
@@ -415,6 +415,8 @@ branch = "main"
 submodules = "on"
 auto_deploy = true
 wait_for_ci = true
+poll = "5m"
+poll_deploy = false
 watch_paths = ["apps/gt/**"]
 
 [services.gt.build]
@@ -470,6 +472,7 @@ singleton = true
 url = "https://github.com/acme/gu.git"
 branch = "trunk"
 submodules = "off"
+poll = "1m"
 
 # ---- database ----
 [services.dbs]
@@ -631,7 +634,7 @@ func TestFieldsPerKind(t *testing.T) {
 		},
 		"gt": {
 			"name", "server", "links.img", "config.port", "config.startCommand",
-			"config.gitBranch", "config.submodules", "git.link", "git.auto_deploy", "git.wait_for_ci", "git.watch_paths",
+			"config.gitBranch", "config.submodules", "git.link", "git.auto_deploy", "git.wait_for_ci", "git.poll", "git.poll_deploy", "git.watch_paths",
 			"config.buildType", "config.dockerfilePath", "config.buildContext", "config.buildLocation", "config.buildServerId", "config.registryId",
 			"variables.BUILD_FLAG",
 			"config.processName", "config.singleton", "config.processes.worker", "config.processes.clock",
@@ -639,7 +642,7 @@ func TestFieldsPerKind(t *testing.T) {
 			"processes.worker.scale.autoscaling.max", "processes.worker.scale.autoscaling.targetCpuPercent",
 			"domains.gt.acme.com", "domains.api.gt.acme.com",
 		},
-		"gu": {"server", "config.gitUrl", "config.gitBranch", "config.submodules"},
+		"gu": {"server", "config.gitUrl", "config.gitBranch", "config.submodules", "git.poll"},
 		"dbs": {
 			"name", "server", "networks.backplane", "config.stopGraceSeconds", "config.memoryMb", "config.cpus", "config.imageRetention", "config.blockEgress",
 			"config.database.engine", "config.database.version", "config.database.flavor", "config.database.databaseName", "config.database.username",
@@ -698,7 +701,7 @@ func TestFieldsPerKind(t *testing.T) {
 				require.NotZero(t, fv.Pos.Line, "%s/%s", slug, id)
 			}
 		}
-		immediate := []string{"name", "scale.replicas", "processes.worker.scale.replicas", "git.link", "git.auto_deploy", "git.wait_for_ci", "git.watch_paths", "uptime.enabled", "tasks.digest", "backups.nightly", "domains.shop.acme.com.cloudflare"}
+		immediate := []string{"name", "scale.replicas", "processes.worker.scale.replicas", "git.link", "git.auto_deploy", "git.wait_for_ci", "git.poll", "git.poll_deploy", "git.watch_paths", "uptime.enabled", "tasks.digest", "backups.nightly", "domains.shop.acme.com.cloudflare"}
 		for slug, id := range map[string]string{"img": "name", "gt": "git.link"} {
 			require.Equal(t, AppliesImmediate, r.Services[slug].Fields[id].Applies)
 		}
@@ -866,6 +869,11 @@ func TestFieldValuesOfTheOtherKinds(t *testing.T) {
 		require.Equal(t, AppliesImmediate, get("gt", "git.link").Applies)
 		require.Equal(t, true, get("gt", "git.auto_deploy").Value)
 		require.Equal(t, []string{"apps/gt/**"}, get("gt", "git.watch_paths").Value)
+		require.Equal(t, "5m", get("gt", "git.poll").Value)
+		require.Equal(t, false, get("gt", "git.poll_deploy").Value)
+		require.Equal(t, AppliesImmediate, get("gt", "git.poll").Applies)
+		require.Equal(t, "1m", get("gu", "git.poll").Value)
+		require.Equal(t, "services.gu.git.poll", get("gu", "git.poll").Path)
 		require.Equal(t, "on", get("gt", "config.submodules").Value)
 		require.Equal(t, "dockerfile", get("gt", "config.buildType").Value)
 		require.Equal(t, "build_server", get("gt", "config.buildLocation").Value)

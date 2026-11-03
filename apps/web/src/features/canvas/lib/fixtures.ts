@@ -74,6 +74,7 @@ export function makeService(overrides: Partial<Service> = {}): Service {
 			since: null,
 		},
 		git: null,
+		gitPoll: null,
 		tailnet: null,
 		networks: [],
 		processes: [],

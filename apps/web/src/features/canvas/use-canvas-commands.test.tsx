@@ -375,6 +375,60 @@ test("Deploy outside production deploys at once and says so", async () => {
 	]);
 });
 
+const waiting = {
+	enabled: true,
+	intervalMinutes: 5,
+	deploy: false,
+	headSha: "abc1234def5678",
+	headBranch: "main",
+	updateAvailable: true,
+} as const;
+
+test("Deploy latest commit is offered only for a service with a new commit found", async () => {
+	const plain = await mountCommands([
+		deployed(),
+		deployed({
+			id: "api",
+			slug: "api",
+			gitPoll: { ...waiting, updateAvailable: false },
+		}),
+		deployed({ id: "found", slug: "found", gitPoll: waiting }),
+	]);
+	expect(plain.ids()).not.toContain("service:deploy-latest:web");
+	expect(plain.ids()).not.toContain("service:deploy-latest:api");
+	expect(plain.ids()).toContain("service:deploy-latest:found");
+});
+
+test("Deploy latest commit deploys at once outside production", async () => {
+	const api = stubApi({
+		"POST /services/:id/deployments": {
+			status: 202,
+			body: make("DeploymentView", { id: "d2", status: "queued" }),
+		},
+	});
+	const m = await mountCommands([deployed({ gitPoll: waiting })]);
+	const command = m.find("service:deploy-latest:web");
+	expect(command.label).toBe("Deploy latest commit of Web");
+	act(() => command.run());
+	expect(await screen.findByText("Deploying Web")).toBeInTheDocument();
+	expect(api.calls.map((c) => `${c.method} ${c.path}`)).toEqual([
+		"POST /services/web/deployments",
+	]);
+});
+
+test("Deploy latest commit in production opens the review sheet", async () => {
+	const api = stubApi({});
+	const opened: OpenReviewOptions[] = [];
+	const off = onOpenStagedReview((o) => opened.push(o));
+	const m = await mountCommands([deployed({ gitPoll: waiting })], {
+		isProduction: true,
+	});
+	act(() => m.find("service:deploy-latest:web").run());
+	off();
+	expect(opened).toEqual([{ serviceId: "web" }]);
+	expect(api.calls).toEqual([]);
+});
+
 test("a service with staged changes deploys 'with its staged changes'", async () => {
 	const m = await mountCommands([
 		deployed({

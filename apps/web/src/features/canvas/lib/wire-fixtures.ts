@@ -68,6 +68,7 @@ export function serviceWire(over: Partial<ServiceView> = {}): ServiceView {
 			title: "",
 		},
 		git: null,
+		gitPoll: null,
 		tailnet: null,
 		networks: [],
 		processes: [],

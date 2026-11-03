@@ -10,11 +10,6 @@ const (
 	// result and are never persisted, neither by the control plane nor by the
 	// agent's own result store (see EphemeralResultKinds).
 	KindDBQuery = "db_query"
-
-	// CapDBQuery is advertised in Facts.Capabilities by agents that answer
-	// db_query. The control plane refuses the Data operations for a server whose
-	// facts lack it (409 agent_too_old).
-	CapDBQuery = "database.query"
 )
 
 func init() { AllowedKinds[KindDBQuery] = true }

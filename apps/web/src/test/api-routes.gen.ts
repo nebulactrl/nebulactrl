@@ -189,6 +189,7 @@ export type ApiRouteKey =
 	| `GET /services/${string}/dump-restores`
 	| `GET /services/${string}/files`
 	| `GET /services/${string}/git`
+	| `GET /services/${string}/git-poll`
 	| `GET /services/${string}/incidents`
 	| `GET /services/${string}/logs`
 	| `GET /services/${string}/logs/central`
@@ -404,6 +405,7 @@ export type ApiRouteKey =
 	| `POST /services/${string}/domains/generate`
 	| `POST /services/${string}/dump-restores`
 	| `POST /services/${string}/env-template-scan`
+	| `POST /services/${string}/git-poll/check`
 	| `POST /services/${string}/move`
 	| `POST /services/${string}/restart`
 	| `POST /services/${string}/run`
@@ -467,6 +469,7 @@ export type ApiRouteKey =
 	| `PUT /services/${string}/database/public-port`
 	| `PUT /services/${string}/deploy-hook`
 	| `PUT /services/${string}/git`
+	| `PUT /services/${string}/git-poll`
 	| `PUT /services/${string}/maintenance`
 	| `PUT /services/${string}/networks/${string}`
 	| `PUT /services/${string}/processes/${string}/scaling`

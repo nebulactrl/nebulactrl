@@ -330,6 +330,7 @@ func exRichEnv() *liveEnv {
 	web.Scale = services.Autoscaling{Enabled: true, Min: 2, Max: 5, TargetCPUPercent: 60}
 	web.Git = &db.ServiceGit{ServiceID: web.Row.ID, ConnectionID: exID(3), RepoFullName: "acme/shop", AutoDeploy: false, WaitForCi: true, WatchPaths: []string{"apps/web/**"}}
 	web.GitConn = "github-acme"
+	web.Poll = &db.ServiceGitPoll{ServiceID: web.Row.ID, IntervalMinutes: 15, Deploy: false}
 	web.Links = []string{"db"}
 	web.Networks = []db.ListServicesNetworksRow{{NetworkID: exID(6), NetworkName: "backplane"}}
 	web.Volumes = []db.Volume{{Name: "uploads", MountPath: "/app/uploads"}}
@@ -418,6 +419,8 @@ func TestExportRichEnvironmentIsDeterministicAndSecretFree(t *testing.T) {
 	// Names, not ids.
 	require.NotContains(t, first, exID(1).String())
 	require.Equal(t, "github-acme", exDeref(res.Services["web"].Def.Git.Connection))
+	require.Equal(t, "15m", exDeref(res.Services["web"].Def.Git.Poll))
+	require.False(t, *res.Services["web"].Def.Git.PollDeploy)
 	require.Equal(t, "builder", exDeref(res.Services["web"].Def.Build.Server))
 	require.Equal(t, "ghcr", exDeref(res.Services["web"].Def.Build.Registry))
 	// A managed upstream is the slug and the port.
@@ -434,6 +437,59 @@ func TestExportRichEnvironmentIsDeterministicAndSecretFree(t *testing.T) {
 	// database credentials default: block_egress true is the default of a database.
 	require.Nil(t, res.Services["db"].Def.BlockEgress)
 	require.Equal(t, "nightly", func() string { k := sortedKeys(res.Services["db"].Def.Backups); return k[0] }())
+}
+
+// "Check for new commits" works for a plain clone URL too; poll_deploy is written only when it is not the default.
+func TestExportGitPoll(t *testing.T) {
+	mk := func(poll *db.ServiceGitPoll) *liveEnv {
+		svc := exSvc("site", services.KindApp, services.SourceGit, services.Config{GitURL: "https://git.example.com/acme/site.git", GitBranch: "main", Port: 80})
+		svc.Poll = poll
+		return exLiveEnv(exTestRefs(), svc)
+	}
+	gitOf := func(env *liveEnv, defaults bool) projectconfig.Git {
+		_, v := exExport(t, env, defaults)
+		return *v.Res.Services["site"].Def.Git
+	}
+
+	g := gitOf(mk(nil), false)
+	require.Nil(t, g.Poll, "off is the default")
+	require.Nil(t, g.PollDeploy)
+	g = gitOf(mk(nil), true)
+	require.Equal(t, "off", exDeref(g.Poll))
+	require.Nil(t, g.PollDeploy, "poll_deploy means nothing while the service does not check")
+
+	g = gitOf(mk(&db.ServiceGitPoll{IntervalMinutes: 5, Deploy: true}), false)
+	require.Equal(t, "5m", exDeref(g.Poll))
+	require.Nil(t, g.PollDeploy)
+	g = gitOf(mk(&db.ServiceGitPoll{IntervalMinutes: 5, Deploy: true}), true)
+	require.True(t, *g.PollDeploy)
+
+	g = gitOf(mk(&db.ServiceGitPoll{IntervalMinutes: 60, Deploy: false}), false)
+	require.Equal(t, "60m", exDeref(g.Poll))
+	require.False(t, *g.PollDeploy)
+	require.Equal(t, "https://git.example.com/acme/site.git", exDeref(g.URL))
+
+	// The exported file says what is live: planning it changes nothing.
+	for _, poll := range []*db.ServiceGitPoll{nil, {IntervalMinutes: 1, Deploy: true}, {IntervalMinutes: 15, Deploy: false}} {
+		env := mk(poll)
+		text, _ := exExport(t, env, true)
+		_, res := exParseResolve(t, text, "")
+		rs := res.Services["site"]
+		ls := env.Services["site"]
+		pc := &planCtx{live: env, res: res, rs: rs}
+		for _, id := range []string{"git.poll", "git.poll_deploy"} {
+			fv, ok := rs.Fields[id]
+			if !ok {
+				require.Nil(t, poll, "the export dropped %s:\n%s", id, text)
+				continue
+			}
+			want, err := gitOps{}.desired(pc, ls, fv)
+			require.NoError(t, err)
+			got, present := gitOps{}.live(pc, ls, id, want.Proj)
+			require.True(t, present)
+			require.Equal(t, got.FP, want.FP, "the file does not say what is live for %s:\n%s", id, text)
+		}
+	}
 }
 
 func exDeref(p *string) string {

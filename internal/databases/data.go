@@ -154,9 +154,6 @@ func (s *Service) dataPreflight(ctx context.Context, id uuid.UUID) (dataTarget, 
 	if s.hasFence(ctx, s.q, sc.Service.ID) {
 		return dataTarget{}, apierr.Conflict(CodeDatabaseFenced, sc.Service.Slug+" is a fenced old primary and is not running")
 	}
-	if has, known := services.ServerHasCapability(srv, agentprotocol.CapDBQuery); known && !has {
-		return dataTarget{}, apierr.Conflict(CodeAgentTooOld, "Update the agent on "+srv.Name+" to use the Data tab.")
-	}
 	creds, err := s.credentials(ctx, s.q, sc, spec, eng)
 	if err != nil {
 		return dataTarget{}, err
@@ -260,6 +257,9 @@ func (s *Service) Query(ctx context.Context, serviceID uuid.UUID, in QueryInput)
 		return DataResult{}, apierr.Unprocessable("invalid_sql", "enter a statement to run")
 	}
 	if in.AllowWrites {
+		if err := policy.RequireRole(ctx, &t.sc.ProjectID, auth.RoleOwner, auth.RoleAdmin); err != nil {
+			return DataResult{}, err
+		}
 		if t.spec.Replica != nil {
 			return DataResult{}, apierr.Conflict(CodeReplicaReadOnly, "this database is a read replica: run write statements on the primary")
 		}

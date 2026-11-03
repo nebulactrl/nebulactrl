@@ -3378,6 +3378,54 @@ func (e GitLinkViewProvider) Valid() bool {
 	}
 }
 
+// Defines values for GitPollInputBodyIntervalMinutes.
+const (
+	GitPollInputBodyIntervalMinutesN1  GitPollInputBodyIntervalMinutes = 1
+	GitPollInputBodyIntervalMinutesN15 GitPollInputBodyIntervalMinutes = 15
+	GitPollInputBodyIntervalMinutesN5  GitPollInputBodyIntervalMinutes = 5
+	GitPollInputBodyIntervalMinutesN60 GitPollInputBodyIntervalMinutes = 60
+)
+
+// Valid indicates whether the value is a known member of the GitPollInputBodyIntervalMinutes enum.
+func (e GitPollInputBodyIntervalMinutes) Valid() bool {
+	switch e {
+	case GitPollInputBodyIntervalMinutesN1:
+		return true
+	case GitPollInputBodyIntervalMinutesN15:
+		return true
+	case GitPollInputBodyIntervalMinutesN5:
+		return true
+	case GitPollInputBodyIntervalMinutesN60:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for GitPollViewIntervalMinutes.
+const (
+	GitPollViewIntervalMinutesN1  GitPollViewIntervalMinutes = 1
+	GitPollViewIntervalMinutesN15 GitPollViewIntervalMinutes = 15
+	GitPollViewIntervalMinutesN5  GitPollViewIntervalMinutes = 5
+	GitPollViewIntervalMinutesN60 GitPollViewIntervalMinutes = 60
+)
+
+// Valid indicates whether the value is a known member of the GitPollViewIntervalMinutes enum.
+func (e GitPollViewIntervalMinutes) Valid() bool {
+	switch e {
+	case GitPollViewIntervalMinutesN1:
+		return true
+	case GitPollViewIntervalMinutesN15:
+		return true
+	case GitPollViewIntervalMinutesN5:
+		return true
+	case GitPollViewIntervalMinutesN60:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GitRefProvider.
 const (
 	GitRefProviderBitbucket GitRefProvider = "bitbucket"
@@ -13020,6 +13068,36 @@ type GitLinkView struct {
 // GitLinkViewProvider defines model for GitLinkView.Provider.
 type GitLinkViewProvider string
 
+// GitPollInputBody defines model for GitPollInputBody.
+type GitPollInputBody struct {
+	// Deploy Deploy a new commit found by checking (default true); false only shows it
+	Deploy *bool `json:"deploy,omitempty"`
+
+	// Enabled Check the branch head on a schedule (false: stop checking)
+	Enabled bool `json:"enabled"`
+
+	// IntervalMinutes Minutes between checks (default 5)
+	IntervalMinutes *GitPollInputBodyIntervalMinutes `json:"intervalMinutes,omitempty"`
+}
+
+// GitPollInputBodyIntervalMinutes Minutes between checks (default 5)
+type GitPollInputBodyIntervalMinutes int64
+
+// GitPollView defines model for GitPollView.
+type GitPollView struct {
+	CheckedAt       *time.Time                 `json:"checkedAt,omitempty"`
+	Deploy          bool                       `json:"deploy"`
+	Enabled         bool                       `json:"enabled"`
+	Error           *string                    `json:"error,omitempty"`
+	HeadBranch      *string                    `json:"headBranch,omitempty"`
+	HeadSha         *string                    `json:"headSha,omitempty"`
+	IntervalMinutes GitPollViewIntervalMinutes `json:"intervalMinutes"`
+	UpdateAvailable bool                       `json:"updateAvailable"`
+}
+
+// GitPollViewIntervalMinutes defines model for GitPollView.IntervalMinutes.
+type GitPollViewIntervalMinutes int64
+
 // GitRef defines model for GitRef.
 type GitRef struct {
 	AutoDeploy     bool           `json:"autoDeploy"`
@@ -17527,6 +17605,7 @@ type ServiceView struct {
 	EnvironmentId       string                  `json:"environmentId"`
 	Generation          int64                   `json:"generation"`
 	Git                 *GitRef                 `json:"git"`
+	GitPoll             *GitPollView            `json:"gitPoll"`
 	GitTokenSet         bool                    `json:"gitTokenSet"`
 	HasStagedChanges    bool                    `json:"hasStagedChanges"`
 	Id                  string                  `json:"id"`
@@ -21801,6 +21880,9 @@ type CreateDumpRestoreJSONRequestBody = CreateDumpRestoreInputBody
 // LinkServiceGitJSONRequestBody defines body for LinkServiceGit for application/json ContentType.
 type LinkServiceGitJSONRequestBody = LinkInputBody
 
+// SetServiceGitPollJSONRequestBody defines body for SetServiceGitPoll for application/json ContentType.
+type SetServiceGitPollJSONRequestBody = GitPollInputBody
+
 // SetServiceMaintenanceJSONRequestBody defines body for SetServiceMaintenance for application/json ContentType.
 type SetServiceMaintenanceJSONRequestBody = SetMaintenanceInputBody
 
@@ -25599,7 +25681,7 @@ type ClientInterface interface {
 
 	// QueryDatabaseWithBody Run SQL on a database (audited)
 	//
-	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -25608,7 +25690,7 @@ type ClientInterface interface {
 
 	// QueryDatabase Run SQL on a database (audited)
 	//
-	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -25726,7 +25808,7 @@ type ClientInterface interface {
 
 	// ListDatabaseTables List the tables of a SQL database
 	//
-	// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.
+	// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`.
 	//
 	// Corresponds with GET /services/{serviceId}/database/tables (the `ListDatabaseTables` operationId).
 	ListDatabaseTables(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -25923,6 +26005,38 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /services/{serviceId}/git (the `LinkServiceGit` operationId).
 	LinkServiceGit(ctx context.Context, serviceId string, body LinkServiceGitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetServiceGitPoll Get a service's check for new commits
+	//
+	// `enabled: false` when the service does not check. `updateAvailable` is true when the branch head the last check saw differs from the running commit.
+	//
+	// Corresponds with GET /services/{serviceId}/git-poll (the `GetServiceGitPoll` operationId).
+	GetServiceGitPoll(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetServiceGitPollWithBody Check a service's repository for new commits
+	//
+	// For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /services/{serviceId}/git-poll (the `SetServiceGitPoll` operationId).
+	SetServiceGitPollWithBody(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetServiceGitPoll Check a service's repository for new commits
+	//
+	// For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /services/{serviceId}/git-poll (the `SetServiceGitPoll` operationId).
+	SetServiceGitPoll(ctx context.Context, serviceId string, body SetServiceGitPollJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// CheckServiceGitPoll Check a service's repository for new commits now
+	//
+	// Reads the branch head right away and returns the state. It never deploys. A failure to reach the remote is reported in `error`, not as an HTTP error. For a service that does not check on a schedule, nothing is stored and the head is only in the answer.
+	//
+	// Corresponds with POST /services/{serviceId}/git-poll/check (the `CheckServiceGitPoll` operationId).
+	CheckServiceGitPoll(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// ListServiceIncidents List a service's health incidents
 	//
@@ -35414,7 +35528,7 @@ func (c *Client) RevealDatabasePublicConnection(ctx context.Context, serviceId s
 
 // QueryDatabaseWithBody Run SQL on a database (audited)
 //
-// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
 //
 // Takes any type of body and a specified content type.
 //
@@ -35433,7 +35547,7 @@ func (c *Client) QueryDatabaseWithBody(ctx context.Context, serviceId string, co
 
 // QueryDatabase Run SQL on a database (audited)
 //
-// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -35691,7 +35805,7 @@ func (c *Client) BrowseDatabaseTable(ctx context.Context, serviceId string, body
 
 // ListDatabaseTables List the tables of a SQL database
 //
-// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.
+// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`.
 //
 // Corresponds with GET /services/{serviceId}/database/tables (the `ListDatabaseTables` operationId).
 func (c *Client) ListDatabaseTables(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -36139,6 +36253,78 @@ func (c *Client) LinkServiceGitWithBody(ctx context.Context, serviceId string, c
 // Corresponds with PUT /services/{serviceId}/git (the `LinkServiceGit` operationId).
 func (c *Client) LinkServiceGit(ctx context.Context, serviceId string, body LinkServiceGitJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewLinkServiceGitRequest(c.Server, serviceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetServiceGitPoll Get a service's check for new commits
+//
+// `enabled: false` when the service does not check. `updateAvailable` is true when the branch head the last check saw differs from the running commit.
+//
+// Corresponds with GET /services/{serviceId}/git-poll (the `GetServiceGitPoll` operationId).
+func (c *Client) GetServiceGitPoll(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServiceGitPollRequest(c.Server, serviceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetServiceGitPollWithBody Check a service's repository for new commits
+//
+// For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /services/{serviceId}/git-poll (the `SetServiceGitPoll` operationId).
+func (c *Client) SetServiceGitPollWithBody(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetServiceGitPollRequestWithBody(c.Server, serviceId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetServiceGitPoll Check a service's repository for new commits
+//
+// For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /services/{serviceId}/git-poll (the `SetServiceGitPoll` operationId).
+func (c *Client) SetServiceGitPoll(ctx context.Context, serviceId string, body SetServiceGitPollJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetServiceGitPollRequest(c.Server, serviceId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// CheckServiceGitPoll Check a service's repository for new commits now
+//
+// Reads the branch head right away and returns the state. It never deploys. A failure to reach the remote is reported in `error`, not as an HTTP error. For a service that does not check on a schedule, nothing is stored and the head is only in the answer.
+//
+// Corresponds with POST /services/{serviceId}/git-poll/check (the `CheckServiceGitPoll` operationId).
+func (c *Client) CheckServiceGitPoll(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewCheckServiceGitPollRequest(c.Server, serviceId)
 	if err != nil {
 		return nil, err
 	}
@@ -55281,6 +55467,121 @@ func NewLinkServiceGitRequestWithBody(server string, serviceId string, contentTy
 	return req, nil
 }
 
+// NewGetServiceGitPollRequest constructs an http.Request for the GetServiceGitPoll method
+func NewGetServiceGitPollRequest(server string, serviceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/git-poll", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSetServiceGitPollRequest calls the generic SetServiceGitPoll builder with application/json body
+func NewSetServiceGitPollRequest(server string, serviceId string, body SetServiceGitPollJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetServiceGitPollRequestWithBody(server, serviceId, "application/json", bodyReader)
+}
+
+// NewSetServiceGitPollRequestWithBody constructs an http.Request for the SetServiceGitPoll method, with any body, and a specified content type
+func NewSetServiceGitPollRequestWithBody(server string, serviceId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/git-poll", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
+// NewCheckServiceGitPollRequest constructs an http.Request for the CheckServiceGitPoll method
+func NewCheckServiceGitPollRequest(server string, serviceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/git-poll/check", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewListServiceIncidentsRequest constructs an http.Request for the ListServiceIncidents method
 func NewListServiceIncidentsRequest(server string, serviceId string, params *ListServiceIncidentsParams) (*http.Request, error) {
 	var err error
@@ -64881,7 +65182,7 @@ type ClientWithResponsesInterface interface {
 
 	// QueryDatabaseWithBodyWithResponse Run SQL on a database (audited)
 	//
-	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -64890,7 +65191,7 @@ type ClientWithResponsesInterface interface {
 
 	// QueryDatabaseWithResponse Run SQL on a database (audited)
 	//
-	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+	// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -65014,7 +65315,7 @@ type ClientWithResponsesInterface interface {
 
 	// ListDatabaseTablesWithResponse List the tables of a SQL database
 	//
-	// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.
+	// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -65235,6 +65536,42 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /services/{serviceId}/git (the `LinkServiceGit` operationId).
 	LinkServiceGitWithResponse(ctx context.Context, serviceId string, body LinkServiceGitJSONRequestBody, reqEditors ...RequestEditorFn) (*LinkServiceGitResponse, error)
+
+	// GetServiceGitPollWithResponse Get a service's check for new commits
+	//
+	// `enabled: false` when the service does not check. `updateAvailable` is true when the branch head the last check saw differs from the running commit.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /services/{serviceId}/git-poll (the `GetServiceGitPoll` operationId).
+	GetServiceGitPollWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*GetServiceGitPollResponse, error)
+
+	// SetServiceGitPollWithBodyWithResponse Check a service's repository for new commits
+	//
+	// For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /services/{serviceId}/git-poll (the `SetServiceGitPoll` operationId).
+	SetServiceGitPollWithBodyWithResponse(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetServiceGitPollResponse, error)
+
+	// SetServiceGitPollWithResponse Check a service's repository for new commits
+	//
+	// For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /services/{serviceId}/git-poll (the `SetServiceGitPoll` operationId).
+	SetServiceGitPollWithResponse(ctx context.Context, serviceId string, body SetServiceGitPollJSONRequestBody, reqEditors ...RequestEditorFn) (*SetServiceGitPollResponse, error)
+
+	// CheckServiceGitPollWithResponse Check a service's repository for new commits now
+	//
+	// Reads the branch head right away and returns the state. It never deploys. A failure to reach the remote is reported in `error`, not as an HTTP error. For a service that does not check on a schedule, nothing is stored and the head is only in the answer.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /services/{serviceId}/git-poll/check (the `CheckServiceGitPoll` operationId).
+	CheckServiceGitPollWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*CheckServiceGitPollResponse, error)
 
 	// ListServiceIncidentsWithResponse List a service's health incidents
 	//
@@ -96595,6 +96932,262 @@ func (r LinkServiceGitResponse) ContentType() string {
 	return ""
 }
 
+type GetServiceGitPollResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GitPollView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetServiceGitPollResponse) GetJSON200() *GitPollView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetServiceGitPollResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetServiceGitPollResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetServiceGitPollResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r GetServiceGitPollResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r GetServiceGitPollResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetServiceGitPollResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetServiceGitPollResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetServiceGitPollResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetServiceGitPollResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetServiceGitPollResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetServiceGitPollResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GitPollView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON412 the response for an HTTP 412 `application/problem+json` response
+	ApplicationproblemJSON412 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetServiceGitPollResponse) GetJSON200() *GitPollView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r SetServiceGitPollResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r SetServiceGitPollResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r SetServiceGitPollResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON412 returns the response for an HTTP 412 `application/problem+json` response
+func (r SetServiceGitPollResponse) GetApplicationproblemJSON412() *Error {
+	return r.ApplicationproblemJSON412
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r SetServiceGitPollResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r SetServiceGitPollResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SetServiceGitPollResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SetServiceGitPollResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetServiceGitPollResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetServiceGitPollResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetServiceGitPollResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type CheckServiceGitPollResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *GitPollView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r CheckServiceGitPollResponse) GetJSON200() *GitPollView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r CheckServiceGitPollResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r CheckServiceGitPollResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r CheckServiceGitPollResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r CheckServiceGitPollResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r CheckServiceGitPollResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r CheckServiceGitPollResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r CheckServiceGitPollResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r CheckServiceGitPollResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r CheckServiceGitPollResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r CheckServiceGitPollResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListServiceIncidentsResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -113151,7 +113744,7 @@ func (c *ClientWithResponses) RevealDatabasePublicConnectionWithResponse(ctx con
 
 // QueryDatabaseWithBodyWithResponse Run SQL on a database (audited)
 //
-// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -113166,7 +113759,7 @@ func (c *ClientWithResponses) QueryDatabaseWithBodyWithResponse(ctx context.Cont
 
 // QueryDatabaseWithResponse Run SQL on a database (audited)
 //
-// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
+// Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -113374,7 +113967,7 @@ func (c *ClientWithResponses) BrowseDatabaseTableWithResponse(ctx context.Contex
 
 // ListDatabaseTablesWithResponse List the tables of a SQL database
 //
-// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.
+// Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -113750,6 +114343,66 @@ func (c *ClientWithResponses) LinkServiceGitWithResponse(ctx context.Context, se
 		return nil, err
 	}
 	return ParseLinkServiceGitResponse(rsp)
+}
+
+// GetServiceGitPollWithResponse Get a service's check for new commits
+//
+// `enabled: false` when the service does not check. `updateAvailable` is true when the branch head the last check saw differs from the running commit.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /services/{serviceId}/git-poll (the `GetServiceGitPoll` operationId).
+func (c *ClientWithResponses) GetServiceGitPollWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*GetServiceGitPollResponse, error) {
+	rsp, err := c.GetServiceGitPoll(ctx, serviceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetServiceGitPollResponse(rsp)
+}
+
+// SetServiceGitPollWithBodyWithResponse Check a service's repository for new commits
+//
+// For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /services/{serviceId}/git-poll (the `SetServiceGitPoll` operationId).
+func (c *ClientWithResponses) SetServiceGitPollWithBodyWithResponse(ctx context.Context, serviceId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetServiceGitPollResponse, error) {
+	rsp, err := c.SetServiceGitPollWithBody(ctx, serviceId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetServiceGitPollResponse(rsp)
+}
+
+// SetServiceGitPollWithResponse Check a service's repository for new commits
+//
+// For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /services/{serviceId}/git-poll (the `SetServiceGitPoll` operationId).
+func (c *ClientWithResponses) SetServiceGitPollWithResponse(ctx context.Context, serviceId string, body SetServiceGitPollJSONRequestBody, reqEditors ...RequestEditorFn) (*SetServiceGitPollResponse, error) {
+	rsp, err := c.SetServiceGitPoll(ctx, serviceId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetServiceGitPollResponse(rsp)
+}
+
+// CheckServiceGitPollWithResponse Check a service's repository for new commits now
+//
+// Reads the branch head right away and returns the state. It never deploys. A failure to reach the remote is reported in `error`, not as an HTTP error. For a service that does not check on a schedule, nothing is stored and the head is only in the answer.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /services/{serviceId}/git-poll/check (the `CheckServiceGitPoll` operationId).
+func (c *ClientWithResponses) CheckServiceGitPollWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*CheckServiceGitPollResponse, error) {
+	rsp, err := c.CheckServiceGitPoll(ctx, serviceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseCheckServiceGitPollResponse(rsp)
 }
 
 // ListServiceIncidentsWithResponse List a service's health incidents
@@ -140852,6 +141505,217 @@ func ParseLinkServiceGitResponse(rsp *http.Response) (*LinkServiceGitResponse, e
 			return nil, err
 		}
 		response.ApplicationproblemJSON502 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetServiceGitPollResponse parses an HTTP response from a GetServiceGitPollWithResponse call
+func ParseGetServiceGitPollResponse(rsp *http.Response) (*GetServiceGitPollResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetServiceGitPollResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GitPollView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetServiceGitPollResponse parses an HTTP response from a SetServiceGitPollWithResponse call
+func ParseSetServiceGitPollResponse(rsp *http.Response) (*SetServiceGitPollResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetServiceGitPollResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GitPollView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 412:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON412 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseCheckServiceGitPollResponse parses an HTTP response from a CheckServiceGitPollWithResponse call
+func ParseCheckServiceGitPollResponse(rsp *http.Response) (*CheckServiceGitPollResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &CheckServiceGitPollResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest GitPollView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error

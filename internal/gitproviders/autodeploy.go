@@ -23,6 +23,8 @@ type pendingCommit struct {
 	Message string `json:"message"`
 	Author  string `json:"author"`
 	Branch  string `json:"branch"`
+	// Note says how the commit was found when it was not pushed (the deployment's message).
+	Note string `json:"note,omitempty"`
 }
 
 func jsonUnmarshal(raw []byte, v any) error { return json.Unmarshal(raw, v) }
@@ -86,11 +88,11 @@ func (s *Service) onPush(ctx context.Context, conn db.GitConnection, ev PushEven
 			continue
 		}
 		if sg.WaitForCi {
-			notes = append(notes, s.parkForCI(ctx, sg.ServiceID, ev, name))
+			notes = append(notes, s.parkForCI(ctx, sg.ServiceID, ev, name, ""))
 			continue
 		}
 		commit := &deployments.CommitInfo{SHA: ev.CommitSHA, Message: ev.CommitMessage, Author: ev.Author, Branch: ev.Branch}
-		id, note := s.deployPush(ctx, sg.ServiceID, commit, name)
+		id, note := s.deployPush(ctx, sg.ServiceID, commit, name, "")
 		if id != uuid.Nil {
 			started = append(started, id)
 		}
@@ -127,13 +129,15 @@ func (s *Service) serviceLabel(ctx context.Context, id uuid.UUID) string {
 	return id.String()[:8]
 }
 
-// deployPush starts a git_push deployment. It returns the deployment id (nil
-// when none was started) and a note for the delivery log.
-func (s *Service) deployPush(ctx context.Context, serviceID uuid.UUID, commit *deployments.CommitInfo, label string) (uuid.UUID, string) {
+// deployPush starts a git_push deployment. message is the deployment's
+// message (how a commit that was not pushed was found, empty for a push). It
+// returns the deployment id (nil when none was started) and a note for the
+// delivery log.
+func (s *Service) deployPush(ctx context.Context, serviceID uuid.UUID, commit *deployments.CommitInfo, label, message string) (uuid.UUID, string) {
 	if s.dep == nil {
 		return uuid.Nil, label + ": deployments are unavailable"
 	}
-	v, err := s.dep.DeployInternal(ctx, serviceID, deployments.TriggerGitPush, commit, "")
+	v, err := s.dep.DeployInternal(ctx, serviceID, deployments.TriggerGitPush, commit, message)
 	if err == nil {
 		s.enqueueStatus(ctx, v.ID)
 		return v.ID, "deploying " + label
@@ -141,7 +145,7 @@ func (s *Service) deployPush(ctx context.Context, serviceID uuid.UUID, commit *d
 	var ae *apierr.Error
 	if errors.As(err, &ae) {
 		if ae.Code == "deployment_in_progress" {
-			raw, _ := json.Marshal(pendingCommit{SHA: commit.SHA, Message: commit.Message, Author: commit.Author, Branch: commit.Branch})
+			raw, _ := json.Marshal(pendingCommit{SHA: commit.SHA, Message: commit.Message, Author: commit.Author, Branch: commit.Branch, Note: message})
 			if qerr := s.q.SetServiceGitPending(ctx, db.SetServiceGitPendingParams{ServiceID: serviceID, PendingCommit: raw}); qerr != nil {
 				s.log.Error("queue push", "service", serviceID.String(), "err", qerr)
 				return uuid.Nil, label + ": deployment in progress, the push could not be queued"
@@ -185,7 +189,7 @@ func (s *Service) deployQueued(ctx context.Context) (int, error) {
 		if cfg, err := s.pushConfig(ctx, sc); err != nil || cfg.GitBranch != pc.Branch {
 			continue // the branch changed meanwhile
 		}
-		depID, note := s.deployPush(ctx, id, &deployments.CommitInfo{SHA: pc.SHA, Message: pc.Message, Author: pc.Author, Branch: pc.Branch}, sc.Service.Slug)
+		depID, note := s.deployPush(ctx, id, &deployments.CommitInfo{SHA: pc.SHA, Message: pc.Message, Author: pc.Author, Branch: pc.Branch}, sc.Service.Slug, pc.Note)
 		s.log.Info("queued push", "service", sc.Service.Slug, "commit", shortSHA(pc.SHA), "note", note)
 		if depID != uuid.Nil {
 			started++

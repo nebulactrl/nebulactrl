@@ -98,6 +98,8 @@ A key not allowed for the kind is `not_allowed_for_kind`.
 | `git.submodules` | `auto`, `on`, `off` | Default `auto`. |
 | `git.auto_deploy` | bool | Default `true` on a new link; needs `connection`. immediate |
 | `git.wait_for_ci` | bool | Default `false`; needs `connection`, and a connection that can read CI (not Bitbucket or webhook-only). A push deploys only after its checks pass. immediate |
+| `git.poll` | `off`, `1m`, `5m`, `15m`, `60m` | Default `off`. "Check for new commits": reads the branch head from the remote that often, for a service without a working webhook. Works with a plain `url` and with a `connection`; `watch_paths` do not apply. A commit found this way deploys with trigger `git_push`. immediate |
+| `git.poll_deploy` | bool | Default `true`. Whether a new commit found by `git.poll` deploys; `false` only shows it as an available update. Only used while `git.poll` is on. immediate |
 | `git.watch_paths` | array, at most 50 | Replaces the list; globs and `!` exclusions. immediate |
 | `build.type` | `auto`, `dockerfile`, `railpack`, `starter:<node\|python\|go\|ruby\|php\|static>` | Default `auto`. |
 | `build.dockerfile`, `build.context` | relative path | Defaults `Dockerfile` and `.`. No absolute paths, no `..`. |

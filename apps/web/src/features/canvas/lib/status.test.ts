@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test";
+import type { Service } from "#/api/models";
 import { makeDeployment, makeObserved, makeService } from "./fixtures";
 import {
 	canCancel,
@@ -250,6 +251,73 @@ describe("phases", () => {
 		expect(s.lineTone).toBe("ok");
 	});
 
+	describe("a new commit found by checking", () => {
+		const poll = (over: Partial<NonNullable<Service["gitPoll"]>> = {}) => ({
+			enabled: true,
+			intervalMinutes: 5 as const,
+			deploy: false,
+			headSha: "abc1234def5678",
+			headBranch: "main",
+			updateAvailable: true,
+			...over,
+		});
+		const live = (over: Parameters<typeof makeService>[0] = {}) =>
+			makeService({
+				currentDeploymentId: "dep-1",
+				latestDeployment: makeDeployment("succeeded", {
+					finishedAt: new Date(Date.now() - 2 * 3_600_000).toISOString(),
+				}),
+				observed: makeObserved(),
+				...over,
+			});
+
+		test("a live card says so after its age", () => {
+			const s = cardStatus(live({ gitPoll: poll() }));
+			expect(s.line).toBe("Live · 2h ago · New commit abc1234");
+			expect(s.pill).toBe("Live");
+			expect(s.lineTone).toBe("ok");
+		});
+
+		test("nothing is added without an update or without polling", () => {
+			expect(
+				cardStatus(live({ gitPoll: poll({ updateAvailable: false }) })).line,
+			).toBe("Live · 2h ago");
+			expect(cardStatus(live({ gitPoll: null })).line).toBe("Live · 2h ago");
+		});
+
+		test("a deploy in flight keeps its own line", () => {
+			const s = cardStatus(
+				makeService({
+					latestDeployment: makeDeployment("building"),
+					gitPoll: poll(),
+				}),
+			);
+			expect(s.line).toMatch(/^Building/);
+			expect(s.line).not.toContain("New commit");
+		});
+
+		test("failure, stopped and degraded states are never overridden", () => {
+			const failed = cardStatus(
+				live({
+					latestDeployment: makeDeployment("failed"),
+					gitPoll: poll(),
+				}),
+			);
+			expect(failed.line).toBe("Failed");
+			const stopped = cardStatus(
+				live({ desiredState: "stopped", gitPoll: poll() }),
+			);
+			expect(stopped.line).toBe("Stopped");
+			const degraded = cardStatus(
+				live({
+					observed: makeObserved({ health: "unhealthy" }),
+					gitPoll: poll(),
+				}),
+			);
+			expect(degraded.line).toBe("Unhealthy");
+		});
+	});
+
 	test("replicas below desired read Degraded", () => {
 		const s = cardStatus(
 			makeService({
@@ -404,6 +472,22 @@ describe("cron services", () => {
 		expect(s.kind).toBe("live");
 		expect(s.lineTone).toBe("ok");
 		expect(s.line).toBe("next in 6m · last ok 2m ago");
+	});
+
+	test("a scheduled service reports a new commit it has not run yet", () => {
+		const s = cardStatus(
+			cronService({
+				gitPoll: {
+					enabled: true,
+					intervalMinutes: 15,
+					deploy: false,
+					headSha: "abc1234def5678",
+					headBranch: "main",
+					updateAvailable: true,
+				},
+			}),
+		);
+		expect(s.line).toBe("next in 6m · last ok 2m ago · New commit abc1234");
 	});
 
 	test("a service that has not run yet says so", () => {

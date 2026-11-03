@@ -135,7 +135,6 @@ const BLOCKED_MESSAGE: Record<string, string> = {
 	service_stopped: "Start the database to browse its data.",
 	not_deployed: "Deploy the database first.",
 	database_fenced: "This database is fenced.",
-	agent_too_old: "Update the agent on this server.",
 	data_not_supported: "This database has no data browser.",
 	server_offline:
 		"The server is offline. Its data is unavailable until it is back.",

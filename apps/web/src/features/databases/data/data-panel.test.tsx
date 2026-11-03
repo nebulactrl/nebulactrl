@@ -13,6 +13,17 @@ const TABLES = "GET /services/:serviceId/database/tables";
 const ROWS = "POST /services/:serviceId/database/rows";
 const QUERY = "POST /services/:serviceId/database/query";
 
+/** The signed-in principal as an owner or a developer (writes are for owners and admins). */
+function me(role: "owner" | "developer") {
+	return {
+		"GET /me": {
+			body: make("MeBody", {
+				principal: { type: "user", label: "Ada", scopes: [], role },
+			}),
+		},
+	};
+}
+
 const service: Service = makeService({
 	id: "svc-db",
 	name: "Orders DB",
@@ -140,7 +151,6 @@ describe("blocked states", () => {
 		["service_stopped", "Start the database to browse its data."],
 		["not_deployed", "Deploy the database first."],
 		["database_fenced", "This database is fenced."],
-		["agent_too_old", "Update the agent on this server."],
 	];
 	for (const [code, message] of blocked) {
 		test(`${code} says "${message}"`, async () => {
@@ -267,6 +277,7 @@ describe("the SQL console", () => {
 	async function consoleReady(routes: Parameters<typeof stubApi>[0]) {
 		const api = stubApi({
 			[TABLES]: { body: tables() },
+			...me("owner"),
 			...routes,
 		});
 		const view = await open(false);
@@ -298,6 +309,18 @@ describe("the SQL console", () => {
 				sql: "SELECT 1; INSERT INTO t VALUES (1)",
 			},
 		);
+	});
+
+	test("a developer gets no Allow writes switch and is told why", async () => {
+		await consoleReady({ ...me("developer"), [QUERY]: { body: result([]) } });
+		expect(
+			await screen.findByText(
+				"Read-only: only owners and admins can change data here.",
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.queryByRole("switch", { name: "Allow writes" }),
+		).not.toBeInTheDocument();
 	});
 
 	test("says when a set was cut at the row limit", async () => {
@@ -380,6 +403,7 @@ describe("the SQL console", () => {
 	test("a write in production asks for the service name before it runs", async () => {
 		const api = stubApi({
 			[TABLES]: { body: tables() },
+			...me("owner"),
 			[QUERY]: { body: result([set([], [], { commandTag: "DELETE 1" })]) },
 		});
 		await open(true);
@@ -412,6 +436,7 @@ describe("the SQL console", () => {
 	test("a read in production runs without a question", async () => {
 		const api = stubApi({
 			[TABLES]: { body: tables() },
+			...me("owner"),
 			[QUERY]: { body: result([set(["a"], [["1"]])]) },
 		});
 		await open(true);
@@ -427,6 +452,7 @@ describe("the SQL console", () => {
 		let answered = 0;
 		stubApi({
 			[TABLES]: { body: tables() },
+			...me("owner"),
 			[QUERY]: async () => {
 				answered += 1;
 				return answered === 1

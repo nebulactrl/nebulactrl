@@ -27,6 +27,7 @@ func newServicesCmd(c *cli) *cobra.Command {
 		newServicesRestartCmd(c),
 		newServicesScaleCmd(c),
 		newServicesMaintenanceCmd(c),
+		newServicesGitPollCmd(c),
 		newServicesLogsCmd(c),
 		newServicesDownloadLogsCmd(c),
 		newServicesRunCmd(c),

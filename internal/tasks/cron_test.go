@@ -42,13 +42,6 @@ func (f *fixture) deployedCron() (db.Service, uuid.UUID) {
 	return sv, taskID
 }
 
-func (f *fixture) setCapabilities(caps ...string) {
-	f.t.Helper()
-	facts, _ := json.Marshal(agentprotocol.Facts{OS: "linux", Capabilities: caps})
-	_, err := f.pool.Exec(context.Background(), "UPDATE servers SET facts = $2 WHERE id = $1", f.server.ID, facts)
-	require.NoError(f.t, err)
-}
-
 func TestCronServiceRunIsDispatchedAsAServiceRun(t *testing.T) {
 	f := newFixture(t)
 	sv, taskID := f.deployedCron()
@@ -119,7 +112,7 @@ func TestCronTaskIsHiddenButRunnable(t *testing.T) {
 	require.True(t, p.ServiceRun)
 }
 
-func TestCronTickIsSkippedWhilePausedAndOnATooOldAgent(t *testing.T) {
+func TestCronTickIsSkippedWhilePaused(t *testing.T) {
 	f := newFixture(t)
 	sv, _ := f.deployedCron()
 
@@ -133,20 +126,9 @@ func TestCronTickIsSkippedWhilePausedAndOnATooOldAgent(t *testing.T) {
 	require.Equal(t, "the service is stopped", runs[0].Error)
 	require.Empty(t, f.disp.cmds)
 
-	// Resumed, but the agent predates cron services: a skipped run says why.
+	// Resumed: the schedule runs again.
 	_, err = f.pool.Exec(context.Background(), "UPDATE services SET desired_state = 'running' WHERE id = $1", sv.ID)
 	require.NoError(t, err)
-	f.setCapabilities(agentprotocol.CapProxyV2)
-	f.clock = time.Date(2026, 10, 26, 12, 10, 1, 0, time.UTC)
-	require.NoError(t, f.svc.Tick(f.ctx))
-	runs = f.runs(sv.ID)
-	require.Len(t, runs, 2)
-	require.Equal(t, StatusSkipped, runs[0].Status)
-	require.Contains(t, runs[0].Error, "Update the agent on agent1 to run cron services")
-	require.Empty(t, f.disp.cmds)
-
-	// A capable agent runs it.
-	f.setCapabilities(agentprotocol.CapProxyV2, agentprotocol.CapCronService)
 	f.clock = time.Date(2026, 10, 26, 12, 15, 1, 0, time.UTC)
 	require.NoError(t, f.svc.Tick(f.ctx))
 	require.Len(t, f.disp.cmds, 1)

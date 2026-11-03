@@ -45,7 +45,7 @@ type blocker struct {
 // runnable checks that a run of the service can be dispatched now: it has been
 // deployed, sits on a server and that server is online. It returns the server
 // the service's current release runs on.
-func (s *Service) runnable(ctx context.Context, q *db.Queries, sc services.Scope, action string) (db.GetServiceCurrentReleaseRow, *blocker, error) {
+func (s *Service) runnable(ctx context.Context, q *db.Queries, sc services.Scope) (db.GetServiceCurrentReleaseRow, *blocker, error) {
 	var zero db.GetServiceCurrentReleaseRow
 	if sc.Service.Kind == services.KindRoute {
 		return zero, &blocker{"not_applicable", "a route service has no container to run commands in"}, nil
@@ -73,11 +73,6 @@ func (s *Service) runnable(ctx context.Context, q *db.Queries, sc services.Scope
 	}
 	if !online {
 		return zero, &blocker{"server_offline", "the server " + srv.Name + " is offline"}, nil
-	}
-	if action == ActionService {
-		if has, known := services.ServerHasCapability(srv, agentprotocol.CapCronService); known && !has {
-			return zero, &blocker{"agent_too_old", "Update the agent on " + srv.Name + " to run cron services."}, nil
-		}
 	}
 	cur.DeploymentServerID = serverID
 	return cur, nil, nil
@@ -113,7 +108,7 @@ func (s *Service) startRun(ctx context.Context, tx pgx.Tx, in startInput) (db.Ta
 		return s.startRestartRun(ctx, tx, in)
 	}
 	q := db.New(tx)
-	cur, b, err := s.runnable(ctx, q, in.sc, in.action)
+	cur, b, err := s.runnable(ctx, q, in.sc)
 	if err != nil {
 		return db.TaskRun{}, err
 	}
@@ -182,7 +177,7 @@ func (s *Service) startRun(ctx context.Context, tx pgx.Tx, in startInput) (db.Ta
 // left alone: a stopped service is never started by a schedule.
 func (s *Service) startRestartRun(ctx context.Context, tx pgx.Tx, in startInput) (db.TaskRun, error) {
 	q := db.New(tx)
-	cur, b, err := s.runnable(ctx, q, in.sc, ActionRestart)
+	cur, b, err := s.runnable(ctx, q, in.sc)
 	if err != nil {
 		return db.TaskRun{}, err
 	}

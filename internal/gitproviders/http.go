@@ -13,6 +13,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/api"
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
+	"github.com/nebulactrl/nebulactrl/internal/services"
 )
 
 type ConnectionPath struct {
@@ -122,6 +123,17 @@ type linkInput struct {
 		AutoDeploy   *bool     `json:"autoDeploy,omitempty" doc:"Deploy on every push to the branch (default: keep the current setting, true for a new link)"`
 		WatchPaths   *[]string `json:"watchPaths,omitempty" maxItems:"50" doc:"Monorepo watch paths: globs relative to the repository root ('apps/api/**', 'packages/*/src', '!**/*.md'); a push only deploys when a changed file matches. Empty watches everything."`
 		WaitForCI    *bool     `json:"waitForCi,omitempty" doc:"Deploy a push only after its CI checks pass (default: keep the current setting, false for a new link). A push with no checks deploys after 2 minutes. 422 ci_not_supported on Bitbucket and webhook-only connections."`
+	}
+}
+
+type gitPollOutput struct{ Body services.GitPollView }
+
+type gitPollInput struct {
+	ServiceGitPath
+	Body struct {
+		Enabled         bool  `json:"enabled" doc:"Check the branch head on a schedule (false: stop checking)"`
+		IntervalMinutes *int  `json:"intervalMinutes,omitempty" enum:"1,5,15,60" doc:"Minutes between checks (default 5)"`
+		Deploy          *bool `json:"deploy,omitempty" doc:"Deploy a new commit found by checking (default true); false only shows it"`
 	}
 }
 
@@ -333,6 +345,46 @@ func Register(h huma.API, s *Service) {
 			return nil, err
 		}
 		return &linkOutput{Body: v}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "getServiceGitPoll", Method: http.MethodGet, Path: "/services/{serviceId}/git-poll", Tags: []string{"services", "git"},
+		Summary: "Get a service's check for new commits", Description: "`enabled: false` when the service does not check. `updateAvailable` is true when the branch head the last check saw differs from the running commit.",
+		Errors: append(errs, http.StatusNotFound),
+	}, policy.ScopeProjectsRead), func(ctx context.Context, in *ServiceGitPath) (*gitPollOutput, error) {
+		v, err := s.GetGitPoll(ctx, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		return &gitPollOutput{Body: v}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "setServiceGitPoll", Method: http.MethodPut, Path: "/services/{serviceId}/git-poll", Tags: []string{"services", "git"},
+		Summary: "Check a service's repository for new commits",
+		Description: "For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). " +
+			"A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. " +
+			"It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).",
+		Errors: append(errs, http.StatusNotFound, http.StatusPreconditionFailed, http.StatusUnprocessableEntity),
+	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *gitPollInput) (*gitPollOutput, error) {
+		v, err := s.PutGitPoll(ctx, in.ID, GitPollInput{Enabled: in.Body.Enabled, IntervalMinutes: in.Body.IntervalMinutes, Deploy: in.Body.Deploy})
+		if err != nil {
+			return nil, err
+		}
+		return &gitPollOutput{Body: v}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "checkServiceGitPoll", Method: http.MethodPost, Path: "/services/{serviceId}/git-poll/check", Tags: []string{"services", "git"},
+		Summary:     "Check a service's repository for new commits now",
+		Description: "Reads the branch head right away and returns the state. It never deploys. A failure to reach the remote is reported in `error`, not as an HTTP error. For a service that does not check on a schedule, nothing is stored and the head is only in the answer.",
+		Errors:      append(errs, http.StatusNotFound, http.StatusUnprocessableEntity),
+	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *ServiceGitPath) (*gitPollOutput, error) {
+		v, err := s.CheckGitPoll(ctx, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		return &gitPollOutput{Body: v}, nil
 	})
 
 	huma.Register(h, api.WithScopes(huma.Operation{

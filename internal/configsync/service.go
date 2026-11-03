@@ -53,9 +53,10 @@ type MonitorStore interface {
 	UpdateMonitor(ctx context.Context, serviceID uuid.UUID, v uptime.MonitorView) (uptime.MonitorView, error)
 }
 
-// GitLinker links a service to a repository (gitproviders.Service).
+// GitLinker links a service to a repository and sets how it checks for new commits (gitproviders.Service).
 type GitLinker interface {
 	Link(ctx context.Context, serviceID uuid.UUID, in gitproviders.LinkInput) (gitproviders.GitLinkView, error)
+	PutGitPoll(ctx context.Context, serviceID uuid.UUID, in gitproviders.GitPollInput) (services.GitPollView, error)
 }
 
 // DNSSettings changes the Cloudflare settings of a domain (cloudflare.Service).

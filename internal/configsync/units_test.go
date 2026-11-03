@@ -1805,7 +1805,7 @@ func TestUnitOpsForEveryCatalogID(t *testing.T) {
 		"volumes.*":      "volumeOps",
 		"scale.replicas": "scaleOps", "scale.autoscaling.enabled": "scaleOps", "scale.autoscaling.min": "scaleOps",
 		"scale.autoscaling.max": "scaleOps", "scale.autoscaling.targetCpuPercent": "scaleOps",
-		"git.link": "gitOps", "git.auto_deploy": "gitOps", "git.wait_for_ci": "gitOps", "git.watch_paths": "gitOps",
+		"git.link": "gitOps", "git.auto_deploy": "gitOps", "git.wait_for_ci": "gitOps", "git.poll": "gitOps", "git.poll_deploy": "gitOps", "git.watch_paths": "gitOps",
 		"uptime.enabled": "uptimeOps", "uptime.alerts": "uptimeOps", "uptime.failureThreshold": "uptimeOps",
 		"uptime.recoveryThreshold": "uptimeOps", "uptime.reminderMinutes": "uptimeOps",
 		"tasks.*": "taskOps", "backups.*": "backupOps",

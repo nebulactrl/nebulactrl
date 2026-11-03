@@ -2,8 +2,10 @@ package configsync
 
 import (
 	"encoding/json"
+	"strconv"
 	"strings"
 
+	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
 )
 
@@ -77,10 +79,57 @@ func (uptimeOps) desired(_ *planCtx, _ *liveService, fv projectconfig.FieldValue
 	return view(n, display(n)), nil
 }
 
-// gitOps handles git.link, git.auto_deploy, git.wait_for_ci and git.watch_paths (immediate).
+// gitOps handles git.link, git.auto_deploy, git.wait_for_ci, git.poll, git.poll_deploy and git.watch_paths (immediate).
 type gitOps struct{}
 
+// gitPollOff is the file's name of "does not check for new commits".
+const gitPollOff = "off"
+
+// gitPollName is the file's name of a check interval ("5m").
+func gitPollName(minutes int) string { return strconv.Itoa(minutes) + "m" }
+
+// gitPollMinutes reads the interval of a git.poll value; ok is false for "off" and anything else.
+func gitPollMinutes(name string) (minutes int, ok bool) {
+	n, err := strconv.Atoi(strings.TrimSuffix(name, "m"))
+	if err != nil || !strings.HasSuffix(name, "m") || n <= 0 {
+		return 0, false
+	}
+	return n, true
+}
+
+func isGitPollField(id string) bool { return id == "git.poll" || id == "git.poll_deploy" }
+
+// livePollName is the live git.poll value: "off" without a poll row.
+func livePollName(p *db.ServiceGitPoll) string {
+	if p == nil {
+		return gitPollOff
+	}
+	return gitPollName(int(p.IntervalMinutes))
+}
+
+// livePollDeploy is the live git.poll_deploy value: the default (true) without a poll row.
+func livePollDeploy(p *db.ServiceGitPoll) bool { return p == nil || p.Deploy }
+
+// pollStoresDeploy reports whether the service checks for new commits once the file is applied,
+// which is the only time poll_deploy is stored.
+func pollStoresDeploy(pc *planCtx, ls *liveService) bool {
+	if pc != nil && pc.rs != nil {
+		if f, ok := pc.rs.Fields["git.poll"]; ok {
+			return asString(f.Value) != gitPollOff
+		}
+	}
+	return ls != nil && ls.Poll != nil
+}
+
 func (gitOps) live(pc *planCtx, ls *liveService, id, _ string) (fieldView, bool) {
+	switch id {
+	case "git.poll":
+		name := livePollName(ls.Poll)
+		return view(name, name), true
+	case "git.poll_deploy":
+		b := livePollDeploy(ls.Poll)
+		return view(b, display(b)), true
+	}
 	g := ls.Git
 	if g == nil {
 		return fieldView{}, false
@@ -106,8 +155,25 @@ func nonNil(s []string) []string {
 	return s
 }
 
-func (gitOps) desired(pc *planCtx, _ *liveService, fv projectconfig.FieldValue) (fieldView, error) {
+func (gitOps) desired(pc *planCtx, ls *liveService, fv projectconfig.FieldValue) (fieldView, error) {
 	switch fv.ID {
+	case "git.poll":
+		name := asString(fv.Value)
+		if _, ok := gitPollMinutes(name); !ok && name != gitPollOff {
+			return fieldView{}, refErr("invalid_value", "git.poll must be off, 1m, 5m, 15m or 60m")
+		}
+		return view(name, name), nil
+	case "git.poll_deploy":
+		b, _ := asBool(fv.Value)
+		if !pollStoresDeploy(pc, ls) {
+			// Nothing stores the choice while the service does not check: it is the live value, never a change.
+			var live *db.ServiceGitPoll
+			if ls != nil {
+				live = ls.Poll
+			}
+			b = livePollDeploy(live)
+		}
+		return view(b, display(b)), nil
 	case "git.link":
 		l, ok := fv.Value.(projectconfig.GitLink)
 		if !ok {

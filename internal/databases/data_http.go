@@ -53,7 +53,7 @@ func registerData(h huma.API, svc *Service) {
 		OperationID: "listDatabaseTables", Method: http.MethodGet, Path: "/services/{serviceId}/database/tables", Tags: []string{"databases"},
 		Summary: "List the tables of a SQL database",
 		Description: "Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` " +
-			"and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.",
+			"and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`.",
 		Errors: errs(nf, cf, uc, off, slow),
 	}, policy.ScopeDeploymentsWrite), func(ctx context.Context, in *serviceIDInput) (*dataTablesOutput, error) {
 		r, err := svc.ListTables(ctx, in.ID)
@@ -81,7 +81,7 @@ func registerData(h huma.API, svc *Service) {
 		OperationID: "queryDatabase", Method: http.MethodPost, Path: "/services/{serviceId}/database/query", Tags: []string{"databases"},
 		Summary: "Run SQL on a database (audited)",
 		Description: "Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set " +
-			"(at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica " +
+			"(at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica " +
 			"(409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) " +
 			"and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. " +
 			"422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.",

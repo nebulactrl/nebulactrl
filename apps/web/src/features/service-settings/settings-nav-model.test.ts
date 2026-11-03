@@ -529,6 +529,22 @@ describe("searchSettings", () => {
 		expect(searchSettings("webhook", route)).toEqual([]);
 	});
 
+	test("checking for new commits is a git source setting, found by what people call it", () => {
+		for (const query of [
+			"check for new commits",
+			"polling",
+			"poll",
+			"latest",
+		]) {
+			expect(top(query)).toBe("Check for new commits");
+		}
+		const hit = searchSettings("polling", app)[0];
+		expect(hit?.entry.target).toBe("set-git-poll");
+		expect(hit?.category).toBe("general");
+		expect(searchSettings("polling", image)).toEqual([]);
+		expect(searchSettings("polling", route)).toEqual([]);
+	});
+
 	test("finds the processes by what people call them", () => {
 		expect(top("processes")).toBe("Processes");
 		expect(top("sidekiq")).toBe("Processes");

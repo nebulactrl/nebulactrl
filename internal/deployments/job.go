@@ -509,12 +509,6 @@ func (s *Service) prepare(ctx context.Context, dc depCtx, commitSHA, overrideIma
 			return nil, err
 		}
 	}
-	if err := checkRestartPolicyDeploy(cfg, srv); err != nil {
-		return nil, err
-	}
-	if err := checkCronDeploy(cfg, srv); err != nil {
-		return nil, err
-	}
 	if sc.Service.Kind == services.KindRoute {
 		// Route-only deployment: no container, the agent just applies the table.
 		if cfg.Route == nil {

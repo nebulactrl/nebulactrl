@@ -132,6 +132,7 @@ Exit codes: `0` success, `1` failure, `2` wrong flags or arguments.
 | [`nebulactrl services deploy-hook`](#nebulactrl-services-deploy-hook) | Show, enable, disable or rotate a service's deploy hook |
 | [`nebulactrl services docker`](#nebulactrl-services-docker) | Show or set a service's Docker options (staged until the next deployment) |
 | [`nebulactrl services download-logs`](#nebulactrl-services-download-logs) | Download a service's stored runtime logs as a file |
+| [`nebulactrl services git-poll`](#nebulactrl-services-git-poll) | Check a service's branch for new commits on a schedule |
 | [`nebulactrl services logs`](#nebulactrl-services-logs) | Show runtime logs of a service |
 | [`nebulactrl services ls`](#nebulactrl-services-ls) | List the services of an environment |
 | [`nebulactrl services maintenance`](#nebulactrl-services-maintenance) | Put a service into maintenance mode, or take it out |
@@ -1828,6 +1829,30 @@ Options:
 | `-o, --output` | string |  | write to this file instead of stdout (created with mode 0600) |
 | `--process` | string |  | services with several processes: only this process' lines (default: every process) |
 | `--to` | string |  | only lines before this time (same forms as --from) |
+
+### nebulactrl services git-poll
+
+Check a service's branch for new commits on a schedule.
+
+```
+nebulactrl services git-poll <service> [--every 1m|5m|15m|60m] [--notify-only|--deploy] [--off] [--check] [flags]
+```
+
+For app and worker services with a git source: look at the branch head every few minutes and deploy a new
+commit, for repositories that cannot send a push webhook. Without flags this shows the state. --every turns
+checking on (5m when you only give --deploy or --notify-only); --notify-only shows a new commit without
+deploying it; --off stops checking; --check looks at the branch head now (it never deploys) and prints the
+result, also while checking is off. A flag you leave out keeps its current value.
+
+Options:
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--check` | bool |  | look at the branch head now and print the result (never deploys) |
+| `--deploy` | bool |  | deploy a new commit that is found (the default; turns checking on at 5m when it is off) |
+| `--every` | string |  | check this often and turn checking on: 1m, 5m, 15m or 60m |
+| `--notify-only` | bool |  | only show a new commit, do not deploy it (turns checking on at 5m when it is off) |
+| `--off` | bool |  | stop checking for new commits |
 
 ### nebulactrl services logs
 

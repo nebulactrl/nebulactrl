@@ -26,6 +26,10 @@ type Timers struct {
 	// "no check for 3 intervals + 30s means unknown" rule; the agent reads the
 	// same variable for its own probe period.
 	UptimeInterval time.Duration
+	// GitPollUnit is the length of one "minute" of a service's check for new
+	// commits: an interval of 5 checks every 5 x GitPollUnit
+	// (NEBULACTRL_GIT_POLL_UNIT; built-in 1m).
+	GitPollUnit time.Duration
 }
 
 // timerVar describes one Timers field: its environment variable and a pointer
@@ -39,6 +43,7 @@ var timerVars = []timerVar{
 	{"NEBULACTRL_MESH_LINK_GRACE", func(t *Timers) *time.Duration { return &t.MeshLinkGrace }},
 	{"NEBULACTRL_REPLICA_BROKEN_AFTER", func(t *Timers) *time.Duration { return &t.ReplicaBrokenAfter }},
 	{"NEBULACTRL_UPTIME_INTERVAL", func(t *Timers) *time.Duration { return &t.UptimeInterval }},
+	{"NEBULACTRL_GIT_POLL_UNIT", func(t *Timers) *time.Duration { return &t.GitPollUnit }},
 }
 
 // minTimer is the shortest accepted value: anything below is a typo, not a

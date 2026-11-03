@@ -210,6 +210,9 @@ func BuildViews(ctx context.Context, q *db.Queries, box *secretbox.Box, rows []d
 	if err := decorateCron(ctx, q, rows, out); err != nil {
 		return nil, err
 	}
+	if err := decorateGitPoll(ctx, q, rows, out); err != nil {
+		return nil, err
+	}
 	if err := decorateNetworks(ctx, q, rows, out); err != nil {
 		return nil, err
 	}

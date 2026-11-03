@@ -306,6 +306,8 @@ export interface ApiSchemas {
 	"GetDrainOutputBody": T.GetDrainOutputBody;
 	"GitHubAppView": T.GitHubAppView;
 	"GitLinkView": T.GitLinkView;
+	"GitPollInputBody": T.GitPollInputBody;
+	"GitPollView": T.GitPollView;
 	"GitRef": T.GitRef;
 	"GrantChange": T.GrantChange;
 	"Group": T.Group;

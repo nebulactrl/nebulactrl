@@ -564,6 +564,13 @@ export const SEARCH_ENTRIES: readonly SearchEntry[] = [
 	entry("source", "Branch", "set-git-branch", ["git", "ref"], "git"),
 	entry(
 		"source",
+		"Check for new commits",
+		"set-git-poll",
+		["poll", "polling", "pull", "latest", "no webhook", "update"],
+		"git",
+	),
+	entry(
+		"source",
 		"Build method",
 		"set-build-type",
 		["builder", "railpack", "dockerfile", "buildpack", "starter", "nixpacks"],

@@ -5,6 +5,7 @@ import {
 	ConstructionIcon,
 	CopyIcon,
 	FolderOpenIcon,
+	GitCommitHorizontalIcon,
 	HammerIcon,
 	HistoryIcon,
 	type LucideIcon,
@@ -46,6 +47,7 @@ import { canCancel } from "./lib/status";
 
 export type ServiceActionId =
 	| "redeploy"
+	| "deploy-latest"
 	| "redeploy-no-cache"
 	| "restart"
 	| "toggle"
@@ -180,6 +182,18 @@ export function useServiceActions(
 							destructive: false,
 						},
 		];
+		// Checking found a commit the running release does not have: deploying
+		// builds the head of the branch, so it is the same request as Redeploy.
+		if (service.gitPoll?.updateAvailable) {
+			menu.splice(1, 0, {
+				id: "deploy-latest",
+				label: "Deploy latest commit",
+				icon: GitCommitHorizontalIcon,
+				run: deployNow,
+				disabled: deploy.isPending,
+				destructive: false,
+			});
+		}
 		// A clean rebuild only means something for a git source; the confirmation
 		// explains the cost, in production too.
 		if (service.sourceType === "git") {

@@ -852,6 +852,12 @@ func (s *exService) git() {
 			}
 		}
 	}
+	if s.emit("git.poll", ls.Poll != nil) {
+		g.Poll = new(livePollName(ls.Poll))
+	}
+	if s.emitIf("git.poll_deploy", ls.Poll != nil && !ls.Poll.Deploy, ls.Poll != nil) {
+		g.PollDeploy = new(livePollDeploy(ls.Poll))
+	}
 	if !linked && cfg.GitURL != "" {
 		if u, ok, stripped := exGitURL(cfg.GitURL); ok {
 			g.URL = new(u)

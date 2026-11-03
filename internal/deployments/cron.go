@@ -11,34 +11,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/cronexpr"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/services"
-	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
-
-// cronNeedsAgent is the blocker of a cron service on a server whose agent
-// cannot deploy it without starting it (an old agent would start the image on
-// every deploy and then run it again on the schedule). A server that never
-// connected has no facts and is assumed to enroll with a current agent.
-func cronNeedsAgent(cfg services.Config, srv *db.Server) *PlanBlocking {
-	if srv == nil || cfg.Cron == nil {
-		return nil
-	}
-	if has, known := services.ServerHasCapability(*srv, agentprotocol.CapCronService); known && !has {
-		return &PlanBlocking{
-			Code:    "agent_too_old",
-			Message: fmt.Sprintf("Update the agent on %s to deploy cron services. No changes were made.", srv.Name),
-		}
-	}
-	return nil
-}
-
-// checkCronDeploy refuses, before anything is persisted, to deploy a cron
-// service to an agent that cannot run it.
-func checkCronDeploy(cfg services.Config, srv db.Server) error {
-	if b := cronNeedsAgent(cfg, &srv); b != nil {
-		return userErrorf("%s", b.Message)
-	}
-	return nil
-}
 
 // syncCronTask makes the service's hidden schedule task (action "service") match
 // the config of the release that now runs: a cron release upserts it with the

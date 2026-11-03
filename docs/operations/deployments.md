@@ -121,7 +121,7 @@ Retention: after each successful deploy the agent keeps the newest `imageRetenti
 
 ### Restart policy
 
-**Settings → Deploy → Releases → Restart policy** (`restartPolicy`, `restart_policy` in nebula.toml) says what Docker does when the container exits on its own: `always` (the default, Docker's `unless-stopped`) restarts it, `on-failure` restarts it after a non-zero exit up to `restartMaxRetries` times (1–100, default 10) and then leaves it stopped, `never` leaves it stopped. A deliberate stop is never undone. It is staged like any setting and applies to the containers of the next deployment; replicas added later keep it. One-shot services, databases, stacks and routes have no restart policy. A server whose agent predates the setting refuses a deployment with a non-default policy (`agent_too_old`): update the agent first.
+**Settings → Deploy → Releases → Restart policy** (`restartPolicy`, `restart_policy` in nebula.toml) says what Docker does when the container exits on its own: `always` (the default, Docker's `unless-stopped`) restarts it, `on-failure` restarts it after a non-zero exit up to `restartMaxRetries` times (1–100, default 10) and then leaves it stopped, `never` leaves it stopped. A deliberate stop is never undone. It is staged like any setting and applies to the containers of the next deployment; replicas added later keep it. One-shot services, databases, stacks and routes have no restart policy.
 
 ## Moving a service to another server
 

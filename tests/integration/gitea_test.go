@@ -222,8 +222,14 @@ func TestGiteaPushDeploysAndReportsStatus(t *testing.T) {
 // commitFile adds a file to the main branch of tester/app and returns the commit sha.
 func (g *giteaAPI) commitFile(path, message string) string {
 	g.t.Helper()
+	return g.commitContent(path, "FROM scratch\nLABEL nebulactrl.test="+path+"\n", message)
+}
+
+// commitContent adds a file with the given content to the main branch of tester/app and returns the commit sha.
+func (g *giteaAPI) commitContent(path, content, message string) string {
+	g.t.Helper()
 	code, raw := g.do("POST", "/repos/tester/app/contents/"+path, map[string]any{
-		"content": base64.StdEncoding.EncodeToString([]byte("FROM scratch\nLABEL nebulactrl.test=" + path + "\n")), "message": message, "branch": "main",
+		"content": base64.StdEncoding.EncodeToString([]byte(content)), "message": message, "branch": "main",
 	})
 	require.Equal(g.t, http.StatusCreated, code, string(raw))
 	var out struct {
@@ -345,4 +351,98 @@ func TestGiteaWaitForCI(t *testing.T) {
 	require.Empty(t, waiting(), "a failed push is dropped")
 	time.Sleep(15 * time.Second)
 	require.Len(t, pushDeployments(), 1, "the failing commit must not deploy")
+}
+
+// TestGitPollDeploysWithoutWebhook: a service created from a plain clone URL
+// (no connection, so no webhook) checks the branch head on a schedule and
+// deploys a commit it did not know. With "deploy" off, a new commit is only
+// shown (updateAvailable) and never deployed.
+func TestGitPollDeploysWithoutWebhook(t *testing.T) {
+	requireTier(t, tierFull)
+	g := startGitea(t)
+	app := appFixture(t)
+	s := ExclusiveStack(t)
+
+	// A public repository: the plain clone URL needs no token. Its Dockerfile builds on the fixture app image.
+	code, raw := g.do("POST", "/user/repos", map[string]any{"name": "app", "auto_init": true, "default_branch": "main", "private": false})
+	require.Equal(t, http.StatusCreated, code, string(raw))
+	first := g.commitContent("Dockerfile", "FROM "+app.AppImage+"\n", "Add Dockerfile")
+
+	svc := s.NewService(SvcSpec{Name: "app", GitURL: g.base + "/tester/app.git"})
+	dep := s.DeployOK(svc.ID)
+	require.Equal(t, first, dep.Obj("commit").Str("sha"), "the first deployment builds the branch head")
+	pollPath := "/services/" + svc.ID + "/git-poll"
+	view := func() J {
+		r := s.Do("GET", pollPath, nil)
+		require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
+		return r.JSON()
+	}
+	deploymentsOf := func(sha string) []J {
+		var out []J
+		for _, d := range s.Do("GET", "/services/"+svc.ID+"/deployments", nil).JSON().Items() {
+			if d.Obj("commit").Str("sha") == sha {
+				out = append(out, d)
+			}
+		}
+		return out
+	}
+
+	// 1. Off: nothing checks, the view says so.
+	require.False(t, view().Bool("enabled"))
+	r := s.Do("GET", "/services/"+svc.ID, nil)
+	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
+	require.Nil(t, r.JSON()["gitPoll"], "no poll on the service view while off")
+
+	// 2. Every minute (the harness shortens a minute to a second), deploy on: a pushed commit deploys within ~90 s.
+	r = s.Do("PUT", pollPath, map[string]any{"enabled": true, "intervalMinutes": 1})
+	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
+	require.True(t, r.JSON().Bool("enabled"))
+	require.Equal(t, 1, r.JSON().Int("intervalMinutes"))
+	require.True(t, r.JSON().Bool("deploy"), "deploys by default")
+
+	sha := g.commitContent("second.txt", "two\n", "Second commit")
+	var found J
+	require.True(t, eventually(90*time.Second, time.Second, func() bool {
+		if ds := deploymentsOf(sha); len(ds) > 0 {
+			found = ds[0]
+			return true
+		}
+		return false
+	}), "checking did not find and deploy the new commit")
+	require.Equal(t, "git_push", found.Str("trigger"))
+	require.Equal(t, "main", found.Obj("commit").Str("branch"))
+	require.Equal(t, "New commit found by checking main every minute", found.Str("message"))
+	d := s.WaitDeployment(found.Str("id"), 3*time.Minute)
+	require.Equal(t, "succeeded", d.Str("status"), "logs:\n%s", s.DeploymentLogs(d.Str("id")))
+	require.True(t, eventually(30*time.Second, time.Second, func() bool {
+		v := view()
+		return v.Str("headSha") == sha && !v.Bool("updateAvailable")
+	}), "the view should show the running commit as the head: %s", s.Do("GET", pollPath, nil).Raw)
+	time.Sleep(15 * time.Second)
+	require.Len(t, deploymentsOf(sha), 1, "a commit is deployed once")
+
+	// 3. Deploy off: the next commit is only shown.
+	r = s.Do("PUT", pollPath, map[string]any{"enabled": true, "intervalMinutes": 1, "deploy": false})
+	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
+	require.False(t, r.JSON().Bool("deploy"))
+	sha2 := g.commitContent("third.txt", "three\n", "Third commit")
+	require.True(t, eventually(90*time.Second, time.Second, func() bool {
+		v := view()
+		return v.Str("headSha") == sha2 && v.Bool("updateAvailable")
+	}), "the new commit was not shown: %s", s.Do("GET", pollPath, nil).Raw)
+	time.Sleep(25 * time.Second)
+	require.Empty(t, deploymentsOf(sha2), "notify-only never deploys")
+
+	// "Check now" reports the head without deploying, and the service view carries the update.
+	r = s.Do("POST", pollPath+"/check", nil)
+	require.Equal(t, http.StatusOK, r.Status, string(r.Raw))
+	require.Equal(t, sha2, r.JSON().Str("headSha"))
+	require.True(t, r.JSON().Bool("updateAvailable"))
+	r = s.Do("GET", "/services/"+svc.ID, nil)
+	require.True(t, r.JSON().Obj("gitPoll").Bool("updateAvailable"), string(r.Raw))
+	require.Empty(t, deploymentsOf(sha2))
+
+	// Deploying the latest commit by hand (what "Deploy latest" does) clears the update.
+	s.DeployOK(svc.ID)
+	require.True(t, eventually(30*time.Second, time.Second, func() bool { return !view().Bool("updateAvailable") }), string(s.Do("GET", pollPath, nil).Raw))
 }

@@ -36,6 +36,8 @@ import (
 // Deployer starts deployments for pushes. *deployments.Service implements it.
 type Deployer interface {
 	DeployInternal(ctx context.Context, serviceID uuid.UUID, trigger string, commit *deployments.CommitInfo, message string) (deployments.DeploymentView, error)
+	// ResolveHead reads the commit the configured branch of a git service points to now (git ls-remote).
+	ResolveHead(ctx context.Context, serviceID uuid.UUID) (sha, branch string, err error)
 }
 
 // Deps are the collaborators of Service.
@@ -74,6 +76,8 @@ type Service struct {
 	hc   *http.Client
 	log  *slog.Logger
 	now  func() time.Time
+	// pollUnit is the length of one minute of a check for new commits (Timers.GitPollUnit).
+	pollUnit time.Duration
 
 	// pushHook runs before a push deploys (SetPushHook); pushHookWait is how
 	// long the push waits for it (PushHookWait when zero).
@@ -112,8 +116,11 @@ func NewService(d Deps) *Service {
 	}
 	s := &Service{
 		pool: d.Pool, bus: d.Bus, jobs: d.Jobs, box: d.Box, cfg: d.Config, svcs: d.Services, dep: d.Deployer, ntf: d.Notifier,
-		hc: d.HTTP, log: d.Logger.With("component", "gitproviders"), now: time.Now, pushHookWait: d.PushHookWait,
+		hc: d.HTTP, log: d.Logger.With("component", "gitproviders"), now: time.Now, pushHookWait: d.PushHookWait, pollUnit: time.Minute,
 		instTokens: map[uuid.UUID]cachedToken{}, rejectLimiters: map[uuid.UUID]*rate.Limiter{},
+	}
+	if u := d.Config.Timers.GitPollUnit; u > 0 {
+		s.pollUnit = u
 	}
 	if d.Pool != nil {
 		s.q = db.New(d.Pool)

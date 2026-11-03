@@ -998,6 +998,28 @@
             "github-acme"
           ]
         },
+        "poll": {
+          "default": "off",
+          "description": "Check for new commits: how often the branch head is read from the remote (off, 1m, 5m, 15m or 60m). For a service without a working webhook. Works with url and with connection; watch_paths do not apply. Applied immediately.",
+          "enum": [
+            "off",
+            "1m",
+            "5m",
+            "15m",
+            "60m"
+          ],
+          "examples": [
+            "5m"
+          ]
+        },
+        "poll_deploy": {
+          "default": true,
+          "description": "Deploy a new commit found by checking (false: it is only shown as an available update). Only used while poll is on. Applied immediately.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
         "repo": {
           "description": "Repository as owner/name on the connection.",
           "examples": [

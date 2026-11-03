@@ -12820,6 +12820,78 @@
         ],
         "type": "object"
       },
+      "GitPollInputBody": {
+        "additionalProperties": false,
+        "properties": {
+          "deploy": {
+            "description": "Deploy a new commit found by checking (default true); false only shows it",
+            "type": "boolean"
+          },
+          "enabled": {
+            "description": "Check the branch head on a schedule (false: stop checking)",
+            "type": "boolean"
+          },
+          "intervalMinutes": {
+            "description": "Minutes between checks (default 5)",
+            "enum": [
+              1,
+              5,
+              15,
+              60
+            ],
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "type": "object"
+      },
+      "GitPollView": {
+        "additionalProperties": false,
+        "properties": {
+          "checkedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "deploy": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          },
+          "headBranch": {
+            "type": "string"
+          },
+          "headSha": {
+            "type": "string"
+          },
+          "intervalMinutes": {
+            "enum": [
+              1,
+              5,
+              15,
+              60
+            ],
+            "format": "int64",
+            "type": "integer"
+          },
+          "updateAvailable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled",
+          "intervalMinutes",
+          "deploy",
+          "updateAvailable"
+        ],
+        "type": "object"
+      },
       "GitRef": {
         "additionalProperties": false,
         "properties": {
@@ -25651,6 +25723,16 @@
               }
             ]
           },
+          "gitPoll": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/GitPollView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "gitTokenSet": {
             "type": "boolean"
           },
@@ -25833,6 +25915,7 @@
           "maintenance",
           "git",
           "tailnet",
+          "gitPoll",
           "networks"
         ],
         "type": "object"
@@ -69385,7 +69468,7 @@
     },
     "/services/{serviceId}/database/query": {
       "post": {
-        "description": "Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set; writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.",
+        "description": "Runs one or more statements through the database's agent with a 30 second timeout and returns up to 1000 rows per result set (at most 10 result sets, cells clipped at 4 KiB). The session is read-only unless `allowWrites` is set, which needs the owner or admin role (403 otherwise); writes are refused on a read replica (409 `replica_read_only`) and in a production environment need `confirm` to equal the service slug (409 `confirmation_required`) and, for a guarded token, an approval. Recorded in the audit log as `database.query` with the first SQL keyword, never the statement. 422 `query_failed` carries the database's error. Same preconditions and 409 codes as the table listing.",
         "operationId": "queryDatabase",
         "parameters": [
           {
@@ -70583,7 +70666,7 @@
     },
     "/services/{serviceId}/database/tables": {
       "get": {
-        "description": "Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`, `agent_too_old`.",
+        "description": "Lists the tables and views of the database through its agent (PostgreSQL, MySQL, MariaDB and ClickHouse). Needs `deployments:write` and the owner, admin or developer role. 409 codes: `data_not_supported`, `service_stopped`, `not_deployed`, `database_fenced`.",
         "operationId": "listDatabaseTables",
         "parameters": [
           {
@@ -72866,6 +72949,339 @@
           }
         ],
         "summary": "Link a service to a repository and set auto-deploy",
+        "tags": [
+          "services",
+          "git"
+        ]
+      }
+    },
+    "/services/{serviceId}/git-poll": {
+      "get": {
+        "description": "`enabled: false` when the service does not check. `updateAvailable` is true when the branch head the last check saw differs from the running commit.",
+        "operationId": "getServiceGitPoll",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitPollView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "projects:read"
+            ]
+          },
+          {
+            "cookie": [
+              "projects:read"
+            ]
+          }
+        ],
+        "summary": "Get a service's check for new commits",
+        "tags": [
+          "services",
+          "git"
+        ]
+      },
+      "put": {
+        "description": "For a git service whose pushes do not reach NebulaCtrl (a plain git URL, an SSH deploy key, a Bitbucket or webhook-only connection, or a webhook that failed): asks the remote for the branch head every `intervalMinutes` (1, 5, 15 or 60) and, with `deploy`, deploys a commit that is not running yet (trigger `git_push`, with a message that says it was found by checking). A commit that already has a deployment after the running release is never deployed again, so a failed commit is not retried and a rollback is not undone. Stopped services, cron services and previews are only checked, never deployed. A linked service that waits for CI waits for it here too. It is an operational setting: applied at once, never staged. Enabling runs the first check on the next sweep (within about 10 seconds). Only an app or worker built from a git repository can check (422 `git_poll_not_applicable`).",
+        "operationId": "setServiceGitPoll",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitPollInputBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitPollView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "412": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Precondition Failed"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "projects:write"
+            ]
+          },
+          {
+            "cookie": [
+              "projects:write"
+            ]
+          }
+        ],
+        "summary": "Check a service's repository for new commits",
+        "tags": [
+          "services",
+          "git"
+        ]
+      }
+    },
+    "/services/{serviceId}/git-poll/check": {
+      "post": {
+        "description": "Reads the branch head right away and returns the state. It never deploys. A failure to reach the remote is reported in `error`, not as an HTTP error. For a service that does not check on a schedule, nothing is stored and the head is only in the answer.",
+        "operationId": "checkServiceGitPoll",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitPollView"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "projects:write"
+            ]
+          },
+          {
+            "cookie": [
+              "projects:write"
+            ]
+          }
+        ],
+        "summary": "Check a service's repository for new commits now",
         "tags": [
           "services",
           "git"

@@ -128,6 +128,8 @@ func buildCatalog() []FieldSpec {
 	add(fs("git.link", "git.connection", "gitproviders.LinkInput{ConnectionID, Repo}", AppliesImmediate, "GitLink", g))
 	add(fs("git.auto_deploy", "git.auto_deploy", "service_git.auto_deploy", AppliesImmediate, "bool", g))
 	add(fs("git.wait_for_ci", "git.wait_for_ci", "service_git.wait_for_ci", AppliesImmediate, "bool", g))
+	add(fs("git.poll", "git.poll", "service_git_poll.interval_minutes", AppliesImmediate, "string", g))
+	add(fs("git.poll_deploy", "git.poll_deploy", "service_git_poll.deploy", AppliesImmediate, "bool", g))
 	add(fs("git.watch_paths", "git.watch_paths", "service_git.watch_paths", AppliesImmediate, "[]string", g))
 	add(fs("config.buildType", "build.type", "BuildType", AppliesStaged, "string", g))
 	add(fs("config.dockerfilePath", "build.dockerfile", "DockerfilePath", AppliesStaged, "string", g))
@@ -244,7 +246,7 @@ var fieldDefaults = map[string]string{
 	"config.healthcheck.deadlineSeconds": "120", "config.healthcheck.successThreshold": "2",
 	"config.preDeployTimeoutSeconds": "600", "config.postDeployTimeoutSeconds": "600",
 	"config.cron.timezone": "UTC", "config.cron.timeoutSeconds": "1800", "config.cron.concurrency": "forbid",
-	"config.submodules": "auto", "git.auto_deploy": "true", "git.wait_for_ci": "false", "git.watch_paths": "[]",
+	"config.submodules": "auto", "git.auto_deploy": "true", "git.wait_for_ci": "false", "git.poll": "off", "git.poll_deploy": "true", "git.watch_paths": "[]",
 	"config.buildType": "auto", "config.dockerfilePath": "Dockerfile", "config.buildContext": ".", "config.buildLocation": "inherit",
 	"config.route.scheme": "http", "config.route.passHost": "true", "config.route.insecureSkipVerify": "false",
 	"config.route.verifySkip": "false", "config.route.openToInternet": "false", "config.route.proxyProtocol": "0",
@@ -468,6 +470,12 @@ func (c *svcCtx) assembleGit() {
 	}
 	if g.WaitForCI != nil {
 		c.addField("git.wait_for_ci", rp("git", "wait_for_ci"), *g.WaitForCI, im)
+	}
+	if g.Poll != nil {
+		c.addField("git.poll", rp("git", "poll"), *g.Poll, im)
+	}
+	if g.PollDeploy != nil {
+		c.addField("git.poll_deploy", rp("git", "poll_deploy"), *g.PollDeploy, im)
 	}
 	if g.WatchPaths != nil {
 		c.addField("git.watch_paths", rp("git", "watch_paths"), append([]string{}, g.WatchPaths...), im)

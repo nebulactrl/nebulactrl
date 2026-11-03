@@ -169,9 +169,6 @@ describe("error codes", () => {
 		expect(blockedMessage(api("database_fenced"))).toBe(
 			"This database is fenced.",
 		);
-		expect(blockedMessage(api("agent_too_old"))).toBe(
-			"Update the agent on this server.",
-		);
 	});
 
 	test("a failed query is not a blocked state", () => {

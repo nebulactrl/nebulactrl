@@ -33,13 +33,14 @@ type ciWait struct {
 	Message   string    `json:"message"`
 	Author    string    `json:"author"`
 	Branch    string    `json:"branch"`
+	Note      string    `json:"note,omitempty"` // how the commit was found when it was not pushed (the deployment's message)
 	Since     time.Time `json:"since"`
 	CheckedAt time.Time `json:"checkedAt"`
 }
 
 // parkForCI parks a push until its checks pass; the newest push replaces an older one.
-func (s *Service) parkForCI(ctx context.Context, serviceID uuid.UUID, ev PushEvent, label string) string {
-	raw, _ := json.Marshal(ciWait{SHA: ev.CommitSHA, Message: ev.CommitMessage, Author: ev.Author, Branch: ev.Branch, Since: s.now().UTC()})
+func (s *Service) parkForCI(ctx context.Context, serviceID uuid.UUID, ev PushEvent, label, note string) string {
+	raw, _ := json.Marshal(ciWait{SHA: ev.CommitSHA, Message: ev.CommitMessage, Author: ev.Author, Branch: ev.Branch, Note: note, Since: s.now().UTC()})
 	if err := s.q.SetServiceGitCIWait(ctx, db.SetServiceGitCIWaitParams{ServiceID: serviceID, CiWait: raw}); err != nil {
 		s.log.Error("park push for CI", "service", serviceID.String(), "err", err)
 		return label + ": not deployed (the push could not be parked to wait for CI)"
@@ -91,7 +92,8 @@ func (s *Service) resolveCIWait(ctx context.Context, sg db.ServiceGit, w ciWait)
 	if err != nil {
 		return fmt.Errorf("load applied config: %w", err)
 	}
-	if !sg.AutoDeploy || !sg.WaitForCi || cfg.GitBranch != w.Branch {
+	// A commit found by checking (Note) deploys on the check's own setting, not on the link's auto-deploy.
+	if (!sg.AutoDeploy && w.Note == "") || !sg.WaitForCi || cfg.GitBranch != w.Branch {
 		_, err := take()
 		return err
 	}
@@ -122,7 +124,7 @@ func (s *Service) resolveCIWait(ctx context.Context, sg db.ServiceGit, w ciWait)
 			return err
 		}
 		commit := &deployments.CommitInfo{SHA: w.SHA, Message: w.Message, Author: w.Author, Branch: w.Branch}
-		_, note := s.deployPush(ctx, sg.ServiceID, commit, sc.Service.Slug)
+		_, note := s.deployPush(ctx, sg.ServiceID, commit, sc.Service.Slug, w.Note)
 		s.log.Info("push deployed after CI", "service", sc.Service.Slug, "commit", shortSHA(w.SHA), "note", note)
 		return nil
 	}

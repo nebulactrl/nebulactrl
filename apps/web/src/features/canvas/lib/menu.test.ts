@@ -91,6 +91,31 @@ describe("serviceMenu", () => {
 		).toBe("Deploy");
 	});
 
+	test("Deploy latest commit follows the Deploy row when the actions offer it", () => {
+		const withLatest = [
+			actions[0],
+			{
+				id: "deploy-latest",
+				label: "Deploy latest commit",
+				disabled: false,
+				destructive: false,
+			},
+			...actions.slice(1),
+		] as const;
+		const model = serviceMenu({ service, actions: withLatest, busy: false });
+		expect(labels(model).slice(0, 4)).toEqual([
+			"Open",
+			"Redeploy",
+			"Scale…",
+			"Deploy latest commit",
+		]);
+		expect(find(model, "deploy-latest:Deploy latest commit").action).toEqual({
+			type: "service-action",
+			serviceId: "svc",
+			id: "deploy-latest",
+		});
+	});
+
 	test("lists the cables the card ends, named by the card at the other end", () => {
 		const model = serviceMenu({
 			service,

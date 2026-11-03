@@ -145,6 +145,8 @@ type Git struct {
 	Submodules *string  `toml:"submodules" json:"submodules,omitempty" doc:"How submodules are checked out: auto, on or off." example:"auto" enum:"auto,on,off" default:"auto"`
 	AutoDeploy *bool    `toml:"auto_deploy" json:"auto_deploy,omitempty" doc:"Deploy on every push to the branch. Needs connection. Applied immediately." example:"true" default:"true"`
 	WaitForCI  *bool    `toml:"wait_for_ci" json:"wait_for_ci,omitempty" doc:"Deploy a push only after its CI checks pass (GitHub check runs and statuses, GitLab pipelines, Gitea/Forgejo statuses); a push with no checks deploys after 2 minutes. Needs connection, and a connection that can read CI (not Bitbucket or webhook-only). Applied immediately." example:"true" default:"false"`
+	Poll       *string  `toml:"poll" json:"poll,omitempty" doc:"Check for new commits: how often the branch head is read from the remote (off, 1m, 5m, 15m or 60m). For a service without a working webhook. Works with url and with connection; watch_paths do not apply. Applied immediately." example:"5m" enum:"off,1m,5m,15m,60m" default:"off"`
+	PollDeploy *bool    `toml:"poll_deploy" json:"poll_deploy,omitempty" doc:"Deploy a new commit found by checking (false: it is only shown as an available update). Only used while poll is on. Applied immediately." example:"true" default:"true"`
 	WatchPaths []string `toml:"watch_paths" json:"watch_paths,omitempty" doc:"Monorepo filter: only pushes touching these globs deploy; a leading ! excludes. Replaces the whole list. Needs connection. Applied immediately." example:"[\"apps/web/**\", \"!**/*.md\"]" maxItems:"50"`
 }
 

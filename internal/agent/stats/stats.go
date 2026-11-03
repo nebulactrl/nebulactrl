@@ -174,12 +174,6 @@ func (c *Collector) Facts(ctx context.Context) agentprotocol.Facts {
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapBuildOptions, agentprotocol.CapUptime)
 	// Several processes per service is pure engine behaviour, so every agent (a build-only one included) advertises it.
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapProcesses)
-	// The restart policy is applied by the engine too.
-	f.Capabilities = append(f.Capabilities, agentprotocol.CapRestartPolicy)
-	// Cron services (no-start deploys, service runs) are engine behaviour too.
-	f.Capabilities = append(f.Capabilities, agentprotocol.CapCronService)
-	// The Data tab's db_query is answered by the engine too.
-	f.Capabilities = append(f.Capabilities, agentprotocol.CapDBQuery)
 	if c.opt.EndpointStatus != nil { // a localproxy manager is wired: this agent can carry instance tunnels
 		f.Capabilities = append(f.Capabilities, agentprotocol.CapInstanceTunnel)
 	}

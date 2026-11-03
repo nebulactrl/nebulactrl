@@ -205,8 +205,6 @@ anyway). Only app and worker services can have one, and it needs `oneshot`
 - **Stop and Start pause and resume the schedule.** `POST /services/{id}/stop`
   and `/restart` send no agent command (the response has no `commandId`); ticks of
   a paused schedule are recorded as skipped ("the service is stopped").
-- **Agents.** A server whose agent lacks the `service.cron` capability refuses to
-  deploy one (`agent_too_old`) and skips its runs with that message.
 - **Create one** with the **Cron job** entry of the canvas menu,
   `nebulactrl services create --image <ref> --cron "0 3 * * *" [--cron-timezone <tz>]`
   (implies `--one-shot`), or a `[services.<name>.cron]` table in `nebula.toml`.

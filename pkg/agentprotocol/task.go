@@ -110,7 +110,7 @@ type RunTaskPayload struct {
 	// ServiceRun runs the image's own command (a cron service's scheduled run)
 	// instead of Command, which is then empty: the container gets the
 	// service's entrypoint/start command, volumes, files and Docker options,
-	// from the fields below. Needs CapCronService.
+	// from the fields below.
 	ServiceRun bool `json:"serviceRun,omitempty"`
 	// StartCommand is the service's configured start command (ServiceRun only;
 	// empty runs the image's CMD).

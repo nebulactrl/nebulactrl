@@ -136,6 +136,30 @@ test("a deployed image service offers the full menu in order, ending in copy and
 	]);
 });
 
+test("a new commit found by checking adds Deploy latest commit right after Redeploy", async () => {
+	const { ids, action } = await mountActions(
+		makeService({
+			id: "g",
+			sourceType: "git",
+			currentDeploymentId: "d",
+			gitPoll: {
+				enabled: true,
+				intervalMinutes: 5,
+				deploy: false,
+				headSha: "abc1234def5678",
+				headBranch: "main",
+				updateAvailable: true,
+			},
+		}),
+	);
+	expect(ids().slice(0, 3)).toEqual(["redeploy", "deploy-latest", "restart"]);
+	expect(action("deploy-latest").label).toBe("Deploy latest commit");
+	const plain = await mountActions(
+		makeService({ id: "p", sourceType: "git", currentDeploymentId: "d" }),
+	);
+	expect(plain.ids()).not.toContain("deploy-latest");
+});
+
 test("actions that cannot apply are left out: never deployed has no stop, shell, files or command", async () => {
 	const { ids, action } = await mountActions(
 		makeService({ id: "fresh", currentDeploymentId: null }),

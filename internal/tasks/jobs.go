@@ -161,7 +161,7 @@ func (s *Service) runDue(ctx context.Context, tx pgx.Tx, t db.ServiceTask, now t
 	if sc.Service.DesiredState == "stopped" {
 		return skip("the service is stopped")
 	}
-	if _, b, err := s.runnable(ctx, q, sc, t.Action); err != nil {
+	if _, b, err := s.runnable(ctx, q, sc); err != nil {
 		return db.TaskRun{}, err
 	} else if b != nil {
 		return skip(b.msg)

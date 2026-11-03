@@ -261,3 +261,33 @@ func (s *Service) resolveGit(ctx context.Context, sv db.Service, cfg services.Co
 func (s *Service) SetGitResolver(f func(ctx context.Context, url, branch, user, token string) (string, error)) {
 	s.lsRemote = f
 }
+
+// ResolveHead returns the commit the configured branch of a git service points
+// to now, and that branch: a git ls-remote with the credentials a deployment
+// uses (the service's token, its git connection, or its SSH deploy key). A
+// production service with staged changes is read as a push deploys it, with
+// the configuration it runs. 422 git_poll_not_applicable for other services.
+func (s *Service) ResolveHead(ctx context.Context, serviceID uuid.UUID) (sha, branch string, err error) {
+	sc, err := services.LoadScopeInternal(ctx, s.q, serviceID)
+	if err != nil {
+		return "", "", err
+	}
+	if !sc.SupportsGitPoll() {
+		return "", "", apierr.Unprocessable("git_poll_not_applicable", "only an app or worker built from a git repository can check for new commits")
+	}
+	if sc.ProductionHasStaged() {
+		applied, _, ok, err := services.AppliedScope(ctx, s.q, sc)
+		if err != nil {
+			return "", "", err
+		}
+		if ok {
+			sc = applied
+		}
+	}
+	cfg := sc.Config()
+	sha, err = s.resolveGit(ctx, sc.Service, cfg)
+	if err != nil {
+		return "", "", err
+	}
+	return strings.ToLower(sha), cfg.GitBranch, nil
+}

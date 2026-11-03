@@ -1,7 +1,8 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { PlayIcon } from "lucide-react";
 import { useId, useState } from "react";
 import { errorMessage } from "#/api/client-config";
+import { meQuery } from "#/api/hooks";
 import { queryDatabaseMutation } from "#/api/gen/@tanstack/react-query.gen";
 import { ConfirmDialog } from "#/components/common/confirm-dialog";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
@@ -34,11 +35,11 @@ export interface QueryViewProps {
 }
 
 /**
- * The SQL console: an editor, Run (⌘↵) and an Allow writes switch. Statements
- * run in a read-only session unless the switch is on, and the switch turns
- * itself off after every run so a write is always a deliberate act. In a
- * production environment a run with writes asks for the service slug first.
- * The error of a failed run stands under the editor, where the SQL is.
+ * The SQL console: an editor, Run (⌘↵) and, for owners and admins, an Allow
+ * writes switch. Statements run in a read-only session unless the switch is
+ * on, and the switch turns itself off after every run so a write is always a
+ * deliberate act. In a production environment a run with writes asks for the
+ * service slug first. The error of a failed run stands under the editor.
  */
 export function QueryView({
 	serviceId,
@@ -48,6 +49,8 @@ export function QueryView({
 	dialect,
 }: QueryViewProps) {
 	const queryClient = useQueryClient();
+	const role = useQuery(meQuery()).data?.principal.role;
+	const canWrite = role === "owner" || role === "admin";
 	const writesId = useId();
 	const [sql, setSql] = useState("");
 	const [allowWrites, setAllowWrites] = useState(false);
@@ -106,22 +109,26 @@ export function QueryView({
 					Run
 					<Kbd variant="key">⌘↵</Kbd>
 				</Button>
-				<div className="flex items-center gap-2">
-					<Switch
-						id={writesId}
-						size="sm"
-						checked={allowWrites}
-						disabled={run.isPending}
-						onCheckedChange={setAllowWrites}
-					/>
-					<Label htmlFor={writesId} className="text-ink-2 text-xs">
-						Allow writes
-					</Label>
-				</div>
+				{canWrite ? (
+					<div className="flex items-center gap-2">
+						<Switch
+							id={writesId}
+							size="sm"
+							checked={allowWrites}
+							disabled={run.isPending}
+							onCheckedChange={setAllowWrites}
+						/>
+						<Label htmlFor={writesId} className="text-ink-2 text-xs">
+							Allow writes
+						</Label>
+					</div>
+				) : null}
 				<p className="text-ink-3 text-xs">
 					{allowWrites
 						? "Statements may change data. This resets after the run."
-						: "Read-only: statements that change data are refused."}
+						: canWrite
+							? "Read-only: statements that change data are refused."
+							: "Read-only: only owners and admins can change data here."}
 				</p>
 			</div>
 

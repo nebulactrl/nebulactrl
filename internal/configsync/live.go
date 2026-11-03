@@ -41,7 +41,8 @@ type liveService struct {
 	Networks []db.ListServicesNetworksRow
 	Links    []string // slugs of the services this one depends on
 	Git      *db.ServiceGit
-	GitConn  string // name of the git connection
+	GitConn  string             // name of the git connection
+	Poll     *db.ServiceGitPoll // check for new commits; nil: off
 	Tasks    map[string]db.ServiceTask
 	Backups  []db.BackupSchedule
 	Monitor  *db.UptimeMonitor
@@ -284,6 +285,14 @@ func loadLive(ctx context.Context, q *db.Queries, box *secretbox.Box, env servic
 			if c, ok := rf.connectionByID(g.ConnectionID); ok {
 				ls.GitConn = c.Name
 			}
+		}
+		polls, err := q.ListGitPollsForServices(ctx, ids)
+		if err != nil {
+			return nil, fmt.Errorf("list git polls: %w", err)
+		}
+		for _, p := range polls {
+			p := p
+			byID[p.ServiceID].Poll = &p
 		}
 		tasks, err := q.ListServiceTasksForServices(ctx, ids)
 		if err != nil {

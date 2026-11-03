@@ -1485,6 +1485,19 @@ type ServiceGit struct {
 	CiWait        json.RawMessage `json:"ciWait"`
 }
 
+type ServiceGitPoll struct {
+	ServiceID       uuid.UUID  `json:"serviceId"`
+	IntervalMinutes int32      `json:"intervalMinutes"`
+	Deploy          bool       `json:"deploy"`
+	NextCheckAt     time.Time  `json:"nextCheckAt"`
+	CheckedAt       *time.Time `json:"checkedAt"`
+	HeadSha         *string    `json:"headSha"`
+	HeadBranch      *string    `json:"headBranch"`
+	LastError       string     `json:"lastError"`
+	CreatedAt       time.Time  `json:"createdAt"`
+	UpdatedAt       time.Time  `json:"updatedAt"`
+}
+
 type ServiceIncident struct {
 	ID                 uuid.UUID  `json:"id"`
 	WorkspaceID        uuid.UUID  `json:"workspaceId"`

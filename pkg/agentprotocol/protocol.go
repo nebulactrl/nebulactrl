@@ -661,11 +661,10 @@ type DeployPayload struct {
 	// NoStart makes the deploy pull or build the image and record the release
 	// but start nothing: the service is a cron service whose runs start the
 	// image on a schedule. The agent removes the service's existing containers
-	// and forgets its desired state. Requires OneShot; needs CapCronService.
+	// and forgets its desired state. Requires OneShot.
 	NoStart bool `json:"noStart,omitempty"`
 	// RestartPolicy is always (or empty: Docker unless-stopped), on-failure or
-	// never. Meaningless for one-shots, which never restart. Agents without
-	// CapRestartPolicy ignore it, so the control plane refuses to send it to them.
+	// never. Meaningless for one-shots, which never restart.
 	RestartPolicy string `json:"restartPolicy,omitempty"`
 	// RestartMaxRetries caps on-failure restarts; 0 means DefaultRestartMaxRetries.
 	RestartMaxRetries int `json:"restartMaxRetries,omitempty"`

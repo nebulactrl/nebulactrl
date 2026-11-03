@@ -103,6 +103,21 @@ A PostgreSQL primary or replica **cannot be upgraded while the group has [read r
 
 The database inspector's **Overview** shows the engine and version, its connection exports (names only) and, on **Refresh**, the version, database size and open connections that the agent reads with a read-only query inside the container. These are reported asynchronously (`POST /services/{id}/database/refresh`, then `GET /services/{id}/database`).
 
+## Browsing data and running SQL
+
+PostgreSQL, MySQL, MariaDB and ClickHouse databases have a **Data** tab in the inspector (chord `t`): a table list with a filter, 100 rows per page of a table, and a SQL console (Run with ⌘↵). The agent connects to the running database with the application user's credentials; results come back to the browser and are never stored on the agent.
+
+| | |
+|---|---|
+| Who | owners, admins and developers with `deployments:write`; viewers and read-only tokens get 403 |
+| Read-only by default | every statement runs in a read-only session unless **Allow writes** is on; the switch turns itself off after each run |
+| Writes | owners and admins only; refused on a read replica; in production the service name must be typed to confirm, and a guarded token needs an approval |
+| Limits | 30 s per run, 1000 rows per result set (100 when browsing), 10 result sets, cells clipped at 4 KiB |
+| Audit | `database.query` with the first SQL keyword (never the statement) and `database.browse` with the table; the table list is not audited |
+| Not offered | Valkey, Redis and MongoDB (409 `data_not_supported`) |
+
+The same is available from the CLI: `nebulactrl db tables <service>` and `nebulactrl db query <service> -- <sql>` (`--allow-writes`, `--confirm <slug>`, `--file`, `--json`). MCP tokens cannot use it: database contents never flow to an agent.
+
 ## Public port
 
 A database can be published on a public port of its server, for a client that is not on the server (a laptop, a BI tool, a hosted job). It is off by default and always restricted by an IP allow-list.

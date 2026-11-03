@@ -127,6 +127,11 @@ var central = map[string]Central{
 		Effects: []string{"The repository, branch and auto-deploy setting apply at once; with auto-deploy a push to the branch deploys the service."},
 		Show:    []string{"repo", "branch", "autoDeploy", "waitForCi", "watchPaths", "connectionId"},
 	},
+	"setServiceGitPoll": {
+		Target: TargetService, Summary: "Check {name} in production for new commits",
+		Effects: []string{"With deploy on, a new commit found on the branch deploys the service by itself, as a push does."},
+		Show:    []string{"intervalMinutes", "deploy"}, When: []Cond{{Arg: "enabled", Equals: true}},
+	},
 	"unlinkServiceGit": {
 		Target: TargetService, Summary: "Unlink {name} in production from its git repository",
 		Effects: []string{"Pushes stop deploying the service."},
@@ -284,6 +289,7 @@ var prodExempt = map[string]ProdExemption{
 	"applyTemplateUpdate":             ExemptStaged,
 	"attachServiceNetwork":            ExemptStaged,
 	"cancelDumpRestore":               ExemptNoRuntime,
+	"checkServiceGitPoll":             ExemptProbe,
 	"checkStack":                      ExemptProbe,
 	"createBackup":                    ExemptCreates,
 	"createDatabase":                  ExemptCreates,

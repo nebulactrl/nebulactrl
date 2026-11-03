@@ -45,7 +45,6 @@ func cronConfig(schedule string) services.Config {
 func TestCronDeployStartsNothingAndSyncsTheHiddenTask(t *testing.T) {
 	f := newRouteFixture(t)
 	web := f.web("job")
-	f.setCapabilities(agentprotocol.CapProxyV2, agentprotocol.CapCronService)
 	require.Empty(t, f.cronRows(web.ID))
 
 	setConfig(t, f, web.ID, configJSON(t, cronConfig("*/5 * * * *")))
@@ -83,7 +82,6 @@ func TestCronDeployStartsNothingAndSyncsTheHiddenTask(t *testing.T) {
 func TestRollbackToANonCronReleaseDeletesTheHiddenTask(t *testing.T) {
 	f := newRouteFixture(t)
 	web := f.web("job")
-	f.setCapabilities(agentprotocol.CapProxyV2, agentprotocol.CapCronService)
 	first := f.currentDeployment(web.ID) // the plain release f.web recorded
 
 	setConfig(t, f, web.ID, configJSON(t, cronConfig("*/5 * * * *")))
@@ -98,23 +96,4 @@ func TestRollbackToANonCronReleaseDeletesTheHiddenTask(t *testing.T) {
 	require.False(t, p.NoStart, "the old release is not a cron release")
 	f.finish(rv.ID)
 	require.Empty(t, f.cronRows(web.ID), "the schedule follows the deployed release")
-}
-
-func TestCronServiceNeedsACapableAgent(t *testing.T) {
-	f := newRouteFixture(t)
-	web := f.web("job")
-	f.setCapabilities(agentprotocol.CapProxyV2)
-	before := f.deploymentCount(web.ID)
-
-	setConfig(t, f, web.ID, configJSON(t, cronConfig("*/5 * * * *")))
-	plan, err := f.deps.Plan(f.ctx, web.ID)
-	require.NoError(t, err)
-	require.Len(t, plan.Blocking, 1)
-	require.Equal(t, "agent_too_old", plan.Blocking[0].Code)
-
-	_, err = f.deps.Deploy(f.ctx, web.ID, "", "")
-	requireStatusCode(t, err, 422, "agent_too_old")
-	require.Contains(t, err.Error(), "Update the agent on")
-	require.Equal(t, before, f.deploymentCount(web.ID))
-	require.Empty(t, f.cronRows(web.ID))
 }
