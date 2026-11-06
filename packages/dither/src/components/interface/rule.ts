@@ -22,7 +22,7 @@ interface VariantDefaults {
 const VARIANT_DEFAULTS: Record<RuleVariant, VariantDefaults> = {
 	fade: { cell: 2, thickness: 4 },
 	solid: { cell: 2, thickness: 4 },
-	dots: { cell: 3, thickness: 3 },
+	dots: { cell: 2, thickness: 2 },
 };
 
 /** Bands in one half of a rule: "ten steps of dither". */

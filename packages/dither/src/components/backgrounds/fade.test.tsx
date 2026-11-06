@@ -51,30 +51,30 @@ describe("still fade", () => {
 		expect(el.querySelector("canvas")).toBeNull();
 	});
 
-	test("the mask is a bayer4 ramp at the default 3px cell, anchored to the bottom edge", () => {
+	test("the mask is a bayer4 ramp at the default 2px cell, anchored to the bottom edge", () => {
 		const el = fade(<DitherFade />);
-		expect(el.style.maskSize).toBe("12px 160px");
+		expect(el.style.maskSize).toBe("8px 160px");
 		expect(el.style.maskRepeat).toBe("repeat-x");
 		expect(el.style.maskPosition).toBe("0 100%");
 		expect(bandCount(el)).toBe(16);
 	});
 
 	test.each([
-		["top", ["inset-x-0", "top-0"], "height", "12px 160px", "repeat-x", "0 0"],
+		["top", ["inset-x-0", "top-0"], "height", "8px 160px", "repeat-x", "0 0"],
 		[
 			"bottom",
 			["inset-x-0", "bottom-0"],
 			"height",
-			"12px 160px",
+			"8px 160px",
 			"repeat-x",
 			"0 100%",
 		],
-		["left", ["inset-y-0", "left-0"], "width", "160px 12px", "repeat-y", "0 0"],
+		["left", ["inset-y-0", "left-0"], "width", "160px 8px", "repeat-y", "0 0"],
 		[
 			"right",
 			["inset-y-0", "right-0"],
 			"width",
-			"160px 12px",
+			"160px 8px",
 			"repeat-y",
 			"100% 0",
 		],
@@ -96,7 +96,7 @@ describe("still fade", () => {
 		const el = fade(<DitherFade side="left" size="30%" />);
 		expect(el.style.width).toBe("30%");
 		// A percentage length ramps over the whole box, so the image spans all of it.
-		expect(el.style.maskSize).toBe("100% 12px");
+		expect(el.style.maskSize).toBe("100% 8px");
 	});
 
 	test("a token or a CSS colour fills the edge", () => {
@@ -119,7 +119,7 @@ describe("still fade", () => {
 		expect(bayer8.style.maskSize).toBe("16px 160px");
 		expect(bandCount(bayer8)).toBe(16);
 		const both = fade(<DitherFade matrix="bayer8" n={2} />);
-		expect(both.style.maskSize).toBe("24px 160px");
+		expect(both.style.maskSize).toBe("16px 160px");
 		expect(maskSvg(both)).not.toBe(maskSvg(bayer2));
 	});
 

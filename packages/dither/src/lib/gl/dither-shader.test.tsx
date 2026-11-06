@@ -444,7 +444,7 @@ describe("DitherShader drawing", () => {
 		env.client.width = 120;
 		env.client.height = 60;
 		measureHost();
-		const layout = computeLayout(120, 60, 3, window.devicePixelRatio, "square");
+		const layout = computeLayout(120, 60, 2, window.devicePixelRatio, "square");
 		const canvas = view.container.querySelector("canvas") as HTMLCanvasElement;
 		expect(canvas.width).toBe(layout.canvasW);
 		expect(canvas.height).toBe(layout.canvasH);

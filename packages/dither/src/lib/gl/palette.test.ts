@@ -235,9 +235,9 @@ describe("layout", () => {
 		expect(parseCellValue("3px")).toBe(3);
 		expect(parseCellValue(" 4 ")).toBe(4);
 		expect(parseCellValue("0.25rem")).toBe(4);
-		expect(parseCellValue("")).toBe(3);
-		expect(parseCellValue("junk")).toBe(3);
-		expect(parseCellValue("-2px")).toBe(3);
+		expect(parseCellValue("")).toBe(2);
+		expect(parseCellValue("junk")).toBe(2);
+		expect(parseCellValue("-2px")).toBe(2);
 	});
 
 	test("sameLayout", () => {

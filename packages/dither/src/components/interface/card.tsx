@@ -28,7 +28,7 @@ const EDGE: BandMask = {
 	cell: 2,
 };
 // The material: a faint flat grain over the whole surface.
-const GRAIN: BandMask = { axis: "y", stops: [0.1], cell: 3 };
+const GRAIN: BandMask = { axis: "y", stops: [0.1], cell: 2 };
 // A corner bloom: dither density rises toward the right edge.
 const BLOOM: BandMask = {
 	axis: "x",
@@ -71,7 +71,7 @@ export interface DitherCardProps extends React.ComponentProps<typeof Card> {
 	fill?: DitherFillVariant | undefined;
 	/** The threshold pattern. Default `bayer4`. */
 	matrix?: DitherMatrix | undefined;
-	/** Size of one glow cell in CSS px. Default 3. */
+	/** Size of one glow cell in CSS px. Default 2. */
 	cell?: number | undefined;
 }
 
@@ -189,7 +189,7 @@ function DitherCard({
 	color,
 	fill: fillProp,
 	matrix: matrixProp,
-	cell = 3,
+	cell = 2,
 	className,
 	style,
 	children,

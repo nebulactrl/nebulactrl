@@ -10,7 +10,7 @@ export interface DitherAreaShapeProps extends AreaRevealShapeProps {
 	/** Ink and line colour (a CSS colour or `var(--token)`). Default: the Area's `stroke`. */
 	color?: string;
 	variant?: FillVariant;
-	/** Dither cell in px. Default 3. */
+	/** Dither cell in px. Default 2. */
 	cell?: number;
 	/** Tone right under the line. Default 0.72. */
 	level?: number;
@@ -41,7 +41,7 @@ export function DitherAreaShape({
 	strokeWidth = 1.5,
 	color,
 	variant = "gradient",
-	cell = 3,
+	cell = 2,
 	level = 0.72,
 	bands = 7,
 	maxDepth = 110,

@@ -24,7 +24,7 @@ export interface DitherDividerProps
 	fill?: DitherFillVariant | undefined;
 	/** The threshold pattern. Default `bayer4`. */
 	matrix?: DitherMatrix | undefined;
-	/** Size of one dither cell in CSS px. Default 2 (3 for `dots`). */
+	/** Size of one dither cell in CSS px. Default 2. */
 	cell?: number | undefined;
 	/** Decoration only (default). `false` gives an unlabelled rule `role="separator"`. */
 	decorative?: boolean | undefined;

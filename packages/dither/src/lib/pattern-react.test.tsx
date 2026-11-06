@@ -148,17 +148,17 @@ describe("DitherPatternDefs", () => {
 		const patterns = container.querySelectorAll("defs > pattern");
 		expect(patterns).toHaveLength(3);
 		expect(patterns[0]?.id).toBe(ditherFillId(full));
-		expect(patterns[0]?.querySelector("rect")?.getAttribute("width")).toBe(
-			"12",
-		);
+		// `full` and the empty fill take the default 2px cell (an 8px tile); `half` says 3.
+		expect(patterns[0]?.querySelector("rect")?.getAttribute("width")).toBe("8");
 		expect(patterns[1]?.querySelector("path")?.getAttribute("transform")).toBe(
 			"scale(3)",
 		);
 		expect(patterns[2]?.children).toHaveLength(0);
-		for (const p of patterns) {
+		const widths = ["8", "12", "8"];
+		patterns.forEach((p, i) => {
 			expect(p.getAttribute("patternUnits")).toBe("userSpaceOnUse");
-			expect(p.getAttribute("width")).toBe("12");
-		}
+			expect(p.getAttribute("width")).toBe(widths[i] as string);
+		});
 	});
 
 	test("dots are anti-aliased, squares crisp", async () => {

@@ -47,7 +47,7 @@ describe("resolveRule", () => {
 		]);
 		const dots = resolveRule({ variant: "dots", side: "both" });
 		expect(dots.stops).toEqual([0.3]);
-		expect(dots.cell).toBe(3);
+		expect(dots.cell).toBe(2);
 		expect(dots.texture).toBeUndefined();
 	});
 

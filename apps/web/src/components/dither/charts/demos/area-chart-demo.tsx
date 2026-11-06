@@ -41,7 +41,7 @@ export function AreaChartDemo() {
 	const [stack, setStack] = useState<"none" | "stacked" | "percent">("none");
 	const [fill, setFill] = useState<FillVariant>("gradient");
 	const [curve, setCurve] = useState<"monotone" | "linear">("monotone");
-	const [cell, setCell] = useState(3);
+	const [cell, setCell] = useState(2);
 	const [bloom, setBloom] = useState<ChartBloom>("off");
 	const [matrix, setMatrix] = useState<DitherMatrix>("bayer4");
 	const cellLabelId = useId();

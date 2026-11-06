@@ -78,7 +78,7 @@ export interface DitherProgressBarProps {
 	stale?: boolean;
 	/** Render spans instead of divs, for a bar inside a button or a paragraph. */
 	inline?: boolean;
-	/** Dither cell in px. Default 2 (3 for `lg`). */
+	/** Dither cell in px. Default 2. */
 	cell?: number;
 	/** Soft glow in the fill's colour behind it. Default `off`. */
 	bloom?: ChartBloom;
@@ -397,7 +397,7 @@ export function DitherProgressBar({
 		? ({ "--dither-grow": entered ? 1 : 0 } as CSSProperties)
 		: undefined;
 	const px = HEIGHT[size];
-	const dot = cell ?? (size === "lg" ? 3 : 2);
+	const dot = cell ?? 2;
 	const solid = forced || dot < MIN_DITHER_CELL;
 	const indeterminate =
 		parts === undefined && (value === undefined || value === null);

@@ -109,9 +109,9 @@ describe("DitherDivider drawing", () => {
 		expect(rule).toHaveClass("self-stretch");
 	});
 
-	test("dots is thinner with bigger cells", () => {
+	test("dots is one cell thin", () => {
 		render(<DitherDivider data-testid="d" variant="dots" />);
-		expect(rules(screen.getByTestId("d"))[0]?.style.height).toBe("3px");
+		expect(rules(screen.getByTestId("d"))[0]?.style.height).toBe("2px");
 	});
 
 	test("thickness counts cells", () => {

@@ -67,7 +67,7 @@ export interface LogoMarqueeProps extends DrawProps {
 const BAND_TONES = [0.2, 0.45, 0.7, 0.9] as const;
 
 /** A CSS mask that fades both ends out in four Bayer steps; the middle stays solid. */
-export function ditherEdgeMask(fadeWidth: number, cell = 3): CSSProperties {
+export function ditherEdgeMask(fadeWidth: number, cell = 2): CSSProperties {
 	const band = fadeWidth / BAND_TONES.length;
 	const fills = BAND_TONES.map(
 		(tone) => ({ tone, color: "#000", cell }) as const,

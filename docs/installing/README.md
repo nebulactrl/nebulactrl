@@ -60,6 +60,7 @@ Every step is **idempotent**: re-run the installer to upgrade or repair. It neve
 5. [Upgrade and roll back](upgrade.md), and [Updating NebulaCtrl](../operations/updating.md): the update notice and the one click update
 6. [Uninstall](uninstall.md)
 7. [Migrate from Coolify](migrate-from-coolify.md): install beside Coolify on the same host, copy the data, cut over, roll back
+8. [Migrate with an AI agent](migrate-with-an-ai-agent.md): let your coding agent move Coolify or Dokploy projects over, with checkpoints and secret values kept out of its context
 
 Next, read [`docs/operations`](../operations/README.md) (backups first) and [`docs/security`](../security/README.md).
 

@@ -497,7 +497,7 @@ export interface ToCssTile {
 	/** Share of cells inked, 0..1. */
 	level: number;
 	matrix?: DitherMatrix;
-	/** Cell in CSS px. Default 3. */
+	/** Cell in CSS px. Default 2. */
 	cell?: number;
 	/** Ink: a literal colour in `background` mode; any colour, token or name in `mask` mode. */
 	ink?: string;
@@ -562,7 +562,7 @@ export function toCSS(options: ToCssOptions): string {
 		const url = bitmapToCanvas(options.image).toDataURL("image/png");
 		return `${selector} {\n\tbackground-image: url("${url}");\n\tbackground-size: cover;\n\tbackground-repeat: no-repeat;\n\timage-rendering: pixelated;\n}`;
 	}
-	const cell = Math.max(1, options.cell ?? 3);
+	const cell = Math.max(1, options.cell ?? 2);
 	const mode = options.mode ?? "background";
 	const fill = {
 		tone: options.level,

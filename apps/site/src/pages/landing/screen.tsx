@@ -11,7 +11,7 @@ import type { CSSProperties } from "react";
  * solid layer over the top 86% and the ramp under it, one tile wide and 14% of
  * the plate long, below the service cards, so none of them dissolves. The ramp runs from nothing at the bottom edge to fully inked
  * where it meets the solid part ("inked" is opaque in a mask), in 16 bands of a
- * 3px cell.
+ * 2px cell.
  */
 const RAMP = ditherRampMask({
 	edge: "bottom",
@@ -19,7 +19,7 @@ const RAMP = ditherRampMask({
 	from: 0,
 	to: 1,
 	steps: 16,
-	cell: 3,
+	cell: 2,
 });
 const TILE = RAMP.size.split(" ")[0] as string;
 const FADE = "14%";

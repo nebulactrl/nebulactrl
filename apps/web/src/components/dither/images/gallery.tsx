@@ -470,7 +470,7 @@ function DitheredLogoDemo() {
 	const [matrix, setMatrix] = useState<DitherMatrix>("bayer4");
 	const [original, setOriginal] = useState(false);
 	const [outline, setOutline] = useState(true);
-	const [cell, setCell] = useState(3);
+	const [cell, setCell] = useState(2);
 	const [floor, setFloor] = useState(0.3);
 	const [period, setPeriod] = useState(4);
 	const [phase, setPhase] = useState(0);

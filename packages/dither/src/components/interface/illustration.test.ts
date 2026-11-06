@@ -7,50 +7,63 @@ import {
 	illustrationScene,
 } from "./illustration";
 
+const SCALES = [1, 1.5] as const;
+
 describe("illustrationScene", () => {
 	test("every object fills part of the grid and leaves room around it", () => {
-		for (const name of ILLUSTRATIONS) {
-			const scene = illustrationScene(name);
-			expect(scene.width).toBe(ILLUSTRATION_WIDTH);
-			expect(scene.height).toBe(ILLUSTRATION_HEIGHT);
-			const filled = scene.parts.filter((part) => part > 0).length;
-			const total = scene.width * scene.height;
-			expect(filled).toBeGreaterThan(total * 0.08);
-			expect(filled).toBeLessThan(total * 0.5);
+		for (const scale of SCALES) {
+			for (const name of ILLUSTRATIONS) {
+				const scene = illustrationScene(name, scale);
+				expect(scene.width).toBe(ILLUSTRATION_WIDTH * scale);
+				expect(scene.height).toBe(ILLUSTRATION_HEIGHT * scale);
+				const filled = scene.parts.filter((part) => part > 0).length;
+				const total = scene.width * scene.height;
+				expect(filled).toBeGreaterThan(total * 0.08);
+				expect(filled).toBeLessThan(total * 0.5);
+			}
 		}
 	});
 
 	test("a one-cell seam splits the parts: different parts never touch", () => {
-		for (const name of ILLUSTRATIONS) {
-			const { width, height, parts } = illustrationScene(name);
-			const parted = new Set<number>();
-			for (let y = 0; y < height; y++) {
-				for (let x = 0; x < width; x++) {
-					const p = parts[y * width + x] ?? 0;
-					if (p > 0) parted.add(p);
-					const right = x + 1 < width ? (parts[y * width + x + 1] ?? 0) : 0;
-					const below = y + 1 < height ? (parts[(y + 1) * width + x] ?? 0) : 0;
-					if (p > 0 && right > 0) expect(right).toBe(p);
-					if (p > 0 && below > 0) expect(below).toBe(p);
+		for (const scale of SCALES) {
+			for (const name of ILLUSTRATIONS) {
+				const { width, height, parts } = illustrationScene(name, scale);
+				const parted = new Set<number>();
+				for (let y = 0; y < height; y++) {
+					for (let x = 0; x < width; x++) {
+						const p = parts[y * width + x] ?? 0;
+						if (p > 0) parted.add(p);
+						const right = x + 1 < width ? (parts[y * width + x + 1] ?? 0) : 0;
+						const below =
+							y + 1 < height ? (parts[(y + 1) * width + x] ?? 0) : 0;
+						if (p > 0 && right > 0) expect(right).toBe(p);
+						if (p > 0 && below > 0) expect(below).toBe(p);
+					}
 				}
+				// The objects are built from several parts, not one blob.
+				expect(parted.size).toBeGreaterThan(1);
 			}
-			// The objects are built from several parts, not one blob.
-			expect(parted.size).toBeGreaterThan(1);
 		}
 	});
 
 	test("the halo keeps a clear margin round the object", () => {
-		for (const name of ILLUSTRATIONS) {
-			const { width, height, parts, ambient } = illustrationScene(name);
-			for (let y = 0; y < height; y++) {
-				for (let x = 0; x < width; x++) {
-					if ((parts[y * width + x] ?? 0) === 0) continue;
-					for (let dy = -2; dy <= 2; dy++) {
-						for (let dx = -2; dx <= 2; dx++) {
-							const nx = x + dx;
-							const ny = y + dy;
-							if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-							expect(ambient[ny * width + nx]).toBe(0);
+		for (const scale of SCALES) {
+			const margin = Math.round(2 * scale);
+			for (const name of ILLUSTRATIONS) {
+				const { width, height, parts, ambient } = illustrationScene(
+					name,
+					scale,
+				);
+				for (let y = 0; y < height; y++) {
+					for (let x = 0; x < width; x++) {
+						if ((parts[y * width + x] ?? 0) === 0) continue;
+						for (let dy = -margin; dy <= margin; dy++) {
+							for (let dx = -margin; dx <= margin; dx++) {
+								const nx = x + dx;
+								const ny = y + dy;
+								if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+								expect(ambient[ny * width + nx]).toBe(0);
+							}
 						}
 					}
 				}
@@ -87,13 +100,27 @@ describe("illustrationPaths", () => {
 		expect(illustrationPaths("box", "bayer8")).toBe(
 			illustrationPaths("box", "bayer8"),
 		);
+		expect(illustrationPaths("box", "bayer8", 1.5)).toBe(
+			illustrationPaths("box", "bayer8", 1.5),
+		);
+		expect(illustrationPaths("box", "bayer8", 1.5)).not.toBe(
+			illustrationPaths("box", "bayer8", 1),
+		);
 	});
 
 	test("rects stay on the grid", () => {
-		const { object } = illustrationPaths("folder", "bayer4");
-		for (const [, x, y, w] of object.matchAll(/M(\d+) (\d+)h(\d+)/g)) {
-			expect(Number(x) + Number(w)).toBeLessThanOrEqual(ILLUSTRATION_WIDTH);
-			expect(Number(y)).toBeLessThan(ILLUSTRATION_HEIGHT);
+		for (const scale of SCALES) {
+			const { object, width, height } = illustrationPaths(
+				"folder",
+				"bayer4",
+				scale,
+			);
+			expect(width).toBe(ILLUSTRATION_WIDTH * scale);
+			expect(height).toBe(ILLUSTRATION_HEIGHT * scale);
+			for (const [, x, y, w] of object.matchAll(/M(\d+) (\d+)h(\d+)/g)) {
+				expect(Number(x) + Number(w)).toBeLessThanOrEqual(width);
+				expect(Number(y)).toBeLessThan(height);
+			}
 		}
 	});
 });

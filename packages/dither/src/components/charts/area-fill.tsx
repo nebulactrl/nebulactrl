@@ -22,7 +22,7 @@ export interface AreaFillProps {
 	/** CSS colour of the ink. */
 	color: string;
 	variant?: FillVariant;
-	/** Dither cell in px. Default 3. */
+	/** Dither cell in px. Default 2. */
 	cell?: number;
 	/** Distance in px over which a gradient thins out. Default 96. */
 	depth?: number;
@@ -55,7 +55,7 @@ export const AreaFill = memo(function AreaFill({
 	bottom,
 	color,
 	variant = "gradient",
-	cell = 3,
+	cell = 2,
 	depth = 96,
 	floor,
 	level = 0.72,

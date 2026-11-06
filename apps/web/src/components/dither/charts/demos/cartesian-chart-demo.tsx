@@ -68,7 +68,7 @@ export function CartesianChartDemo() {
 	const [fill, setFill] = useState<FillVariant>("gradient");
 	const [bloom, setBloom] = useState<ChartBloom>("off");
 	const [crosshair, setCrosshair] = useState<"line" | "column">("column");
-	const [cell, setCell] = useState(3);
+	const [cell, setCell] = useState(2);
 	const cellLabelId = useId();
 
 	// Stable by knob, so scrubbing never redraws the layers.

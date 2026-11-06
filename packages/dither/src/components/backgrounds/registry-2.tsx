@@ -49,7 +49,7 @@ const toggle = (key: string, label: string, value: boolean): KnobDef => ({
 	value,
 });
 
-const CELL = range("cell", "Cell", 2, 8, 1, 3);
+const CELL = range("cell", "Cell", 2, 8, 1, 2);
 const SPEED = range("speed", "Speed", 0, 3, 0.1, 1);
 const MATRIX = select("matrix", "Matrix", MATRIX_OPTIONS, "default");
 
@@ -175,7 +175,7 @@ export const BACKGROUNDS_2: readonly BackgroundEntry[] = [
 				variant={str<"solid" | "rings">(v, "variant", "solid")}
 				count={num(v, "count", 5)}
 				size={num(v, "size", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -205,7 +205,7 @@ export const BACKGROUNDS_2: readonly BackgroundEntry[] = [
 				center={[num(v, "centerX", 0.5), num(v, "centerY", 0.5)]}
 				sway={num(v, "sway", 1)}
 				fog={num(v, "fog", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -258,7 +258,7 @@ export const BACKGROUNDS_2: readonly BackgroundEntry[] = [
 				corona={num(v, "corona", 0.5)}
 				light={num(v, "light", 315)}
 				pulse={num(v, "pulse", 0.5)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -285,7 +285,7 @@ export const BACKGROUNDS_2: readonly BackgroundEntry[] = [
 				glow={num(v, "glow", 1)}
 				aurora={num(v, "aurora", 1)}
 				stars={num(v, "stars", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -524,7 +524,7 @@ export const BACKGROUNDS_2: readonly BackgroundEntry[] = [
 				morph={num(v, "morph", 1)}
 				lean={num(v, "lean", 1)}
 				glow={num(v, "glow", 0.5)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -556,7 +556,7 @@ export const BACKGROUNDS_2: readonly BackgroundEntry[] = [
 					matrix={matrixOf(v)}
 					side={str<FadeSide>(v, "side", "bottom")}
 					size={num(v, "size", 200)}
-					cell={num(v, "cell", 3)}
+					cell={num(v, "cell", 2)}
 					animate={bool(v, "animate", false)}
 					color={PAPER}
 				/>

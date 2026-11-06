@@ -627,7 +627,7 @@ function CardSection() {
 						color={hue}
 						fill={texture}
 						matrix={texture === "gradient" ? "blue-noise" : "bayer4"}
-						cell={texture === "gradient" ? 2 : 3}
+						cell={2}
 						reach={130}
 						interactive
 						className={cn(

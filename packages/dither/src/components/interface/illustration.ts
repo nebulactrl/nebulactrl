@@ -36,9 +36,15 @@ export const ILLUSTRATIONS: readonly EmptyStateIllustration[] = [
 	"bell",
 ];
 
-/** The grid every illustration is drawn on, in cells. */
+/** The design grid every illustration is drawn on, in cells at scale 1. */
 export const ILLUSTRATION_WIDTH = 112;
 export const ILLUSTRATION_HEIGHT = 72;
+
+/**
+ * Cells per design unit. `1` draws the 112×72 grid; `1.5` draws the same
+ * picture on a 168×108 grid, so a wider illustration keeps its cells small.
+ */
+export type IllustrationScale = 1 | 1.5;
 
 /** Cells of clear space between the object and its halo. */
 const MARGIN = 2;
@@ -459,22 +465,24 @@ export interface IllustrationScene {
 	ambient: Float32Array;
 }
 
-const scenes = new Map<EmptyStateIllustration, IllustrationScene>();
+const scenes = new Map<string, IllustrationScene>();
 
 /** The (part, tone) grid for an illustration: seams cut, margin cleared. Cached. */
 export function illustrationScene(
 	name: EmptyStateIllustration,
+	scale: IllustrationScale = 1,
 ): IllustrationScene {
-	const hit = scenes.get(name);
+	const key = `${name}|${scale}`;
+	const hit = scenes.get(key);
 	if (hit) return hit;
-	const width = ILLUSTRATION_WIDTH;
-	const height = ILLUSTRATION_HEIGHT;
+	const width = ILLUSTRATION_WIDTH * scale;
+	const height = ILLUSTRATION_HEIGHT * scale;
 	const sample = SCENES[name];
 	const parts = new Uint8Array(width * height);
 	const tones = new Float32Array(width * height);
 	for (let y = 0; y < height; y++) {
 		for (let x = 0; x < width; x++) {
-			const s = sample(x + 0.5, y + 0.5);
+			const s = sample((x + 0.5) / scale, (y + 0.5) / scale);
 			parts[y * width + x] = s.part;
 			tones[y * width + x] = clamp01(s.tone);
 		}
@@ -505,15 +513,19 @@ export function illustrationScene(
 	}
 	for (const index of seam) parts[index] = 0;
 
-	// Halo and floor shadow, then clear everything within MARGIN of the object.
+	// Halo and floor shadow, in design units, then clear everything within the
+	// margin of the object.
+	const margin = Math.round(MARGIN * scale);
 	const ambient = new Float32Array(width * height);
 	const halo = HALO[name];
 	for (let y = 0; y < height; y++) {
+		const uy = (y + 0.5) / scale;
 		for (let x = 0; x < width; x++) {
-			const d = Math.hypot(x + 0.5 - halo.c[0], y + 0.5 - halo.c[1]);
+			const ux = (x + 0.5) / scale;
+			const d = Math.hypot(ux - halo.c[0], uy - halo.c[1]);
 			const glow = 0.2 * clamp01(1 - d / halo.r) ** 1.4;
-			const sx = (x + 0.5 - 56) / 30;
-			const sy = (y + 0.5 - 67) / 3.5;
+			const sx = (ux - 56) / 30;
+			const sy = (uy - 67) / 3.5;
 			const floor = 0.5 * clamp01(1 - (sx * sx + sy * sy));
 			ambient[y * width + x] = Math.max(glow, floor);
 		}
@@ -521,8 +533,8 @@ export function illustrationScene(
 	for (let y = 0; y < height; y++) {
 		for (let x = 0; x < width; x++) {
 			if ((parts[y * width + x] ?? 0) === 0) continue;
-			for (let dy = -MARGIN; dy <= MARGIN; dy++) {
-				for (let dx = -MARGIN; dx <= MARGIN; dx++) {
+			for (let dy = -margin; dy <= margin; dy++) {
+				for (let dx = -margin; dx <= margin; dx++) {
 					const nx = x + dx;
 					const ny = y + dy;
 					if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
@@ -533,7 +545,7 @@ export function illustrationScene(
 		}
 	}
 	const scene = { width, height, parts, tones, ambient };
-	scenes.set(name, scene);
+	scenes.set(key, scene);
 	return scene;
 }
 
@@ -542,6 +554,9 @@ export interface IllustrationPaths {
 	object: string;
 	/** Inked cells of the halo and floor shadow. */
 	ambient: string;
+	/** The scene grid the paths are drawn on: the SVG viewBox. */
+	width: number;
+	height: number;
 }
 
 const pathCache = new Map<string, IllustrationPaths>();
@@ -570,11 +585,12 @@ function rowRuns(
 export function illustrationPaths(
 	name: EmptyStateIllustration,
 	matrix: DitherMatrix,
+	scale: IllustrationScale = 1,
 ): IllustrationPaths {
-	const key = `${name}|${matrix}`;
+	const key = `${name}|${matrix}|${scale}`;
 	const hit = pathCache.get(key);
 	if (hit) return hit;
-	const scene = illustrationScene(name);
+	const scene = illustrationScene(name, scale);
 	const { width, height } = scene;
 	const paths = {
 		object: rowRuns(
@@ -591,6 +607,8 @@ export function illustrationPaths(
 				cellInk("gradient", scene.ambient[y * width + x] ?? 0, x, y, matrix) >
 				0,
 		),
+		width,
+		height,
 	};
 	pathCache.set(key, paths);
 	return paths;

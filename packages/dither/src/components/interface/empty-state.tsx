@@ -5,9 +5,8 @@ import { DitherBackdrop } from "./backdrop";
 import { type DitherColor, inkCss } from "./fill";
 import {
 	type EmptyStateIllustration,
-	ILLUSTRATION_HEIGHT,
-	ILLUSTRATION_WIDTH,
 	ILLUSTRATIONS,
+	type IllustrationScale,
 	illustrationPaths,
 } from "./illustration";
 import { ensureInterfaceStyles } from "./keyframes";
@@ -53,7 +52,7 @@ export interface DitherEmptyStateProps {
 	animate?: boolean | undefined;
 	/** Heading level of the title. Default `h3`. */
 	titleAs?: "h2" | "h3" | "h4" | undefined;
-	/** Width of a dithered object: `lg` is 336px (3px cells), `md` 224px (2px cells), for a panel or a well. Default `lg`. */
+	/** Width of a dithered object: `lg` is 336px on a 168×108 grid, `md` 224px on 112×72; both are 2px cells. Default `lg`. */
 	size?: "md" | "lg" | undefined;
 }
 
@@ -76,20 +75,22 @@ function DitheredIllustration({
 	color,
 	matrix,
 	animate,
+	scale,
 }: {
 	name: EmptyStateIllustration;
 	color: DitherColor | undefined;
 	matrix: DitherMatrix;
 	animate: boolean;
+	scale: IllustrationScale;
 }) {
 	ensureInterfaceStyles();
-	const paths = illustrationPaths(name, matrix);
+	const paths = illustrationPaths(name, matrix, scale);
 	return (
 		<svg
 			aria-hidden
 			data-slot="dither-illustration"
 			data-illustration={name}
-			viewBox={`0 0 ${ILLUSTRATION_WIDTH} ${ILLUSTRATION_HEIGHT}`}
+			viewBox={`0 0 ${paths.width} ${paths.height}`}
 			className="block h-auto w-full forced-colors:hidden"
 			style={{ color: inkCss(color) }}
 			shapeRendering="crispEdges"
@@ -156,6 +157,7 @@ function DitherEmptyState({
 							color={color}
 							matrix={matrix}
 							animate={animate}
+							scale={size === "lg" ? 1.5 : 1}
 						/>
 					</EmptyMedia>
 				) : media ? (

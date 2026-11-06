@@ -108,7 +108,7 @@ export interface DitherLineChartProps<T> extends ChartFeatureProps {
 	tooltip?: boolean;
 	/** Axis, readout and table number format. Default compact (1.2K). */
 	format?: ValueFormat;
-	/** Dither cell of the range bands, in px. Default 3. */
+	/** Dither cell of the range bands, in px. Default 2. */
 	cell?: number;
 	/** Tone of the range bands, 0–1. Default 0.3. */
 	bandLevel?: number;
@@ -150,7 +150,7 @@ export function DitherLineChart<T>({
 	legend,
 	tooltip = true,
 	format,
-	cell = 3,
+	cell = 2,
 	bandLevel,
 	level: levelProp,
 	fill = "gradient",

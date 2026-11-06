@@ -28,9 +28,9 @@ describe("autoCell", () => {
 		expect(autoCell(120)).toBe(5);
 	});
 
-	test("an unusable font size gives the fallback 3", () => {
-		expect(autoCell(Number.NaN)).toBe(3);
-		expect(autoCell(Number.POSITIVE_INFINITY)).toBe(3);
+	test("an unusable font size gives the fallback 2", () => {
+		expect(autoCell(Number.NaN)).toBe(2);
+		expect(autoCell(Number.POSITIVE_INFINITY)).toBe(2);
 	});
 });
 

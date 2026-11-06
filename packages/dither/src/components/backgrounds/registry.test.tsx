@@ -342,7 +342,7 @@ describe("registry part 1", () => {
 		});
 	});
 
-	test("contours' cell knob starts at 2, not the gallery's usual 3", () => {
+	test("contours' cell knob starts at 2", () => {
 		expect(entry("contours").knobs.find((k) => k.key === "cell")?.value).toBe(
 			2,
 		);
@@ -732,7 +732,7 @@ describe("registry fade", () => {
 		const edge = root.querySelector(".pointer-events-none") as HTMLElement;
 		expect(edge).toHaveClass("inset-x-0", "bottom-0");
 		expect(edge.style.height).toBe("200px");
-		expect(edge.style.maskSize).toBe("12px 200px");
+		expect(edge.style.maskSize).toBe("8px 200px");
 		expect(shaderCalls).toHaveLength(0);
 	});
 

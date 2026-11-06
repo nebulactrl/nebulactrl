@@ -83,7 +83,7 @@ describe("parseCellValue", () => {
 		expect(parseCellValue("3px")).toBe(3);
 		expect(parseCellValue("4")).toBe(4);
 		expect(parseCellValue("0.25rem")).toBe(4);
-		expect(parseCellValue("nope")).toBe(3);
-		expect(parseCellValue(undefined)).toBe(3);
+		expect(parseCellValue("nope")).toBe(2);
+		expect(parseCellValue(undefined)).toBe(2);
 	});
 });

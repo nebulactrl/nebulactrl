@@ -230,7 +230,7 @@ function MatricesSection() {
 }
 
 function PixelScaleSection() {
-	const [cell, setCell] = useState(3);
+	const [cell, setCell] = useState(2);
 	const [dpr, setDpr] = useState(1);
 	useEffect(() => {
 		setDpr(window.devicePixelRatio || 1);
@@ -280,7 +280,7 @@ function PixelScaleSection() {
 const PATTERN_LEVELS = [0.125, 0.25, 0.5, 0.75, 1] as const;
 
 function DrawPathsSection() {
-	const [cell, setCell] = useState(3);
+	const [cell, setCell] = useState(2);
 	const [matrix, setMatrix] = useState<DitherMatrix>("bayer4");
 	return (
 		<GallerySection

@@ -47,7 +47,7 @@ const toggle = (key: string, label: string, value: boolean): KnobDef => ({
 	value,
 });
 
-const CELL = range("cell", "Cell", 2, 8, 1, 3);
+const CELL = range("cell", "Cell", 2, 8, 1, 2);
 const SPEED = range("speed", "Speed", 0, 3, 0.1, 1);
 const MATRIX = select("matrix", "Matrix", MATRIX_OPTIONS, "default");
 
@@ -87,7 +87,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				from={num(v, "from", 0)}
 				to={num(v, "to", 1)}
 				noise={num(v, "noise", 0.12)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -110,7 +110,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				position={str<GlowPosition>(v, "position", "top")}
 				radius={num(v, "radius", 0.7)}
 				intensity={num(v, "intensity", 0.75)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -133,7 +133,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 					className={FILL}
 					blobs={blobs === 3 ? 3 : blobs === 5 ? 5 : 4}
 					size={num(v, "size", 0.6)}
-					cell={num(v, "cell", 3)}
+					cell={num(v, "cell", 2)}
 					speed={num(v, "speed", 1)}
 				/>
 			);
@@ -183,7 +183,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				{...(bool(v, "twoTone", true) ? { tipColor: "--chart-2" } : {})}
 				direction={str<"up" | "down">(v, "direction", "up")}
 				mask={str<AuroraMask>(v, "mask", "none")}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -238,7 +238,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				{...(bool(v, "highlight", false) ? { highlight: "--chart-2" } : {})}
 				mask={str<MaskMode>(v, "mask", "center")}
 				maskSize={num(v, "maskSize", 0.5)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -263,7 +263,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				horizon={num(v, "horizon", 0.62)}
 				layers={num(v, "layers", 6)}
 				amplitude={num(v, "amplitude", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -288,7 +288,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				warp={num(v, "warp", 0.3)}
 				bands={num(v, "bands", 1.5)}
 				intensity={num(v, "intensity", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -318,7 +318,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				rays={num(v, "rays", 9)}
 				sweep={num(v, "sweep", 6)}
 				reach={num(v, "reach", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -343,7 +343,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				angle={num(v, "angle", 110)}
 				sheen={num(v, "sheen", 0.6)}
 				intensity={num(v, "intensity", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -368,7 +368,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				height={num(v, "height", 0.8)}
 				wind={num(v, "wind", 0.2)}
 				density={num(v, "density", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
@@ -418,7 +418,7 @@ export const BACKGROUNDS_1: readonly BackgroundEntry[] = [
 				rings={num(v, "rings", 12)}
 				decay={num(v, "decay", 1)}
 				intensity={num(v, "intensity", 1)}
-				cell={num(v, "cell", 3)}
+				cell={num(v, "cell", 2)}
 				speed={num(v, "speed", 1)}
 			/>
 		),
