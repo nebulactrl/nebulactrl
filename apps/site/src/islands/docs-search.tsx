@@ -9,6 +9,7 @@ import { docHref } from "@nebulactrl/docs/types";
 import { HashIcon } from "@phosphor-icons/react/dist/csr/Hash";
 import { MagnifyingGlassIcon as SearchIcon } from "@phosphor-icons/react/dist/csr/MagnifyingGlass";
 import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 let loaded: Promise<SearchIndex> | null = null;
 
@@ -111,94 +112,105 @@ export default function DocsSearch() {
 					{mac ? "⌘ K" : "Ctrl K"}
 				</kbd>
 			</button>
-			{open ? (
-				<div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[12vh]">
-					<button
-						type="button"
-						tabIndex={-1}
-						aria-label="Close search"
-						onClick={close}
-						className="absolute inset-0 cursor-default bg-black/60"
-					/>
-					<div
-						role="dialog"
-						aria-modal="true"
-						aria-label="Search the docs"
-						onKeyDown={onKeyDown}
-						className="surface-float relative w-full max-w-xl overflow-hidden rounded-2xl"
-					>
-						<div className="flex items-center gap-2 border-line border-b px-4">
-							<SearchIcon aria-hidden className="size-4 shrink-0 text-ink-3" />
-							<input
-								ref={input}
-								type="text"
-								role="combobox"
-								aria-expanded={hits.length > 0}
-								aria-controls={listId}
-								aria-activedescendant={
-									hits[active] ? `${listId}-${active}` : undefined
-								}
-								aria-label="Search the docs"
-								autoComplete="off"
-								spellCheck={false}
-								placeholder="Search titles, headings and text"
-								value={query}
-								onChange={(event) => {
-									setQuery(event.target.value);
-									setActive(0);
-								}}
-								className="h-14 min-w-0 flex-1 bg-transparent text-base text-ink-1 outline-none placeholder:text-ink-4"
+			{/* Portaled to <body>: the sticky bar's backdrop-filter makes it the
+			    containing block of fixed descendants, which clipped the overlay
+			    to the bar's height. */}
+			{open
+				? createPortal(
+						<div className="fixed inset-0 z-50 flex items-start justify-center px-4 pt-[12vh]">
+							<button
+								type="button"
+								tabIndex={-1}
+								aria-label="Close search"
+								onClick={close}
+								className="absolute inset-0 cursor-default bg-black/60"
 							/>
-							<kbd className="keycap hidden pointer-fine:inline-flex">Esc</kbd>
-						</div>
-						<div
-							id={listId}
-							role="listbox"
-							aria-label="Results"
-							className="max-h-[50vh] overflow-y-auto overscroll-contain p-2"
-						>
-							{hits.map((hit, i) => (
-								<a
-									key={`${hit.slug}#${hit.anchor}`}
-									id={`${listId}-${i}`}
-									role="option"
-									aria-selected={i === active}
-									href={docHref(hit.slug, hit.anchor)}
-									onMouseMove={() => setActive(i)}
-									className={`flex flex-col gap-0.5 rounded-lg px-3 py-2 no-underline ${i === active ? "bg-surface-well" : ""}`}
+							<div
+								role="dialog"
+								aria-modal="true"
+								aria-label="Search the docs"
+								onKeyDown={onKeyDown}
+								className="surface-float relative w-full max-w-xl overflow-hidden rounded-2xl"
+							>
+								<div className="flex items-center gap-2 border-line border-b px-4">
+									<SearchIcon
+										aria-hidden
+										className="size-4 shrink-0 text-ink-3"
+									/>
+									<input
+										ref={input}
+										type="text"
+										role="combobox"
+										aria-expanded={hits.length > 0}
+										aria-controls={listId}
+										aria-activedescendant={
+											hits[active] ? `${listId}-${active}` : undefined
+										}
+										aria-label="Search the docs"
+										autoComplete="off"
+										spellCheck={false}
+										placeholder="Search titles, headings and text"
+										value={query}
+										onChange={(event) => {
+											setQuery(event.target.value);
+											setActive(0);
+										}}
+										className="h-14 min-w-0 flex-1 bg-transparent text-base text-ink-1 outline-none placeholder:text-ink-4"
+									/>
+									<kbd className="keycap hidden pointer-fine:inline-flex">
+										Esc
+									</kbd>
+								</div>
+								<div
+									id={listId}
+									role="listbox"
+									aria-label="Results"
+									className="max-h-[50vh] overflow-y-auto overscroll-contain p-2"
 								>
-									<span className="flex items-center gap-2 text-ink-1 text-sm">
-										{hit.heading ? (
-											<HashIcon
-												aria-hidden
-												className="size-3 shrink-0 text-ink-4"
-											/>
-										) : null}
-										{hit.heading
-											? `${hit.pageTitle}: ${hit.heading}`
-											: hit.pageTitle}
-									</span>
-									<span className="text-ink-3 text-xs">{hit.section}</span>
-								</a>
-							))}
-						</div>
-						<p
-							className="m-0 border-line border-t px-4 py-3 text-ink-3 text-xs"
-							role="status"
-						>
-							{error
-								? "The search index did not load. Check your connection and open the search again."
-								: !index
-									? "Loading the search index"
-									: query.trim() === ""
-										? "Type to search every docs page."
-										: hits.length === 0
-											? `No page matches "${query.trim()}". Try fewer or different words.`
-											: `${hits.length} ${hits.length === 1 ? "result" : "results"}`}
-						</p>
-					</div>
-				</div>
-			) : null}
+									{hits.map((hit, i) => (
+										<a
+											key={`${hit.slug}#${hit.anchor}`}
+											id={`${listId}-${i}`}
+											role="option"
+											aria-selected={i === active}
+											href={docHref(hit.slug, hit.anchor)}
+											onMouseMove={() => setActive(i)}
+											className={`flex flex-col gap-0.5 rounded-lg px-3 py-2 no-underline ${i === active ? "bg-surface-well" : ""}`}
+										>
+											<span className="flex items-center gap-2 text-ink-1 text-sm">
+												{hit.heading ? (
+													<HashIcon
+														aria-hidden
+														className="size-3 shrink-0 text-ink-4"
+													/>
+												) : null}
+												{hit.heading
+													? `${hit.pageTitle}: ${hit.heading}`
+													: hit.pageTitle}
+											</span>
+											<span className="text-ink-3 text-xs">{hit.section}</span>
+										</a>
+									))}
+								</div>
+								<p
+									className="m-0 border-line border-t px-4 py-3 text-ink-3 text-xs"
+									role="status"
+								>
+									{error
+										? "The search index did not load. Check your connection and open the search again."
+										: !index
+											? "Loading the search index"
+											: query.trim() === ""
+												? "Type to search every docs page."
+												: hits.length === 0
+													? `No page matches "${query.trim()}". Try fewer or different words.`
+													: `${hits.length} ${hits.length === 1 ? "result" : "results"}`}
+								</p>
+							</div>
+						</div>,
+						document.body,
+					)
+				: null}
 		</>
 	);
 }
