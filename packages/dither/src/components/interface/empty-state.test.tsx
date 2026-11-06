@@ -132,14 +132,16 @@ describe("DitherEmptyState object", () => {
 		expect(art()?.querySelector("g")).not.toHaveClass("nc-if-bob");
 	});
 
-	test("size md narrows the object to 224px; lg is 336px", () => {
+	test("lg is 336px on a 168×108 grid; md is 224px on 112×72", () => {
 		const { unmount } = render(
 			<DitherEmptyState title="t" illustration="box" />,
 		);
 		expect(art()?.parentElement).toHaveClass("max-w-[336px]");
+		expect(art()).toHaveAttribute("viewBox", "0 0 168 108");
 		unmount();
 		render(<DitherEmptyState title="t" illustration="box" size="md" />);
 		expect(art()?.parentElement).toHaveClass("max-w-[224px]");
+		expect(art()).toHaveAttribute("viewBox", "0 0 112 72");
 	});
 
 	test("the keyframes for the bob are on the page", () => {

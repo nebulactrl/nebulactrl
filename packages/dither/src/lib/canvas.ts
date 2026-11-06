@@ -195,7 +195,7 @@ export interface DrawDitherOptions {
 	/** Box the grid covers, CSS px. Default: the canvas's CSS size. */
 	width?: number;
 	height?: number;
-	/** Cell in CSS px. Default: `--dither-cell` on the canvas, then 3. */
+	/** Cell in CSS px. Default: `--dither-cell` on the canvas, then 2. */
 	cell?: number;
 	/** Device-pixel ratio. Default `devicePixelRatio`. */
 	dpr?: number;
@@ -253,7 +253,7 @@ export function drawDitherCanvas(
 		options.cell ??
 		(html
 			? parseCellValue(getComputedStyle(html).getPropertyValue("--dither-cell"))
-			: 3);
+			: 2);
 	const dpr =
 		options.dpr ??
 		(typeof devicePixelRatio === "number" ? devicePixelRatio : 1);

@@ -62,7 +62,7 @@ function DitherTextDemo() {
 	const [color, setColor] = useState<ColorName>("ink");
 	const [palette, setPalette] = useState<PaletteName>("off");
 	const [matrix, setMatrix] = useState<TextMatrix>("bayer4");
-	const [cell, setCell] = useState(3);
+	const [cell, setCell] = useState(2);
 	const [scale, setScale] = useState(3);
 	const [from, setFrom] = useState(1);
 	const [to, setTo] = useState(0.4);

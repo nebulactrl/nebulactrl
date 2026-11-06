@@ -48,7 +48,7 @@ export function BarChartDemo() {
 	const [mode, setMode] = useState<"stacked" | "grouped">("stacked");
 	const [fill, setFill] = useState<FillVariant>("gradient");
 	const [percent, setPercent] = useState(false);
-	const [cell, setCell] = useState(3);
+	const [cell, setCell] = useState(2);
 	const [bloom, setBloom] = useState<ChartBloom>("off");
 	const [matrix, setMatrix] = useState<DitherMatrix>("bayer4");
 	const [highlight, setHighlight] = useState<"unset" | "last" | "max">("unset");

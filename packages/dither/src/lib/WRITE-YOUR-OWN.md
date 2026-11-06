@@ -144,7 +144,7 @@ import { drawDitherCanvas } from "@nebulactrl/dither/lib/canvas";
 const tone = (u: number, v: number) =>
 	Math.max(0, 1 - Math.hypot(u - 0.5, v - 0.5) * 2);
 drawDitherCanvas(canvas.getContext("2d")!, tone, {
-	cell: 3,
+	cell: 2,
 	method: "bayer4",
 	palette: ["paper", "blue"],
 });

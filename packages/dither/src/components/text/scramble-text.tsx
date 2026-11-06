@@ -75,7 +75,7 @@ export interface ScrambleTextProps
 
 const SPACE = /\s/;
 const BLOCK_N = 4;
-const FALLBACK_CELL = 3;
+const FALLBACK_CELL = 2;
 
 /** The default block cell: the font size / 22, at least 1 CSS px. */
 export function blockCell(fontSize: number): number {

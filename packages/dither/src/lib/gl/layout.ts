@@ -3,7 +3,7 @@
  * is in whole device pixels, and the canvas buffer that holds them.
  */
 
-export const DEFAULT_CELL = 3;
+export const DEFAULT_CELL = 2;
 export const MAX_DPR = 2;
 /** Cells per axis the engine will allocate; larger boxes are coarsened. */
 export const MAX_CELLS_PER_AXIS = 4096;

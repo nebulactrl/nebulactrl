@@ -163,7 +163,7 @@ export function UptimeBarDemo() {
 				words={{ up: "Succeeded", down: "Failed", none: "No backup" }}
 				caption="succeeded"
 				height={28}
-				cell={3}
+				cell={2}
 			/>
 		</section>
 	);

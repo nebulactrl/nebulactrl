@@ -157,10 +157,10 @@ describe("blockCell", () => {
 		expect(blockCell(10)).toBe(1);
 	});
 
-	test("an unusable font size falls back to 3", () => {
-		expect(blockCell(0)).toBe(3);
-		expect(blockCell(Number.NaN)).toBe(3);
-		expect(blockCell(-5)).toBe(3);
+	test("an unusable font size falls back to 2", () => {
+		expect(blockCell(0)).toBe(2);
+		expect(blockCell(Number.NaN)).toBe(2);
+		expect(blockCell(-5)).toBe(2);
 	});
 });
 

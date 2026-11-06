@@ -197,8 +197,8 @@ describe("DitherCartesianChart context", () => {
 		expect(capture().ctx?.solid).toBe(true);
 	});
 
-	test("the dither cell defaults to 3px", () => {
-		expect(capture().ctx?.cell).toBe(3);
+	test("the dither cell defaults to 2px", () => {
+		expect(capture().ctx?.cell).toBe(2);
 	});
 
 	test("spotlighting a legend chip sets the focus index and dims the others", async () => {

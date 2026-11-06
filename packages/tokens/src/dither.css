@@ -10,7 +10,7 @@
  *
  *   --dither-ink    the default ink (accent-ink)
  *   --dither-paper  what a mark sits on (the raised card); marker rings use it
- *   --dither-cell   one dither cell in CSS px (3 reads as print, 2 for small marks)
+ *   --dither-cell   one dither cell in CSS px (2; under 1.5 charts fall back to flat colour)
  *   --dither-bloom  0-1 glow strength behind a fill; 0 turns the glow off
  *   --dither-fill-duration / --dither-fill-ease  how long a bar takes to grow to a
  *                   value (first reveal and every change); 350ms in the app, the
@@ -20,7 +20,7 @@
 	--dither-ink: var(--color-accent-ink);
 	--dither-paper: var(--color-surface-raised);
 	--dither-track: color-mix(in oklab, var(--color-ink-1) 9%, var(--color-surface-well));
-	--dither-cell: 3px;
+	--dither-cell: 2px;
 	--dither-bloom: 0.35;
 	--dither-fill-duration: var(--duration-medium, 350ms);
 	--dither-fill-ease: var(--ease-smooth-out, cubic-bezier(0.22, 1, 0.36, 1));

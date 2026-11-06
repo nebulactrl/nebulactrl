@@ -85,7 +85,7 @@ export interface DitherBarChartProps<T> extends ChartFeatureProps {
 	tooltip?: boolean;
 	/** Axis, readout and table number format. Default compact (1.2K). */
 	format?: ValueFormat;
-	/** Dither cell in px. Default 3. */
+	/** Dither cell in px. Default 2. */
 	cell?: number;
 	/** Tone at the cap, 0–1. Default 0.78. */
 	level?: number;
@@ -140,7 +140,7 @@ export function DitherBarChart<T>({
 	legend,
 	tooltip = true,
 	format,
-	cell = 3,
+	cell = 2,
 	level = 0.78,
 	colors,
 	bloom = "off",

@@ -96,7 +96,7 @@ const bloomLevel = (bloom: boolean | DitherTextBloom): DitherTextBloom =>
 
 /** The auto cell: about 1/24 of the font size, at least 2 CSS px. */
 export function autoCell(fontSize: number): number {
-	return Number.isFinite(fontSize) ? Math.max(2, Math.round(fontSize / 24)) : 3;
+	return Number.isFinite(fontSize) ? Math.max(2, Math.round(fontSize / 24)) : 2;
 }
 
 /**
@@ -238,7 +238,7 @@ export function DitherText({
 				...(fill === "solid"
 					? {}
 					: ditherMaskStyle((from + to) / 2, {
-							cell: cell ?? 3,
+							cell: cell ?? 2,
 							matrix: resolvedMatrix,
 						})),
 			};

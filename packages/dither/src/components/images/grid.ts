@@ -5,7 +5,7 @@
  */
 
 /** The `--dither-cell` fallback, in CSS px. */
-export const DEFAULT_CELL_PX = 3;
+export const DEFAULT_CELL_PX = 2;
 
 /** Largest grid either side; beyond it the cell grows rather than the canvas. */
 export const MAX_GRID = 2048;

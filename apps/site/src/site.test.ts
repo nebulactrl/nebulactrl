@@ -428,7 +428,7 @@ describe("the dashboard under the hero", () => {
 		expect(plate).toContain("data:image/svg+xml");
 		expect(plate).toContain("linear-gradient(#000, #000)");
 		// The ramp covers only the bottom 14%, under the cards, so no service dissolves.
-		expect(plate).toContain("mask-size:12px 14%, 100% 86.5%");
+		expect(plate).toContain("mask-size:8px 14%, 100% 86.5%");
 		expect(plate).toContain("mask-repeat:repeat-x, no-repeat");
 	});
 });

@@ -40,7 +40,7 @@ describe("cell grid", () => {
 	});
 
 	test("readCellVar falls back without a document", () => {
-		expect(readCellVar()).toBe(3);
+		expect(readCellVar()).toBe(2);
 	});
 });
 

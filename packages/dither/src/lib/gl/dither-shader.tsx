@@ -94,7 +94,7 @@ export interface DitherShaderProps {
 	textures?: TextureInputs | undefined;
 	/** CSS colours (or `--tokens`) ramped low -> high tone. Default paper -> ink. */
 	palette?: readonly string[] | undefined;
-	/** Dither cell in CSS px. Default `--dither-cell` (3). */
+	/** Dither cell in CSS px. Default `--dither-cell` (2). */
 	cell?: number | undefined;
 	/** Bayer matrix size. Default 4. Ignored when `matrix` is set. */
 	n?: 2 | 4 | 8 | undefined;

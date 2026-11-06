@@ -193,7 +193,7 @@ const finite = (value: unknown) => {
 
 /** The dither cell: the prop, else `--dither-cell`, snapped to whole device pixels. */
 function useCellSize(ref: { current: Element | null }, cell?: number): number {
-	const [base, setBase] = useState(3);
+	const [base, setBase] = useState(2);
 	const [dpr, setDpr] = useState(1);
 	useEffect(() => {
 		const el = ref.current;

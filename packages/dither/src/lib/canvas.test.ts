@@ -480,7 +480,7 @@ describe("rasterizeField inputs", () => {
 });
 
 describe("drawDitherCanvas defaults", () => {
-	test("without a cell or dpr it uses 3px cells at the page's device pixel ratio", () => {
+	test("without a cell or dpr it uses 2px cells at the page's device pixel ratio", () => {
 		const canvas = { width: 30, height: 30 };
 		const ctx = {
 			canvas,
@@ -488,8 +488,8 @@ describe("drawDitherCanvas defaults", () => {
 		} as unknown as CanvasRenderingContext2D;
 		const layout = drawDitherCanvas(ctx, () => 0);
 		expect(layout?.dpr).toBe(devicePixelRatio);
-		expect(layout?.cellCss).toBe(3);
-		expect(layout?.cols).toBe(10);
+		expect(layout?.cellCss).toBe(2);
+		expect(layout?.cols).toBe(15);
 		expect(canvas.width).toBe(layout?.cols as number);
 	});
 });

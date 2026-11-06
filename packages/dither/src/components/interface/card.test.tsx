@@ -207,7 +207,7 @@ describe("DitherCard", () => {
 		const rim = card().querySelector("[data-slot=card-rim]") as HTMLElement;
 		expect(rim).not.toBeNull();
 		// The rim is a band as wide as one glow cell.
-		expect(rim.style.padding).toBe("3px");
+		expect(rim.style.padding).toBe("2px");
 		expect(rim.querySelector("svg")).not.toBeNull();
 		unmount();
 		render(<DitherCard data-testid="card" glow="top" rim={false} />);

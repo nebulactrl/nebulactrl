@@ -32,7 +32,7 @@ function DitherBackdrop({ animate = true, className }: DitherBackdropProps) {
 			aria-hidden
 			field={BACKDROP_FIELD}
 			palette={[palette.paper, palette.accent]}
-			cell={3}
+			cell={2}
 			fps={12}
 			animate={animate}
 			staticTime={3}

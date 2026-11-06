@@ -132,7 +132,7 @@ export function DitherImage({
 				<div
 					aria-hidden="true"
 					className="absolute inset-0 bg-[var(--dither-ink)] opacity-[0.16]"
-					style={ditherMaskStyle({ tone: 0.14, cell: 3 })}
+					style={ditherMaskStyle({ tone: 0.14, cell: 2 })}
 				/>
 			) : null}
 			<DitherLayer

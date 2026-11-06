@@ -28,7 +28,7 @@ import { ditherColorVar } from "./colors";
  */
 
 /** Dither cell edge in CSS px when a fill does not say (matches `--dither-cell`). */
-export const DEFAULT_CELL = 3;
+export const DEFAULT_CELL = 2;
 const DEFAULT_N: BayerSize = 4;
 /** Radius of a "dot" cell, in cells. Just under half so neighbours never touch. */
 const DOT_RADIUS = 0.44;
@@ -38,7 +38,7 @@ export interface DitherFill {
 	tone: number;
 	/** CSS colour of the ink: `var(--dither-ink)`, `#fff`, `color-mix(…)`. */
 	color: string;
-	/** Cell edge in px. Default 3. */
+	/** Cell edge in px. Default 2. */
 	cell?: number;
 	/** Matrix size. Default 4. Ignored when `matrix` is set. */
 	n?: BayerSize;
@@ -276,7 +276,7 @@ export interface DitherRampOptions {
 	to: number;
 	/** Bands along the ramp, evenly spaced from `from` to `to`. Default 16. */
 	steps?: number;
-	/** Cell edge in px. Default 3. */
+	/** Cell edge in px. Default 2. */
 	cell?: number;
 	/** Matrix size. Default 4. Ignored when `matrix` is set. */
 	n?: BayerSize;
@@ -589,7 +589,7 @@ export interface DitherPatternProps {
 	id: string;
 	/** Share of cells inked, 0..1. */
 	level: number;
-	/** Cell edge in SVG user units. Default 3. */
+	/** Cell edge in SVG user units. Default 2. */
 	cell?: number;
 	/** Threshold matrix. Default `"bayer4"`. */
 	matrix?: DitherMatrix;
