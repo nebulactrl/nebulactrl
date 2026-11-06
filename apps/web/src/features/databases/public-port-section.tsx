@@ -12,6 +12,7 @@ import type { PublicPortView } from "#/api/gen/types.gen";
 import { invalidateOperations } from "#/api/invalidate";
 import type { Service } from "#/api/models";
 import { useConfirm } from "#/components/common/confirm-dialog";
+import { ConfirmPhrase } from "#/components/common/confirm-phrase";
 import { CopyButton } from "#/components/common/copy-button";
 import { Alert, AlertDescription } from "#/components/ui/alert";
 import { Badge } from "#/components/ui/badge";
@@ -335,8 +336,7 @@ function PublicPortBody({
 							<Alert variant="warning">
 								<AlertDescription>
 									This lets every address connect to the database. Type{" "}
-									<code className="font-mono text-ink-1">{service.slug}</code>{" "}
-									to confirm.
+									<ConfirmPhrase value={service.slug} /> to confirm.
 								</AlertDescription>
 							</Alert>
 							<Input

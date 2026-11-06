@@ -4,6 +4,7 @@ import { errorMessage } from "#/api/client-config";
 import { deleteRoute, deleteService } from "#/api/gen/sdk.gen";
 import { invalidateServices } from "#/api/invalidate";
 import type { Service } from "#/api/models";
+import { ConfirmPhrase } from "#/components/common/confirm-phrase";
 import { HoldActionButton } from "#/components/motion/hold-action-button";
 import { useProjectContext } from "#/components/shell/use-project-context";
 import { CheckLabel } from "#/components/ui/check-label";
@@ -70,8 +71,7 @@ export function DangerZone({ service }: { service: Service }) {
 				htmlFor="delete-confirm"
 				description={
 					<>
-						Type <span className="font-mono text-ink-1">{service.slug}</span> to
-						enable deleting.
+						Type <ConfirmPhrase value={service.slug} /> to enable deleting.
 					</>
 				}
 			>

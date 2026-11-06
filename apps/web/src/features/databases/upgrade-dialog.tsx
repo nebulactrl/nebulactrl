@@ -7,6 +7,7 @@ import {
 } from "#/api/gen/@tanstack/react-query.gen";
 import type { DatabaseView, UpgradeResult } from "#/api/gen/types.gen";
 import type { Service } from "#/api/models";
+import { ConfirmPrompt } from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -314,11 +315,7 @@ function UpgradeBody({
 							</Alert>
 						) : current.executable && current.kind === "upgrade" ? (
 							<Field>
-								<FieldLabel htmlFor={typedId}>
-									Type{" "}
-									<span className="font-mono text-ink-1">{service.slug}</span>{" "}
-									to confirm
-								</FieldLabel>
+								<ConfirmPrompt htmlFor={typedId} value={service.slug} />
 								<Input
 									id={typedId}
 									value={typed}

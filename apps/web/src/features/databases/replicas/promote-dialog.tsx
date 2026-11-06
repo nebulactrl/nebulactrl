@@ -4,6 +4,7 @@ import { errorMessage } from "#/api/client-config";
 import { promoteDatabaseReplicaMutation } from "#/api/gen/@tanstack/react-query.gen";
 import type { PromotePlan } from "#/api/gen/types.gen";
 import type { Service } from "#/api/models";
+import { ConfirmPrompt } from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -17,7 +18,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "#/components/ui/dialog";
-import { Field, FieldLabel } from "#/components/ui/field";
+import { Field } from "#/components/ui/field";
 import { Input } from "#/components/ui/input";
 import { Skeleton } from "#/components/ui/skeleton";
 import { Spinner } from "#/components/ui/spinner";
@@ -330,11 +331,7 @@ function PromoteBody({
 						) : null}
 						{(current.blockers ?? []).length === 0 ? (
 							<Field>
-								<FieldLabel htmlFor={typedId}>
-									Type{" "}
-									<span className="font-mono text-ink-1">{service.slug}</span>{" "}
-									to confirm
-								</FieldLabel>
+								<ConfirmPrompt htmlFor={typedId} value={service.slug} />
 								<Input
 									id={typedId}
 									value={typed}

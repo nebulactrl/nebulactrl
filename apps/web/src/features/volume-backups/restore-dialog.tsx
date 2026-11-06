@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useState } from "react";
 import { errorMessage } from "#/api/client-config";
 import { restoreVolumeBackup } from "#/api/gen/sdk.gen";
 import type { VolumeBackupView } from "#/api/gen/types.gen";
+import { ConfirmPrompt } from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import {
@@ -176,10 +177,12 @@ export function VolumeRestoreDialog({
 									</AlertDescription>
 								</Alert>
 								<Field>
-									<FieldLabel htmlFor="vr-confirm">
-										Type <code className="type-mono">{serviceSlug}</code> to
-										continue
-									</FieldLabel>
+									<ConfirmPrompt
+										htmlFor="vr-confirm"
+										value={serviceSlug}
+										tail="to continue"
+										phraseClassName="type-mono"
+									/>
 									<Input
 										id="vr-confirm"
 										autoComplete="off"

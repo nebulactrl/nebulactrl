@@ -8,6 +8,7 @@ import {
 	useState,
 } from "react";
 import { errorMessage } from "#/api/client-config";
+import { ConfirmPrompt } from "#/components/common/confirm-phrase";
 import { TrashIcon } from "#/components/icons/animated/trash-icon";
 import { usePlayOnce } from "#/components/icons/animated/use-play-once";
 import { HoldActionButton } from "#/components/motion/hold-action-button";
@@ -187,11 +188,7 @@ export function ConfirmDialog({
 					</AlertDialogDescription>
 					{typeToConfirm !== undefined ? (
 						<div className="mt-1.5 flex flex-col gap-2">
-							<label htmlFor={inputId} className="type-label">
-								Type{" "}
-								<span className="font-mono text-ink-1">{typeToConfirm}</span> to
-								confirm
-							</label>
+							<ConfirmPrompt htmlFor={inputId} value={typeToConfirm} />
 							<Input
 								id={inputId}
 								value={typed}

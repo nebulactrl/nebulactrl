@@ -14,6 +14,7 @@ import type {
 	ScheduleView,
 } from "#/api/gen/types.gen";
 import { serversQuery } from "#/api/hooks";
+import { ConfirmPrompt } from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import {
@@ -526,10 +527,11 @@ export function RestoreDialog({
 									</AlertDescription>
 								</Alert>
 								<Field>
-									<FieldLabel htmlFor="restore-confirm">
-										Type <code className="type-mono">{serviceSlug}</code> to
-										confirm
-									</FieldLabel>
+									<ConfirmPrompt
+										htmlFor="restore-confirm"
+										value={serviceSlug}
+										phraseClassName="type-mono"
+									/>
 									<Input
 										id="restore-confirm"
 										autoComplete="off"
