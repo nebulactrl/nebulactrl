@@ -17,13 +17,16 @@ export function updatesText(
 	return `${count(s.updates, "update")} (${s.security} security)`;
 }
 
-/** The status of the update line: security updates warn, other updates are quiet. */
+/**
+ * The status of the update line: security updates warn, other updates are a
+ * still "pending" mark. Never a spinner: nothing runs until someone applies them.
+ */
 export function updatesStatus(
 	s: Pick<ServerPatchSummary, "known" | "supported" | "updates" | "security">,
 ): StatusKind {
 	if (!s.known || !s.supported) return "unknown";
 	if (s.security > 0) return "warning";
-	return s.updates > 0 ? "building" : "healthy";
+	return s.updates > 0 ? "pending" : "healthy";
 }
 
 /** Whether the server card needs to say anything about patching. */
