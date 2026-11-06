@@ -14,7 +14,10 @@ import type {
 	ScheduleView,
 } from "#/api/gen/types.gen";
 import { serversQuery } from "#/api/hooks";
-import { ConfirmPrompt } from "#/components/common/confirm-phrase";
+import {
+	ConfirmPrompt,
+	confirmLabelId,
+} from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import {
@@ -534,6 +537,7 @@ export function RestoreDialog({
 									/>
 									<Input
 										id="restore-confirm"
+										aria-labelledby={confirmLabelId("restore-confirm")}
 										autoComplete="off"
 										spellCheck={false}
 										className="font-mono"

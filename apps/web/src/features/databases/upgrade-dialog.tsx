@@ -7,7 +7,10 @@ import {
 } from "#/api/gen/@tanstack/react-query.gen";
 import type { DatabaseView, UpgradeResult } from "#/api/gen/types.gen";
 import type { Service } from "#/api/models";
-import { ConfirmPrompt } from "#/components/common/confirm-phrase";
+import {
+	ConfirmPrompt,
+	confirmLabelId,
+} from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -318,6 +321,7 @@ function UpgradeBody({
 								<ConfirmPrompt htmlFor={typedId} value={service.slug} />
 								<Input
 									id={typedId}
+									aria-labelledby={confirmLabelId(typedId)}
 									value={typed}
 									autoComplete="off"
 									spellCheck={false}

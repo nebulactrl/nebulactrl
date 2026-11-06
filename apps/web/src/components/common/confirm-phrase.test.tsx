@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, jest, spyOn } from "bun:test";
 import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "#/test/render";
-import { ConfirmPhrase, ConfirmPrompt } from "./confirm-phrase";
+import { ConfirmPhrase, ConfirmPrompt, confirmLabelId } from "./confirm-phrase";
 import { COPIED_MS } from "./copy-button";
 
 afterEach(() => {
@@ -83,17 +83,17 @@ describe("ConfirmPhrase", () => {
 });
 
 describe("ConfirmPrompt", () => {
-	it("labels the field 'Type <phrase> to confirm' with the copy button outside both labels", async () => {
+	it("names the field with the whole sentence, the copy button outside every label", async () => {
 		await renderWithProviders(
 			<>
 				<ConfirmPrompt htmlFor="c" value="homelab-1" />
-				<input id="c" />
+				<input id="c" aria-labelledby={confirmLabelId("c")} />
 			</>,
 		);
 		const input = screen.getByRole("textbox", {
 			name: "Type homelab-1 to confirm",
 		});
-		expect(screen.getByLabelText(/Type homelab-1 to confirm/)).toBe(input);
+		expect(screen.getByLabelText("Type homelab-1 to confirm")).toBe(input);
 		const button = screen.getByRole("button", { name: "Copy homelab-1" });
 		expect(button.closest("label")).toBeNull();
 	});
@@ -102,7 +102,7 @@ describe("ConfirmPrompt", () => {
 		await renderWithProviders(
 			<>
 				<ConfirmPrompt htmlFor="c" value="db" tail="to continue" />
-				<input id="c" />
+				<input id="c" aria-labelledby={confirmLabelId("c")} />
 			</>,
 		);
 		expect(
@@ -118,7 +118,7 @@ describe("ConfirmPrompt", () => {
 		await renderWithProviders(
 			<form onSubmit={submit}>
 				<ConfirmPrompt htmlFor="c" value="homelab-1" />
-				<input id="c" />
+				<input id="c" aria-labelledby={confirmLabelId("c")} />
 			</form>,
 		);
 		await user.click(screen.getByRole("button", { name: "Copy homelab-1" }));

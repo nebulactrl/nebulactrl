@@ -4,7 +4,10 @@ import { errorMessage } from "#/api/client-config";
 import { promoteDatabaseReplicaMutation } from "#/api/gen/@tanstack/react-query.gen";
 import type { PromotePlan } from "#/api/gen/types.gen";
 import type { Service } from "#/api/models";
-import { ConfirmPrompt } from "#/components/common/confirm-phrase";
+import {
+	ConfirmPrompt,
+	confirmLabelId,
+} from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Badge } from "#/components/ui/badge";
 import { Button } from "#/components/ui/button";
@@ -334,6 +337,7 @@ function PromoteBody({
 								<ConfirmPrompt htmlFor={typedId} value={service.slug} />
 								<Input
 									id={typedId}
+									aria-labelledby={confirmLabelId(typedId)}
 									value={typed}
 									autoComplete="off"
 									spellCheck={false}

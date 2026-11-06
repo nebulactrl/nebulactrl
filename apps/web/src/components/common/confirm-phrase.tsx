@@ -74,11 +74,18 @@ export function ConfirmPhrase({
 	);
 }
 
+/** The id of the hidden full label a confirm field names itself with. */
+export function confirmLabelId(inputId: string): string {
+	return `${inputId}-confirm-label`;
+}
+
 /**
  * "Type <phrase> [copy] to confirm" as the label of the confirm field. The
- * copy button sits between two labels of the same field, never inside one:
- * the field's accessible name stays "Type <phrase> to confirm", and pressing
- * the icon does not activate the label and focus the input.
+ * copy button sits between two visible labels, never inside one, so pressing
+ * it does not focus the input. Those pieces are hidden from assistive tech:
+ * the field is named by one hidden element with the whole sentence, so every
+ * label lookup ("Type <phrase> to confirm") finds it. The input must carry
+ * `aria-labelledby={confirmLabelId(htmlFor)}`.
  */
 export function ConfirmPrompt({
 	htmlFor,
@@ -97,13 +104,16 @@ export function ConfirmPrompt({
 }) {
 	return (
 		<div className={cn("flex flex-wrap items-center gap-x-1", className)}>
-			<Label htmlFor={htmlFor} className="block">
+			<Label htmlFor={htmlFor} aria-hidden className="block">
 				Type <code className={phraseClassName ?? PHRASE}>{value}</code>{" "}
 			</Label>
 			<CopyPhraseButton value={value} />
-			<Label htmlFor={htmlFor} className="block">
+			<Label htmlFor={htmlFor} aria-hidden className="block">
 				{tail}
 			</Label>
+			<span id={confirmLabelId(htmlFor)} hidden>
+				Type {value} {tail}
+			</span>
 		</div>
 	);
 }

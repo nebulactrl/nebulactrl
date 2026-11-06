@@ -3,7 +3,10 @@ import { type FormEvent, useEffect, useState } from "react";
 import { errorMessage } from "#/api/client-config";
 import { restoreVolumeBackup } from "#/api/gen/sdk.gen";
 import type { VolumeBackupView } from "#/api/gen/types.gen";
-import { ConfirmPrompt } from "#/components/common/confirm-phrase";
+import {
+	ConfirmPrompt,
+	confirmLabelId,
+} from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import {
@@ -185,6 +188,7 @@ export function VolumeRestoreDialog({
 									/>
 									<Input
 										id="vr-confirm"
+										aria-labelledby={confirmLabelId("vr-confirm")}
 										autoComplete="off"
 										spellCheck={false}
 										className="font-mono"

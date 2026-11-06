@@ -8,7 +8,10 @@ import {
 	useState,
 } from "react";
 import { errorMessage } from "#/api/client-config";
-import { ConfirmPrompt } from "#/components/common/confirm-phrase";
+import {
+	ConfirmPrompt,
+	confirmLabelId,
+} from "#/components/common/confirm-phrase";
 import { TrashIcon } from "#/components/icons/animated/trash-icon";
 import { usePlayOnce } from "#/components/icons/animated/use-play-once";
 import { HoldActionButton } from "#/components/motion/hold-action-button";
@@ -191,6 +194,7 @@ export function ConfirmDialog({
 							<ConfirmPrompt htmlFor={inputId} value={typeToConfirm} />
 							<Input
 								id={inputId}
+								aria-labelledby={confirmLabelId(inputId)}
 								value={typed}
 								onChange={(event) => setTyped(event.target.value)}
 								onKeyDown={(event) => {
