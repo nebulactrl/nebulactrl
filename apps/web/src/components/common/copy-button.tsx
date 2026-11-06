@@ -38,6 +38,18 @@ export async function writeClipboard(value: string): Promise<boolean> {
 }
 
 /**
+ * Tells the person the browser blocked the clipboard (plain http has none),
+ * with the value in the toast so it can be selected and copied by hand.
+ */
+export function toastCopyFailed(value: string): void {
+	toast.add({
+		title: "Nothing was copied",
+		description: `The browser blocked the clipboard. Select it and copy by hand: ${value}`,
+		type: "error",
+	});
+}
+
+/**
  * Copies from a menu, where nothing stays on screen to confirm it: a toast
  * says what was copied, or how to copy it by hand when the browser refuses.
  */
@@ -46,11 +58,7 @@ export async function copyWithToast(value: string): Promise<void> {
 		toast.add({ title: "Copied", description: value, type: "success" });
 		return;
 	}
-	toast.add({
-		title: "Nothing was copied",
-		description: `The browser blocked the clipboard. Select it and copy by hand: ${value}`,
-		type: "error",
-	});
+	toastCopyFailed(value);
 }
 
 /**

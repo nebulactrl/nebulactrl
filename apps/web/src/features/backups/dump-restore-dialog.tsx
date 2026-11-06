@@ -7,6 +7,10 @@ import {
 } from "#/api/gen/@tanstack/react-query.gen";
 import { cancelDumpRestore, createDumpRestore } from "#/api/gen/sdk.gen";
 import { serversQuery } from "#/api/hooks";
+import {
+	ConfirmPrompt,
+	confirmLabelId,
+} from "#/components/common/confirm-phrase";
 import { Alert, AlertDescription, AlertTitle } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import {
@@ -441,12 +445,14 @@ export function DumpRestoreDialog({
 											) : null}
 										</Field>
 										<Field>
-											<FieldLabel htmlFor="dump-confirm">
-												Type <code className="type-mono">{serviceSlug}</code> to
-												confirm
-											</FieldLabel>
+											<ConfirmPrompt
+												htmlFor="dump-confirm"
+												value={serviceSlug}
+												phraseClassName="type-mono"
+											/>
 											<Input
 												id="dump-confirm"
+												aria-labelledby={confirmLabelId("dump-confirm")}
 												autoComplete="off"
 												spellCheck={false}
 												className="font-mono"
