@@ -89,7 +89,7 @@ describe("updatesText", () => {
 describe("status and attention", () => {
 	test("security updates warn, plain updates are quiet, none is healthy", () => {
 		expect(updatesStatus(summary({ updates: 2, security: 1 }))).toBe("warning");
-		expect(updatesStatus(summary({ updates: 2 }))).toBe("building");
+		expect(updatesStatus(summary({ updates: 2 }))).toBe("pending");
 		expect(updatesStatus(summary())).toBe("healthy");
 		expect(updatesStatus(summary({ known: false }))).toBe("unknown");
 	});
