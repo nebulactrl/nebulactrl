@@ -11,6 +11,8 @@ order: 81
 
 Where: **Create → Import from Coolify** on the canvas, the CLI `nebulactrl import coolify`, or the API (`POST /imports/coolify/plan` and `/imports/coolify/apply`). It needs `projects:write` on an unrestricted token or session (the import creates projects), plus `deployments:write` for `--deploy`. It is **not** available over MCP: a Coolify token and every variable value of another instance must not pass through a model.
 
+A coding agent can drive the CLI instead, with the token in a file: see [Migrate with an AI agent](../installing/migrate-with-an-ai-agent.md).
+
 ## What you need in Coolify
 
 1. **API access enabled** on the instance (Settings → Advanced → API access), reachable from the NebulaCtrl **control plane** (the control plane makes the requests, not your browser).

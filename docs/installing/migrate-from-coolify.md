@@ -80,6 +80,8 @@ nebulactrl import coolify --url https://coolify.example.com --server <server> \
   [--set-env <app>.<KEY>=<ENVVAR>]
 ```
 
+To let a coding agent run these steps and the leftovers, point it at [Migrate with an AI agent](migrate-with-an-ai-agent.md).
+
 It stages projects and environments, image and Git services, managed databases of the same engine and version, **every** domain of each application, health checks, limits, Docker options, pre- and post-deploy commands, volumes (empty) and variables with secrets marked and database references rewritten to `${{db.*}}`. **Stays manual:** the data of databases and volumes (the importer prints the `databases restore` command to use), registry credentials unless you pass them, private-repository access (a GitHub App or deploy key cannot be exported), locked variable values unless you supply them with `--set-env`, DNS, Traefik labels and dynamic files (an external Plex route, per-domain IP allow lists, redirects), scheduled tasks, one-click services and host port mappings. More flags (`--exclude`, `--rename`, `--domain`, `--secret`, `--skip-var`, ...) and the full mapping are on the importer's own page: [import from Coolify](../operations/import-coolify.md).
 
 Then: review every staged service in the dashboard (variables marked secret, health checks, the `entrypoint` and pre-deploy command overrides your Coolify apps used), create the managed databases **empty**, and add an S3 backup destination and schedule.
