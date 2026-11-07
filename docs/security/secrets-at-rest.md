@@ -52,7 +52,7 @@ A central registry lists every sealed column (`internal/secretbox/registry.go`);
 | Integrations | `cloudflare_connections.token_enc`; `git_connections.credentials_enc`, `.webhook_secret_enc`; `tailnet_integrations.secret_enc`; `secret_integrations.credentials_enc`; `notification_channels.secrets_enc`; `log_drains.secrets_enc`; `platform_services.secrets_enc` (the team's Headscale); `geo_credentials.maxmind_key_enc` |
 | Built-in services | `instance_services.secrets_enc` (the system bucket's key and the registry's token-signing key); `team_service_slices.secret_enc` (the secret of each team's bucket key) |
 | Backups | `backup_destinations.access_key_enc`, `.secret_key_enc`; `instance_backup_settings.access_key_enc`, `.secret_key_enc`; `volume_repos.password_enc` (the restic repository password) |
-| Other | `auth_providers.client_secret_enc`; `instance_settings.smtp_password_enc`; `database_rotations.new_password_enc`; `user_totp.secret_enc` |
+| Other | `auth_providers.client_secret_enc`; `instance_settings.smtp_password_enc`, `.resend_api_key_enc`; `database_rotations.new_password_enc`; `user_totp.secret_enc` |
 
 `NEBULACTRL_SECRET_KEY` is therefore also the key to your restic backup repositories, every user's TOTP seed, the single sign-on client secret and the keys of every team's slice of the [built-in services](../operations/platform-services.md#credentials), not only to app variables: without it the sealed slice keys cannot be read, which would strand every team's built-in backups. Teams never see a slice key; the store's own admin key is not sealed in the database, the installer writes it to `.env`.
 

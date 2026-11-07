@@ -69,10 +69,10 @@ type InviteInput struct {
 
 // Delivery tells what happened to the email of an invite.
 const (
-	DeliverySent          = "sent"           // email handed to the SMTP server
+	DeliverySent          = "sent"           // email handed to the mail provider
 	DeliveryLinkOnly      = "link_only"      // no email was requested
-	DeliveryNotConfigured = "not_configured" // no email channel or instance SMTP: share the link
-	DeliveryFailed        = "failed"         // SMTP error: share the link, see EmailError
+	DeliveryNotConfigured = "not_configured" // no email channel or instance mail relay: share the link
+	DeliveryFailed        = "failed"         // send error: share the link, see EmailError
 )
 
 // CreatedInvite is the result of creating an invite: the invite, its token and
@@ -122,7 +122,7 @@ func (s *Service) link(token string) string {
 
 // CreateInvite issues an invite to the team (admins and owners; only owners
 // may invite owners). With an email it also mails the link: through the team's
-// email notification channel if it has one, else the instance SMTP relay, else
+// email notification channel if it has one, else the instance mail relay, else
 // the caller gets the link only (Delivery says which).
 func (s *Service) CreateInvite(ctx context.Context, teamID uuid.UUID, in InviteInput) (CreatedInvite, error) {
 	p, m, err := s.caller(ctx, teamID)

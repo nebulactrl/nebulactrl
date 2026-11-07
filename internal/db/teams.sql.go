@@ -27,6 +27,15 @@ func (q *Queries) AddTeamDeletionForgotten(ctx context.Context, arg AddTeamDelet
 	return err
 }
 
+const clearInstanceResendAPIKey = `-- name: ClearInstanceResendAPIKey :exec
+UPDATE instance_settings SET resend_api_key_enc = NULL, updated_at = now() WHERE id
+`
+
+func (q *Queries) ClearInstanceResendAPIKey(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, clearInstanceResendAPIKey)
+	return err
+}
+
 const clearInstanceSMTPPassword = `-- name: ClearInstanceSMTPPassword :exec
 UPDATE instance_settings SET smtp_password_enc = NULL, updated_at = now() WHERE id
 `
@@ -242,7 +251,7 @@ func (q *Queries) FirstMembership(ctx context.Context, userID uuid.UUID) (Member
 
 const getInstanceSettings = `-- name: GetInstanceSettings :one
 
-SELECT id, allow_team_creation, smtp_host, smtp_port, smtp_tls, smtp_username, smtp_password_enc, smtp_from, smtp_insecure_skip_verify, updated_at, mcp_enabled FROM instance_settings WHERE id
+SELECT id, allow_team_creation, smtp_host, smtp_port, smtp_tls, smtp_username, smtp_password_enc, mail_from, smtp_insecure_skip_verify, updated_at, mcp_enabled, mail_provider, resend_api_key_enc FROM instance_settings WHERE id
 `
 
 // Instance settings -------------------------------------------------------------
@@ -257,10 +266,12 @@ func (q *Queries) GetInstanceSettings(ctx context.Context) (InstanceSetting, err
 		&i.SmtpTls,
 		&i.SmtpUsername,
 		&i.SmtpPasswordEnc,
-		&i.SmtpFrom,
+		&i.MailFrom,
 		&i.SmtpInsecureSkipVerify,
 		&i.UpdatedAt,
 		&i.McpEnabled,
+		&i.MailProvider,
+		&i.ResendApiKeyEnc,
 	)
 	return i, err
 }
@@ -994,11 +1005,13 @@ UPDATE instance_settings SET
     smtp_tls = $4,
     smtp_username = $5,
     smtp_password_enc = COALESCE($6, smtp_password_enc),
-    smtp_from = $7,
-    smtp_insecure_skip_verify = $8,
+    mail_provider = $7,
+    mail_from = $8,
+    resend_api_key_enc = COALESCE($9, resend_api_key_enc),
+    smtp_insecure_skip_verify = $10,
     updated_at = now()
 WHERE id
-RETURNING id, allow_team_creation, smtp_host, smtp_port, smtp_tls, smtp_username, smtp_password_enc, smtp_from, smtp_insecure_skip_verify, updated_at, mcp_enabled
+RETURNING id, allow_team_creation, smtp_host, smtp_port, smtp_tls, smtp_username, smtp_password_enc, mail_from, smtp_insecure_skip_verify, updated_at, mcp_enabled, mail_provider, resend_api_key_enc
 `
 
 type UpdateInstanceSettingsParams struct {
@@ -1008,7 +1021,9 @@ type UpdateInstanceSettingsParams struct {
 	SmtpTls                string `json:"smtpTls"`
 	SmtpUsername           string `json:"smtpUsername"`
 	SmtpPasswordEnc        []byte `json:"smtpPasswordEnc"`
-	SmtpFrom               string `json:"smtpFrom"`
+	MailProvider           string `json:"mailProvider"`
+	MailFrom               string `json:"mailFrom"`
+	ResendApiKeyEnc        []byte `json:"resendApiKeyEnc"`
 	SmtpInsecureSkipVerify bool   `json:"smtpInsecureSkipVerify"`
 }
 
@@ -1020,7 +1035,9 @@ func (q *Queries) UpdateInstanceSettings(ctx context.Context, arg UpdateInstance
 		arg.SmtpTls,
 		arg.SmtpUsername,
 		arg.SmtpPasswordEnc,
-		arg.SmtpFrom,
+		arg.MailProvider,
+		arg.MailFrom,
+		arg.ResendApiKeyEnc,
 		arg.SmtpInsecureSkipVerify,
 	)
 	var i InstanceSetting
@@ -1032,10 +1049,12 @@ func (q *Queries) UpdateInstanceSettings(ctx context.Context, arg UpdateInstance
 		&i.SmtpTls,
 		&i.SmtpUsername,
 		&i.SmtpPasswordEnc,
-		&i.SmtpFrom,
+		&i.MailFrom,
 		&i.SmtpInsecureSkipVerify,
 		&i.UpdatedAt,
 		&i.McpEnabled,
+		&i.MailProvider,
+		&i.ResendApiKeyEnc,
 	)
 	return i, err
 }

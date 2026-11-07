@@ -256,7 +256,7 @@ func TestRegistryIsConsistent(t *testing.T) {
 		require.False(t, seen[c.String()], "duplicate %s", c)
 		seen[c.String()] = true
 	}
-	require.Len(t, All(), 34)
+	require.Len(t, All(), 35) // adding a sealed column means bumping this deliberately
 }
 
 func TestSealRefusesOversizedValue(t *testing.T) {

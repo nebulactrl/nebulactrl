@@ -15,15 +15,25 @@ All endpoints and the UI need the `admin` scope (channels hold credentials, and 
 
 | Kind | You provide | Notes |
 |---|---|---|
-| Email | SMTP host, port, connection (`starttls` default 587, `implicit` TLS 465, `none` 25), user name and password (optional), From, recipients | Standard library SMTP. `none` sends clear text: trusted relays only. "Accept a self-signed certificate" keeps encryption but skips identity checks. Multipart message: plain text plus HTML in the NebulaCtrl palette. |
+| Email | Provider (`smtp` default, or `resend`), From, recipients; for SMTP: host, port, connection (`starttls` default 587, `implicit` TLS 465, `none` 25), user name and password (optional); for Resend: an API key | SMTP: standard library, `none` sends clear text (trusted relays only), "Accept a self-signed certificate" keeps encryption but skips identity checks. Resend: sent over HTTPS through Resend's API ([setup below](#email-through-resend)). Multipart message either way: plain text plus HTML in the NebulaCtrl palette. |
 | Slack | Incoming-webhook URL | Block Kit message with a coloured attachment, field grid and an "Open in NebulaCtrl" button. `<`, `>`, `&` are escaped so event text cannot ping `@channel`. |
 | Discord | Webhook URL | One embed; `allowed_mentions` is empty so event text cannot ping anyone. |
 | Telegram | Bot token, chat id or `@channelname` | `sendMessage` with MarkdownV2; every reserved character is escaped; text is kept under Telegram's 4096 limit. |
 | Webhook | URL, signing secret (generated if omitted) | JSON body, signed (below). |
 
-Webhook URLs, bot tokens, SMTP passwords and signing secrets are sealed with `NEBULACTRL_SECRET_KEY` (same box as variables), **never returned by any read** (the API shows a masked hint such as `https://hooks.slack.com/••••••`), never written to the audit log (which records "secrets changed", not values), and scrubbed from stored delivery errors and logs. Editing a channel with an empty credential field keeps the stored value. Losing the secret key makes stored credentials undecryptable: deliveries then fail with a clear message and you re-enter them.
+Webhook URLs, bot tokens, SMTP passwords, Resend API keys and signing secrets are sealed with `NEBULACTRL_SECRET_KEY` (same box as variables), **never returned by any read** (the API shows a masked hint such as `https://hooks.slack.com/••••••`, keyed `url`, `botToken`, `password`, `apiKey` or `signingSecret`), never written to the audit log (which records "secrets changed", not values), and scrubbed from stored delivery errors and logs. Editing a channel with an empty credential field keeps the stored value. Losing the secret key makes stored credentials undecryptable: deliveries then fail with a clear message and you re-enter them.
 
-Receivers on LAN addresses and `localhost` are allowed (homelab services live there). Link-local addresses, which hold the cloud metadata services (`169.254.0.0/16`, `fe80::/10`, `fd00:ec2::254`), are refused. Redirects are not followed.
+### Email through Resend
+
+[Resend](https://resend.com) sends mail over HTTPS, which suits hosts that block outbound SMTP ports.
+
+1. In Resend, **verify the domain** you send from (add the DNS records it shows) and create an **API key** (a "Sending access" key restricted to that domain is enough).
+2. In NebulaCtrl, create or edit an email channel and choose the **Resend** provider. Paste the API key, set **From** to an address on the verified domain (`alerts@example.com` or `NebulaCtrl <alerts@example.com>`) and add the recipients. Host, port, connection and user name do not apply and are cleared.
+3. **Send test** to check it end to end. To try the key before your domain is verified, use `onboarding@resend.dev` as From and Resend's [test recipients](https://resend.com/docs/dashboard/emails/send-test-emails): `delivered@resend.dev` succeeds, `bounced@resend.dev` simulates a hard bounce and `complained@resend.dev` a spam complaint (labels such as `delivered+invite@resend.dev` work too). Test sends count against your Resend quota.
+
+Over the API: `config.provider` is `smtp` (the default) or `resend`; the key goes in `secrets.apiKey` (write-only, required for `resend`; omitted on update it keeps the stored one). Switching a channel's provider drops the other provider's secret (password or API key), so switching back asks for it again. The same provider choice exists for the [instance mail relay](teams.md#instance-mail-relay) that sends invites and password resets.
+
+A Resend answer of `401`, `403`, `422` or any other `4xx` except `429` is a permanent failure (a wrong key, an unverified domain, an invalid sender) and is not retried; `429` and `5xx` are retried. The delivery log shows Resend's own message, with the key masked.
 
 ## Rules
 

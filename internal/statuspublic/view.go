@@ -317,8 +317,6 @@ type pageView struct {
 	Title       string
 	Description string
 	Footer      string
-	Theme       string
-	ColorScheme string
 	ShowUptime  bool
 	Overall     stateView
 	Groups      []groupView
@@ -386,16 +384,8 @@ func anchorOf(prefix, key string) string {
 }
 
 func buildView(p statuspages.PublicPage, now time.Time) pageView {
-	theme := p.Theme
-	if theme != "light" && theme != "dark" {
-		theme = "auto"
-	}
-	scheme := "light dark"
-	if theme != "auto" {
-		scheme = theme
-	}
 	v := pageView{
-		Title: p.Title, Description: p.Description, Footer: p.Footer, Theme: theme, ColorScheme: scheme,
+		Title: p.Title, Description: p.Description, Footer: p.Footer,
 		ShowUptime: p.ShowUptime,
 		Overall:    stateView{Key: stateKey(p.Overall), Label: overallLabel(p.Overall)},
 		Updated:    fmtTime(p.GeneratedAt), UpdatedISO: isoTime(p.GeneratedAt),

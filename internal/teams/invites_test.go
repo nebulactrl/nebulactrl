@@ -150,7 +150,7 @@ func TestInviteEmailDelivery(t *testing.T) {
 	// Sent: the mailer gets the content, the invite is marked, and the relay is the instance's.
 	f.withPublicURL("https://nebula.example.com")
 	host, from, tls := "smtp.example.com", "NebulaCtrl <no-reply@example.com>", "implicit"
-	_, err := f.svc.UpdateInstance(f.asAda(), InstancePatch{SMTPHost: &host, SMTPFrom: &from, SMTPTLS: &tls})
+	_, err := f.svc.UpdateInstance(f.asAda(), InstancePatch{SMTPHost: &host, MailFrom: &from, SMTPTLS: &tls})
 	require.NoError(t, err)
 	c = f.invite(in)
 	require.Equal(t, DeliverySent, c.Delivery)

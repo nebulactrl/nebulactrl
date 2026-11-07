@@ -316,6 +316,76 @@ describe("authorize and install", () => {
 		).toBeInTheDocument();
 		expect(screen.getByText("no installation found")).toBeInTheDocument();
 	});
+
+	const unfinished = connection({
+		status: "pending",
+		github: {
+			appId: 0,
+			appSlug: "",
+			appUrl: "",
+			installUrl: "",
+			installationId: 0,
+		},
+	});
+
+	test("Finish setup restarts the manifest flow and sends the browser to the returned page", async () => {
+		const loc = stubLocationAssign();
+		try {
+			const api = stubApi({
+				...list(unfinished),
+				"POST /git/connections/:id/github/manifest": {
+					body: {
+						connectionId: "c1",
+						formUrl: "/api/v1/git/github/manifest/form?state=s1",
+						manifest: "{}",
+						postUrl: "https://github.com/settings/apps/new?state=s1",
+						state: "s1",
+					},
+				},
+			});
+			await renderWithProviders(<GitConnectionsSection />);
+			await screen.findByRole("article", { name: "Acme GitHub" });
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Finish setup" }));
+			await waitFor(() =>
+				expect(loc.urls).toEqual(["/api/v1/git/github/manifest/form?state=s1"]),
+			);
+			expect(api.calls.find((c) => c.method === "POST")?.path).toBe(
+				"/git/connections/c1/github/manifest",
+			);
+		} finally {
+			loc.restore();
+		}
+	});
+
+	test("a failed Finish setup toasts why and stays", async () => {
+		const loc = stubLocationAssign();
+		try {
+			stubApi({
+				...list(unfinished),
+				"POST /git/connections/:id/github/manifest": problem(422, {
+					title: "x",
+					detail: "the GitHub App already exists",
+					code: "app_exists",
+				}),
+			});
+			await renderWithProviders(<GitConnectionsSection />);
+			await screen.findByRole("article", { name: "Acme GitHub" });
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Finish setup" }));
+			expect(
+				await screen.findByText("Could not resume the GitHub App setup"),
+			).toBeInTheDocument();
+			expect(
+				screen.getByText("the GitHub App already exists"),
+			).toBeInTheDocument();
+			expect(loc.urls).toEqual([]);
+		} finally {
+			loc.restore();
+		}
+	});
 });
 
 describe("removing a connection", () => {

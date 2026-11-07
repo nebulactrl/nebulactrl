@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/netip"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -22,6 +23,7 @@ type capture struct {
 }
 
 type capturedReq struct {
+	Method string
 	Path   string
 	Header http.Header
 	Body   []byte
@@ -31,7 +33,7 @@ func (c *capture) handler(status int, respBody string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		b, _ := io.ReadAll(r.Body)
 		c.mu.Lock()
-		c.reqs = append(c.reqs, capturedReq{Path: r.URL.RequestURI(), Header: r.Header.Clone(), Body: b})
+		c.reqs = append(c.reqs, capturedReq{Method: r.Method, Path: r.URL.RequestURI(), Header: r.Header.Clone(), Body: b})
 		c.mu.Unlock()
 		w.WriteHeader(status)
 		_, _ = io.WriteString(w, respBody)
@@ -317,4 +319,145 @@ func TestSMTPContextCancelAborts(t *testing.T) {
 	_, err := testSenders().sendEmail(ctx, f.emailConfig(TLSNone), secrets{}, minimalMessage(), fixtureTime)
 	require.Error(t, err)
 	require.Empty(t, f.mails())
+}
+
+func resendConfig() ChannelConfig {
+	return ChannelConfig{Provider: ProviderResend, From: "alerts@example.com", To: []string{"ops@example.com", "dev@example.com"}}
+}
+
+func TestSendResendPostsTheRenderedMail(t *testing.T) {
+	var cap capture
+	srv := httptest.NewServer(cap.handler(200, `{"id":"49a3999c"}`))
+	defer srv.Close()
+	s := testSenders()
+	s.resendBase = srv.URL + "/" // a trailing slash must not double up
+
+	msg := fullMessage()
+	code, err := s.sendEmail(context.Background(), resendConfig(), secrets{APIKey: "re_test_key"}, msg, fixtureTime)
+	require.NoError(t, err)
+	require.Equal(t, 200, code)
+
+	got := cap.all()
+	require.Len(t, got, 1)
+	require.Equal(t, http.MethodPost, got[0].Method)
+	require.Equal(t, "/emails", got[0].Path)
+	require.Equal(t, "Bearer re_test_key", got[0].Header.Get("Authorization"))
+	require.Equal(t, "application/json", got[0].Header.Get("Content-Type"))
+	require.Equal(t, userAgent, got[0].Header.Get("User-Agent"))
+
+	var body struct {
+		From    string   `json:"from"`
+		To      []string `json:"to"`
+		Subject string   `json:"subject"`
+		HTML    string   `json:"html"`
+		Text    string   `json:"text"`
+	}
+	require.NoError(t, json.Unmarshal(got[0].Body, &body))
+	em := RenderEmail(msg)
+	require.Equal(t, `"NebulaCtrl" <alerts@example.com>`, body.From, "a bare address gets the product name")
+	require.Equal(t, []string{"ops@example.com", "dev@example.com"}, body.To)
+	require.Equal(t, em.Subject, body.Subject)
+	require.Equal(t, em.HTML, body.HTML)
+	require.Equal(t, em.Text, body.Text)
+	require.NotContains(t, string(got[0].Body), "re_test_key")
+}
+
+func TestSendResendKeepsTheSendersDisplayName(t *testing.T) {
+	var cap capture
+	srv := httptest.NewServer(cap.handler(200, `{"id":"x"}`))
+	defer srv.Close()
+	s := testSenders()
+	s.resendBase = srv.URL
+	cfg := resendConfig()
+	cfg.From = "Acme Ops <ops@example.com>"
+	_, err := s.sendEmail(context.Background(), cfg, secrets{APIKey: "re_k"}, minimalMessage(), fixtureTime)
+	require.NoError(t, err)
+	var body struct {
+		From string `json:"from"`
+	}
+	require.NoError(t, json.Unmarshal(cap.all()[0].Body, &body))
+	require.Equal(t, `"Acme Ops" <ops@example.com>`, body.From)
+}
+
+func TestResendFailureClassification(t *testing.T) {
+	const key = "re_super_secret_key"
+	cases := []struct {
+		status    int
+		permanent bool
+	}{
+		{400, true}, {401, true}, {403, true}, {404, true}, {422, true},
+		{429, false}, {500, false}, {502, false}, {503, false},
+	}
+	for _, tc := range cases {
+		// Resend explains the failure in `message`; some errors echo the key back.
+		resp := `{"statusCode":` + strconv.Itoa(tc.status) + `,"name":"invalid_api_key","message":"API key ` + key + ` is invalid"}`
+		srv := httptest.NewServer((&capture{}).handler(tc.status, resp))
+		s := testSenders()
+		s.resendBase = srv.URL
+		_, err := s.sendEmail(context.Background(), resendConfig(), secrets{APIKey: key}, minimalMessage(), fixtureTime)
+		srv.Close()
+		se := asSendError(t, err)
+		require.Equal(t, tc.permanent, se.Permanent, "status %d", tc.status)
+		require.Equal(t, tc.status, se.Code)
+		require.Contains(t, se.Message, "is invalid", "Resend's message explains the failure")
+		require.NotContains(t, se.Message, key, "the key never reaches an error")
+		require.NotContains(t, scrubError(se.Message, secrets{APIKey: key}), key)
+	}
+}
+
+func TestResendFailureWithoutAJSONBodyStillNamesTheStatus(t *testing.T) {
+	srv := httptest.NewServer((&capture{}).handler(503, "<html>bad gateway</html>"))
+	defer srv.Close()
+	s := testSenders()
+	s.resendBase = srv.URL
+	_, err := s.sendEmail(context.Background(), resendConfig(), secrets{APIKey: "re_k"}, minimalMessage(), fixtureTime)
+	se := asSendError(t, err)
+	require.False(t, se.Permanent)
+	require.Contains(t, se.Message, "HTTP 503")
+	require.NotContains(t, se.Message, "<html>")
+}
+
+func TestResendNetworkErrorsAreRetriedAndNameNoKey(t *testing.T) {
+	srv := httptest.NewServer((&capture{}).handler(200, "{}"))
+	base := srv.URL
+	srv.Close()
+	s := testSenders()
+	s.resendBase = base
+	_, err := s.sendEmail(context.Background(), resendConfig(), secrets{APIKey: "re_super_secret_key"}, minimalMessage(), fixtureTime)
+	se := asSendError(t, err)
+	require.False(t, se.Permanent)
+	require.True(t, strings.HasPrefix(se.Message, "request failed"))
+	require.NotContains(t, se.Message, "re_super_secret_key")
+}
+
+func TestResendWithoutAKeyIsPermanent(t *testing.T) {
+	var cap capture
+	srv := httptest.NewServer(cap.handler(200, "{}"))
+	defer srv.Close()
+	s := testSenders()
+	s.resendBase = srv.URL
+	_, err := s.sendEmail(context.Background(), resendConfig(), secrets{}, minimalMessage(), fixtureTime)
+	require.True(t, asSendError(t, err).Permanent)
+	require.Empty(t, cap.all(), "nothing is sent without a key")
+}
+
+func TestEmailDispatchesOnProvider(t *testing.T) {
+	var cap capture
+	srv := httptest.NewServer(cap.handler(200, `{"id":"x"}`))
+	defer srv.Close()
+	s := testSenders()
+	s.resendBase = srv.URL
+	// kind=email with provider resend goes to the HTTP API through the generic dispatch.
+	_, err := s.send(context.Background(), KindEmail, resendConfig(), secrets{APIKey: "re_k"}, minimalMessage(), fixtureTime)
+	require.NoError(t, err)
+	require.Len(t, cap.all(), 1)
+
+	// An empty provider is SMTP: it dials the (closed) server, never Resend.
+	f := newFakeSMTP(t, nil)
+	cfg := f.emailConfig(TLSNone)
+	cfg.Provider = ""
+	_, err = s.send(context.Background(), KindEmail, cfg, secrets{}, minimalMessage(), fixtureTime)
+	require.NoError(t, err)
+	require.Len(t, f.mails(), 1)
+	require.Len(t, cap.all(), 1)
 }

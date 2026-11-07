@@ -31,16 +31,19 @@ import (
 // GitHub App credentials. The user creates the App with the manifest flow
 // (https://docs.github.com/en/apps/sharing-github-apps/registering-a-github-app-from-a-manifest):
 //
-//  1. NebulaCtrl returns a manifest and the GitHub URL to POST it to; the
-//     browser submits the form, the user confirms on github.com.
+//  1. NebulaCtrl creates a pending connection and sends the browser to
+//     /api/v1/git/github/manifest/form?state=…, a page that POSTs the manifest
+//     to GitHub (the dashboard's own CSP only allows forms to its origin); the
+//     user confirms on github.com.
 //  2. GitHub redirects to /api/v1/git/github/manifest/callback?code=…&state=…;
 //     the code is exchanged for the App's id, private key and webhook secret.
 //  3. The user installs the App on repositories; GitHub redirects to
 //     /api/v1/git/github/installed?installation_id=…, which finishes the
 //     connection.
 //
-// Clones and API calls use installation access tokens (valid one hour), minted
-// from a short-lived App JWT.
+// A connection whose App was never created restarts at step 1 with a new
+// state (RestartGitHubManifest). Clones and API calls use installation access
+// tokens (valid one hour), minted from a short-lived App JWT.
 
 const (
 	manifestStateTTL = time.Hour
@@ -157,12 +160,15 @@ type ManifestInput struct {
 	Name string
 }
 
-// ManifestStart is what the browser needs to submit the manifest to GitHub.
+// ManifestStart is what the browser needs to send the manifest to GitHub.
 type ManifestStart struct {
 	ConnectionID uuid.UUID `json:"connectionId"`
-	// PostURL is the GitHub URL the form must POST to.
+	// FormURL is the NebulaCtrl page that posts the manifest to GitHub: open it
+	// in the browser.
+	FormURL string `json:"formUrl"`
+	// PostURL is the GitHub URL the form posts to.
 	PostURL string `json:"postUrl"`
-	// Manifest is the JSON to send as the form field "manifest".
+	// Manifest is the JSON sent as the form field "manifest".
 	Manifest string `json:"manifest"`
 	State    string `json:"state"`
 }
@@ -237,6 +243,66 @@ func (s *Service) StartGitHubManifest(ctx context.Context, in ManifestInput) (Ma
 	if err != nil {
 		return ManifestStart{}, fmt.Errorf("create github connection: %w", err)
 	}
+	publish(s.bus, EventConnectionUpdated, conn.WorkspaceID, conn.ID)
+	return s.manifestStart(conn, state), nil
+}
+
+// RestartGitHubManifest starts the manifest flow again for a GitHub App
+// connection whose App was never created (the browser did not reach GitHub,
+// or the user left before confirming). The previous state stops working.
+func (s *Service) RestartGitHubManifest(ctx context.Context, id uuid.UUID) (ManifestStart, error) {
+	c, err := s.loadConnection(ctx, policy.ScopeAdmin, id)
+	if err != nil {
+		return ManifestStart{}, err
+	}
+	if c.AuthType != AuthGitHubApp {
+		return ManifestStart{}, apierr.Unprocessable("not_applicable", "only GitHub App connections are created from a manifest")
+	}
+	if appCreated(c) {
+		return ManifestStart{}, apierr.Unprocessable("app_exists", "the GitHub App of this connection already exists: install it instead")
+	}
+	if err := s.requirePublicURL(); err != nil {
+		return ManifestStart{}, err
+	}
+	state := randomToken(24)
+	exp := s.now().Add(manifestStateTTL)
+	if err := s.q.SetGitConnectionPending(ctx, db.SetGitConnectionPendingParams{ID: c.ID, PendingStateHash: new(hashState(state)), PendingExpiresAt: &exp}); err != nil {
+		return ManifestStart{}, err
+	}
+	return s.manifestStart(c, state), nil
+}
+
+// ManifestForm returns the GitHub URL and the manifest the form page of a
+// pending flow posts.
+func (s *Service) ManifestForm(ctx context.Context, state string) (postURL, manifest string, err error) {
+	if err := policy.Require(ctx, policy.ScopeAdmin, nil); err != nil {
+		return "", "", err
+	}
+	if state == "" {
+		return "", "", apierr.BadRequest("invalid_request", "state is required")
+	}
+	c, err := s.connectionByState(ctx, state)
+	if err != nil {
+		return "", "", err
+	}
+	if c.Provider != string(GitHub) || c.AuthType != AuthGitHubApp {
+		return "", "", apierr.BadRequest("invalid_state", "this state does not belong to a GitHub App flow")
+	}
+	if appCreated(c) {
+		return "", "", apierr.BadRequest("invalid_state", "this GitHub App was already created: install it from the connection")
+	}
+	m := s.manifestStart(c, state)
+	return m.PostURL, m.Manifest, nil
+}
+
+// appCreated reports whether GitHub already converted the connection's manifest.
+func appCreated(c db.GitConnection) bool {
+	return decodeMeta(c.Meta).AppID != 0 || len(c.CredentialsEnc) > 0
+}
+
+// manifestStart builds the manifest of a pending GitHub App connection and
+// where it goes. The App name gets a random suffix: GitHub App names are global.
+func (s *Service) manifestStart(c db.GitConnection, state string) ManifestStart {
 	appName := "NebulaCtrl"
 	if u, perr := url.Parse(s.publicURL()); perr == nil && u.Hostname() != "" {
 		appName += " " + u.Hostname()
@@ -252,19 +318,26 @@ func (s *Service) StartGitHubManifest(ctx context.Context, in ManifestInput) (Ma
 		"setup_url":       s.publicURL() + "/api/v1/git/github/installed",
 		"setup_on_update": true,
 		"public":          false,
-		"hook_attributes": map[string]any{"url": s.hookURL(string(GitHub), conn.ID), "active": true},
+		"hook_attributes": map[string]any{"url": s.hookURL(string(GitHub), c.ID), "active": true},
 		// Read access to code, metadata and check runs (wait for CI), write access to
 		// pull requests (the preview comment) and commit statuses (the deployment status).
 		"default_permissions": map[string]string{"checks": "read", "contents": "read", "metadata": "read", "pull_requests": "write", "statuses": "write"},
 		"default_events":      []string{"push", "pull_request"},
 	}
 	raw, _ := json.Marshal(manifest)
+	base := trimBase(c.BaseUrl)
 	post := base + "/settings/apps/new"
-	if owner != "" {
+	if owner := decodeMeta(c.Meta).Owner; owner != "" {
 		post = base + "/organizations/" + owner + "/settings/apps/new"
 	}
-	publish(s.bus, EventConnectionUpdated, conn.WorkspaceID, conn.ID)
-	return ManifestStart{ConnectionID: conn.ID, PostURL: post + "?state=" + url.QueryEscape(state), Manifest: string(raw), State: state}, nil
+	q := "?state=" + url.QueryEscape(state)
+	return ManifestStart{
+		ConnectionID: c.ID,
+		FormURL:      s.publicURL() + "/api/v1/git/github/manifest/form" + q,
+		PostURL:      post + q,
+		Manifest:     string(raw),
+		State:        state,
+	}
 }
 
 // connectionByState finds the pending connection of a flow in the caller's workspace.

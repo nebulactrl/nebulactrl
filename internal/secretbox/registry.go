@@ -97,6 +97,7 @@ var (
 	// keyed by user_id.
 	AuthProvidersClientSecret    = reg("auth_providers", "client_secret_enc", keyID)
 	InstanceSettingsSMTPPassword = reg("instance_settings", "smtp_password_enc", "'"+InstanceRow+"'")
+	InstanceSettingsResendAPIKey = reg("instance_settings", "resend_api_key_enc", "'"+InstanceRow+"'")
 	DatabaseRotationsNewPassword = reg("database_rotations", "new_password_enc", keyID)
 	UserTOTPSecret               = reg("user_totp", "secret_enc", "user_id::text")
 )

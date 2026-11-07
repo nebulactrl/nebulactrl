@@ -208,7 +208,7 @@ export function InviteDialog({
 									/>
 									<FieldDescription>
 										One person. Mailed through this team's email channel or the
-										instance's SMTP relay; otherwise you get a link to send
+										instance's mail relay; otherwise you get a link to send
 										yourself.
 									</FieldDescription>
 								</Field>

@@ -38,13 +38,16 @@ const (
 	maxErrorBody  = 200
 	userAgent     = "NebulaCtrl-Notifier/1"
 	defaultTGBase = "https://api.telegram.org"
+
+	defaultResendBase = "https://api.resend.com"
 )
 
 // senders carries what channel senders need; tests swap the HTTP client and the
-// Telegram base URL.
+// Telegram and Resend base URLs.
 type senders struct {
 	http         *http.Client
 	telegramBase string
+	resendBase   string
 	helloName    string
 	// smtpDial opens the SMTP TCP connection (tests redirect it).
 	smtpDial func(ctx context.Context, addr string) (net.Conn, error)
@@ -93,6 +96,7 @@ func newSenders(publicHost string) *senders {
 			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 		},
 		telegramBase: defaultTGBase,
+		resendBase:   defaultResendBase,
 		helloName:    helloHost(publicHost),
 		smtpDial: func(ctx context.Context, addr string) (net.Conn, error) {
 			return d.DialContext(ctx, "tcp", addr)
@@ -112,26 +116,10 @@ func helloHost(publicURL string) string {
 // postJSON posts body and classifies the response. okBody, when set, must hold
 // for a 2xx answer to count (Telegram answers 200 with ok:false for some errors).
 func (s *senders) postJSON(ctx context.Context, endpoint string, body []byte, header http.Header, okBody func([]byte) error) (int, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	code, raw, err := s.doPost(ctx, endpoint, body, header)
 	if err != nil {
-		return 0, &sendError{Message: "the endpoint URL is invalid", Permanent: true}
+		return 0, err
 	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", userAgent)
-	for k, v := range header {
-		req.Header[k] = v
-	}
-	resp, err := s.http.Do(req)
-	if err != nil {
-		var ue *url.Error
-		if errors.As(err, &ue) {
-			err = ue.Err // never prints the URL: it holds the credential
-		}
-		return 0, &sendError{Message: "request failed: " + err.Error()}
-	}
-	defer resp.Body.Close()
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
-	code := resp.StatusCode
 	if code >= 200 && code < 300 {
 		if okBody != nil {
 			if err := okBody(raw); err != nil {
@@ -144,10 +132,39 @@ func (s *senders) postJSON(ctx context.Context, endpoint string, body []byte, he
 	if snippet := bodySnippet(raw); snippet != "" {
 		msg += ": " + snippet
 	}
-	// 4xx means the request itself is wrong (bad URL, revoked token, malformed
-	// body): retrying repeats it. Timeouts and rate limits are the exceptions.
-	perm := code >= 300 && code < 500 && code != http.StatusRequestTimeout && code != http.StatusTooEarly && code != http.StatusTooManyRequests
-	return code, &sendError{Message: msg, Code: code, Permanent: perm}
+	return code, &sendError{Message: msg, Code: code, Permanent: permanentStatus(code)}
+}
+
+// permanentStatus reports whether an HTTP status will fail again on retry. 4xx
+// means the request itself is wrong (bad URL, revoked token, malformed body):
+// retrying repeats it. Timeouts and rate limits are the exceptions.
+func permanentStatus(code int) bool {
+	return code >= 300 && code < 500 && code != http.StatusRequestTimeout && code != http.StatusTooEarly && code != http.StatusTooManyRequests
+}
+
+// doPost sends body and returns the status and (capped) response body. The
+// error is only set when there was no response.
+func (s *senders) doPost(ctx context.Context, endpoint string, body []byte, header http.Header) (int, []byte, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
+	if err != nil {
+		return 0, nil, &sendError{Message: "the endpoint URL is invalid", Permanent: true}
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("User-Agent", userAgent)
+	for k, v := range header {
+		req.Header[k] = v
+	}
+	resp, err := s.http.Do(req)
+	if err != nil {
+		var ue *url.Error
+		if errors.As(err, &ue) {
+			err = ue.Err // never prints the URL: it holds the credential
+		}
+		return 0, nil, &sendError{Message: "request failed: " + err.Error()}
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	return resp.StatusCode, raw, nil
 }
 
 func bodySnippet(raw []byte) string {
@@ -203,6 +220,63 @@ func (s *senders) sendWebhook(ctx context.Context, sec secrets, m Message, now t
 
 // --- Email ---------------------------------------------------------------------
 
+// sendEmail delivers one message through the channel's provider: SMTP unless
+// the config says resend.
+func (s *senders) sendEmail(ctx context.Context, cfg ChannelConfig, sec secrets, m Message, now time.Time) (int, error) {
+	if cfg.Provider == ProviderResend {
+		return s.sendResend(ctx, cfg, sec, m)
+	}
+	return s.sendSMTP(ctx, cfg, sec, m, now)
+}
+
+// sendResend delivers one message through Resend's HTTPS API
+// (POST /emails). It sends the same rendered subject, HTML and text as the
+// SMTP path.
+func (s *senders) sendResend(ctx context.Context, cfg ChannelConfig, sec secrets, m Message) (int, error) {
+	if sec.APIKey == "" {
+		return 0, &sendError{Message: "no Resend API key is set", Permanent: true}
+	}
+	from, err := mail.ParseAddress(cfg.From)
+	if err != nil {
+		return 0, &sendError{Message: "the sender address is invalid", Permanent: true}
+	}
+	if from.Name == "" {
+		from.Name = "NebulaCtrl"
+	}
+	em := RenderEmail(m)
+	body, err := json.Marshal(struct {
+		From    string   `json:"from"`
+		To      []string `json:"to"`
+		Subject string   `json:"subject"`
+		HTML    string   `json:"html"`
+		Text    string   `json:"text"`
+	}{from.String(), cfg.To, em.Subject, em.HTML, em.Text})
+	if err != nil {
+		return 0, &sendError{Message: "render failed: " + err.Error(), Permanent: true}
+	}
+	h := http.Header{}
+	h.Set("Authorization", "Bearer "+sec.APIKey)
+	code, raw, err := s.doPost(ctx, strings.TrimRight(s.resendBase, "/")+"/emails", body, h)
+	if err != nil {
+		return 0, err
+	}
+	if code >= 200 && code < 300 {
+		return code, nil
+	}
+	msg := fmt.Sprintf("Resend rejected the message (HTTP %d)", code)
+	var r struct {
+		Message string `json:"message"`
+	}
+	if json.Unmarshal(raw, &r) == nil && r.Message != "" {
+		// Scrub before truncating, so a cut can not leave half a key behind.
+		msg += ": " + truncate(cleanText(strings.ReplaceAll(r.Message, sec.APIKey, mask), false), maxErrorBody)
+	}
+	// Every 4xx but 429 is the request's own fault (key, domain, sender): retrying repeats it.
+	return code, &sendError{Message: msg, Code: code, Permanent: code >= 300 && code < 500 && code != http.StatusTooManyRequests}
+}
+
+// --- SMTP ----------------------------------------------------------------------
+
 // smtpAuth authenticates with PLAIN or, when the server only offers it, LOGIN.
 // Unlike smtp.PlainAuth it does not refuse an unencrypted connection: the
 // admin chose tls=none for that relay.
@@ -255,10 +329,10 @@ func smtpFailure(err error, what string) *sendError {
 	return &sendError{Message: what + ": " + truncate(cleanText(err.Error(), false), maxErrorBody)}
 }
 
-// sendEmail delivers one message over SMTP: dial (plain or implicit TLS),
+// sendSMTP delivers one message over SMTP: dial (plain or implicit TLS),
 // EHLO, optional STARTTLS, optional AUTH, MAIL/RCPT/DATA, QUIT. Only the
 // standard library speaks the protocol.
-func (s *senders) sendEmail(ctx context.Context, cfg ChannelConfig, sec secrets, m Message, now time.Time) (int, error) {
+func (s *senders) sendSMTP(ctx context.Context, cfg ChannelConfig, sec secrets, m Message, now time.Time) (int, error) {
 	from, err := mail.ParseAddress(cfg.From)
 	if err != nil {
 		return 0, &sendError{Message: "the sender address is invalid", Permanent: true}

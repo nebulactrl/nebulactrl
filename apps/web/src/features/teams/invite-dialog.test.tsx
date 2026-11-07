@@ -227,7 +227,7 @@ describe("InviteDialog", () => {
 		[
 			"not_configured",
 			undefined,
-			/No email was sent: this team has no email channel and the instance has no SMTP relay/,
+			/No email was sent: this team has no email channel and the instance has no mail relay/,
 		],
 		[
 			"not_configured",

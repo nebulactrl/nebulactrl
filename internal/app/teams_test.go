@@ -226,11 +226,11 @@ func TestTeamsCreationDisabledForNonAdmins(t *testing.T) {
 	require.NotContains(t, inst, "smtpHost", "SMTP details are for the instance admin only")
 	require.Equal(t, 403, member.do("PATCH", "/instance", "", map[string]any{"allowTeamCreation": false}).Status)
 
-	off := h.do("PATCH", "/instance", "", map[string]any{"allowTeamCreation": false, "smtpHost": "smtp.example.com", "smtpFrom": "NebulaCtrl <no-reply@example.com>", "smtpPassword": "hunter2-hunter2"})
+	off := h.do("PATCH", "/instance", "", map[string]any{"allowTeamCreation": false, "smtpHost": "smtp.example.com", "mailFrom": "NebulaCtrl <no-reply@example.com>", "smtpPassword": "hunter2-hunter2"})
 	require.Equal(t, 200, off.Status, string(off.Raw))
 	require.Equal(t, false, off.JSON()["allowTeamCreation"])
 	require.Equal(t, true, off.JSON()["canManage"])
-	require.Equal(t, true, off.JSON()["smtpConfigured"])
+	require.Equal(t, true, off.JSON()["mailConfigured"])
 	require.Equal(t, true, off.JSON()["smtpPasswordSet"])
 	require.NotContains(t, string(off.Raw), "hunter2", "the SMTP password is write-only")
 

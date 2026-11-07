@@ -308,6 +308,7 @@ export type ApiRouteKey =
 	| `POST /environments/${string}/templates/${string}/instances`
 	| `POST /environments/${string}/templates/${string}/plan`
 	| `POST /git/connections`
+	| `POST /git/connections/${string}/github/manifest`
 	| `POST /git/connections/${string}/oauth/start`
 	| `POST /git/connections/${string}/refresh`
 	| `POST /git/connections/${string}/test`

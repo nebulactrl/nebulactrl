@@ -106,7 +106,7 @@ export function describeDelivery(
 		case "not_configured":
 			return error
 				? `No email was sent: ${error}. Share the link below.`
-				: "No email was sent: this team has no email channel and the instance has no SMTP relay. Share the link below.";
+				: "No email was sent: this team has no email channel and the instance has no mail relay. Share the link below.";
 		case "failed":
 			return `The email could not be sent${error ? `: ${error}` : ""}. Share the link below instead.`;
 		default:

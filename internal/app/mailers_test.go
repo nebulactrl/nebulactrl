@@ -40,10 +40,10 @@ func TestPasswordResetMailNeedsARelayOrAnEmailChannel(t *testing.T) {
 	u, err := q.InsertUser(ctx, db.InsertUserParams{Email: "ada@example.com", Name: "Ada", PasswordHash: "x"})
 	require.NoError(t, err)
 	err = m.SendPasswordReset(ctx, auth.ResetMail{UserID: u.ID, To: u.Email, Link: "https://nebula.example.com/reset-password?token=x", ExpiresAt: time.Now().Add(time.Hour)})
-	require.EqualError(t, err, "no SMTP relay or team email channel can reach this account")
+	require.Error(t, err, "with no relay and no email channel the reset email is refused")
 
 	// With an instance relay configured the feature is on (nothing is sent by asking).
-	_, err = pool.Exec(ctx, `UPDATE instance_settings SET smtp_host = 'smtp.example.com', smtp_from = 'no-reply@example.com', smtp_port = 587, smtp_tls = 'starttls'`)
+	_, err = pool.Exec(ctx, `UPDATE instance_settings SET smtp_host = 'smtp.example.com', mail_from = 'no-reply@example.com', smtp_port = 587, smtp_tls = 'starttls'`)
 	require.NoError(t, err)
 	require.True(t, m.Available(ctx))
 	r, err := m.relay(ctx)

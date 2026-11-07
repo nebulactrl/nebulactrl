@@ -404,6 +404,13 @@ export function formatUtcStamp(iso: string, now: number = Date.now()): string {
 		: `${date.getUTCDate()} ${MONTHS[date.getUTCMonth()]} ${time}`;
 }
 
+/** `2026-10-09` as "Oct 9, 2026", the form the bar's day readout uses. Any other text is returned as given. */
+export function formatUtcDay(date: string): string {
+	const match = /^(\d{4})-(\d{2})-(\d{2})/.exec(date);
+	const month = match ? MONTHS[Number(match[2]) - 1] : undefined;
+	return match && month ? `${month} ${Number(match[3])}, ${match[1]}` : date;
+}
+
 /**
  * When the checks of a monitored service stopped, or null while they are
  * arriving. A state of `unknown` with a last check on record means the

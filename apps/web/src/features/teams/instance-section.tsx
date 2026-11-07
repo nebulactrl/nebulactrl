@@ -13,6 +13,7 @@ import {
 	FieldLabel,
 } from "#/components/ui/field";
 import { Input } from "#/components/ui/input";
+import { Segmented } from "#/components/ui/segmented";
 import {
 	Select,
 	SelectContent,
@@ -29,6 +30,7 @@ import { ProvidersCard } from "#/features/settings/security/providers-card";
 import { instanceQuery } from "./queries";
 
 type Tls = NonNullable<InstanceSettings["smtpTls"]>;
+type MailProvider = NonNullable<InstanceSettings["mailProvider"]>;
 
 const TLS_OPTIONS: readonly { value: Tls; label: string }[] = [
 	{ value: "starttls", label: "STARTTLS (port 587)" },
@@ -138,27 +140,31 @@ export function SignInSection() {
 }
 
 /**
- * Admin → Email relay: the SMTP relay that mails invites when a team has no
- * email channel of its own.
+ * Admin → Email relay: the SMTP server or Resend account that mails invites
+ * and password resets when a team has no email channel of its own.
  */
 export function MailRelaySection() {
 	const { instance, save } = useInstanceSettings();
 	const data = instance.data;
+	const [provider, setProvider] = useState<MailProvider>("smtp");
 	const [host, setHost] = useState("");
 	const [port, setPort] = useState("587");
 	const [tls, setTls] = useState<Tls>("starttls");
 	const [username, setUsername] = useState("");
 	const [password, setPassword] = useState("");
+	const [apiKey, setApiKey] = useState("");
 	const [from, setFrom] = useState("");
 
 	useEffect(() => {
 		if (!data) return;
+		setProvider(data.mailProvider ?? "smtp");
 		setHost(data.smtpHost ?? "");
 		setPort(String(data.smtpPort ?? 587));
 		setTls(data.smtpTls ?? "starttls");
 		setUsername(data.smtpUsername ?? "");
-		setFrom(data.smtpFrom ?? "");
+		setFrom(data.mailFrom ?? "");
 		setPassword("");
+		setApiKey("");
 	}, [data]);
 
 	const standIn = instanceStandIn(instance);
@@ -170,16 +176,24 @@ export function MailRelaySection() {
 		const portNumber = Number.parseInt(port, 10);
 		save.mutate(
 			{
-				smtpHost: host.trim(),
-				smtpTls: tls,
-				smtpUsername: username.trim(),
-				smtpFrom: from.trim(),
-				...(Number.isFinite(portNumber) ? { smtpPort: portNumber } : {}),
-				...(password !== "" ? { smtpPassword: password } : {}),
+				mailProvider: provider,
+				mailFrom: from.trim(),
+				...(provider === "resend"
+					? apiKey.trim() !== ""
+						? { resendApiKey: apiKey.trim() }
+						: {}
+					: {
+							smtpHost: host.trim(),
+							smtpTls: tls,
+							smtpUsername: username.trim(),
+							...(Number.isFinite(portNumber) ? { smtpPort: portNumber } : {}),
+							...(password !== "" ? { smtpPassword: password } : {}),
+						}),
 			},
 			{
 				onSuccess: () => {
 					setPassword("");
+					setApiKey("");
 					toast.success("Email relay saved");
 				},
 			},
@@ -194,88 +208,137 @@ export function MailRelaySection() {
 			tip="Used when a team has no email notification channel. Without either, invites are link-only: you copy the link and send it yourself."
 		>
 			<form onSubmit={submit} className="flex flex-col gap-4">
+				<div>
+					<Segmented<MailProvider>
+						aria-label="Mail provider"
+						font="sans"
+						density="regular"
+						value={provider}
+						onValueChange={setProvider}
+						options={[
+							{ value: "smtp", label: "SMTP" },
+							{ value: "resend", label: "Resend" },
+						]}
+					/>
+				</div>
 				<div className="grid gap-3 sm:grid-cols-2">
+					{provider === "smtp" ? (
+						<>
+							<Field>
+								<FieldLabel htmlFor="smtp-host">SMTP host</FieldLabel>
+								<Input
+									id="smtp-host"
+									autoComplete="off"
+									placeholder="smtp.example.com"
+									value={host}
+									onChange={(event) => setHost(event.target.value)}
+								/>
+							</Field>
+							<Field>
+								<FieldLabel htmlFor="smtp-port">Port</FieldLabel>
+								<Input
+									id="smtp-port"
+									inputMode="numeric"
+									value={port}
+									onChange={(event) =>
+										setPort(event.target.value.replace(/\D/g, ""))
+									}
+								/>
+							</Field>
+							<Field>
+								<FieldLabel id="smtp-tls-label">Connection security</FieldLabel>
+								<Select
+									value={tls}
+									items={[...TLS_OPTIONS]}
+									onValueChange={(next) => {
+										const option = TLS_OPTIONS.find((o) => o.value === next);
+										if (!option) return;
+										setTls(option.value);
+										setPort(DEFAULT_PORT[option.value]);
+									}}
+								>
+									<SelectTrigger
+										aria-labelledby="smtp-tls-label"
+										className="w-full"
+									>
+										<SelectValue />
+									</SelectTrigger>
+									<SelectContent alignItemWithTrigger={false} align="start">
+										{TLS_OPTIONS.map((option) => (
+											<SelectItem key={option.value} value={option.value}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</Field>
+						</>
+					) : null}
 					<Field>
-						<FieldLabel htmlFor="smtp-host">SMTP host</FieldLabel>
+						<FieldLabel htmlFor="mail-from">Sender</FieldLabel>
 						<Input
-							id="smtp-host"
-							autoComplete="off"
-							placeholder="smtp.example.com"
-							value={host}
-							onChange={(event) => setHost(event.target.value)}
-						/>
-					</Field>
-					<Field>
-						<FieldLabel htmlFor="smtp-port">Port</FieldLabel>
-						<Input
-							id="smtp-port"
-							inputMode="numeric"
-							value={port}
-							onChange={(event) =>
-								setPort(event.target.value.replace(/\D/g, ""))
-							}
-						/>
-					</Field>
-					<Field>
-						<FieldLabel id="smtp-tls-label">Connection security</FieldLabel>
-						<Select
-							value={tls}
-							items={[...TLS_OPTIONS]}
-							onValueChange={(next) => {
-								const option = TLS_OPTIONS.find((o) => o.value === next);
-								if (!option) return;
-								setTls(option.value);
-								setPort(DEFAULT_PORT[option.value]);
-							}}
-						>
-							<SelectTrigger
-								aria-labelledby="smtp-tls-label"
-								className="w-full"
-							>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent alignItemWithTrigger={false} align="start">
-								{TLS_OPTIONS.map((option) => (
-									<SelectItem key={option.value} value={option.value}>
-										{option.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</Field>
-					<Field>
-						<FieldLabel htmlFor="smtp-from">Sender</FieldLabel>
-						<Input
-							id="smtp-from"
+							id="mail-from"
 							autoComplete="off"
 							placeholder="NebulaCtrl <no-reply@example.com>"
 							value={from}
 							onChange={(event) => setFrom(event.target.value)}
 						/>
 					</Field>
-					<Field>
-						<FieldLabel htmlFor="smtp-username">User name</FieldLabel>
-						<Input
-							id="smtp-username"
-							autoComplete="off"
-							value={username}
-							onChange={(event) => setUsername(event.target.value)}
-						/>
-					</Field>
-					<Field>
-						<FieldLabel htmlFor="smtp-password">Password</FieldLabel>
-						<Input
-							id="smtp-password"
-							type="password"
-							autoComplete="new-password"
-							placeholder={data.smtpPasswordSet ? "•••••••• (set)" : ""}
-							value={password}
-							onChange={(event) => setPassword(event.target.value)}
-						/>
-						<FieldDescription>
-							Write-only. Leave empty to keep the stored password.
-						</FieldDescription>
-					</Field>
+					{provider === "smtp" ? (
+						<>
+							<Field>
+								<FieldLabel htmlFor="smtp-username">User name</FieldLabel>
+								<Input
+									id="smtp-username"
+									autoComplete="off"
+									value={username}
+									onChange={(event) => setUsername(event.target.value)}
+								/>
+							</Field>
+							<Field>
+								<FieldLabel htmlFor="smtp-password">Password</FieldLabel>
+								<Input
+									id="smtp-password"
+									type="password"
+									autoComplete="new-password"
+									placeholder={data.smtpPasswordSet ? "•••••••• (set)" : ""}
+									value={password}
+									onChange={(event) => setPassword(event.target.value)}
+								/>
+								<FieldDescription>
+									Write-only. Leave empty to keep the stored password.
+								</FieldDescription>
+							</Field>
+						</>
+					) : (
+						<Field>
+							<FieldLabel htmlFor="resend-api-key">API key</FieldLabel>
+							<Input
+								id="resend-api-key"
+								type="password"
+								autoComplete="new-password"
+								spellCheck={false}
+								className="font-mono"
+								placeholder={
+									data.resendApiKeySet ? "Stored — leave empty to keep" : "re_…"
+								}
+								value={apiKey}
+								onChange={(event) => setApiKey(event.target.value)}
+							/>
+							<FieldDescription>
+								Write-only. Create a key with sending access at{" "}
+								<a
+									href="https://resend.com/api-keys"
+									target="_blank"
+									rel="noreferrer noopener"
+									className="text-accent-ink hover:underline"
+								>
+									resend.com/api-keys
+								</a>
+								; the sender's domain must be verified there.
+							</FieldDescription>
+						</Field>
+					)}
 				</div>
 				{save.isError ? (
 					<FieldError>{errorMessage(save.error)}</FieldError>
@@ -286,7 +349,7 @@ export function MailRelaySection() {
 						Save mail relay
 					</Button>
 					<span className="text-ink-3 text-xs">
-						{data.smtpConfigured
+						{data.mailConfigured
 							? "Invites can be emailed through this relay."
 							: "Not configured: invites are link-only."}
 					</span>

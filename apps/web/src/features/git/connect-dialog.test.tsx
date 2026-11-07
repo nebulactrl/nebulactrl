@@ -1,4 +1,4 @@
-import { describe, expect, mock, spyOn, test } from "bun:test";
+import { describe, expect, mock, test } from "bun:test";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { stubApi } from "#/test/api";
@@ -59,23 +59,21 @@ describe("ConnectDialog provider picker", () => {
 });
 
 describe("GitHub", () => {
-	test("posts the manifest request and submits the returned manifest to GitHub", async () => {
-		const api = stubApi({
-			"POST /git/github/manifest": {
-				body: {
-					connectionId: "c1",
-					manifest: '{"name":"nebula"}',
-					postUrl:
-						"https://github.com/organizations/acme/settings/apps/new?state=s1",
-					state: "s1",
-				},
-			},
-		});
-		const submit = spyOn(
-			HTMLFormElement.prototype,
-			"submit",
-		).mockImplementation(() => {});
+	const FORM_URL = "/api/v1/git/github/manifest/form?state=s1";
+	const started = {
+		body: {
+			connectionId: "c1",
+			formUrl: FORM_URL,
+			manifest: '{"name":"nebula"}',
+			postUrl: "https://github.com/settings/apps/new?state=s1",
+			state: "s1",
+		},
+	};
+
+	test("posts owner and base URL, then navigates to the returned form page", async () => {
+		const loc = stubLocationAssign();
 		try {
+			const api = stubApi({ "POST /git/github/manifest": started });
 			const { user } = await open();
 			await pick(user, "GitHub");
 			await user.click(screen.getByLabelText(/Organization/));
@@ -85,37 +83,20 @@ describe("GitHub", () => {
 			await user.click(
 				screen.getByRole("button", { name: /Create the GitHub App/ }),
 			);
-			await waitFor(() => expect(submit).toHaveBeenCalledTimes(1));
+			await waitFor(() => expect(loc.urls).toEqual([FORM_URL]));
 			expect(api.calls[0]?.body).toEqual({
 				owner: "acme",
 				baseUrl: "https://ghe.example.com",
 			});
-			const form = document.body.querySelector("form[action*='github.com']");
-			expect(form?.getAttribute("method")?.toLowerCase()).toBe("post");
-			expect(
-				form?.querySelector<HTMLInputElement>("input[name=manifest]")?.value,
-			).toBe('{"name":"nebula"}');
 		} finally {
-			submit.mockRestore();
+			loc.restore();
 		}
 	});
 
 	test("leaves empty optional fields out of the request", async () => {
-		const api = stubApi({
-			"POST /git/github/manifest": {
-				body: {
-					connectionId: "c",
-					manifest: "{}",
-					postUrl: "https://github.com/settings/apps/new",
-					state: "s",
-				},
-			},
-		});
-		const submit = spyOn(
-			HTMLFormElement.prototype,
-			"submit",
-		).mockImplementation(() => {});
+		const loc = stubLocationAssign();
 		try {
+			const api = stubApi({ "POST /git/github/manifest": started });
 			const { user } = await open();
 			await pick(user, "GitHub");
 			await user.click(
@@ -124,27 +105,44 @@ describe("GitHub", () => {
 			await waitFor(() => expect(api.calls).toHaveLength(1));
 			expect(api.calls[0]?.body).toEqual({});
 		} finally {
-			submit.mockRestore();
+			loc.restore();
+		}
+	});
+
+	test("after success the button stays disabled, so no second connection is created", async () => {
+		const loc = stubLocationAssign();
+		try {
+			const api = stubApi({ "POST /git/github/manifest": started });
+			const { user } = await open();
+			await pick(user, "GitHub");
+			const create = screen.getByRole("button", {
+				name: /Create the GitHub App/,
+			});
+			await user.click(create);
+			await waitFor(() => expect(loc.urls).toEqual([FORM_URL]));
+			expect(create).toBeDisabled();
+			await user.click(create);
+			expect(api.calls).toHaveLength(1);
+			expect(loc.urls).toEqual([FORM_URL]);
+		} finally {
+			loc.restore();
 		}
 	});
 
 	test("a rejected start shows why and does not leave the page", async () => {
-		stubApi({
-			"POST /git/github/manifest": {
-				status: 400,
-				body: {
-					title: "Bad",
-					detail: "NEBULACTRL_PUBLIC_URL is not set",
-					status: 400,
-					code: "bad_request",
-				},
-			},
-		});
-		const submit = spyOn(
-			HTMLFormElement.prototype,
-			"submit",
-		).mockImplementation(() => {});
+		const loc = stubLocationAssign();
 		try {
+			stubApi({
+				"POST /git/github/manifest": {
+					status: 400,
+					body: {
+						title: "Bad",
+						detail: "NEBULACTRL_PUBLIC_URL is not set",
+						status: 400,
+						code: "bad_request",
+					},
+				},
+			});
 			const { user } = await open();
 			await pick(user, "GitHub");
 			await user.click(
@@ -154,9 +152,12 @@ describe("GitHub", () => {
 			expect(
 				screen.getByText("NEBULACTRL_PUBLIC_URL is not set"),
 			).toBeInTheDocument();
-			expect(submit).not.toHaveBeenCalled();
+			expect(loc.urls).toEqual([]);
+			expect(
+				screen.getByRole("button", { name: /Create the GitHub App/ }),
+			).toBeEnabled();
 		} finally {
-			submit.mockRestore();
+			loc.restore();
 		}
 	});
 });

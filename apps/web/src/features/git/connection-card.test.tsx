@@ -5,7 +5,11 @@ import type { ConnectionView } from "#/api/gen/types.gen";
 import { ConnectionCard } from "./connection-card";
 import { connection } from "./test-fixtures";
 
-function setup(over: Partial<ConnectionView> = {}, testing = false) {
+function setup(
+	over: Partial<ConnectionView> = {},
+	testing = false,
+	finishing = false,
+) {
 	const h = {
 		onTest: mock(),
 		onDeliveries: mock(),
@@ -14,6 +18,7 @@ function setup(over: Partial<ConnectionView> = {}, testing = false) {
 		onWebhook: mock(),
 		onToken: mock(),
 		onRemove: mock(),
+		onFinishGitHub: mock(),
 	};
 	// Spread rather than connection(over): a test passes a status the schema
 	// does not list, which make() refuses and the card must still render.
@@ -21,6 +26,7 @@ function setup(over: Partial<ConnectionView> = {}, testing = false) {
 		<ConnectionCard
 			connection={{ ...connection(), ...over }}
 			testing={testing}
+			finishing={finishing}
 			{...h}
 		/>,
 	);
@@ -100,6 +106,9 @@ describe("ConnectionCard actions", () => {
 		});
 		try {
 			const h = setup({ status: "pending" });
+			expect(
+				screen.queryByRole("button", { name: "Finish setup" }),
+			).not.toBeInTheDocument();
 			expect(names()).toEqual([
 				"Install the App",
 				"I installed it",
@@ -121,18 +130,43 @@ describe("ConnectionCard actions", () => {
 		}
 	});
 
-	test("pending GitHub App without an install URL has no install button", () => {
-		setup({
+	test("pending GitHub App whose App does not exist yet offers Finish setup, not install", async () => {
+		const h = setup({
 			status: "pending",
 			github: {
-				appId: 1,
+				appId: 0,
 				appSlug: "",
 				appUrl: "",
 				installUrl: "",
 				installationId: 0,
 			},
 		});
-		expect(names()).toEqual(["Deliveries", "Remove"]);
+		expect(names()).toEqual(["Finish setup", "Deliveries", "Remove"]);
+		expect(
+			screen.queryByRole("button", { name: "Install the App" }),
+		).not.toBeInTheDocument();
+		await userEvent
+			.setup()
+			.click(screen.getByRole("button", { name: "Finish setup" }));
+		expect(h.onFinishGitHub).toHaveBeenCalledTimes(1);
+	});
+
+	test("while finishing the setup the button is disabled", () => {
+		setup(
+			{
+				status: "pending",
+				github: {
+					appId: 0,
+					appSlug: "",
+					appUrl: "",
+					installUrl: "",
+					installationId: 0,
+				},
+			},
+			false,
+			true,
+		);
+		expect(screen.getByRole("button", { name: /Finish setup/ })).toBeDisabled();
 	});
 
 	test("unfinished OAuth connection offers Authorize; Reauthorize once active", async () => {

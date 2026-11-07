@@ -29,7 +29,6 @@ func TestPageHostnameValidationAndReservation(t *testing.T) {
 	require.Equal(t, "status.acme.com", *v.Hostname, "lowercased, trailing dot dropped")
 	require.Equal(t, "acme-status", v.Slug)
 	require.False(t, v.Published)
-	require.Equal(t, "auto", v.Theme)
 	require.True(t, v.ShowUptime)
 	require.Empty(t, v.Components)
 
@@ -109,7 +108,7 @@ func TestPageHostnameInAnotherTeamsZoneIsUnavailable(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestPageSlugTitleAndThemeRules(t *testing.T) {
+func TestPageSlugAndTitleRules(t *testing.T) {
 	f := newFx(t)
 	a := f.createPage("Acme status", "")
 	b := f.createPage("Acme status", "")
@@ -124,19 +123,16 @@ func TestPageSlugTitleAndThemeRules(t *testing.T) {
 	requireAPIError(t, err, 422, "invalid_title")
 	_, err = f.svc.Create(f.ctx, PageCreate{Title: strings.Repeat("x", maxTitleLen+1)})
 	requireAPIError(t, err, 422, "invalid_title")
-	_, err = f.svc.Create(f.ctx, PageCreate{Title: "Themed", Theme: "neon"})
-	requireAPIError(t, err, 422, "invalid_theme")
 
 	other := "acme-status"
 	_, err = f.svc.Update(f.ctx, b.ID, PagePatch{Slug: &other})
 	requireAPIError(t, err, 409, "slug_conflict")
 
 	no := false
-	dark, title := "dark", "  Renamed  "
-	v, err := f.svc.Update(f.ctx, b.ID, PagePatch{Theme: &dark, Title: &title, ShowUptime: &no})
+	title := "  Renamed  "
+	v, err := f.svc.Update(f.ctx, b.ID, PagePatch{Title: &title, ShowUptime: &no})
 	require.NoError(t, err)
 	require.Equal(t, "Renamed", v.Title)
-	require.Equal(t, "dark", v.Theme)
 	require.False(t, v.ShowUptime)
 	require.Equal(t, "acme-status-2", v.Slug, "untouched fields stay")
 }

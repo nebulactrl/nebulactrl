@@ -15,6 +15,7 @@ import {
 	DAY_WORDS,
 	foldedLabel,
 	foldServices,
+	formatUtcDay,
 	formatUtcStamp,
 	rowNote,
 	serviceStateView,
@@ -22,6 +23,17 @@ import {
 	uptimeDays,
 } from "./model";
 import { BAR_COLORS } from "./tones";
+
+/**
+ * The wide layout's columns: name and state (takes the slack), the 30-day
+ * figure, the bar and the last check. The bar's cells stop growing at 20px
+ * (30 days × 20 + 29 gaps × 2 = 658px = 41.125rem), so from 1200px of table
+ * up the bar column is exactly that and the cells fill it edge to edge, the
+ * last check right beside it. Below that the column is 12rem and the cells
+ * divide it evenly. Written out in full: Tailwind reads class names verbatim.
+ */
+const WIDE_COLUMNS =
+	"@min-[640px]:grid-cols-[minmax(0,1fr)_5.5rem_12rem_5rem] @min-[1200px]:grid-cols-[minmax(0,1fr)_5.5rem_41.125rem_5rem]";
 
 /** The column labels, wide layout only: the narrow one labels each figure itself. */
 const HEAD = "type-micro";
@@ -48,7 +60,7 @@ const UptimeRow = memo(function UptimeRow({
 	return (
 		<li
 			className={cn(
-				"relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-2 py-2.5 @min-[640px]:grid-cols-[minmax(0,15rem)_5.5rem_minmax(0,1fr)_5rem]",
+				`relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1.5 py-1.5 ${WIDE_COLUMNS}`,
 				reveal !== undefined && "animate-nc-in [animation-fill-mode:backwards]",
 			)}
 			style={
@@ -59,17 +71,17 @@ const UptimeRow = memo(function UptimeRow({
 					: undefined
 			}
 		>
-			<div className="flex min-w-0 flex-col gap-1.5">
+			<div className="flex min-w-0 items-center gap-2.5">
 				<Link
 					to="/p/$projectId/$envSlug"
 					params={{ projectId, envSlug }}
 					search={{ service: item.serviceId, tab: "overview" }}
-					className="flex min-w-0 items-center gap-2 rounded-ctl font-medium text-ink-1 text-sm leading-none outline-none after:absolute after:inset-0 hover:text-accent-ink focus-visible:focus-ring"
+					className="flex max-w-[60%] shrink-0 items-center gap-2 rounded-ctl font-medium text-ink-1 text-sm leading-none outline-none after:absolute after:inset-0 hover:text-accent-ink focus-visible:focus-ring"
 				>
 					<StatusIcon kind={view.kind} label="" />
 					<span className="truncate">{item.name}</span>
 				</Link>
-				<span className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 pl-[22px] text-2xs text-ink-3 leading-none">
+				<span className="flex min-w-0 items-center gap-x-2 overflow-hidden whitespace-nowrap text-2xs text-ink-3 leading-none">
 					{stoppedAt ? (
 						<>
 							<span className="shrink-0">
@@ -103,24 +115,24 @@ const UptimeRow = memo(function UptimeRow({
 							· checked <Relative iso={item.lastCheckAt} />
 						</span>
 					) : null}
+					{note?.kind === "error" ? (
+						<span
+							title={note.text}
+							className="min-w-0 truncate font-mono text-status-failed-on"
+						>
+							{note.text}
+						</span>
+					) : null}
+					{note?.kind === "hint" ? (
+						<span
+							title="The last check failed. An outage opens after several in a row."
+							className="flex shrink-0 items-center gap-1.5 font-medium text-status-staged-on"
+						>
+							<StatusIcon kind="warning" label="" />
+							{note.text}
+						</span>
+					) : null}
 				</span>
-				{note?.kind === "error" ? (
-					<span
-						title={note.text}
-						className="truncate pl-[22px] font-mono text-2xs text-status-failed-on leading-none"
-					>
-						{note.text}
-					</span>
-				) : null}
-				{note?.kind === "hint" ? (
-					<span
-						title="The last check failed. An outage opens after several in a row."
-						className="flex items-center gap-1.5 pl-[22px] font-medium text-2xs text-status-staged-on leading-none"
-					>
-						<StatusIcon kind="warning" label="" />
-						{note.text}
-					</span>
-				) : null}
 			</div>
 			<div className="flex flex-col items-end gap-1 @min-[640px]:items-start">
 				<span className="type-micro @min-[640px]:hidden">30 days</span>
@@ -140,6 +152,7 @@ const UptimeRow = memo(function UptimeRow({
 					words={DAY_WORDS}
 					colors={BAR_COLORS}
 					legend={false}
+					dates={false}
 					height={20}
 					cell={2}
 				/>
@@ -183,12 +196,33 @@ export function EnvironmentUptimeList({
 		);
 	}
 	const rows = expanded ? sorted : shown;
+	// Every service shares the same 30 days, so the first one that has them
+	// names the window once, in the header, instead of under every bar.
+	const first = sorted.find((item) => (item.days?.length ?? 0) > 0)?.days;
+	const range = first
+		? {
+				from: formatUtcDay(first[0]?.at ?? ""),
+				to: formatUtcDay(first.at(-1)?.at ?? ""),
+			}
+		: null;
 	return (
 		<div className="@container surface-raised rounded-card px-4 py-1">
-			<div className="hidden grid-cols-[minmax(0,15rem)_5.5rem_minmax(0,1fr)_5rem] gap-x-4 border-line-faint border-b py-2 @min-[640px]:grid">
+			<div
+				className={`hidden gap-x-4 border-line-faint border-b py-2 @min-[640px]:grid ${WIDE_COLUMNS}`}
+			>
 				<span className={HEAD}>Service</span>
 				<span className={HEAD}>30 days</span>
-				<span className={HEAD}>Last 30 days, UTC</span>
+				{range ? (
+					<span
+						title="Last 30 days, UTC"
+						className={`${HEAD} flex justify-between gap-2`}
+					>
+						<span>{range.from}</span>
+						<span>{range.to}</span>
+					</span>
+				) : (
+					<span className={HEAD}>Last 30 days, UTC</span>
+				)}
 				<span className={`${HEAD} text-right`}>Last check</span>
 			</div>
 			<ul id={listId} className="rule-rows">

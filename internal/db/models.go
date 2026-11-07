@@ -723,10 +723,12 @@ type InstanceSetting struct {
 	SmtpTls                string    `json:"smtpTls"`
 	SmtpUsername           string    `json:"smtpUsername"`
 	SmtpPasswordEnc        []byte    `json:"smtpPasswordEnc"`
-	SmtpFrom               string    `json:"smtpFrom"`
+	MailFrom               string    `json:"mailFrom"`
 	SmtpInsecureSkipVerify bool      `json:"smtpInsecureSkipVerify"`
 	UpdatedAt              time.Time `json:"updatedAt"`
 	McpEnabled             bool      `json:"mcpEnabled"`
+	MailProvider           string    `json:"mailProvider"`
+	ResendApiKeyEnc        []byte    `json:"resendApiKeyEnc"`
 }
 
 type InstanceUpdate struct {
@@ -1697,7 +1699,6 @@ type StatusPage struct {
 	Hostname     *string    `json:"hostname"`
 	Published    bool       `json:"published"`
 	ShowUptime   bool       `json:"showUptime"`
-	Theme        string     `json:"theme"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	UpdatedAt    time.Time  `json:"updatedAt"`
 	CfZoneID     string     `json:"cfZoneId"`

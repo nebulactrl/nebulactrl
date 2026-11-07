@@ -43,7 +43,7 @@ const (
 	resetSendTimeout = 30 * time.Second
 )
 
-// ErrResetUnavailable is returned when no email can be sent (no SMTP relay, no
+// ErrResetUnavailable is returned when no email can be sent (no mail relay, no
 // team email channel, or no public URL to put in the link).
 var ErrResetUnavailable = apierr.New(503, "password_reset_unavailable",
 	"Password reset by email is not set up on this instance. Ask an admin to reset your password.")
@@ -60,7 +60,7 @@ type ResetMail struct {
 	ExpiresAt time.Time
 }
 
-// ResetMailer sends reset emails. The app implements it with the instance SMTP
+// ResetMailer sends reset emails. The app implements it with the instance mail
 // relay first and a team email channel as the fallback.
 type ResetMailer interface {
 	// Available reports whether a reset email could be sent right now.

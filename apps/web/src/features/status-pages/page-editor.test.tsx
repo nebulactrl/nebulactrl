@@ -55,7 +55,6 @@ function makePage(over: Partial<StatusPageView> = {}): StatusPageView {
 		slug: "acme-status",
 		description: "",
 		footer: "",
-		theme: "auto",
 		showUptime: true,
 		hostname: "status.acme.test",
 		published: false,
@@ -273,7 +272,6 @@ describe("PageEditor: the page", () => {
 			page: makePage({
 				description: "Live status",
 				footer: "ops@acme.test",
-				theme: "dark",
 			}),
 		});
 		await open();
@@ -284,11 +282,6 @@ describe("PageEditor: the page", () => {
 		expect(screen.getByLabelText("Public hostname")).toHaveValue(
 			"status.acme.test",
 		);
-		expect(
-			within(
-				screen.getByRole("group", { name: "Theme of the public page" }),
-			).getByRole("button", { name: "Dark" }),
-		).toHaveAttribute("aria-pressed", "true");
 		expect(
 			screen
 				.getAllByRole("textbox", { name: "Public name" })
@@ -473,17 +466,11 @@ describe("PageEditor: saving", () => {
 		await user.clear(hostname);
 		await user.type(hostname, "  Status.New.TEST.  ");
 		await user.click(screen.getByRole("switch", { name: "Show uptime" }));
-		await user.click(
-			within(
-				screen.getByRole("group", { name: "Theme of the public page" }),
-			).getByRole("button", { name: "Light" }),
-		);
 		await user.click(screen.getByRole("button", { name: "Save changes" }));
 		await screen.findByText("Status page saved");
 		expect(calls(api, "PATCH")[0]?.body).toEqual({
 			hostname: "status.new.test",
 			showUptime: false,
-			theme: "light",
 		});
 	});
 

@@ -337,7 +337,6 @@ describe("page form", () => {
 		expect(
 			pageFormDirty({ ...saved, hostname: "STATUS.acme.dev." }, saved),
 		).toBe(false);
-		expect(pageFormDirty({ ...saved, theme: "dark" }, saved)).toBe(true);
 	});
 
 	test("a patch carries only what changed; an empty hostname removes it", () => {
@@ -358,14 +357,13 @@ describe("page form", () => {
 
 	test("create sends a slug only when one was typed", () => {
 		const body = pageCreateBody({ ...EMPTY_PAGE_FORM, title: " Acme " });
-		expect(body).toEqual({ title: "Acme", theme: "auto", showUptime: true });
+		expect(body).toEqual({ title: "Acme", showUptime: true });
 	});
 
 	test("create sends the chosen project and omits none", () => {
 		const form = { ...EMPTY_PAGE_FORM, title: "Acme" };
 		expect(pageCreateBody(form, "p1")).toEqual({
 			title: "Acme",
-			theme: "auto",
 			showUptime: true,
 			fromProjectId: "p1",
 		});

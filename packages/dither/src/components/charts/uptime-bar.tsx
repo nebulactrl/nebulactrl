@@ -100,6 +100,8 @@ export interface DitherUptimeBarProps {
 	words?: UptimeWords;
 	/** The caption after the headline figure. Default "uptime"; `false` hides it. */
 	caption?: ReactNode | false;
+	/** Print the first and last date under the bar. Default true; a table that heads its bar column with the date range passes false. */
+	dates?: boolean;
 	className?: string;
 }
 
@@ -174,6 +176,7 @@ export function DitherUptimeBar({
 	responsive = false,
 	words,
 	caption = "uptime",
+	dates = true,
 	className,
 }: DitherUptimeBarProps) {
 	const rootRef = useRef<HTMLDivElement>(null);
@@ -507,10 +510,12 @@ export function DitherUptimeBar({
 					</div>
 				) : null}
 			</div>
-			<div className="flex justify-between font-mono text-[10px] text-ink-4">
-				<span>{days[0]?.text}</span>
-				<span>{days.length > 1 ? days.at(-1)?.text : null}</span>
-			</div>
+			{dates ? (
+				<div className="flex justify-between font-mono text-[10px] text-ink-4">
+					<span>{days[0]?.text}</span>
+					<span>{days.length > 1 ? days.at(-1)?.text : null}</span>
+				</div>
+			) : null}
 			{legend ? (
 				<div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
 					<ul

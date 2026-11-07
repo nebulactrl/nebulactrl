@@ -123,7 +123,7 @@ func wire(c *Core) Modules {
 	})
 
 	// Teams: members, invites (mailed through the team's email channel or the
-	// instance SMTP relay) and sign-up through invites.
+	// instance mail relay) and sign-up through invites.
 	teamSvc := teams.NewService(teams.Deps{
 		Pool: c.Pool, Bus: c.Bus, Auth: c.Auth, Box: c.Box, Mailer: teamMailer{notifySvc},
 		PublicURL: c.Config.PublicURL, Logger: c.Logger, Jobs: c.Jobs,

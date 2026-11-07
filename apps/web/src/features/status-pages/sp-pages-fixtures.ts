@@ -23,7 +23,6 @@ export function pageView(
 		hostname: "status.acme.test",
 		published: true,
 		showUptime: true,
-		theme: "auto",
 		components: [],
 		createdAt: "2026-10-01T00:00:00Z",
 		updatedAt: "2026-10-01T00:00:00Z",

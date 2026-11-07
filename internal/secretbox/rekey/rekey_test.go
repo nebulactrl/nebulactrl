@@ -192,7 +192,7 @@ func TestRotateEveryRegistryColumn(t *testing.T) {
 		require.Equal(t, 1, cr.Current, cr.Column.String())
 		require.Equal(t, 1, cr.Legacy, cr.Column.String())
 	}
-	require.Equal(t, 68, st.Pending())
+	require.Equal(t, 2*len(cols), st.Pending(), "two of the three seeded rows per column are not on the current key")
 
 	// A dry run decrypts everything and changes nothing.
 	before := map[string][]byte{}
@@ -204,7 +204,7 @@ func TestRotateEveryRegistryColumn(t *testing.T) {
 	dry, err := rekey.Run(context.Background(), pool, ring, rekey.Options{DryRun: true, Columns: cols})
 	require.NoError(t, err)
 	require.Zero(t, dry.Failed())
-	require.Equal(t, 68, dry.Rewritten())
+	require.Equal(t, 2*len(cols), dry.Rewritten())
 	for _, c := range cols {
 		for id := range plains(c) {
 			require.Equal(t, before[c.String()+id], getValue(t, pool, c, id), "dry run must not write")
@@ -215,7 +215,7 @@ func TestRotateEveryRegistryColumn(t *testing.T) {
 	rep, err := rekey.Run(context.Background(), pool, ring, rekey.Options{Batch: 1, Columns: cols, Verify: only})
 	require.NoError(t, err)
 	require.Zero(t, rep.Failed(), "%+v", rep)
-	require.Equal(t, 68, rep.Rewritten())
+	require.Equal(t, 2*len(cols), rep.Rewritten())
 	for _, cr := range rep.Columns {
 		require.Equal(t, 3, cr.Verified, cr.Column.String())
 	}
@@ -287,8 +287,8 @@ func TestSwappedCiphertextFails(t *testing.T) {
 	require.NoError(t, err)
 	rep, err := rekey.Run(context.Background(), pool, ring, rekey.Options{Columns: cols})
 	require.NoError(t, err)
-	require.Equal(t, 34, rep.Failed())
-	require.Equal(t, 34, rep.Rewritten())
+	require.Equal(t, len(cols), rep.Failed(), "one swapped row per column")
+	require.Equal(t, len(cols), rep.Rewritten(), "the other row of each column")
 	for _, cr := range rep.Columns {
 		require.Equal(t, []string{swapped[cr.Column.String()]}, cr.FailedRows, cr.Column.String())
 		require.Equal(t, 1, cr.Rewritten, cr.Column.String())

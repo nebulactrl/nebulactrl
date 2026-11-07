@@ -110,14 +110,13 @@ func fixtureDays(allUp bool) []statuspages.PublicDay {
 // fixturePage is a page with every section: grouped and ungrouped components
 // in several states, an active incident with a timeline, active and upcoming
 // maintenance and a resolved incident.
-func fixturePage(theme string) statuspages.PublicPage {
+func fixturePage() statuspages.PublicPage {
 	at := func(h int) time.Time { return time.Date(2026, 10, 29, h, 0, 0, 0, time.UTC) }
 	resolved := at(9)
 	return statuspages.PublicPage{
 		Title:       "Acme Status",
 		Description: "Live status of Acme services.\nQuestions: status@acme.example",
 		Footer:      "Acme Inc.\nContact: status@acme.example <b>",
-		Theme:       theme,
 		ShowUptime:  true,
 		Overall:     statuspages.StatePartialOutage,
 		Groups: []statuspages.PublicGroup{

@@ -156,7 +156,6 @@ func TestPublicMapsStatesAvailabilityIncidentsAndMaintenance(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, "Acme status", got.Title)
-	require.Equal(t, "auto", got.Theme)
 	require.True(t, got.ShowUptime)
 	require.WithinDuration(t, f.now, got.GeneratedAt, 0)
 	require.Equal(t, StatePartialOutage, got.Overall, "one of three down; the major incident asks for the same")

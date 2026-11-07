@@ -1019,3 +1019,152 @@ func insecureClient() *http.Client {
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}
 }
+
+func (f *fixture) storedSecrets(id uuid.UUID) secrets {
+	f.t.Helper()
+	row, err := f.q.GetNotificationChannelInternal(context.Background(), id)
+	require.NoError(f.t, err)
+	sec, err := openSecrets(f.box, row.ID, row.SecretsEnc)
+	require.NoError(f.t, err)
+	return sec
+}
+
+func TestEmailProviderDefaultsToSMTP(t *testing.T) {
+	f := newFixture(t)
+	res, err := f.svc.CreateChannel(f.ctx, ChannelInput{Name: "mail", Kind: KindEmail, Config: ChannelConfig{
+		Host: "smtp.example.com", From: "alerts@example.com", To: []string{"ops@example.com"},
+	}})
+	require.NoError(t, err)
+	require.Equal(t, ProviderSMTP, res.Channel.Config.Provider)
+}
+
+func TestResendChannelValidation(t *testing.T) {
+	f := newFixture(t)
+	resend := ChannelConfig{Provider: ProviderResend, From: "alerts@example.com", To: []string{"ops@example.com"}}
+	withTo := func(c ChannelConfig, to ...string) ChannelConfig { c.To = to; return c }
+	withFrom := func(c ChannelConfig, from string) ChannelConfig { c.From = from; return c }
+	cases := map[string]ChannelInput{
+		"resend needs a key":          {Name: "x", Kind: KindEmail, Config: resend},
+		"resend ignores a password":   {Name: "x", Kind: KindEmail, Config: resend, Secrets: ChannelSecretsInput{Password: "pw"}},
+		"resend bad from":             {Name: "x", Kind: KindEmail, Config: withFrom(resend, "nope"), Secrets: ChannelSecretsInput{APIKey: "re_k"}},
+		"resend needs a recipient":    {Name: "x", Kind: KindEmail, Config: withTo(resend), Secrets: ChannelSecretsInput{APIKey: "re_k"}},
+		"resend bad recipient":        {Name: "x", Kind: KindEmail, Config: withTo(resend, "x y"), Secrets: ChannelSecretsInput{APIKey: "re_k"}},
+		"unknown provider":            {Name: "x", Kind: KindEmail, Config: ChannelConfig{Provider: "sendgrid", From: "a@example.com", To: []string{"b@example.com"}}, Secrets: ChannelSecretsInput{APIKey: "k"}},
+		"smtp does not take a key":    {Name: "x", Kind: KindEmail, Config: ChannelConfig{Provider: ProviderSMTP, Host: "h.example.com", From: "a@example.com", To: []string{"b@example.com"}, Username: "u"}, Secrets: ChannelSecretsInput{APIKey: "re_k"}},
+		"smtp still needs a host":     {Name: "x", Kind: KindEmail, Config: ChannelConfig{Provider: ProviderSMTP, From: "a@example.com", To: []string{"b@example.com"}}},
+		"resend must not skip checks": {Name: "x", Kind: KindEmail, Config: ChannelConfig{Provider: ProviderResend, To: []string{"b@example.com"}}, Secrets: ChannelSecretsInput{APIKey: "re_k"}},
+	}
+	for name, in := range cases {
+		_, err := f.svc.CreateChannel(f.ctx, in)
+		require.Error(t, err, name)
+		require.Equal(t, "validation_failed", apiCode(t, err), name)
+	}
+	list, err := f.svc.ListChannels(f.ctx)
+	require.NoError(t, err)
+	require.Empty(t, list, "a rejected channel leaves nothing behind")
+}
+
+func TestResendChannelStoresOnlyTheKeyAndMasksIt(t *testing.T) {
+	f := newFixture(t)
+	const key = "re_SUPERSECRETKEYVALUE"
+	res, err := f.svc.CreateChannel(f.ctx, ChannelInput{Name: "resend", Kind: KindEmail,
+		// The SMTP-only settings are dropped for resend; a stray password is not kept.
+		Config: ChannelConfig{
+			Provider: ProviderResend, Host: "smtp.example.com", Port: 25, TLS: TLSNone, Username: "u", InsecureSkipVerify: true,
+			From: "NebulaCtrl <alerts@example.com>", To: []string{"ops@example.com", " OPS@example.com "},
+		},
+		Secrets: ChannelSecretsInput{APIKey: key, Password: "ignored"},
+	})
+	require.NoError(t, err)
+	c := res.Channel.Config
+	require.Equal(t, ChannelConfig{Provider: ProviderResend, From: "\"NebulaCtrl\" <alerts@example.com>", To: []string{"ops@example.com"}}, c)
+	require.Equal(t, map[string]string{"apiKey": mask}, res.Channel.Secrets)
+
+	got, err := f.svc.GetChannel(f.ctx, res.Channel.ID)
+	require.NoError(t, err)
+	list, err := f.svc.ListChannels(f.ctx)
+	require.NoError(t, err)
+	for _, v := range []any{res, got, list} {
+		raw, _ := json.Marshal(v)
+		require.NotContains(t, string(raw), "SUPERSECRETKEYVALUE")
+	}
+	require.Equal(t, map[string]string{"apiKey": mask}, got.Secrets)
+
+	row, err := f.q.GetNotificationChannelInternal(context.Background(), res.Channel.ID)
+	require.NoError(t, err)
+	require.NotContains(t, string(row.SecretsEnc), "SUPERSECRETKEYVALUE")
+	require.NotContains(t, string(row.Config), "SUPERSECRETKEYVALUE")
+	require.Equal(t, secrets{APIKey: key}, f.storedSecrets(res.Channel.ID))
+
+	var md string
+	require.NoError(t, f.pool.QueryRow(context.Background(), "SELECT metadata::text FROM audit_events WHERE action = $1", ActionChannelCreate).Scan(&md))
+	require.NotContains(t, md, "SUPERSECRETKEYVALUE")
+}
+
+func TestResendChannelUpdateKeepsRotatesAndSwitchesProvider(t *testing.T) {
+	f := newFixture(t)
+	res, err := f.svc.CreateChannel(f.ctx, ChannelInput{Name: "resend", Kind: KindEmail,
+		Config:  ChannelConfig{Provider: ProviderResend, From: "alerts@example.com", To: []string{"ops@example.com"}},
+		Secrets: ChannelSecretsInput{APIKey: "re_first"},
+	})
+	require.NoError(t, err)
+	id := res.Channel.ID
+
+	// Omitting the key keeps the stored one.
+	newTo := ChannelConfig{Provider: ProviderResend, From: "alerts@example.com", To: []string{"dev@example.com"}}
+	got, err := f.svc.UpdateChannel(f.ctx, id, ChannelPatch{Config: &newTo, Secrets: &ChannelSecretsInput{}})
+	require.NoError(t, err)
+	require.Equal(t, []string{"dev@example.com"}, got.Config.To)
+	require.Equal(t, map[string]string{"apiKey": mask}, got.Secrets)
+	require.Equal(t, "re_first", f.storedSecrets(id).APIKey)
+
+	// A new key replaces it.
+	_, err = f.svc.UpdateChannel(f.ctx, id, ChannelPatch{Secrets: &ChannelSecretsInput{APIKey: "re_second"}})
+	require.NoError(t, err)
+	require.Equal(t, "re_second", f.storedSecrets(id).APIKey)
+
+	// Switching to smtp drops the key (and an smtp channel without a username needs no password).
+	smtpCfg := ChannelConfig{Provider: ProviderSMTP, Host: "smtp.example.com", From: "alerts@example.com", To: []string{"ops@example.com"}}
+	got, err = f.svc.UpdateChannel(f.ctx, id, ChannelPatch{Config: &smtpCfg})
+	require.NoError(t, err)
+	require.Equal(t, ProviderSMTP, got.Config.Provider)
+	require.Equal(t, "smtp.example.com", got.Config.Host)
+	require.Empty(t, got.Secrets, "the Resend key is dropped with the provider")
+	require.Equal(t, secrets{}, f.storedSecrets(id))
+
+	// Switching back to resend without a key is refused and changes nothing.
+	resendCfg := ChannelConfig{Provider: ProviderResend, From: "alerts@example.com", To: []string{"ops@example.com"}}
+	_, err = f.svc.UpdateChannel(f.ctx, id, ChannelPatch{Config: &resendCfg})
+	require.Equal(t, "validation_failed", apiCode(t, err))
+	cur, err := f.svc.GetChannel(f.ctx, id)
+	require.NoError(t, err)
+	require.Equal(t, ProviderSMTP, cur.Config.Provider)
+
+	// With a key it switches, and an smtp password is dropped on the way.
+	withAuth := ChannelConfig{Provider: ProviderSMTP, Host: "smtp.example.com", Username: "mailer", From: "alerts@example.com", To: []string{"ops@example.com"}}
+	_, err = f.svc.UpdateChannel(f.ctx, id, ChannelPatch{Config: &withAuth, Secrets: &ChannelSecretsInput{Password: "smtp-pw"}})
+	require.NoError(t, err)
+	require.Equal(t, secrets{Password: "smtp-pw"}, f.storedSecrets(id))
+	got, err = f.svc.UpdateChannel(f.ctx, id, ChannelPatch{Config: &resendCfg, Secrets: &ChannelSecretsInput{APIKey: "re_third"}})
+	require.NoError(t, err)
+	require.Equal(t, ChannelConfig{Provider: ProviderResend, From: "<alerts@example.com>", To: []string{"ops@example.com"}}, got.Config)
+	require.Equal(t, map[string]string{"apiKey": mask}, got.Secrets)
+	require.Equal(t, secrets{APIKey: "re_third"}, f.storedSecrets(id))
+}
+
+func TestResendChannelTestSendReachesResend(t *testing.T) {
+	f := newFixture(t)
+	url, c := hook(t, 200, `{"id":"x"}`)
+	f.svc.send.resendBase = url
+	res, err := f.svc.CreateChannel(f.ctx, ChannelInput{Name: "resend", Kind: KindEmail,
+		Config:  ChannelConfig{Provider: ProviderResend, From: "alerts@example.com", To: []string{"ops@example.com"}},
+		Secrets: ChannelSecretsInput{APIKey: "re_live_key"},
+	})
+	require.NoError(t, err)
+	_, err = f.svc.TestChannel(f.ctx, res.Channel.ID)
+	require.NoError(t, err)
+	got := c.all()
+	require.Len(t, got, 1)
+	require.Equal(t, "/emails", got[0].Path)
+	require.Equal(t, "Bearer re_live_key", got[0].Header.Get("Authorization"))
+}

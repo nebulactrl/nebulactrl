@@ -27,7 +27,7 @@ import (
 const testHost = "status.acme.example"
 
 func oneHost() (*fakeSource, *clock, *Handler) {
-	src := newSource(map[string]statuspages.PublicPage{testHost: fixturePage("auto")})
+	src := newSource(map[string]statuspages.PublicPage{testHost: fixturePage()})
 	clk := newClock()
 	return src, clk, newTestHandler(src, clk, nil)
 }
@@ -129,7 +129,7 @@ func TestStatusJSONHasOnlyPublicFields(t *testing.T) {
 		require.Truef(t, allowedJSONKeys[k], "status.json leaks the field %q", k)
 	}
 	body := w.Body.String()
-	for _, internal := range []string{"serviceId", "workspace", "hostname", "\"id\"", "theme", "error"} {
+	for _, internal := range []string{"serviceId", "workspace", "hostname", "\"id\"", "error"} {
 		require.NotContains(t, body, internal)
 	}
 	require.Contains(t, body, `"footer":"Acme Inc.\nContact: status@acme.example \u003cb\u003e"`)
@@ -167,7 +167,7 @@ func TestStatusJSONHasOnlyPublicFields(t *testing.T) {
 }
 
 func TestStatusJSONHidesUptimeWhenThePageDoes(t *testing.T) {
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.ShowUptime = false
 	h := newTestHandler(newSource(map[string]statuspages.PublicPage{testHost: p}), newClock(), nil)
 
@@ -218,7 +218,7 @@ func TestEveryResponseCarriesTheSecurityHeaders(t *testing.T) {
 // attributes, and no script but its own same-origin one, whatever the content
 // says.
 func TestPageNeedsNothingTheCSPForbids(t *testing.T) {
-	p := fixturePage("dark")
+	p := fixturePage()
 	p.Title = `"><script>alert(1)</script>`
 	p.Description = `<img src=x onerror=alert(2)>`
 	p.ActiveIncidents[0].Updates[0].Body = `<script>alert(3)</script> & "quotes"`
@@ -237,7 +237,7 @@ func TestPageNeedsNothingTheCSPForbids(t *testing.T) {
 }
 
 func TestRateLimitPerClient(t *testing.T) {
-	src := newSource(map[string]statuspages.PublicPage{testHost: fixturePage("auto")})
+	src := newSource(map[string]statuspages.PublicPage{testHost: fixturePage()})
 	clk := newClock()
 	h := newTestHandler(src, clk, func(o *Options) { o.RatePerMinute = 3 })
 
@@ -331,7 +331,7 @@ func TestCacheReusesAndRefreshesAfterTheTTL(t *testing.T) {
 	get(h, testHost, "/")
 	require.Equal(t, 1, src.count(testHost))
 
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.Title = "Acme Status v2"
 	src.set(testHost, p)
 	clk.advance(2 * time.Second) // 21 s
@@ -348,7 +348,7 @@ func TestUnknownHostsAreCachedToo(t *testing.T) {
 }
 
 func TestEventsInvalidateTheCache(t *testing.T) {
-	src := newSource(map[string]statuspages.PublicPage{testHost: fixturePage("auto")})
+	src := newSource(map[string]statuspages.PublicPage{testHost: fixturePage()})
 	clk := newClock()
 	bus := events.NewBus()
 	h := newTestHandler(src, clk, func(o *Options) { o.Bus = bus })
@@ -388,7 +388,7 @@ func TestEventsInvalidateTheCache(t *testing.T) {
 	require.Eventually(t, func() bool { return generation() > g }, 5*time.Second, 5*time.Millisecond)
 	require.Equal(t, g+1, generation(), "only the two page and uptime events invalidate")
 
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.Overall = statuspages.StateMajorOutage
 	src.set(testHost, p)
 	get(h, testHost, "/")
@@ -545,7 +545,7 @@ func TestBadgeRoutes(t *testing.T) {
 	}
 
 	// A page that hides uptime hides it from badges too, but still has a status badge.
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.ShowUptime = false
 	hh := newTestHandler(newSource(map[string]statuspages.PublicPage{testHost: p}), newClock(), nil)
 	require.Equal(t, 404, get(hh, testHost, "/badge/api/uptime.svg").Code)
@@ -553,7 +553,7 @@ func TestBadgeRoutes(t *testing.T) {
 }
 
 func TestBadgeOutputIsEscapedAndWellFormed(t *testing.T) {
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.Groups[0].Components[0].Name = `A<&>"B'`
 	hh := newTestHandler(newSource(map[string]statuspages.PublicPage{testHost: p}), newClock(), nil)
 	for _, path := range []string{
@@ -582,7 +582,7 @@ func TestBadgeOutputIsEscapedAndWellFormed(t *testing.T) {
 }
 
 func TestStaticAssetsAndFonts(t *testing.T) {
-	src := newSource(map[string]statuspages.PublicPage{testHost: fixturePage("auto")})
+	src := newSource(map[string]statuspages.PublicPage{testHost: fixturePage()})
 	fonts := map[string][]byte{
 		"ibm-plex-sans-latin-wght-normal": []byte("sans-bytes"),
 		"ibm-plex-mono-latin-400-normal":  []byte("mono-400"),
@@ -600,9 +600,8 @@ func TestStaticAssetsAndFonts(t *testing.T) {
 	require.Equal(t, "text/css; charset=utf-8", css.Header().Get("Content-Type"))
 	require.Equal(t, "public, max-age=31536000, immutable", css.Header().Get("Cache-Control"))
 	sheet := css.Body.String()
-	require.Contains(t, sheet, `@media (prefers-color-scheme: dark)`)
-	require.Equal(t, 2, strings.Count(sheet, "--surface: #1a1d20"), "dark variables for the automatic and the forced dark theme")
-	require.NotContains(t, sheet, "/*DARK")
+	require.NotContains(t, sheet, `prefers-color-scheme`)
+	require.Equal(t, 1, strings.Count(sheet, "--surface: #1a1d20"), "the dark palette is the only palette")
 	require.Contains(t, sheet, `@font-face{font-family:"IBM Plex Sans Variable"`)
 	require.Contains(t, sheet, `font-family:"IBM Plex Mono";font-style:normal;font-display:swap;font-weight:400`)
 	require.NotContains(t, sheet, "font-weight:600;src", "a font file that is not there gets no face")

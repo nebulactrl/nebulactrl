@@ -49,7 +49,7 @@ func feedIDs(f parsedFeed) []string {
 }
 
 func TestFeedHasOneEntryPerUpdateAndPerWindow(t *testing.T) {
-	b, err := renderFeed(fixturePage("auto"), testHost)
+	b, err := renderFeed(fixturePage(), testHost)
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(b), `<?xml version="1.0" encoding="UTF-8"?>`))
 	f := parseFeed(t, b)
@@ -104,7 +104,7 @@ func TestFeedHasOneEntryPerUpdateAndPerWindow(t *testing.T) {
 }
 
 func TestFeedEntryIDsSurviveNewUpdates(t *testing.T) {
-	p := fixturePage("auto")
+	p := fixturePage()
 	before, err := renderFeed(p, testHost)
 	require.NoError(t, err)
 	old := feedIDs(parseFeed(t, before))
@@ -125,7 +125,7 @@ func TestFeedEntryIDsSurviveNewUpdates(t *testing.T) {
 }
 
 func TestFeedEscapesAndToleratesOddInput(t *testing.T) {
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.Title = `Acme <&> "Status"`
 	p.ActiveIncidents[0].Updates[0].Body = "<script>alert(1)</script> & \x00 bell\x07"
 	p.ActiveIncidents[0].Key = ""                           // no key: a hash of title and start

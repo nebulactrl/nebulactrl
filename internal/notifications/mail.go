@@ -12,21 +12,37 @@ import (
 
 // ErrNoMailer is returned by SendMail when the team has no enabled email
 // channel and no relay was given.
-var ErrNoMailer = errors.New("no email channel or SMTP relay is configured")
+var ErrNoMailer = errors.New("no email channel or mail relay is configured")
 
-// MailRelay is an explicit SMTP relay (the instance-level setting).
+// MailRelay is an explicit mail relay (the instance-level setting): SMTP, or
+// Resend's HTTPS API when Provider is "resend" (then only APIKey and From
+// apply).
 type MailRelay struct {
+	Provider           string // smtp (or empty) or resend
 	Host               string
 	Port               int
 	TLS                string // implicit, starttls or none
 	Username           string
 	Password           string
+	APIKey             string // resend
 	From               string
 	InsecureSkipVerify bool
 }
 
+// Configured reports whether the relay can send: a sender plus a server (smtp)
+// or an API key (resend).
+func (r *MailRelay) Configured() bool {
+	if r == nil || strings.TrimSpace(r.From) == "" {
+		return false
+	}
+	if r.Provider == ProviderResend {
+		return strings.TrimSpace(r.APIKey) != ""
+	}
+	return strings.TrimSpace(r.Host) != ""
+}
+
 // SendMail sends one transactional email (such as a team invite) to a single
-// recipient. It uses the team's first enabled email channel (its SMTP server,
+// recipient. It uses the team's first enabled email channel (its provider,
 // credentials and sender; the channel's own recipient list is ignored) and
 // falls back to relay. via names the transport used: "channel" or "relay".
 func (s *Service) SendMail(ctx context.Context, workspaceID uuid.UUID, relay *MailRelay, to string, p Payload) (via string, err error) {
@@ -69,11 +85,14 @@ func (s *Service) mailTransport(ctx context.Context, workspaceID uuid.UUID, rela
 		}
 		return cfg, sec, "channel", nil
 	}
-	if relay == nil || strings.TrimSpace(relay.Host) == "" || strings.TrimSpace(relay.From) == "" {
+	if !relay.Configured() {
 		return ChannelConfig{}, secrets{}, "", ErrNoMailer
 	}
+	if relay.Provider == ProviderResend {
+		return ChannelConfig{Provider: ProviderResend, From: relay.From}, secrets{APIKey: relay.APIKey}, "relay", nil
+	}
 	cfg := ChannelConfig{
-		Host: relay.Host, Port: relay.Port, TLS: relay.TLS, Username: relay.Username, From: relay.From,
+		Provider: ProviderSMTP, Host: relay.Host, Port: relay.Port, TLS: relay.TLS, Username: relay.Username, From: relay.From,
 		InsecureSkipVerify: relay.InsecureSkipVerify,
 	}
 	return cfg, secrets{Password: relay.Password}, "relay", nil

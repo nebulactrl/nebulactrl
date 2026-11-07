@@ -1507,22 +1507,30 @@
             "type": "string"
           },
           "host": {
-            "description": "Email: SMTP server host name.",
+            "description": "Email (smtp): SMTP server host name.",
             "type": "string"
           },
           "insecureSkipVerify": {
-            "description": "Email: accept any server certificate (self-signed relays). The connection is still encrypted.",
+            "description": "Email (smtp): accept any server certificate (self-signed relays). The connection is still encrypted.",
             "type": "boolean"
           },
           "port": {
-            "description": "Email: SMTP port. Default: 465 (implicit TLS), 587 (STARTTLS), 25 (none).",
+            "description": "Email (smtp): SMTP port. Default: 465 (implicit TLS), 587 (STARTTLS), 25 (none).",
             "format": "int64",
             "maximum": 65535,
             "minimum": 0,
             "type": "integer"
           },
+          "provider": {
+            "description": "Email: how mail is sent. Default smtp.",
+            "enum": [
+              "smtp",
+              "resend"
+            ],
+            "type": "string"
+          },
           "tls": {
-            "description": "Email: connection security. Default starttls.",
+            "description": "Email (smtp): connection security. Default starttls.",
             "enum": [
               "implicit",
               "starttls",
@@ -1542,7 +1550,7 @@
             ]
           },
           "username": {
-            "description": "Email: SMTP user name; empty sends without authentication.",
+            "description": "Email (smtp): SMTP user name; empty sends without authentication.",
             "type": "string"
           }
         },
@@ -1812,12 +1820,16 @@
       "ChannelSecretsInput": {
         "additionalProperties": false,
         "properties": {
+          "apiKey": {
+            "description": "Email (resend): the Resend API key. Required for the resend provider.",
+            "type": "string"
+          },
           "botToken": {
             "description": "Telegram: the bot token from @BotFather.",
             "type": "string"
           },
           "password": {
-            "description": "Email: the SMTP password.",
+            "description": "Email (smtp): the SMTP password.",
             "type": "string"
           },
           "signingSecret": {
@@ -1908,7 +1920,7 @@
             "additionalProperties": {
               "type": "string"
             },
-            "description": "Masked hints of the stored secrets, keyed by name (url, botToken, password, signingSecret). A key is present when the secret is set; its value never reveals it.",
+            "description": "Masked hints of the stored secrets, keyed by name (url, botToken, password, apiKey, signingSecret). A key is present when the secret is set; its value never reveals it.",
             "type": "object"
           },
           "stats": {
@@ -7619,15 +7631,6 @@
           "slug": {
             "description": "Unique in the workspace: lowercase letters, digits and hyphens. Default: derived from the title",
             "maxLength": 50,
-            "type": "string"
-          },
-          "theme": {
-            "description": "Default auto: the visitor's preference",
-            "enum": [
-              "auto",
-              "light",
-              "dark"
-            ],
             "type": "string"
           },
           "title": {
@@ -14268,12 +14271,24 @@
             "description": "The caller is the instance admin and may change these settings",
             "type": "boolean"
           },
-          "smtpConfigured": {
+          "mailConfigured": {
             "description": "Invites can be emailed through the instance relay",
             "type": "boolean"
           },
-          "smtpFrom": {
+          "mailFrom": {
+            "description": "Sender address for both providers",
             "type": "string"
+          },
+          "mailProvider": {
+            "description": "How the instance relay sends mail",
+            "enum": [
+              "smtp",
+              "resend"
+            ],
+            "type": "string"
+          },
+          "resendApiKeySet": {
+            "type": "boolean"
           },
           "smtpHost": {
             "type": "string"
@@ -14303,7 +14318,7 @@
         "required": [
           "allowTeamCreation",
           "canManage",
-          "smtpConfigured"
+          "mailConfigured"
         ],
         "type": "object"
       },
@@ -15655,6 +15670,9 @@
           "connectionId": {
             "type": "string"
           },
+          "formUrl": {
+            "type": "string"
+          },
           "manifest": {
             "type": "string"
           },
@@ -15667,6 +15685,7 @@
         },
         "required": [
           "connectionId",
+          "formUrl",
           "postUrl",
           "manifest",
           "state"
@@ -27345,14 +27364,6 @@
           "slug": {
             "type": "string"
           },
-          "theme": {
-            "enum": [
-              "auto",
-              "light",
-              "dark"
-            ],
-            "type": "string"
-          },
           "title": {
             "type": "string"
           },
@@ -27370,7 +27381,6 @@
           "hostname",
           "published",
           "showUptime",
-          "theme",
           "components",
           "createdAt",
           "updatedAt"
@@ -30637,8 +30647,22 @@
           "allowTeamCreation": {
             "type": "boolean"
           },
-          "smtpFrom": {
+          "mailFrom": {
+            "description": "Sender address for both providers.",
             "maxLength": 254,
+            "type": "string"
+          },
+          "mailProvider": {
+            "description": "How the instance relay sends mail. Default smtp.",
+            "enum": [
+              "smtp",
+              "resend"
+            ],
+            "type": "string"
+          },
+          "resendApiKey": {
+            "description": "Write-only. Empty clears it.",
+            "maxLength": 1024,
             "type": "string"
           },
           "smtpHost": {
@@ -30785,14 +30809,6 @@
           },
           "slug": {
             "maxLength": 50,
-            "type": "string"
-          },
-          "theme": {
-            "enum": [
-              "auto",
-              "light",
-              "dark"
-            ],
             "type": "string"
           },
           "title": {
@@ -36044,7 +36060,7 @@
     },
     "/auth/password-reset/request": {
       "post": {
-        "description": "Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.",
+        "description": "Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.",
         "operationId": "requestPasswordReset",
         "requestBody": {
           "content": {
@@ -46900,6 +46916,110 @@
         ]
       }
     },
+    "/git/connections/{connectionId}/github/manifest": {
+      "post": {
+        "description": "For a GitHub App connection whose App was never created: returns a new manifest and `formUrl` (see startGitHubAppManifest); the previous one stops working. 422 `app_exists` once GitHub created the App (install it instead). Requires the `admin` scope.",
+        "operationId": "restartGitHubAppManifest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "connectionId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ManifestStart"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "admin"
+            ]
+          },
+          {
+            "cookie": [
+              "admin"
+            ]
+          }
+        ],
+        "summary": "Start creating a pending connection's GitHub App again",
+        "tags": [
+          "git"
+        ]
+      }
+    },
     "/git/connections/{connectionId}/oauth/start": {
       "post": {
         "description": "Returns the provider URL to open in the browser.",
@@ -47455,7 +47575,7 @@
     },
     "/git/github/manifest": {
       "post": {
-        "description": "Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.",
+        "description": "Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.",
         "operationId": "startGitHubAppManifest",
         "requestBody": {
           "content": {
@@ -47758,7 +47878,7 @@
     },
     "/instance": {
       "get": {
-        "description": "Whether team creation is allowed; SMTP details only for the instance admin (the first user).",
+        "description": "Whether team creation is allowed; mail relay details only for the instance admin (the first user).",
         "operationId": "getInstance",
         "responses": {
           "200": {
@@ -47816,7 +47936,7 @@
         ]
       },
       "patch": {
-        "description": "Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.",
+        "description": "Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.",
         "operationId": "updateInstance",
         "requestBody": {
           "content": {
@@ -54094,7 +54214,7 @@
         ]
       },
       "post": {
-        "description": "Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.",
+        "description": "Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.",
         "operationId": "createNotificationChannel",
         "requestBody": {
           "content": {
@@ -84141,7 +84261,7 @@
         ]
       },
       "post": {
-        "description": "With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.",
+        "description": "With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.",
         "operationId": "createTeamInvite",
         "parameters": [
           {
@@ -84722,7 +84842,7 @@
     },
     "/teams/{teamId}/members/{userId}/password-reset": {
       "post": {
-        "description": "Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no SMTP setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).",
+        "description": "Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no mail relay setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).",
         "operationId": "createMemberPasswordResetLink",
         "parameters": [
           {

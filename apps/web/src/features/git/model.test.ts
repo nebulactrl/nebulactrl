@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, spyOn, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import {
 	canReadCi,
 	commitSubject,
@@ -7,7 +7,6 @@ import {
 	providerInfo,
 	readFlowResult,
 	shortSha,
-	submitManifestForm,
 	watchPathProblem,
 } from "./model";
 
@@ -125,34 +124,5 @@ describe("providers", () => {
 		expect(info.label).toBe("sourcehut");
 		expect(info.instanceUrlRequired).toBe(true);
 		expect(info.manualWebhook).toBe(false);
-	});
-});
-
-describe("submitManifestForm", () => {
-	afterEach(() => {
-		document.body.innerHTML = "";
-	});
-
-	test("POSTs the manifest as a hidden field to GitHub's URL", () => {
-		const submit = spyOn(
-			HTMLFormElement.prototype,
-			"submit",
-		).mockImplementation(() => {});
-		try {
-			submitManifestForm(
-				"https://github.com/settings/apps/new?state=s",
-				'{"a":1}',
-			);
-			expect(submit).toHaveBeenCalledTimes(1);
-			const form = document.body.querySelector("form");
-			expect(form?.method).toBe("post");
-			expect(form?.action).toBe("https://github.com/settings/apps/new?state=s");
-			const field = form?.querySelector("input");
-			expect(field?.type).toBe("hidden");
-			expect(field?.name).toBe("manifest");
-			expect(field?.value).toBe('{"a":1}');
-		} finally {
-			submit.mockRestore();
-		}
 	});
 });

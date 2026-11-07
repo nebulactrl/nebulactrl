@@ -221,6 +221,7 @@ export function ObservabilityPage({
 			envSlug={envSlug}
 			page="observability"
 			title="Observability"
+			width="full"
 			description={(environment) =>
 				`Uptime, traffic, resource use and runtime logs of ${environment.name}.`
 			}

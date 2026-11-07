@@ -3,9 +3,9 @@
 -- Pages ----------------------------------------------------------------------
 
 -- name: InsertStatusPage :one
-INSERT INTO status_pages (workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme)
+INSERT INTO status_pages (workspace_id, title, slug, description, footer, hostname, published, show_uptime)
 VALUES (sqlc.arg(workspace_id), sqlc.arg(title), sqlc.arg(slug), sqlc.arg(description), sqlc.arg(footer), sqlc.narg(hostname),
-        sqlc.arg(published), sqlc.arg(show_uptime), sqlc.arg(theme))
+        sqlc.arg(published), sqlc.arg(show_uptime))
 RETURNING *;
 
 -- name: GetStatusPage :one
@@ -27,7 +27,6 @@ UPDATE status_pages SET
     hostname = sqlc.narg(hostname),
     published = sqlc.arg(published),
     show_uptime = sqlc.arg(show_uptime),
-    theme = sqlc.arg(theme),
     updated_at = now()
 WHERE id = sqlc.arg(id) AND workspace_id = sqlc.arg(workspace_id)
 RETURNING *;

@@ -119,12 +119,14 @@ type instanceOutput struct{ Body InstanceSettings }
 type updateInstanceInput struct {
 	Body struct {
 		AllowTeamCreation      *bool   `json:"allowTeamCreation,omitempty"`
+		MailProvider           *string `json:"mailProvider,omitempty" enum:"smtp,resend" doc:"How the instance relay sends mail. Default smtp."`
+		MailFrom               *string `json:"mailFrom,omitempty" maxLength:"254" doc:"Sender address for both providers."`
+		ResendAPIKey           *string `json:"resendApiKey,omitempty" maxLength:"1024" doc:"Write-only. Empty clears it."`
 		SMTPHost               *string `json:"smtpHost,omitempty" maxLength:"253"`
 		SMTPPort               *int    `json:"smtpPort,omitempty" minimum:"1" maximum:"65535"`
 		SMTPTLS                *string `json:"smtpTls,omitempty" enum:"implicit,starttls,none"`
 		SMTPUsername           *string `json:"smtpUsername,omitempty" maxLength:"254"`
 		SMTPPassword           *string `json:"smtpPassword,omitempty" maxLength:"1024" doc:"Write-only. Empty clears it."`
-		SMTPFrom               *string `json:"smtpFrom,omitempty" maxLength:"254"`
 		SMTPInsecureSkipVerify *bool   `json:"smtpInsecureSkipVerify,omitempty"`
 	}
 }
@@ -280,7 +282,7 @@ func Register(h huma.API, svc *Service, sessions *scs.SessionManager) {
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "createMemberPasswordResetLink", Method: http.MethodPost, Path: "/teams/{teamId}/members/{userId}/password-reset", Tags: []string{"teams"},
 		Summary: "Generate a password reset link for a member",
-		Description: "Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no SMTP setup " +
+		Description: "Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no mail relay setup " +
 			"and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. " +
 			"409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin " +
 			"(409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).",
@@ -297,7 +299,7 @@ func Register(h huma.API, svc *Service, sessions *scs.SessionManager) {
 	huma.Register(h, api.WithScopes(api.WithIdempotency(huma.Operation{
 		OperationID: "createTeamInvite", Method: http.MethodPost, Path: "/teams/{teamId}/invites", Tags: []string{"teams"},
 		Summary: "Invite someone to a team",
-		Description: "With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; " +
+		Description: "With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; " +
 			"without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.",
 		DefaultStatus: http.StatusCreated,
 		Errors:        append(stdErrs, http.StatusConflict, http.StatusUnprocessableEntity),
@@ -382,7 +384,7 @@ func Register(h huma.API, svc *Service, sessions *scs.SessionManager) {
 
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "getInstance", Method: http.MethodGet, Path: "/instance", Tags: []string{"teams"},
-		Summary: "Instance settings", Description: "Whether team creation is allowed; SMTP details only for the instance admin (the first user).",
+		Summary: "Instance settings", Description: "Whether team creation is allowed; mail relay details only for the instance admin (the first user).",
 		Errors: []int{http.StatusUnauthorized},
 	}), func(ctx context.Context, _ *struct{}) (*instanceOutput, error) {
 		i, err := svc.GetInstance(ctx)
@@ -395,13 +397,14 @@ func Register(h huma.API, svc *Service, sessions *scs.SessionManager) {
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "updateInstance", Method: http.MethodPatch, Path: "/instance", Tags: []string{"teams"},
 		Summary:     "Change the instance settings",
-		Description: "Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.",
+		Description: "Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.",
 		Errors:      []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusUnprocessableEntity},
 	}, policy.ScopeAdmin), func(ctx context.Context, in *updateInstanceInput) (*instanceOutput, error) {
 		i, err := svc.UpdateInstance(ctx, InstancePatch{
-			AllowTeamCreation: in.Body.AllowTeamCreation, SMTPHost: in.Body.SMTPHost, SMTPPort: in.Body.SMTPPort,
+			AllowTeamCreation: in.Body.AllowTeamCreation, MailProvider: in.Body.MailProvider, MailFrom: in.Body.MailFrom,
+			ResendAPIKey: in.Body.ResendAPIKey, SMTPHost: in.Body.SMTPHost, SMTPPort: in.Body.SMTPPort,
 			SMTPTLS: in.Body.SMTPTLS, SMTPUsername: in.Body.SMTPUsername, SMTPPassword: in.Body.SMTPPassword,
-			SMTPFrom: in.Body.SMTPFrom, SMTPInsecureSkipVerify: in.Body.SMTPInsecureSkipVerify,
+			SMTPInsecureSkipVerify: in.Body.SMTPInsecureSkipVerify,
 		})
 		if err != nil {
 			return nil, err

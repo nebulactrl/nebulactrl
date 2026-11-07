@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -35,13 +34,13 @@ func PasswordResetPayload(m PasswordResetMail) Payload {
 	}
 }
 
-// SendPasswordReset mails a reset link. It uses the instance SMTP relay when
+// SendPasswordReset mails a reset link. It uses the instance mail relay when
 // there is one and falls back to the first of teamIDs that has an enabled
 // email channel. via names the transport used ("relay" or "channel").
 // ErrNoMailer means neither exists.
 func (s *Service) SendPasswordReset(ctx context.Context, relay *MailRelay, teamIDs []uuid.UUID, m PasswordResetMail) (via string, err error) {
 	p := PasswordResetPayload(m)
-	if relay != nil && strings.TrimSpace(relay.Host) != "" && strings.TrimSpace(relay.From) != "" {
+	if relay.Configured() {
 		// No team: SendMail finds no channel and uses the relay.
 		return s.SendMail(ctx, uuid.Nil, relay, m.To, p)
 	}

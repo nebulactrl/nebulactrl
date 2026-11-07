@@ -29,12 +29,7 @@ import { Segmented } from "#/components/ui/segmented";
 import { Spinner } from "#/components/ui/spinner";
 import { toast } from "#/components/ui/toast";
 import { gitProviderGuide } from "#/lib/credential-links";
-import {
-	type GitProvider,
-	PROVIDERS,
-	providerInfo,
-	submitManifestForm,
-} from "./model";
+import { type GitProvider, PROVIDERS, providerInfo } from "./model";
 import { ProviderIcon } from "./provider-icon";
 import { invalidateGit } from "./queries";
 import { WebhookPanel } from "./webhook-panel";
@@ -78,8 +73,9 @@ function GitHubForm({ onClose }: { onClose(): void }) {
 			return data;
 		},
 		onSuccess: (manifest) => {
-			// GitHub takes the manifest as a form POST: the page leaves for github.com.
-			submitManifestForm(manifest.postUrl, manifest.manifest);
+			// formUrl is a NebulaCtrl page that POSTs the manifest to GitHub; the
+			// browser only navigates (the dashboard CSP forbids foreign form actions).
+			window.location.assign(manifest.formUrl);
 		},
 		onError: (e) => setError(errorMessage(e)),
 	});
@@ -137,8 +133,16 @@ function GitHubForm({ onClose }: { onClose(): void }) {
 				<Button type="button" variant="secondary" onClick={onClose}>
 					Cancel
 				</Button>
-				<Button type="submit" variant="primary" disabled={start.isPending}>
-					{start.isPending ? <Spinner /> : <ExternalLinkIcon />}
+				<Button
+					type="submit"
+					variant="primary"
+					disabled={start.isPending || start.isSuccess}
+				>
+					{start.isPending || start.isSuccess ? (
+						<Spinner />
+					) : (
+						<ExternalLinkIcon />
+					)}
 					Create the GitHub App
 				</Button>
 			</DialogFooter>

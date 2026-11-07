@@ -99,7 +99,7 @@ func TestStatusPageEndpointsLifecycle(t *testing.T) {
 	var created StatusPageView
 	f.call(o, http.StatusCreated, http.MethodPost, "/status-pages", map[string]any{
 		"title": "Acme status", "hostname": "Status.Acme.com", "description": "How we are doing", "footer": "Line one\nLine two",
-		"showUptime": false, "theme": "dark",
+		"showUptime": false,
 	}, &created)
 	require.Equal(t, "Acme status", created.Title)
 	require.Equal(t, "acme-status", created.Slug)
@@ -107,7 +107,6 @@ func TestStatusPageEndpointsLifecycle(t *testing.T) {
 	require.Equal(t, "How we are doing", created.Description)
 	require.Equal(t, "Line one\nLine two", created.Footer)
 	require.False(t, created.ShowUptime)
-	require.Equal(t, "dark", created.Theme)
 	require.False(t, created.Published)
 	require.NotNil(t, created.Components, "an empty list, not null")
 	require.Equal(t, 1, f.auditCount(ActionPageCreate))
@@ -193,14 +192,13 @@ func TestStatusPageEndpointsLifecycle(t *testing.T) {
 		require.Equal(t, tc.code, errCode(t, raw), tc.name)
 	}
 
-	// Schema validation happens before the service: a missing title, a bad
-	// theme or a malformed id never reach it.
+	// Schema validation happens before the service: a missing title, an
+	// over-long one or a malformed id never reach it.
 	for _, tc := range []struct {
 		name, method, path string
 		body               any
 	}{
 		{"no title", http.MethodPost, "/status-pages", map[string]any{"hostname": "x.example.com"}},
-		{"unknown theme", http.MethodPost, "/status-pages", map[string]any{"title": "T", "theme": "neon"}},
 		{"title too long", http.MethodPatch, "/status-pages/" + created.ID.String(), map[string]any{"title": string(make([]byte, 101))}},
 		{"id not a uuid", http.MethodGet, "/status-pages/not-a-uuid", nil},
 	} {
