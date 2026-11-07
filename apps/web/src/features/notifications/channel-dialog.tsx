@@ -55,6 +55,7 @@ import {
 	defaultPort,
 	draftFor,
 	draftProblem,
+	type EmailProvider,
 	hintHost,
 	kindLabel,
 	patchBody,
@@ -343,89 +344,131 @@ export function ChannelDialog({
 
 						{kind === "email" ? (
 							<>
-								<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
-									<Field>
-										<FieldLabel htmlFor="channel-host">SMTP server</FieldLabel>
-										<Input
-											id="channel-host"
-											autoComplete="off"
-											spellCheck={false}
-											placeholder="smtp.example.com"
-											value={draft.host}
-											onChange={(e) => set("host", e.target.value)}
-										/>
-									</Field>
-									<Field>
-										<FieldLabel htmlFor="channel-port">Port</FieldLabel>
-										<Input
-											id="channel-port"
-											inputMode="numeric"
-											autoComplete="off"
-											className="font-mono"
-											placeholder={String(defaultPort(draft.tls))}
-											value={draft.port}
-											onChange={(e) => set("port", e.target.value)}
-										/>
-									</Field>
-								</div>
-								<Field>
-									<FieldLabel id="channel-tls-label">Connection</FieldLabel>
-									<div>
-										<Segmented<TlsMode>
-											aria-label="Connection security"
-											font="sans"
-											density="regular"
-											value={draft.tls}
-											onValueChange={(v) => set("tls", v)}
-											options={[
-												{ value: "starttls", label: "STARTTLS" },
-												{ value: "implicit", label: "TLS" },
-												{ value: "none", label: "None" },
-											]}
-										/>
-									</div>
-									<FieldDescription>
-										STARTTLS (port 587) upgrades the connection; TLS (port 465)
-										is encrypted from the first byte.
-									</FieldDescription>
-								</Field>
-								{draft.tls === "none" ? (
-									<Alert variant="warning">
-										<AlertTitle>Not encrypted</AlertTitle>
-										<AlertDescription>
-											The message, and the password if you set one, travel in
-											clear text. Use this only for a relay on a trusted
-											network.
-										</AlertDescription>
-									</Alert>
-								) : null}
-								<CredentialHelp
-									guide={smtpGuide()}
-									fieldIds={["channel-username", "channel-password"]}
-								/>
-								<div className="grid gap-3 sm:grid-cols-2">
-									<Field>
-										<FieldLabel htmlFor="channel-username">
-											User name
-										</FieldLabel>
-										<Input
-											id="channel-username"
-											autoComplete="off"
-											spellCheck={false}
-											placeholder="empty: no authentication"
-											value={draft.username}
-											onChange={(e) => set("username", e.target.value)}
-										/>
-									</Field>
-									<SecretInput
-										id="channel-password"
-										label="Password"
-										mono={false}
-										value={draft.password}
-										onChange={(v) => set("password", v)}
-										stored={stored.password}
+								<div>
+									<Segmented<EmailProvider>
+										aria-label="Mail provider"
+										font="sans"
+										density="regular"
+										value={draft.provider}
+										onValueChange={(v) => set("provider", v)}
+										options={[
+											{ value: "smtp", label: "SMTP" },
+											{ value: "resend", label: "Resend" },
+										]}
 									/>
 								</div>
+								{draft.provider === "smtp" ? (
+									<>
+										<div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_120px]">
+											<Field>
+												<FieldLabel htmlFor="channel-host">
+													SMTP server
+												</FieldLabel>
+												<Input
+													id="channel-host"
+													autoComplete="off"
+													spellCheck={false}
+													placeholder="smtp.example.com"
+													value={draft.host}
+													onChange={(e) => set("host", e.target.value)}
+												/>
+											</Field>
+											<Field>
+												<FieldLabel htmlFor="channel-port">Port</FieldLabel>
+												<Input
+													id="channel-port"
+													inputMode="numeric"
+													autoComplete="off"
+													className="font-mono"
+													placeholder={String(defaultPort(draft.tls))}
+													value={draft.port}
+													onChange={(e) => set("port", e.target.value)}
+												/>
+											</Field>
+										</div>
+										<Field>
+											<FieldLabel id="channel-tls-label">Connection</FieldLabel>
+											<div>
+												<Segmented<TlsMode>
+													aria-label="Connection security"
+													font="sans"
+													density="regular"
+													value={draft.tls}
+													onValueChange={(v) => set("tls", v)}
+													options={[
+														{ value: "starttls", label: "STARTTLS" },
+														{ value: "implicit", label: "TLS" },
+														{ value: "none", label: "None" },
+													]}
+												/>
+											</div>
+											<FieldDescription>
+												STARTTLS (port 587) upgrades the connection; TLS (port
+												465) is encrypted from the first byte.
+											</FieldDescription>
+										</Field>
+										{draft.tls === "none" ? (
+											<Alert variant="warning">
+												<AlertTitle>Not encrypted</AlertTitle>
+												<AlertDescription>
+													The message, and the password if you set one, travel
+													in clear text. Use this only for a relay on a trusted
+													network.
+												</AlertDescription>
+											</Alert>
+										) : null}
+										<CredentialHelp
+											guide={smtpGuide()}
+											fieldIds={["channel-username", "channel-password"]}
+										/>
+										<div className="grid gap-3 sm:grid-cols-2">
+											<Field>
+												<FieldLabel htmlFor="channel-username">
+													User name
+												</FieldLabel>
+												<Input
+													id="channel-username"
+													autoComplete="off"
+													spellCheck={false}
+													placeholder="empty: no authentication"
+													value={draft.username}
+													onChange={(e) => set("username", e.target.value)}
+												/>
+											</Field>
+											<SecretInput
+												id="channel-password"
+												label="Password"
+												mono={false}
+												value={draft.password}
+												onChange={(v) => set("password", v)}
+												stored={stored.password}
+											/>
+										</div>
+									</>
+								) : (
+									<SecretInput
+										id="channel-api-key"
+										label="API key"
+										value={draft.apiKey}
+										onChange={(v) => set("apiKey", v)}
+										stored={stored.apiKey}
+										placeholder="re_…"
+										description={
+											<>
+												Create a key with sending access at{" "}
+												<a
+													href="https://resend.com/api-keys"
+													target="_blank"
+													rel="noreferrer noopener"
+													className="text-accent-ink hover:underline"
+												>
+													resend.com/api-keys
+												</a>
+												; the sender's domain must be verified there.
+											</>
+										}
+									/>
+								)}
 								<Field>
 									<FieldLabel htmlFor="channel-from">From</FieldLabel>
 									<Input
@@ -451,13 +494,15 @@ export function ChannelDialog({
 										One address per line, or separated by commas.
 									</FieldDescription>
 								</Field>
-								<CheckLabel
-									checked={draft.insecureSkipVerify}
-									onCheckedChange={(v) => set("insecureSkipVerify", v)}
-								>
-									Accept a self-signed certificate (the connection stays
-									encrypted, but the server's identity is not checked)
-								</CheckLabel>
+								{draft.provider === "smtp" ? (
+									<CheckLabel
+										checked={draft.insecureSkipVerify}
+										onCheckedChange={(v) => set("insecureSkipVerify", v)}
+									>
+										Accept a self-signed certificate (the connection stays
+										encrypted, but the server's identity is not checked)
+									</CheckLabel>
+								) : null}
 							</>
 						) : null}
 

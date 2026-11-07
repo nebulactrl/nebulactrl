@@ -125,7 +125,6 @@ describe("CreatePageDialog", () => {
 		expect(create(api)[0]?.path).toBe("/status-pages");
 		expect(create(api)[0]?.body).toEqual({
 			title: "Acme",
-			theme: "auto",
 			showUptime: true,
 		});
 		expect(changes).toContain(false);
@@ -161,7 +160,6 @@ describe("CreatePageDialog", () => {
 			title: "Acme status",
 			slug: "acme",
 			hostname: "status.acme.test",
-			theme: "auto",
 			showUptime: true,
 			fromProjectId: "p-ops",
 		});

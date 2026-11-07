@@ -4,48 +4,38 @@
  * inline styles (the page's CSP allows none); its one script, status.js, adds
  * the day tooltip of the uptime bars and the soft refresh.
  *
- * The light palette is the default; data-theme=dark forces the dark one and
- * data-theme=auto follows prefers-color-scheme. The dark variables of
- * dark.css are injected at the two DARK markers below when the sheet is built.
+ * The page is always dark: there is no light palette and no per-page theme.
  */
 :root {
-	color-scheme: light;
-	--bg: #f2f3f7;
-	--surface: #ffffff;
-	--float: #eceef3;
-	--well: #e3e6ed;
-	--ink-1: #14161a;
-	--ink-2: #353a43;
-	--ink-3: #565c67;
-	--line: rgb(10 14 24 / 0.1);
-	--line-strong: rgb(10 14 24 / 0.2);
-	--accent: #4a46d6;
-	--shadow: 20 24 40;
-	--hi: rgb(255 255 255 / 0.9);
-	--pop: #ffffff;
-	--ok: #2db36f;
-	--ok-text: #11743f;
-	--good: #55c58a;
-	--degraded: #d9a000;
-	--degraded-text: #8a5a00;
-	--partial: #e8892c;
-	--partial-text: #a04d00;
-	--bad: #e5484d;
-	--bad-text: #b42318;
-	--info: #2b8fd6;
-	--info-text: #0b5e9e;
-	--mute: #8a919e;
-	--mute-text: #565c67;
+	color-scheme: dark;
+	--bg: #121417;
+	--surface: #1a1d20;
+	--float: #24262a;
+	--well: #0a0b0e;
+	--ink-1: #f1f3f8;
+	--ink-2: #c0c4cc;
+	--ink-3: #a2a8b2;
+	--line: rgb(255 255 255 / 0.09);
+	--line-strong: rgb(255 255 255 / 0.16);
+	--accent: #9aa4ff;
+	--shadow: 2 4 10;
+	--hi: rgb(255 255 255 / 0.07);
+	--pop: #2d3035;
+	--ok: #41d686;
+	--ok-text: #6fe3a3;
+	--good: #41d686;
+	--degraded: #e6ad00;
+	--degraded-text: #f0c24a;
+	--partial: #f2a14b;
+	--partial-text: #f6b878;
+	--bad: #ff7d7c;
+	--bad-text: #ff9f9e;
+	--info: #38c5ff;
+	--info-text: #7bd8ff;
+	--mute: #7d8591;
+	--mute-text: #a2a8b2;
 	--font-sans: "IBM Plex Sans Variable", "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 	--font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-}
-@media (prefers-color-scheme: dark) {
-	:root[data-theme="auto"] {
-		/*DARK-AUTO*/
-	}
-}
-:root[data-theme="dark"] {
-	/*DARK-FORCED*/
 }
 
 *,

@@ -10,7 +10,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/teams"
 )
 
-// resetMailer sends password reset emails through the instance SMTP relay, and
+// resetMailer sends password reset emails through the instance mail relay, and
 // through the account's team email channel when the instance has no relay.
 type resetMailer struct {
 	n *notifications.Service
@@ -27,10 +27,11 @@ func (m resetMailer) relay(ctx context.Context) (*notifications.MailRelay, error
 	}
 	return &notifications.MailRelay{
 		Host: r.Host, Port: r.Port, TLS: r.TLS, Username: r.Username, Password: r.Password, From: r.From, InsecureSkipVerify: r.InsecureSkipVerify,
+		Provider: r.Provider, APIKey: r.APIKey,
 	}, nil
 }
 
-// Available reports whether the instance has an SMTP relay or some team has an
+// Available reports whether the instance has a mail relay or some team has an
 // enabled email channel.
 func (m resetMailer) Available(ctx context.Context) bool {
 	if r, err := m.relay(ctx); err == nil && r != nil {
@@ -51,7 +52,7 @@ func (m resetMailer) SendPasswordReset(ctx context.Context, rm auth.ResetMail) e
 	}
 	_, err = m.n.SendPasswordReset(ctx, relay, teamIDs, notifications.PasswordResetMail{To: rm.To, Link: rm.Link, ExpiresAt: rm.ExpiresAt})
 	if errors.Is(err, notifications.ErrNoMailer) {
-		return errors.New("no SMTP relay or team email channel can reach this account")
+		return errors.New("no mail relay or team email channel can reach this account")
 	}
 	return err
 }

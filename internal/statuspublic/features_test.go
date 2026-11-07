@@ -11,17 +11,17 @@ import (
 )
 
 func TestFooterTextIsEscapedAndKeepsLineBreaks(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Contains(t, html, "<p class=\"footer-text\">Acme Inc.\nContact: status@acme.example &lt;b&gt;</p>")
 	require.NotContains(t, html, "<b>")
 
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.Footer = ""
 	require.NotContains(t, render(t, p), "footer-text", "no footer text, no empty paragraph")
 }
 
 func TestLastUpdatedIsATimeElementWithRelativeText(t *testing.T) {
-	p := fixturePage("auto")
+	p := fixturePage()
 	for _, c := range []struct {
 		age  time.Duration
 		want string
@@ -44,19 +44,19 @@ func TestLastUpdatedIsATimeElementWithRelativeText(t *testing.T) {
 }
 
 func TestComponentNamedByAnActiveIncidentSaysSo(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Equal(t, 1, strings.Count(html, `<a class="incident-tag" href="#h-incidents">Incident in progress</a>`), "only Dashboard is named by the active incident")
 
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.ActiveIncidents = nil
 	require.NotContains(t, render(t, p), "incident-tag", "no active incident, no tag")
 }
 
 func TestBarCaptionSaysWhichWindowTheFigureCovers(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Contains(t, html, `The bar shows the last 30 days. The uptime figure covers 90 days.`)
 
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.ShowUptime = false
 	require.NotContains(t, render(t, p), "ago-note", "a page without figures has nothing to qualify")
 }
@@ -76,14 +76,14 @@ func TestComponentLinksNeedHTTPS(t *testing.T) {
 	} {
 		require.Equalf(t, want, safeLink(in), "%q", in)
 	}
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Equal(t, 1, strings.Count(html, `rel="noopener noreferrer nofollow"`), "only API has a valid link")
 	require.NotContains(t, html, "javascript:")
 }
 
 func TestUptimeFiguresShowEachWindowThatHasData(t *testing.T) {
 	mk := func(a24, a90 *float64, show bool) string {
-		p := fixturePage("auto")
+		p := fixturePage()
 		p.ShowUptime = show
 		p.Groups = []statuspages.PublicGroup{{Components: []statuspages.PublicComponent{
 			{Name: "X", State: statuspages.StateOperational, Availability24h: a24, Availability: a90},
@@ -108,7 +108,7 @@ func TestUptimeFiguresShowEachWindowThatHasData(t *testing.T) {
 }
 
 func TestGroupsAreCollapsibleDetailsAndUngroupedIsNot(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Equal(t, 1, strings.Count(html, "<details"))
 	require.Contains(t, html, "<details class=\"card group\" open>\n<summary><h3>Web</h3></summary>")
 	require.Equal(t, 1, strings.Count(html, `<div class="card group">`), "the ungrouped components are always shown")
@@ -116,14 +116,14 @@ func TestGroupsAreCollapsibleDetailsAndUngroupedIsNot(t *testing.T) {
 }
 
 func TestBarsAreFocusableWithASummary(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	bars := barRe.FindAllStringSubmatch(html, -1)
 	require.Len(t, bars, 4)
 	require.Equal(t, "Last 90 days: 99.99% available, 0 min down", bars[0][2])
 	require.Equal(t, "Last 90 days: 98.73% available, 194 min down", bars[1][2], "144 + 43 + 7 minutes of the fixture's bad days")
 	require.Equal(t, "Last 90 days: no data", bars[2][2], "Docs has days but no availability")
 
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.ShowUptime = false
 	for _, m := range barRe.FindAllStringSubmatch(render(t, p), -1) {
 		require.Equal(t, "Daily status over the last 90 days", m[2], "no figures when the page hides them")
@@ -131,14 +131,14 @@ func TestBarsAreFocusableWithASummary(t *testing.T) {
 }
 
 func TestHeadHasMetaOpenGraphAndTheFeedLink(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Contains(t, html, `<meta property="og:type" content="website">`)
 	require.Contains(t, html, `<meta property="og:title" content="Acme Status">`)
 	require.Contains(t, html, `<meta property="og:description" content="Live status of Acme services. Questions: status@acme.example">`)
 	require.Contains(t, html, `<link rel="alternate" type="application/atom+xml" title="Acme Status updates" href="/feed.atom">`)
 	require.Contains(t, html, `<a href="/feed.atom">Atom feed</a>`)
 
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.Description = ""
 	html = render(t, p)
 	require.Contains(t, html, `<meta name="description" content="Partial outage">`, "no description: the state")
@@ -152,11 +152,11 @@ func TestHeadHasMetaOpenGraphAndTheFeedLink(t *testing.T) {
 }
 
 func TestIncidentsAndWindowsHaveAnchors(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	for _, id := range []string{"inc-k-inc-1", "inc-k-inc-2", "mw-k-mw-1", "mw-k-mw-2"} {
 		require.Containsf(t, html, ` id="`+id+`"`, id)
 	}
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.ActiveIncidents[0].Key = ""
 	p.Maintenance[0].Key = "a b\"><x"
 	html = render(t, p)

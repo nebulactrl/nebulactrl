@@ -190,7 +190,9 @@ UPDATE instance_settings SET
     smtp_tls = sqlc.arg(smtp_tls),
     smtp_username = sqlc.arg(smtp_username),
     smtp_password_enc = COALESCE(sqlc.narg(smtp_password_enc), smtp_password_enc),
-    smtp_from = sqlc.arg(smtp_from),
+    mail_provider = sqlc.arg(mail_provider),
+    mail_from = sqlc.arg(mail_from),
+    resend_api_key_enc = COALESCE(sqlc.narg(resend_api_key_enc), resend_api_key_enc),
     smtp_insecure_skip_verify = sqlc.arg(smtp_insecure_skip_verify),
     updated_at = now()
 WHERE id
@@ -198,6 +200,9 @@ RETURNING *;
 
 -- name: ClearInstanceSMTPPassword :exec
 UPDATE instance_settings SET smtp_password_enc = NULL, updated_at = now() WHERE id;
+
+-- name: ClearInstanceResendAPIKey :exec
+UPDATE instance_settings SET resend_api_key_enc = NULL, updated_at = now() WHERE id;
 
 -- SSE scoping -------------------------------------------------------------------
 

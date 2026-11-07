@@ -411,20 +411,11 @@ export function sectionServices<T extends ServiceOption>(
 
 // --- The page form -------------------------------------------------------------
 
-export type Theme = "auto" | "light" | "dark";
-
-export const THEMES: readonly { value: Theme; label: string }[] = [
-	{ value: "auto", label: "Auto" },
-	{ value: "light", label: "Light" },
-	{ value: "dark", label: "Dark" },
-];
-
 export interface PageForm {
 	title: string;
 	slug: string;
 	description: string;
 	footer: string;
-	theme: Theme;
 	showUptime: boolean;
 	hostname: string;
 }
@@ -434,7 +425,6 @@ export const EMPTY_PAGE_FORM: PageForm = {
 	slug: "",
 	description: "",
 	footer: "",
-	theme: "auto",
 	showUptime: true,
 	hostname: "",
 };
@@ -445,7 +435,6 @@ export function formFromPage(page: StatusPageView): PageForm {
 		slug: page.slug,
 		description: page.description,
 		footer: page.footer,
-		theme: page.theme,
 		showUptime: page.showUptime,
 		hostname: page.hostname ?? "",
 	};
@@ -525,7 +514,6 @@ export function pageFormDirty(form: PageForm, saved: PageForm): boolean {
 		trimmed(form.slug) !== trimmed(saved.slug) ||
 		form.description.trim() !== saved.description.trim() ||
 		form.footer.trim() !== saved.footer.trim() ||
-		form.theme !== saved.theme ||
 		form.showUptime !== saved.showUptime ||
 		normalizeHostname(form.hostname) !== normalizeHostname(saved.hostname)
 	);
@@ -548,7 +536,6 @@ export function pagePatch(
 	if (form.footer.trim() !== saved.footer.trim()) {
 		body.footer = form.footer.trim();
 	}
-	if (form.theme !== saved.theme) body.theme = form.theme;
 	if (form.showUptime !== saved.showUptime) body.showUptime = form.showUptime;
 	if (normalizeHostname(form.hostname) !== normalizeHostname(saved.hostname)) {
 		body.hostname = normalizeHostname(form.hostname);
@@ -566,7 +553,6 @@ export function pageCreateBody(
 ): CreatePageInputBody {
 	const body: CreatePageInputBody = {
 		title: trimmed(form.title),
-		theme: form.theme,
 		showUptime: form.showUptime,
 	};
 	if (trimmed(form.slug) !== "") body.slug = trimmed(form.slug);

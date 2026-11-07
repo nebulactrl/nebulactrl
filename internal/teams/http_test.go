@@ -389,19 +389,44 @@ func TestInstanceEndpoints(t *testing.T) {
 	h.asUser(f.ada.ID, f.team)
 	upd := h.call(http.StatusOK, http.MethodPatch, "/instance", map[string]any{
 		"allowTeamCreation": false, "smtpHost": "smtp.example.com", "smtpPort": 587, "smtpTls": "starttls",
-		"smtpUsername": "u", "smtpPassword": "pw", "smtpFrom": "no-reply@example.com", "smtpInsecureSkipVerify": false,
+		"smtpUsername": "u", "smtpPassword": "pw", "mailFrom": "no-reply@example.com", "smtpInsecureSkipVerify": false,
 	})
 	require.Equal(t, false, upd["allowTeamCreation"])
 	require.Equal(t, true, upd["canManage"])
-	require.Equal(t, true, upd["smtpConfigured"])
+	require.Equal(t, true, upd["mailConfigured"])
 	require.Equal(t, "smtp.example.com", upd["smtpHost"])
 	require.Equal(t, float64(587), upd["smtpPort"])
 	require.Equal(t, true, upd["smtpPasswordSet"])
 	require.NotContains(t, upd, "smtpPassword", "the password is write-only")
 	h.failure(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, "/instance", map[string]any{"smtpPort": 0})
 	h.failure(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, "/instance", map[string]any{"smtpTls": "ssl"})
-	h.failure(http.StatusUnprocessableEntity, "invalid_email", http.MethodPatch, "/instance", map[string]any{"smtpFrom": "nope"})
+	h.failure(http.StatusUnprocessableEntity, "invalid_email", http.MethodPatch, "/instance", map[string]any{"mailFrom": "nope"})
 	require.Equal(t, "smtp.example.com", h.call(http.StatusOK, http.MethodGet, "/instance", nil)["smtpHost"], "refused patches changed nothing")
+
+	// Resend: provider, shared sender and the write-only key round-trip.
+	require.Equal(t, "smtp", upd["mailProvider"])
+	require.Equal(t, "no-reply@example.com", upd["mailFrom"])
+	require.Equal(t, false, upd["resendApiKeySet"])
+	h.failure(http.StatusUnprocessableEntity, "validation_failed", http.MethodPatch, "/instance", map[string]any{"mailProvider": "sendgrid"})
+	res := h.call(http.StatusOK, http.MethodPatch, "/instance", map[string]any{
+		"mailProvider": "resend", "mailFrom": "NebulaCtrl <alerts@example.com>", "resendApiKey": "re_http_secret",
+	})
+	require.Equal(t, "resend", res["mailProvider"])
+	require.Equal(t, "NebulaCtrl <alerts@example.com>", res["mailFrom"])
+	require.Equal(t, true, res["resendApiKeySet"])
+	require.Equal(t, true, res["mailConfigured"])
+	require.NotContains(t, res, "resendApiKey", "the key is write-only")
+	again := h.call(http.StatusOK, http.MethodGet, "/instance", nil)
+	require.Equal(t, true, again["resendApiKeySet"])
+	require.NotContains(t, again, "resendApiKey")
+	cleared := h.call(http.StatusOK, http.MethodPatch, "/instance", map[string]any{"resendApiKey": ""})
+	require.Equal(t, false, cleared["resendApiKeySet"])
+	h.asUser(bob, f.team)
+	seen := h.call(http.StatusOK, http.MethodGet, "/instance", nil)
+	require.NotContains(t, seen, "mailProvider")
+	require.NotContains(t, seen, "mailFrom")
+	require.NotContains(t, seen, "resendApiKeySet")
+	h.asUser(f.ada.ID, f.team)
 
 	// With team creation off the member can no longer create teams.
 	h.asUser(bob, f.team)

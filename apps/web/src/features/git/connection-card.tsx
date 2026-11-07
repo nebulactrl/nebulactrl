@@ -31,6 +31,8 @@ export function ConnectionCard({
 	onWebhook,
 	onToken,
 	onRemove,
+	onFinishGitHub,
+	finishing,
 }: {
 	connection: ConnectionView;
 	testing: boolean;
@@ -41,6 +43,8 @@ export function ConnectionCard({
 	onWebhook(): void;
 	onToken(): void;
 	onRemove(): void;
+	onFinishGitHub(): void;
+	finishing: boolean;
 }) {
 	const status = CONNECTION_STATUS[c.status] ?? {
 		label: c.status,
@@ -82,6 +86,17 @@ export function ConnectionCard({
 				{c.supportsPreviews ? "" : " No previews on this provider."}
 			</p>
 			<footer className="-mb-1 flex flex-wrap items-center gap-1 border-line-faint border-t pt-2.5">
+				{pendingGithub && !githubInstall ? (
+					<Button
+						variant="primary"
+						size="sm"
+						onClick={onFinishGitHub}
+						disabled={finishing}
+					>
+						{finishing ? <Spinner /> : <ExternalLinkIcon />}
+						Finish setup
+					</Button>
+				) : null}
 				{pendingGithub && githubInstall ? (
 					<>
 						<Button

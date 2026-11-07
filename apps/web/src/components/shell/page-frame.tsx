@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { cn } from "cn";
 import type { ReactNode } from "react";
 import { errorMessage } from "#/api/client-config";
 import { environmentsQuery } from "#/api/hooks";
@@ -7,6 +8,9 @@ import { ErrorState } from "#/components/common/error-state";
 import { Skeleton } from "#/components/ui/skeleton";
 import { useDocumentTitle } from "#/lib/hooks/use-document-title";
 import { type VtKind, vt, vtAnchor } from "#/lib/transitions";
+
+/** How wide a page's column runs: the default 1240px column, or the full main area. */
+export type PageWidth = "column" | "full";
 
 /**
  * A page that scrolls inside the shell's main area: a title row (title,
@@ -21,6 +25,7 @@ export function PageFrame({
 	title,
 	description,
 	actions,
+	width,
 	morph,
 	children,
 }: {
@@ -29,21 +34,35 @@ export function PageFrame({
 	title: string;
 	description?: ReactNode;
 	actions?: ReactNode;
+	/**
+	 * `column` (default) keeps the 1240px page column; `full` takes all the room
+	 * between the sidebar and the window's edge, still inside the page gutters.
+	 * For a page of wide data: tables, charts.
+	 */
+	width?: PageWidth | undefined;
 	morph?: { kind: VtKind; id: string };
 	children: ReactNode;
 }) {
 	return (
 		<div data-page={page} className="absolute inset-0">
 			<div className="absolute inset-0 overflow-y-auto overscroll-contain">
-				<div className="mx-auto flex w-full max-w-[1240px] flex-col gap-5 px-5 pt-7 pb-12 sm:px-8">
+				<div
+					className={cn(
+						"mx-auto flex w-full flex-col gap-5 px-5 pt-7 pb-12 sm:px-8",
+						width === "full" ? null : "max-w-[1240px]",
+					)}
+				>
 					<div
 						{...(morph ? vtAnchor(morph.kind, morph.id) : {})}
 						className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3"
 					>
 						<div className="flex min-w-0 flex-col gap-1.5">
+							{/* `self-start` keeps the h1 as wide as its text, not as wide as the
+							    description under it: the label morph sizes both snapshots to
+							    the box's width, so a wider box blows the sidebar label up. */}
 							<h1
 								{...(morph ? {} : vt("nav", page))}
-								className="font-display font-semibold text-[24px] text-ink-1 leading-[1.1] tracking-[-0.02em]"
+								className="self-start font-display font-semibold text-[24px] text-ink-1 leading-[1.1] tracking-[-0.02em]"
 							>
 								{title}
 							</h1>
@@ -74,6 +93,7 @@ export function EnvironmentPage({
 	title,
 	description,
 	actions,
+	width,
 	children,
 }: {
 	projectId: string;
@@ -82,6 +102,7 @@ export function EnvironmentPage({
 	title: string;
 	description?: (environment: Environment) => ReactNode;
 	actions?: (environment: Environment) => ReactNode;
+	width?: PageWidth;
 	children: (environment: Environment) => ReactNode;
 }) {
 	const environments = useQuery(environmentsQuery(projectId));
@@ -122,6 +143,7 @@ export function EnvironmentPage({
 		<PageFrame
 			page={page}
 			title={title}
+			width={width}
 			description={environment ? description?.(environment) : undefined}
 			actions={environment ? actions?.(environment) : undefined}
 		>

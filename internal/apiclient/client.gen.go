@@ -159,6 +159,24 @@ func (e BackupViewTrigger) Valid() bool {
 	}
 }
 
+// Defines values for ChannelConfigProvider.
+const (
+	ChannelConfigProviderResend ChannelConfigProvider = "resend"
+	ChannelConfigProviderSmtp   ChannelConfigProvider = "smtp"
+)
+
+// Valid indicates whether the value is a known member of the ChannelConfigProvider enum.
+func (e ChannelConfigProvider) Valid() bool {
+	switch e {
+	case ChannelConfigProviderResend:
+		return true
+	case ChannelConfigProviderSmtp:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChannelConfigTls.
 const (
 	ChannelConfigTlsImplicit ChannelConfigTls = "implicit"
@@ -1965,27 +1983,6 @@ func (e CreateInviteInputBodyRole) Valid() bool {
 	case CreateInviteInputBodyRoleOwner:
 		return true
 	case CreateInviteInputBodyRoleViewer:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for CreatePageInputBodyTheme.
-const (
-	CreatePageInputBodyThemeAuto  CreatePageInputBodyTheme = "auto"
-	CreatePageInputBodyThemeDark  CreatePageInputBodyTheme = "dark"
-	CreatePageInputBodyThemeLight CreatePageInputBodyTheme = "light"
-)
-
-// Valid indicates whether the value is a known member of the CreatePageInputBodyTheme enum.
-func (e CreatePageInputBodyTheme) Valid() bool {
-	switch e {
-	case CreatePageInputBodyThemeAuto:
-		return true
-	case CreatePageInputBodyThemeDark:
-		return true
-	case CreatePageInputBodyThemeLight:
 		return true
 	default:
 		return false
@@ -3861,6 +3858,24 @@ func (e InstanceServiceViewStatus) Valid() bool {
 	case InstanceServiceViewStatusProvisioning:
 		return true
 	case InstanceServiceViewStatusReady:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for InstanceSettingsMailProvider.
+const (
+	InstanceSettingsMailProviderResend InstanceSettingsMailProvider = "resend"
+	InstanceSettingsMailProviderSmtp   InstanceSettingsMailProvider = "smtp"
+)
+
+// Valid indicates whether the value is a known member of the InstanceSettingsMailProvider enum.
+func (e InstanceSettingsMailProvider) Valid() bool {
+	switch e {
+	case InstanceSettingsMailProviderResend:
+		return true
+	case InstanceSettingsMailProviderSmtp:
 		return true
 	default:
 		return false
@@ -6723,27 +6738,6 @@ func (e StatusPageDNSRecordType) Valid() bool {
 	}
 }
 
-// Defines values for StatusPageViewTheme.
-const (
-	StatusPageViewThemeAuto  StatusPageViewTheme = "auto"
-	StatusPageViewThemeDark  StatusPageViewTheme = "dark"
-	StatusPageViewThemeLight StatusPageViewTheme = "light"
-)
-
-// Valid indicates whether the value is a known member of the StatusPageViewTheme enum.
-func (e StatusPageViewTheme) Valid() bool {
-	switch e {
-	case StatusPageViewThemeAuto:
-		return true
-	case StatusPageViewThemeDark:
-		return true
-	case StatusPageViewThemeLight:
-		return true
-	default:
-		return false
-	}
-}
-
 // Defines values for SuggestedVariableSource.
 const (
 	SuggestedVariableSourceDatabase   SuggestedVariableSource = "database"
@@ -7323,6 +7317,24 @@ func (e UpdateInputBodyTlsMode) Valid() bool {
 	}
 }
 
+// Defines values for UpdateInstanceInputBodyMailProvider.
+const (
+	UpdateInstanceInputBodyMailProviderResend UpdateInstanceInputBodyMailProvider = "resend"
+	UpdateInstanceInputBodyMailProviderSmtp   UpdateInstanceInputBodyMailProvider = "smtp"
+)
+
+// Valid indicates whether the value is a known member of the UpdateInstanceInputBodyMailProvider enum.
+func (e UpdateInstanceInputBodyMailProvider) Valid() bool {
+	switch e {
+	case UpdateInstanceInputBodyMailProviderResend:
+		return true
+	case UpdateInstanceInputBodyMailProviderSmtp:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateInstanceInputBodySmtpTls.
 const (
 	UpdateInstanceInputBodySmtpTlsImplicit UpdateInstanceInputBodySmtpTls = "implicit"
@@ -7362,27 +7374,6 @@ func (e UpdateMemberInputBodyRole) Valid() bool {
 	case UpdateMemberInputBodyRoleOwner:
 		return true
 	case UpdateMemberInputBodyRoleViewer:
-		return true
-	default:
-		return false
-	}
-}
-
-// Defines values for UpdatePageInputBodyTheme.
-const (
-	UpdatePageInputBodyThemeAuto  UpdatePageInputBodyTheme = "auto"
-	UpdatePageInputBodyThemeDark  UpdatePageInputBodyTheme = "dark"
-	UpdatePageInputBodyThemeLight UpdatePageInputBodyTheme = "light"
-)
-
-// Valid indicates whether the value is a known member of the UpdatePageInputBodyTheme enum.
-func (e UpdatePageInputBodyTheme) Valid() bool {
-	switch e {
-	case UpdatePageInputBodyThemeAuto:
-		return true
-	case UpdatePageInputBodyThemeDark:
-		return true
-	case UpdatePageInputBodyThemeLight:
 		return true
 	default:
 		return false
@@ -9118,26 +9109,32 @@ type ChannelConfig struct {
 	// From Email: sender, "alerts@example.com" or "NebulaCtrl <alerts@example.com>".
 	From *string `json:"from,omitempty"`
 
-	// Host Email: SMTP server host name.
+	// Host Email (smtp): SMTP server host name.
 	Host *string `json:"host,omitempty"`
 
-	// InsecureSkipVerify Email: accept any server certificate (self-signed relays). The connection is still encrypted.
+	// InsecureSkipVerify Email (smtp): accept any server certificate (self-signed relays). The connection is still encrypted.
 	InsecureSkipVerify *bool `json:"insecureSkipVerify,omitempty"`
 
-	// Port Email: SMTP port. Default: 465 (implicit TLS), 587 (STARTTLS), 25 (none).
+	// Port Email (smtp): SMTP port. Default: 465 (implicit TLS), 587 (STARTTLS), 25 (none).
 	Port *int64 `json:"port,omitempty"`
 
-	// Tls Email: connection security. Default starttls.
+	// Provider Email: how mail is sent. Default smtp.
+	Provider *ChannelConfigProvider `json:"provider,omitempty"`
+
+	// Tls Email (smtp): connection security. Default starttls.
 	Tls *ChannelConfigTls `json:"tls,omitempty"`
 
 	// To Email: recipients.
 	To *[]string `json:"to,omitempty"`
 
-	// Username Email: SMTP user name; empty sends without authentication.
+	// Username Email (smtp): SMTP user name; empty sends without authentication.
 	Username *string `json:"username,omitempty"`
 }
 
-// ChannelConfigTls Email: connection security. Default starttls.
+// ChannelConfigProvider Email: how mail is sent. Default smtp.
+type ChannelConfigProvider string
+
+// ChannelConfigTls Email (smtp): connection security. Default starttls.
 type ChannelConfigTls string
 
 // ChannelDelivery defines model for ChannelDelivery.
@@ -9234,10 +9231,13 @@ type ChannelRuleInputMinSeverity string
 
 // ChannelSecretsInput defines model for ChannelSecretsInput.
 type ChannelSecretsInput struct {
+	// ApiKey Email (resend): the Resend API key. Required for the resend provider.
+	ApiKey *string `json:"apiKey,omitempty"`
+
 	// BotToken Telegram: the bot token from @BotFather.
 	BotToken *string `json:"botToken,omitempty"`
 
-	// Password Email: the SMTP password.
+	// Password Email (smtp): the SMTP password.
 	Password *string `json:"password,omitempty"`
 
 	// SigningSecret Webhook: the HMAC signing secret. Omit on create to have one generated.
@@ -9271,7 +9271,7 @@ type ChannelView struct {
 	Name      string          `json:"name"`
 	Rule      ChannelRule     `json:"rule"`
 
-	// Secrets Masked hints of the stored secrets, keyed by name (url, botToken, password, signingSecret). A key is present when the secret is set; its value never reveals it.
+	// Secrets Masked hints of the stored secrets, keyed by name (url, botToken, password, apiKey, signingSecret). A key is present when the secret is set; its value never reveals it.
 	Secrets   map[string]string `json:"secrets"`
 	Stats     ChannelStats      `json:"stats"`
 	Test      ChannelTestState  `json:"test"`
@@ -11304,15 +11304,9 @@ type CreatePageInputBody struct {
 	// Slug Unique in the workspace: lowercase letters, digits and hyphens. Default: derived from the title
 	Slug *string `json:"slug,omitempty"`
 
-	// Theme Default auto: the visitor's preference
-	Theme *CreatePageInputBodyTheme `json:"theme,omitempty"`
-
 	// Title Shown as the page's heading
 	Title string `json:"title"`
 }
-
-// CreatePageInputBodyTheme Default auto: the visitor's preference
-type CreatePageInputBodyTheme string
 
 // CreateProjectInputBody defines model for CreateProjectInputBody.
 type CreateProjectInputBody struct {
@@ -13616,16 +13610,25 @@ type InstanceSettings struct {
 	// CanManage The caller is the instance admin and may change these settings
 	CanManage bool `json:"canManage"`
 
-	// SmtpConfigured Invites can be emailed through the instance relay
-	SmtpConfigured         bool                     `json:"smtpConfigured"`
-	SmtpFrom               *string                  `json:"smtpFrom,omitempty"`
-	SmtpHost               *string                  `json:"smtpHost,omitempty"`
-	SmtpInsecureSkipVerify *bool                    `json:"smtpInsecureSkipVerify,omitempty"`
-	SmtpPasswordSet        *bool                    `json:"smtpPasswordSet,omitempty"`
-	SmtpPort               *int64                   `json:"smtpPort,omitempty"`
-	SmtpTls                *InstanceSettingsSmtpTls `json:"smtpTls,omitempty"`
-	SmtpUsername           *string                  `json:"smtpUsername,omitempty"`
+	// MailConfigured Invites can be emailed through the instance relay
+	MailConfigured bool `json:"mailConfigured"`
+
+	// MailFrom Sender address for both providers
+	MailFrom *string `json:"mailFrom,omitempty"`
+
+	// MailProvider How the instance relay sends mail
+	MailProvider           *InstanceSettingsMailProvider `json:"mailProvider,omitempty"`
+	ResendApiKeySet        *bool                         `json:"resendApiKeySet,omitempty"`
+	SmtpHost               *string                       `json:"smtpHost,omitempty"`
+	SmtpInsecureSkipVerify *bool                         `json:"smtpInsecureSkipVerify,omitempty"`
+	SmtpPasswordSet        *bool                         `json:"smtpPasswordSet,omitempty"`
+	SmtpPort               *int64                        `json:"smtpPort,omitempty"`
+	SmtpTls                *InstanceSettingsSmtpTls      `json:"smtpTls,omitempty"`
+	SmtpUsername           *string                       `json:"smtpUsername,omitempty"`
 }
+
+// InstanceSettingsMailProvider How the instance relay sends mail
+type InstanceSettingsMailProvider string
 
 // InstanceSettingsSmtpTls defines model for InstanceSettings.SmtpTls.
 type InstanceSettingsSmtpTls string
@@ -14071,6 +14074,7 @@ type ManifestInputBody struct {
 // ManifestStart defines model for ManifestStart.
 type ManifestStart struct {
 	ConnectionId string `json:"connectionId"`
+	FormUrl      string `json:"formUrl"`
 	Manifest     string `json:"manifest"`
 	PostUrl      string `json:"postUrl"`
 	State        string `json:"state"`
@@ -18178,15 +18182,11 @@ type StatusPageView struct {
 	Published bool `json:"published"`
 
 	// ShowUptime Show availability percentages next to the day bars
-	ShowUptime bool                `json:"showUptime"`
-	Slug       string              `json:"slug"`
-	Theme      StatusPageViewTheme `json:"theme"`
-	Title      string              `json:"title"`
-	UpdatedAt  time.Time           `json:"updatedAt"`
+	ShowUptime bool      `json:"showUptime"`
+	Slug       string    `json:"slug"`
+	Title      string    `json:"title"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
-
-// StatusPageViewTheme defines model for StatusPageView.Theme.
-type StatusPageViewTheme string
 
 // StatusView defines model for StatusView.
 type StatusView struct {
@@ -19304,8 +19304,16 @@ type UpdateInputBodyTlsMode string
 
 // UpdateInstanceInputBody defines model for UpdateInstanceInputBody.
 type UpdateInstanceInputBody struct {
-	AllowTeamCreation      *bool   `json:"allowTeamCreation,omitempty"`
-	SmtpFrom               *string `json:"smtpFrom,omitempty"`
+	AllowTeamCreation *bool `json:"allowTeamCreation,omitempty"`
+
+	// MailFrom Sender address for both providers.
+	MailFrom *string `json:"mailFrom,omitempty"`
+
+	// MailProvider How the instance relay sends mail. Default smtp.
+	MailProvider *UpdateInstanceInputBodyMailProvider `json:"mailProvider,omitempty"`
+
+	// ResendApiKey Write-only. Empty clears it.
+	ResendApiKey           *string `json:"resendApiKey,omitempty"`
 	SmtpHost               *string `json:"smtpHost,omitempty"`
 	SmtpInsecureSkipVerify *bool   `json:"smtpInsecureSkipVerify,omitempty"`
 
@@ -19315,6 +19323,9 @@ type UpdateInstanceInputBody struct {
 	SmtpTls      *UpdateInstanceInputBodySmtpTls `json:"smtpTls,omitempty"`
 	SmtpUsername *string                         `json:"smtpUsername,omitempty"`
 }
+
+// UpdateInstanceInputBodyMailProvider How the instance relay sends mail. Default smtp.
+type UpdateInstanceInputBodyMailProvider string
 
 // UpdateInstanceInputBodySmtpTls defines model for UpdateInstanceInputBody.SmtpTls.
 type UpdateInstanceInputBodySmtpTls string
@@ -19362,15 +19373,11 @@ type UpdatePageInputBody struct {
 	Hostname *string `json:"hostname,omitempty"`
 
 	// Published true serves the page on its hostname; needs a hostname and at least one component
-	Published  *bool                     `json:"published,omitempty"`
-	ShowUptime *bool                     `json:"showUptime,omitempty"`
-	Slug       *string                   `json:"slug,omitempty"`
-	Theme      *UpdatePageInputBodyTheme `json:"theme,omitempty"`
-	Title      *string                   `json:"title,omitempty"`
+	Published  *bool   `json:"published,omitempty"`
+	ShowUptime *bool   `json:"showUptime,omitempty"`
+	Slug       *string `json:"slug,omitempty"`
+	Title      *string `json:"title,omitempty"`
 }
-
-// UpdatePageInputBodyTheme defines model for UpdatePageInputBody.Theme.
-type UpdatePageInputBodyTheme string
 
 // UpdateProjectInputBody defines model for UpdateProjectInputBody.
 type UpdateProjectInputBody struct {
@@ -22390,7 +22397,7 @@ type ClientInterface interface {
 
 	// RequestPasswordResetWithBody Email a password reset link
 	//
-	// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.
+	// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -22399,7 +22406,7 @@ type ClientInterface interface {
 
 	// RequestPasswordReset Email a password reset link
 	//
-	// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.
+	// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -23424,6 +23431,13 @@ type ClientInterface interface {
 	// Corresponds with GET /git/connections/{connectionId}/deliveries (the `ListGitDeliveries` operationId).
 	ListGitDeliveries(ctx context.Context, connectionId string, params *ListGitDeliveriesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// RestartGitHubAppManifest Start creating a pending connection's GitHub App again
+	//
+	// For a GitHub App connection whose App was never created: returns a new manifest and `formUrl` (see startGitHubAppManifest); the previous one stops working. 422 `app_exists` once GitHub created the App (install it instead). Requires the `admin` scope.
+	//
+	// Corresponds with POST /git/connections/{connectionId}/github/manifest (the `RestartGitHubAppManifest` operationId).
+	RestartGitHubAppManifest(ctx context.Context, connectionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// StartGitConnectionOAuth Start (or restart) the OAuth authorization of a connection
 	//
 	// Returns the provider URL to open in the browser.
@@ -23461,7 +23475,7 @@ type ClientInterface interface {
 
 	// StartGitHubAppManifestWithBody Start creating a GitHub App
 	//
-	// Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
+	// Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -23470,7 +23484,7 @@ type ClientInterface interface {
 
 	// StartGitHubAppManifest Start creating a GitHub App
 	//
-	// Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
+	// Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -23515,14 +23529,14 @@ type ClientInterface interface {
 
 	// GetInstance Instance settings
 	//
-	// Whether team creation is allowed; SMTP details only for the instance admin (the first user).
+	// Whether team creation is allowed; mail relay details only for the instance admin (the first user).
 	//
 	// Corresponds with GET /instance (the `GetInstance` operationId).
 	GetInstance(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateInstanceWithBody Change the instance settings
 	//
-	// Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.
+	// Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -23531,7 +23545,7 @@ type ClientInterface interface {
 
 	// UpdateInstance Change the instance settings
 	//
-	// Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.
+	// Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -24238,7 +24252,7 @@ type ClientInterface interface {
 
 	// CreateNotificationChannelWithBody Add a notification channel
 	//
-	// Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
+	// Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -24247,7 +24261,7 @@ type ClientInterface interface {
 
 	// CreateNotificationChannel Add a notification channel
 	//
-	// Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
+	// Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -27056,7 +27070,7 @@ type ClientInterface interface {
 
 	// CreateTeamInviteWithBody Invite someone to a team
 	//
-	// With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
+	// With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -27065,7 +27079,7 @@ type ClientInterface interface {
 
 	// CreateTeamInvite Invite someone to a team
 	//
-	// With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
+	// With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -27109,7 +27123,7 @@ type ClientInterface interface {
 
 	// CreateMemberPasswordResetLink Generate a password reset link for a member
 	//
-	// Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no SMTP setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).
+	// Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no mail relay setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).
 	//
 	// Corresponds with POST /teams/{teamId}/members/{userId}/password-reset (the `CreateMemberPasswordResetLink` operationId).
 	CreateMemberPasswordResetLink(ctx context.Context, teamId string, userId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -27967,7 +27981,7 @@ func (c *Client) ConfirmPasswordReset(ctx context.Context, body ConfirmPasswordR
 
 // RequestPasswordResetWithBody Email a password reset link
 //
-// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.
+// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.
 //
 // Takes any type of body and a specified content type.
 //
@@ -27986,7 +28000,7 @@ func (c *Client) RequestPasswordResetWithBody(ctx context.Context, contentType s
 
 // RequestPasswordReset Email a password reset link
 //
-// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.
+// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -30361,6 +30375,23 @@ func (c *Client) ListGitDeliveries(ctx context.Context, connectionId string, par
 	return c.Client.Do(req)
 }
 
+// RestartGitHubAppManifest Start creating a pending connection's GitHub App again
+//
+// For a GitHub App connection whose App was never created: returns a new manifest and `formUrl` (see startGitHubAppManifest); the previous one stops working. 422 `app_exists` once GitHub created the App (install it instead). Requires the `admin` scope.
+//
+// Corresponds with POST /git/connections/{connectionId}/github/manifest (the `RestartGitHubAppManifest` operationId).
+func (c *Client) RestartGitHubAppManifest(ctx context.Context, connectionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewRestartGitHubAppManifestRequest(c.Server, connectionId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // StartGitConnectionOAuth Start (or restart) the OAuth authorization of a connection
 //
 // Returns the provider URL to open in the browser.
@@ -30448,7 +30479,7 @@ func (c *Client) RotateGitWebhookSecret(ctx context.Context, connectionId string
 
 // StartGitHubAppManifestWithBody Start creating a GitHub App
 //
-// Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
+// Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
 //
 // Takes any type of body and a specified content type.
 //
@@ -30467,7 +30498,7 @@ func (c *Client) StartGitHubAppManifestWithBody(ctx context.Context, contentType
 
 // StartGitHubAppManifest Start creating a GitHub App
 //
-// Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
+// Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -30562,7 +30593,7 @@ func (c *Client) PlanCoolifyImport(ctx context.Context, body PlanCoolifyImportJS
 
 // GetInstance Instance settings
 //
-// Whether team creation is allowed; SMTP details only for the instance admin (the first user).
+// Whether team creation is allowed; mail relay details only for the instance admin (the first user).
 //
 // Corresponds with GET /instance (the `GetInstance` operationId).
 func (c *Client) GetInstance(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -30579,7 +30610,7 @@ func (c *Client) GetInstance(ctx context.Context, reqEditors ...RequestEditorFn)
 
 // UpdateInstanceWithBody Change the instance settings
 //
-// Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.
+// Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.
 //
 // Takes any type of body and a specified content type.
 //
@@ -30598,7 +30629,7 @@ func (c *Client) UpdateInstanceWithBody(ctx context.Context, contentType string,
 
 // UpdateInstance Change the instance settings
 //
-// Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.
+// Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -32215,7 +32246,7 @@ func (c *Client) ListNotificationChannels(ctx context.Context, reqEditors ...Req
 
 // CreateNotificationChannelWithBody Add a notification channel
 //
-// Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
+// Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
 //
 // Takes any type of body and a specified content type.
 //
@@ -32234,7 +32265,7 @@ func (c *Client) CreateNotificationChannelWithBody(ctx context.Context, contentT
 
 // CreateNotificationChannel Add a notification channel
 //
-// Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
+// Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -38673,7 +38704,7 @@ func (c *Client) ListTeamInvites(ctx context.Context, teamId string, reqEditors 
 
 // CreateTeamInviteWithBody Invite someone to a team
 //
-// With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
+// With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
 //
 // Takes any type of body and a specified content type.
 //
@@ -38692,7 +38723,7 @@ func (c *Client) CreateTeamInviteWithBody(ctx context.Context, teamId string, pa
 
 // CreateTeamInvite Invite someone to a team
 //
-// With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
+// With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -38796,7 +38827,7 @@ func (c *Client) UpdateTeamMember(ctx context.Context, teamId string, userId str
 
 // CreateMemberPasswordResetLink Generate a password reset link for a member
 //
-// Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no SMTP setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).
+// Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no mail relay setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).
 //
 // Corresponds with POST /teams/{teamId}/members/{userId}/password-reset (the `CreateMemberPasswordResetLink` operationId).
 func (c *Client) CreateMemberPasswordResetLink(ctx context.Context, teamId string, userId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -44985,6 +45016,40 @@ func NewListGitDeliveriesRequest(server string, connectionId string, params *Lis
 	}
 
 	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewRestartGitHubAppManifestRequest constructs an http.Request for the RestartGitHubAppManifest method
+func NewRestartGitHubAppManifestRequest(server string, connectionId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "connectionId", connectionId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/git/connections/%s/github/manifest", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -61521,7 +61586,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestPasswordResetWithBodyWithResponse Email a password reset link
 	//
-	// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.
+	// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -61530,7 +61595,7 @@ type ClientWithResponsesInterface interface {
 
 	// RequestPasswordResetWithResponse Email a password reset link
 	//
-	// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.
+	// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -62675,6 +62740,15 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /git/connections/{connectionId}/deliveries (the `ListGitDeliveries` operationId).
 	ListGitDeliveriesWithResponse(ctx context.Context, connectionId string, params *ListGitDeliveriesParams, reqEditors ...RequestEditorFn) (*ListGitDeliveriesResponse, error)
 
+	// RestartGitHubAppManifestWithResponse Start creating a pending connection's GitHub App again
+	//
+	// For a GitHub App connection whose App was never created: returns a new manifest and `formUrl` (see startGitHubAppManifest); the previous one stops working. 422 `app_exists` once GitHub created the App (install it instead). Requires the `admin` scope.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /git/connections/{connectionId}/github/manifest (the `RestartGitHubAppManifest` operationId).
+	RestartGitHubAppManifestWithResponse(ctx context.Context, connectionId string, reqEditors ...RequestEditorFn) (*RestartGitHubAppManifestResponse, error)
+
 	// StartGitConnectionOAuthWithResponse Start (or restart) the OAuth authorization of a connection
 	//
 	// Returns the provider URL to open in the browser.
@@ -62722,7 +62796,7 @@ type ClientWithResponsesInterface interface {
 
 	// StartGitHubAppManifestWithBodyWithResponse Start creating a GitHub App
 	//
-	// Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
+	// Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -62731,7 +62805,7 @@ type ClientWithResponsesInterface interface {
 
 	// StartGitHubAppManifestWithResponse Start creating a GitHub App
 	//
-	// Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
+	// Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -62776,7 +62850,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetInstanceWithResponse Instance settings
 	//
-	// Whether team creation is allowed; SMTP details only for the instance admin (the first user).
+	// Whether team creation is allowed; mail relay details only for the instance admin (the first user).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -62785,7 +62859,7 @@ type ClientWithResponsesInterface interface {
 
 	// UpdateInstanceWithBodyWithResponse Change the instance settings
 	//
-	// Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.
+	// Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -62794,7 +62868,7 @@ type ClientWithResponsesInterface interface {
 
 	// UpdateInstanceWithResponse Change the instance settings
 	//
-	// Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.
+	// Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -63581,7 +63655,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateNotificationChannelWithBodyWithResponse Add a notification channel
 	//
-	// Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
+	// Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -63590,7 +63664,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateNotificationChannelWithResponse Add a notification channel
 	//
-	// Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
+	// Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -66711,7 +66785,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateTeamInviteWithBodyWithResponse Invite someone to a team
 	//
-	// With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
+	// With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -66720,7 +66794,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateTeamInviteWithResponse Invite someone to a team
 	//
-	// With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
+	// With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -66770,7 +66844,7 @@ type ClientWithResponsesInterface interface {
 
 	// CreateMemberPasswordResetLinkWithResponse Generate a password reset link for a member
 	//
-	// Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no SMTP setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).
+	// Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no mail relay setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -77140,6 +77214,89 @@ func (r ListGitDeliveriesResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r ListGitDeliveriesResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type RestartGitHubAppManifestResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *ManifestStart
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r RestartGitHubAppManifestResponse) GetJSON200() *ManifestStart {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r RestartGitHubAppManifestResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r RestartGitHubAppManifestResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r RestartGitHubAppManifestResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r RestartGitHubAppManifestResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r RestartGitHubAppManifestResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r RestartGitHubAppManifestResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r RestartGitHubAppManifestResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r RestartGitHubAppManifestResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r RestartGitHubAppManifestResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r RestartGitHubAppManifestResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -107521,7 +107678,7 @@ func (c *ClientWithResponses) ConfirmPasswordResetWithResponse(ctx context.Conte
 
 // RequestPasswordResetWithBodyWithResponse Email a password reset link
 //
-// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.
+// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -107536,7 +107693,7 @@ func (c *ClientWithResponses) RequestPasswordResetWithBodyWithResponse(ctx conte
 
 // RequestPasswordResetWithResponse Email a password reset link
 //
-// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.
+// Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. Limited to 10 requests per hour per client IP and 3 per hour per email address. 503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -109491,6 +109648,21 @@ func (c *ClientWithResponses) ListGitDeliveriesWithResponse(ctx context.Context,
 	return ParseListGitDeliveriesResponse(rsp)
 }
 
+// RestartGitHubAppManifestWithResponse Start creating a pending connection's GitHub App again
+//
+// For a GitHub App connection whose App was never created: returns a new manifest and `formUrl` (see startGitHubAppManifest); the previous one stops working. 422 `app_exists` once GitHub created the App (install it instead). Requires the `admin` scope.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /git/connections/{connectionId}/github/manifest (the `RestartGitHubAppManifest` operationId).
+func (c *ClientWithResponses) RestartGitHubAppManifestWithResponse(ctx context.Context, connectionId string, reqEditors ...RequestEditorFn) (*RestartGitHubAppManifestResponse, error) {
+	rsp, err := c.RestartGitHubAppManifest(ctx, connectionId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseRestartGitHubAppManifestResponse(rsp)
+}
+
 // StartGitConnectionOAuthWithResponse Start (or restart) the OAuth authorization of a connection
 //
 // Returns the provider URL to open in the browser.
@@ -109568,7 +109740,7 @@ func (c *ClientWithResponses) RotateGitWebhookSecretWithResponse(ctx context.Con
 
 // StartGitHubAppManifestWithBodyWithResponse Start creating a GitHub App
 //
-// Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
+// Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -109583,7 +109755,7 @@ func (c *ClientWithResponses) StartGitHubAppManifestWithBodyWithResponse(ctx con
 
 // StartGitHubAppManifestWithResponse Start creating a GitHub App
 //
-// Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
+// Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -109658,7 +109830,7 @@ func (c *ClientWithResponses) PlanCoolifyImportWithResponse(ctx context.Context,
 
 // GetInstanceWithResponse Instance settings
 //
-// Whether team creation is allowed; SMTP details only for the instance admin (the first user).
+// Whether team creation is allowed; mail relay details only for the instance admin (the first user).
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -109673,7 +109845,7 @@ func (c *ClientWithResponses) GetInstanceWithResponse(ctx context.Context, reqEd
 
 // UpdateInstanceWithBodyWithResponse Change the instance settings
 //
-// Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.
+// Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -109688,7 +109860,7 @@ func (c *ClientWithResponses) UpdateInstanceWithBodyWithResponse(ctx context.Con
 
 // UpdateInstanceWithResponse Change the instance settings
 //
-// Instance admin only: allow team creation and the SMTP relay used to mail invites when a team has no email channel.
+// Instance admin only: allow team creation and the mail relay (SMTP or Resend) used to mail invites and password resets when a team has no email channel.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -111021,7 +111193,7 @@ func (c *ClientWithResponses) ListNotificationChannelsWithResponse(ctx context.C
 
 // CreateNotificationChannelWithBodyWithResponse Add a notification channel
 //
-// Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
+// Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -111036,7 +111208,7 @@ func (c *ClientWithResponses) CreateNotificationChannelWithBodyWithResponse(ctx 
 
 // CreateNotificationChannelWithResponse Add a notification channel
 //
-// Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
+// Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), `telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -116335,7 +116507,7 @@ func (c *ClientWithResponses) ListTeamInvitesWithResponse(ctx context.Context, t
 
 // CreateTeamInviteWithBodyWithResponse Invite someone to a team
 //
-// With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
+// With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -116350,7 +116522,7 @@ func (c *ClientWithResponses) CreateTeamInviteWithBodyWithResponse(ctx context.C
 
 // CreateTeamInviteWithResponse Invite someone to a team
 //
-// With `email` the link is mailed (team email channel, else the instance SMTP relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
+// With `email` the link is mailed (team email channel, else the instance mail relay) and works once for that address; without it a link invite is created with an expiry and a use limit. `delivery` tells whether the email went out; the response always carries the link.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -116436,7 +116608,7 @@ func (c *ClientWithResponses) UpdateTeamMemberWithResponse(ctx context.Context, 
 
 // CreateMemberPasswordResetLinkWithResponse Generate a password reset link for a member
 //
-// Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no SMTP setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).
+// Owners and admins (admins cannot reset an owner); signed-in users only. The link works once for 30 minutes, needs no mail relay setup and is shown once. Using it ends every session of the member; their API tokens keep working unless they choose to revoke them. 409 `no_password` for members who only sign in through an identity provider. A member who belongs to another team can be reset only by the instance admin (409 `member_of_other_teams`); the instance admin's own password is reset on the server (403 `instance_admin_account`).
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -125082,6 +125254,74 @@ func ParseListGitDeliveriesResponse(rsp *http.Response) (*ListGitDeliveriesRespo
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest PageWebhookDeliveryView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseRestartGitHubAppManifestResponse parses an HTTP response from a RestartGitHubAppManifestWithResponse call
+func ParseRestartGitHubAppManifestResponse(rsp *http.Response) (*RestartGitHubAppManifestResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &RestartGitHubAppManifestResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest ManifestStart
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

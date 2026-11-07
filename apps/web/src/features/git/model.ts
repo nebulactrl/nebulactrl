@@ -181,20 +181,3 @@ export function readFlowResult(search: string): FlowResult {
 	const rest = params.toString();
 	return { connected, notice, error, rest: rest === "" ? "" : `?${rest}` };
 }
-
-/**
- * Submits the GitHub App manifest the way GitHub requires: a form POST in the
- * browser (the page navigates to github.com).
- */
-export function submitManifestForm(postUrl: string, manifest: string): void {
-	const form = document.createElement("form");
-	form.method = "post";
-	form.action = postUrl;
-	const field = document.createElement("input");
-	field.type = "hidden";
-	field.name = "manifest";
-	field.value = manifest;
-	form.appendChild(field);
-	document.body.appendChild(form);
-	form.submit();
-}

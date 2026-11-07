@@ -47,7 +47,6 @@ type createPageInput struct {
 		Footer        string     `json:"footer,omitempty" maxLength:"500" doc:"Plain text shown under the public page; line breaks kept"`
 		Hostname      string     `json:"hostname,omitempty" maxLength:"253" doc:"The public DNS name the page is served on, e.g. status.example.com. Lowercased; unique; not the dashboard's host or a service domain"`
 		ShowUptime    *bool      `json:"showUptime,omitempty" doc:"Show availability percentages (default true)"`
-		Theme         string     `json:"theme,omitempty" enum:"auto,light,dark" doc:"Default auto: the visitor's preference"`
 		FromProjectID *uuid.UUID `json:"fromProjectId,omitempty" doc:"Start from a project: the page gets that project's production-environment services that have at least one public domain as components (display name = service name, no group, in name order). Editable afterwards. 422 unknown_project when the project is not in the workspace"`
 	}
 }
@@ -62,7 +61,6 @@ type updatePageInput struct {
 		Hostname    *string `json:"hostname,omitempty" maxLength:"253" doc:"Empty removes the hostname (the page must not be published)"`
 		Published   *bool   `json:"published,omitempty" doc:"true serves the page on its hostname; needs a hostname and at least one component"`
 		ShowUptime  *bool   `json:"showUptime,omitempty"`
-		Theme       *string `json:"theme,omitempty" enum:"auto,light,dark"`
 	}
 }
 
@@ -200,7 +198,7 @@ func Register(h huma.API, svc *Service) {
 	}), policy.ScopeAdmin), func(ctx context.Context, in *createPageInput) (*pageOutput, error) {
 		v, err := svc.Create(ctx, PageCreate{
 			Title: in.Body.Title, Slug: in.Body.Slug, Description: in.Body.Description, Footer: in.Body.Footer, Hostname: in.Body.Hostname,
-			ShowUptime: in.Body.ShowUptime, Theme: in.Body.Theme, FromProjectID: in.Body.FromProjectID,
+			ShowUptime: in.Body.ShowUptime, FromProjectID: in.Body.FromProjectID,
 		})
 		if err != nil {
 			return nil, err
@@ -228,7 +226,7 @@ func Register(h huma.API, svc *Service) {
 	}, policy.ScopeAdmin), func(ctx context.Context, in *updatePageInput) (*pageOutput, error) {
 		v, err := svc.Update(ctx, in.ID, PagePatch{
 			Title: in.Body.Title, Slug: in.Body.Slug, Description: in.Body.Description, Footer: in.Body.Footer, Hostname: in.Body.Hostname,
-			Published: in.Body.Published, ShowUptime: in.Body.ShowUptime, Theme: in.Body.Theme,
+			Published: in.Body.Published, ShowUptime: in.Body.ShowUptime,
 		})
 		if err != nil {
 			return nil, err

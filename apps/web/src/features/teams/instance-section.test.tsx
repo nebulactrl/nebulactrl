@@ -10,7 +10,8 @@ function instance(over: Partial<InstanceSettings> = {}): InstanceSettings {
 	return {
 		allowTeamCreation: true,
 		canManage: true,
-		smtpConfigured: false,
+		mailConfigured: false,
+		mailProvider: "smtp",
 		...over,
 	};
 }
@@ -146,12 +147,12 @@ describe("MailRelaySection", () => {
 		stubApi({
 			"GET /instance": {
 				body: instance({
-					smtpConfigured: true,
+					mailConfigured: true,
 					smtpHost: "smtp.example.com",
 					smtpPort: 465,
 					smtpTls: "implicit",
 					smtpUsername: "mailer",
-					smtpFrom: "Nebula <no-reply@example.com>",
+					mailFrom: "Nebula <no-reply@example.com>",
 					smtpPasswordSet: true,
 				}),
 			},
@@ -209,11 +210,65 @@ describe("MailRelaySection", () => {
 		expect(patches(api)[0]?.path).toBe("/instance");
 		// No smtpPassword key: the stored password is kept.
 		expect(patches(api)[0]?.body).toEqual({
+			mailProvider: "smtp",
+			mailFrom: "no-reply@example.com",
 			smtpHost: "smtp.example.com",
 			smtpTls: "starttls",
 			smtpUsername: "mailer",
-			smtpFrom: "no-reply@example.com",
 			smtpPort: 587,
+		});
+	});
+
+	test("a Resend relay saves its provider, sender and key without any SMTP field", async () => {
+		const api = stubApi({
+			"GET /instance": { body: instance() },
+			"PATCH /instance": { body: instance() },
+		});
+		const user = userEvent.setup();
+		await renderWithProviders(<MailRelaySection />);
+
+		await user.click(await screen.findByRole("button", { name: "Resend" }));
+		expect(screen.queryByLabelText("SMTP host")).not.toBeInTheDocument();
+		await user.type(screen.getByLabelText("Sender"), " no-reply@example.com ");
+		await user.type(screen.getByLabelText("API key"), " re_abc ");
+		await user.click(screen.getByRole("button", { name: "Save mail relay" }));
+
+		expect(await screen.findByText("Email relay saved")).toBeInTheDocument();
+		expect(patches(api)[0]?.body).toEqual({
+			mailProvider: "resend",
+			mailFrom: "no-reply@example.com",
+			resendApiKey: "re_abc",
+		});
+		await waitFor(() =>
+			expect(screen.getByLabelText("API key")).toHaveValue(""),
+		);
+	});
+
+	test("a stored Resend key is shown as kept and not sent again when left empty", async () => {
+		const api = stubApi({
+			"GET /instance": {
+				body: instance({
+					mailProvider: "resend",
+					mailFrom: "no-reply@example.com",
+					resendApiKeySet: true,
+					mailConfigured: true,
+				}),
+			},
+			"PATCH /instance": { body: instance() },
+		});
+		const user = userEvent.setup();
+		await renderWithProviders(<MailRelaySection />);
+
+		const key = await screen.findByLabelText("API key");
+		expect(key).toHaveValue("");
+		expect(key).toHaveAttribute("placeholder", "Stored — leave empty to keep");
+		expect(screen.getByLabelText("Sender")).toHaveValue("no-reply@example.com");
+		await user.click(screen.getByRole("button", { name: "Save mail relay" }));
+
+		await screen.findByText("Email relay saved");
+		expect(patches(api)[0]?.body).toEqual({
+			mailProvider: "resend",
+			mailFrom: "no-reply@example.com",
 		});
 	});
 

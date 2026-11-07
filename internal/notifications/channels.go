@@ -51,7 +51,7 @@ type ChannelView struct {
 	Kind      string            `json:"kind" enum:"email,slack,discord,telegram,webhook"`
 	Enabled   bool              `json:"enabled"`
 	Config    ChannelConfig     `json:"config"`
-	Secrets   map[string]string `json:"secrets" doc:"Masked hints of the stored secrets, keyed by name (url, botToken, password, signingSecret). A key is present when the secret is set; its value never reveals it."`
+	Secrets   map[string]string `json:"secrets" doc:"Masked hints of the stored secrets, keyed by name (url, botToken, password, apiKey, signingSecret). A key is present when the secret is set; its value never reveals it."`
 	Rule      ChannelRule       `json:"rule"`
 	Test      ChannelTestState  `json:"test"`
 	Stats     ChannelStats      `json:"stats"`
@@ -306,9 +306,7 @@ func (s *Service) CreateChannel(ctx context.Context, in ChannelInput) (Created, 
 		}
 		sec.SigningSecret = generated
 	}
-	if in.Kind != KindWebhook {
-		sec.SigningSecret = ""
-	}
+	sec = pruneSecrets(in.Kind, cfg, sec)
 	if err := validateSecrets(in.Kind, cfg, sec); err != nil {
 		return Created{}, err
 	}
@@ -396,18 +394,15 @@ func (s *Service) UpdateChannel(ctx context.Context, id uuid.UUID, p ChannelPatc
 	if err != nil {
 		return ChannelView{}, err
 	}
-	changedSecrets := false
+	orig := sec
 	if p.Secrets != nil {
-		next := p.Secrets.merge(sec)
-		if cur.Kind != KindWebhook {
-			next.SigningSecret = ""
-		}
-		changedSecrets = next != sec
-		sec = next
+		sec = p.Secrets.merge(sec)
 	}
 	if cfg.Username == "" && cur.Kind == KindEmail {
 		sec.Password = "" // removing the user name drops the password with it
 	}
+	sec = pruneSecrets(cur.Kind, cfg, sec)
+	changedSecrets := sec != orig
 	if err := validateSecrets(cur.Kind, cfg, sec); err != nil {
 		return ChannelView{}, err
 	}

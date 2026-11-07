@@ -113,7 +113,7 @@ func newFx(t *testing.T) *fx {
 
 	ws, user, project, ids := seed("acme", "svc-secret-api", "svc-secret-web", "svc-secret-db")
 	ws2, _, _, ids2 := seed("other", "svc-secret-foreign")
-	foreignPage, err := q.InsertStatusPage(bg, db.InsertStatusPageParams{WorkspaceID: ws2, Title: "Other", Slug: "other", Description: "", Published: false, ShowUptime: true, Theme: "auto"})
+	foreignPage, err := q.InsertStatusPage(bg, db.InsertStatusPageParams{WorkspaceID: ws2, Title: "Other", Slug: "other", Description: "", Published: false, ShowUptime: true})
 	require.NoError(t, err)
 
 	f := &fx{

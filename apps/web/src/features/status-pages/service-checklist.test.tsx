@@ -179,7 +179,6 @@ function page(over: Partial<StatusPageView> = {}): StatusPageView {
 		slug: "acme-status",
 		description: "",
 		footer: "",
-		theme: "auto",
 		showUptime: true,
 		hostname: "status.example.com",
 		published: true,

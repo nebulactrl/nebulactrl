@@ -36,43 +36,44 @@ func outline(html string) []string {
 // The page's skeleton: the headings in order are a snapshot of what the page
 // shows and how it is nested, and they are what a screen reader navigates by.
 func TestPageOutlineSnapshot(t *testing.T) {
-	for _, theme := range []string{"light", "dark", "auto"} {
-		html := render(t, fixturePage(theme))
-		require.Equal(t, []string{
-			"h1 Acme Status",
-			"h2 Active incidents",
-			"h3 Dashboard unavailable",
-			"h2 Maintenance",
-			"h3 Docs reindex",
-			"h3 Database upgrade",
-			"h2 Components",
-			"h3 Web",
-			"h2 Past incidents",
-			"h3 Slow API",
-		}, outline(html), theme)
-	}
+	html := render(t, fixturePage())
+	require.Equal(t, []string{
+		"h1 Acme Status",
+		"h2 Active incidents",
+		"h3 Dashboard unavailable",
+		"h2 Maintenance",
+		"h3 Docs reindex",
+		"h3 Database upgrade",
+		"h2 Components",
+		"h3 Web",
+		"h2 Past incidents",
+		"h3 Slow API",
+	}, outline(html))
 }
 
-func TestThemeIsCarriedByTheDocument(t *testing.T) {
-	for theme, scheme := range map[string]string{"light": "light", "dark": "dark", "auto": "light dark"} {
-		html := render(t, fixturePage(theme))
-		require.Containsf(t, html, `<html lang="en" data-theme="`+theme+`">`, theme)
-		require.Containsf(t, html, `<meta name="color-scheme" content="`+scheme+`">`, theme)
-	}
-	html := render(t, fixturePage("neon"))
-	require.Contains(t, html, `data-theme="auto"`, "an unknown theme is auto")
+// The page is dark for every visitor: the document says so, and there is no
+// theme attribute to switch it.
+func TestPageIsAlwaysDark(t *testing.T) {
+	html := render(t, fixturePage())
+	require.Contains(t, html, `<html lang="en">`)
+	require.Contains(t, html, `<meta name="color-scheme" content="dark">`)
+	require.NotContains(t, html, "data-theme")
+	nf := string(renderNotFound("/status.css"))
+	require.Contains(t, nf, `<meta name="color-scheme" content="dark">`)
+	require.NotContains(t, nf, "data-theme")
 }
 
-func TestStylesheetCoversBothThemesAndNarrowScreens(t *testing.T) {
+func TestStylesheetIsDarkOnlyAndCoversNarrowScreens(t *testing.T) {
 	css := buildCSS(fontFiles{})
-	require.Equal(t, 1, strings.Count(css, ":root {\n\tcolor-scheme: light;"), "light is the base palette")
-	require.Contains(t, css, "@media (prefers-color-scheme: dark) {\n\t:root[data-theme=\"auto\"] {\n\t\tcolor-scheme: dark;")
-	require.Contains(t, css, ":root[data-theme=\"dark\"] {\n\tcolor-scheme: dark;")
+	require.Equal(t, 1, strings.Count(css, ":root {\n\tcolor-scheme: dark;\n\t--bg: #121417;"), "the dark palette is the base palette")
+	require.NotContains(t, css, "color-scheme: light")
+	require.NotContains(t, css, "prefers-color-scheme")
+	require.NotContains(t, css, "data-theme")
 	require.Contains(t, css, "@media (max-width: 640px)")
 	require.Contains(t, css, ".bar svg { width: 300%; margin-left: -200%; }", "the 90-day SVG is cropped to its last 30 days")
 	require.Contains(t, css, "@media (forced-colors: active)")
 	for _, v := range []string{"--bg", "--surface", "--ink-1", "--ink-2", "--ink-3", "--ok-text", "--bad-text", "--degraded-text", "--info-text", "--mute-text"} {
-		require.Equalf(t, 3, strings.Count(css, v+":"), "%s is defined for light, auto-dark and dark", v)
+		require.Equalf(t, 1, strings.Count(css, v+":"), "%s is defined once", v)
 	}
 	require.NotContains(t, css, "@import", "no external stylesheet: the CSP allows 'self' only")
 	require.NotContains(t, css, "http://fonts", "no external font")
@@ -86,7 +87,7 @@ func TestEveryStateHasALabelAndAnIcon(t *testing.T) {
 	}
 	seen := map[string]string{}
 	for _, s := range states {
-		p := fixturePage("auto")
+		p := fixturePage()
 		p.Overall = s
 		html := render(t, p)
 		require.Contains(t, html, `class="card banner st-`+s+`" role="status"><svg class="icon"`, s)
@@ -111,7 +112,7 @@ func TestEveryStateHasALabelAndAnIcon(t *testing.T) {
 }
 
 func TestComponentsShowLabelUptimeAndBar(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Contains(t, html, `<span class="name"><a href="https://api.acme.example/docs" rel="noopener noreferrer nofollow">API</a></span><span class="meta"><span class="uptime"><span title="Last 24 hours">99.98% <small>24h</small></span><span title="Last 90 days">99.99% <small>90d</small></span></span>`, "99.996% is truncated, not rounded up")
 	require.Contains(t, html, `<span class="name">Dashboard</span>`, "a link that is not https is dropped")
 	require.Contains(t, html, `<span title="Last 24 hours">95% <small>24h</small></span><span title="Last 90 days">98.73% <small>90d</small></span></span><a class="incident-tag" href="#h-incidents">Incident in progress</a><span class="state st-major_outage"><svg class="icon"`, "Dashboard is named by the active incident: the note sits beside its state, which keeps its icon and label")
@@ -130,7 +131,7 @@ func TestComponentsShowLabelUptimeAndBar(t *testing.T) {
 }
 
 func TestBarCellsFollowTheBandsAndCarryDetails(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	cells := cellRe.FindAllStringSubmatch(html, -1)
 	require.Len(t, cells, 4*90, "API, Dashboard, Docs and Search have 90 days each (Mail none)")
 
@@ -175,7 +176,7 @@ func cellData(attrs string) map[string]string {
 // date as the page words dates, the state word, the figure only where the page
 // shows figures, and the day's incidents.
 func TestBarCellsCarryTheDataTheTooltipShows(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	cells := cellRe.FindAllStringSubmatch(html, -1)
 	dash := cells[90 : 2*90]
 
@@ -195,7 +196,7 @@ func TestBarCellsCarryTheDataTheTooltipShows(t *testing.T) {
 }
 
 func TestBarCellsCarryNoFiguresWhenThePageHidesThem(t *testing.T) {
-	p := fixturePage("auto")
+	p := fixturePage()
 	p.ShowUptime = false
 	html := render(t, p)
 	cells := cellRe.FindAllStringSubmatch(html, -1)
@@ -258,7 +259,7 @@ func TestPercentIsTruncatedNeverRoundedUp(t *testing.T) {
 }
 
 func TestEventsRenderTheirTimeline(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Contains(t, html, `<span class="badge st-major_outage">`)
 	require.Contains(t, html, `Critical</span></header>`)
 	require.Contains(t, html, `Identified · Started <time datetime="2026-10-29T10:00:00Z">29 Oct 2026, 10:00 UTC</time>`)
@@ -272,7 +273,7 @@ func TestEventsRenderTheirTimeline(t *testing.T) {
 	require.Contains(t, html, `<time datetime="2026-11-01T11:00:00Z">1 Nov 2026, 11:00 UTC</time> to <time datetime="2026-11-01T13:00:00Z">`)
 	require.Contains(t, html, `Resolved <time datetime="2026-10-29T09:00:00Z">`)
 
-	empty := fixturePage("auto")
+	empty := fixturePage()
 	empty.ActiveIncidents, empty.Maintenance, empty.PastIncidents = nil, nil, nil
 	html = render(t, empty)
 	require.Equal(t, []string{"h1 Acme Status", "h2 Components", "h3 Web", "h2 Past incidents"}, outline(html))
@@ -280,7 +281,7 @@ func TestEventsRenderTheirTimeline(t *testing.T) {
 }
 
 func TestFooterAndDocumentBasics(t *testing.T) {
-	html := render(t, fixturePage("auto"))
+	html := render(t, fixturePage())
 	require.Contains(t, html, `Powered by <a href="https://nebulactrl.com" rel="noopener noreferrer">NebulaCtrl</a>`)
 	require.Contains(t, html, `Last updated <time datetime="2026-10-29T12:00:00Z">29 Oct 2026, 12:00 UTC</time> (<span class="age">2 min ago</span>). This page refreshes every minute.`)
 	require.Contains(t, html, `<meta name="viewport" content="width=device-width, initial-scale=1">`)
@@ -290,7 +291,7 @@ func TestFooterAndDocumentBasics(t *testing.T) {
 	require.Equal(t, 1, strings.Count(html, "<script"), "only the page's own same-origin script")
 	require.True(t, strings.HasPrefix(html, "<!doctype html>"))
 
-	long := fixturePage("auto")
+	long := fixturePage()
 	long.Description = strings.Repeat("word ", 100)
 	require.Equal(t, metaDescriptionLimit, len([]rune(metaDescription(long.Description))))
 	require.Equal(t, 155, metaDescriptionLimit)

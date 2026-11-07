@@ -20,9 +20,6 @@ var pageTemplateSource string
 //go:embed assets/status.css
 var baseCSS string
 
-//go:embed assets/dark.css
-var darkCSS string
-
 // statusJS is the page's one script: the day tooltip of the uptime bars. The
 // page is complete without it. It is served from the page's own origin, which
 // is all the CSP's script-src allows.
@@ -131,11 +128,9 @@ const (
 )
 
 // buildCSS assembles the stylesheet: the font faces of the fonts that exist
-// (otherwise the system stack in the sheet applies), the dark variables for
-// both the automatic and the forced dark theme, and the base rules.
+// (otherwise the system stack in the sheet applies) and the base rules, whose
+// palette is the dark one.
 func buildCSS(f fontFiles) string {
-	css := strings.Replace(baseCSS, "/*DARK-AUTO*/", darkCSS, 1)
-	css = strings.Replace(css, "/*DARK-FORCED*/", darkCSS, 1)
 	var faces strings.Builder
 	if len(f.Sans) > 0 {
 		fmt.Fprintf(&faces, "@font-face{font-family:\"IBM Plex Sans Variable\";font-style:normal;font-display:swap;font-weight:100 700;src:url(%s) format(\"woff2\")}\n", pathFontSans)
@@ -146,7 +141,7 @@ func buildCSS(f fontFiles) string {
 	if len(f.Mono600) > 0 {
 		fmt.Fprintf(&faces, "@font-face{font-family:\"IBM Plex Mono\";font-style:normal;font-display:swap;font-weight:600;src:url(%s) format(\"woff2\")}\n", pathFontMono600)
 	}
-	return faces.String() + css
+	return faces.String() + baseCSS
 }
 
 // gzipped compresses b; it returns nil when compression does not pay.

@@ -22,10 +22,10 @@ func TestServiceDomainCannotTakeAStatusPageHostname(t *testing.T) {
 	ws, err := q.CreateWorkspace(bg, "team")
 	require.NoError(t, err)
 	host := "status.example.com"
-	_, err = q.InsertStatusPage(bg, db.InsertStatusPageParams{WorkspaceID: ws.ID, Title: "Status", Slug: "status", Hostname: &host, ShowUptime: true, Theme: "auto"})
+	_, err = q.InsertStatusPage(bg, db.InsertStatusPageParams{WorkspaceID: ws.ID, Title: "Status", Slug: "status", Hostname: &host, ShowUptime: true})
 	require.NoError(t, err)
 	// A page without a hostname reserves nothing.
-	_, err = q.InsertStatusPage(bg, db.InsertStatusPageParams{WorkspaceID: ws.ID, Title: "Draft", Slug: "draft", ShowUptime: true, Theme: "auto"})
+	_, err = q.InsertStatusPage(bg, db.InsertStatusPageParams{WorkspaceID: ws.ID, Title: "Draft", Slug: "draft", ShowUptime: true})
 	require.NoError(t, err)
 
 	s := &Service{pool: pool, q: q}

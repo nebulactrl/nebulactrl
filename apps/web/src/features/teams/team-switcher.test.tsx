@@ -26,7 +26,7 @@ function instance(over: Overrides<InstanceSettings> = {}): InstanceSettings {
 	return make("InstanceSettings", {
 		allowTeamCreation: false,
 		canManage: false,
-		smtpConfigured: false,
+		mailConfigured: false,
 		...over,
 	});
 }

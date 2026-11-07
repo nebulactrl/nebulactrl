@@ -521,19 +521,23 @@ export type ChannelConfig = {
      */
     from?: string;
     /**
-     * Email: SMTP server host name.
+     * Email (smtp): SMTP server host name.
      */
     host?: string;
     /**
-     * Email: accept any server certificate (self-signed relays). The connection is still encrypted.
+     * Email (smtp): accept any server certificate (self-signed relays). The connection is still encrypted.
      */
     insecureSkipVerify?: boolean;
     /**
-     * Email: SMTP port. Default: 465 (implicit TLS), 587 (STARTTLS), 25 (none).
+     * Email (smtp): SMTP port. Default: 465 (implicit TLS), 587 (STARTTLS), 25 (none).
      */
     port?: number;
     /**
-     * Email: connection security. Default starttls.
+     * Email: how mail is sent. Default smtp.
+     */
+    provider?: 'smtp' | 'resend';
+    /**
+     * Email (smtp): connection security. Default starttls.
      */
     tls?: 'implicit' | 'starttls' | 'none';
     /**
@@ -541,7 +545,7 @@ export type ChannelConfig = {
      */
     to?: Array<string> | null;
     /**
-     * Email: SMTP user name; empty sends without authentication.
+     * Email (smtp): SMTP user name; empty sends without authentication.
      */
     username?: string;
 };
@@ -631,11 +635,15 @@ export type ChannelRuleInput = {
 
 export type ChannelSecretsInput = {
     /**
+     * Email (resend): the Resend API key. Required for the resend provider.
+     */
+    apiKey?: string;
+    /**
      * Telegram: the bot token from @BotFather.
      */
     botToken?: string;
     /**
-     * Email: the SMTP password.
+     * Email (smtp): the SMTP password.
      */
     password?: string;
     /**
@@ -669,7 +677,7 @@ export type ChannelView = {
     name: string;
     rule: ChannelRule;
     /**
-     * Masked hints of the stored secrets, keyed by name (url, botToken, password, signingSecret). A key is present when the secret is set; its value never reveals it.
+     * Masked hints of the stored secrets, keyed by name (url, botToken, password, apiKey, signingSecret). A key is present when the secret is set; its value never reveals it.
      */
     secrets: {
         [key: string]: string;
@@ -2613,10 +2621,6 @@ export type CreatePageInputBody = {
      * Unique in the workspace: lowercase letters, digits and hyphens. Default: derived from the title
      */
     slug?: string;
-    /**
-     * Default auto: the visitor's preference
-     */
-    theme?: 'auto' | 'light' | 'dark';
     /**
      * Shown as the page's heading
      */
@@ -4853,8 +4857,16 @@ export type InstanceSettings = {
     /**
      * Invites can be emailed through the instance relay
      */
-    smtpConfigured: boolean;
-    smtpFrom?: string;
+    mailConfigured: boolean;
+    /**
+     * Sender address for both providers
+     */
+    mailFrom?: string;
+    /**
+     * How the instance relay sends mail
+     */
+    mailProvider?: 'smtp' | 'resend';
+    resendApiKeySet?: boolean;
     smtpHost?: string;
     smtpInsecureSkipVerify?: boolean;
     smtpPasswordSet?: boolean;
@@ -5293,6 +5305,7 @@ export type ManifestInputBody = {
 
 export type ManifestStart = {
     connectionId: string;
+    formUrl: string;
     manifest: string;
     postUrl: string;
     state: string;
@@ -9301,7 +9314,6 @@ export type StatusPageView = {
      */
     showUptime: boolean;
     slug: string;
-    theme: 'auto' | 'light' | 'dark';
     title: string;
     updatedAt: string;
 };
@@ -10414,7 +10426,18 @@ export type UpdateInputBody = {
 
 export type UpdateInstanceInputBody = {
     allowTeamCreation?: boolean;
-    smtpFrom?: string;
+    /**
+     * Sender address for both providers.
+     */
+    mailFrom?: string;
+    /**
+     * How the instance relay sends mail. Default smtp.
+     */
+    mailProvider?: 'smtp' | 'resend';
+    /**
+     * Write-only. Empty clears it.
+     */
+    resendApiKey?: string;
     smtpHost?: string;
     smtpInsecureSkipVerify?: boolean;
     /**
@@ -10473,7 +10496,6 @@ export type UpdatePageInputBody = {
     published?: boolean;
     showUptime?: boolean;
     slug?: string;
-    theme?: 'auto' | 'light' | 'dark';
     title?: string;
 };
 
@@ -17661,6 +17683,53 @@ export type ListGitDeliveriesResponses = {
 };
 
 export type ListGitDeliveriesResponse = ListGitDeliveriesResponses[keyof ListGitDeliveriesResponses];
+
+export type RestartGitHubAppManifestData = {
+    body?: never;
+    path: {
+        connectionId: string;
+    };
+    query?: never;
+    url: '/git/connections/{connectionId}/github/manifest';
+};
+
+export type RestartGitHubAppManifestErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type RestartGitHubAppManifestError = RestartGitHubAppManifestErrors[keyof RestartGitHubAppManifestErrors];
+
+export type RestartGitHubAppManifestResponses = {
+    /**
+     * OK
+     */
+    200: ManifestStart;
+};
+
+export type RestartGitHubAppManifestResponse = RestartGitHubAppManifestResponses[keyof RestartGitHubAppManifestResponses];
 
 export type StartGitConnectionOAuthData = {
     body?: never;

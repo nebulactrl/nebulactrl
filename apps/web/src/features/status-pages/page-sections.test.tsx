@@ -24,7 +24,6 @@ function page(over: Partial<StatusPageView> = {}): StatusPageView {
 		slug: "acme-status",
 		description: "How we are doing",
 		footer: "ops@acme.test",
-		theme: "auto",
 		showUptime: true,
 		hostname: "status.acme.test",
 		published: false,
@@ -139,31 +138,6 @@ describe("GeneralSection", () => {
 		expect(screen.getByLabelText("Footer")).toBeValid();
 	});
 
-	it("switches the theme of the public page", async () => {
-		const user = userEvent.setup();
-		const seen: Partial<PageForm>[] = [];
-		await renderWithProviders(
-			<GeneralHarness
-				initial={formFromPage(page({ theme: "auto" }))}
-				seen={(change) => seen.push(change)}
-			/>,
-		);
-		const themes = screen.getByRole("group", {
-			name: "Theme of the public page",
-		});
-		expect(
-			within(themes).getByRole("button", { name: "Auto" }),
-		).toHaveAttribute("aria-pressed", "true");
-		await user.click(within(themes).getByRole("button", { name: "Dark" }));
-		expect(seen).toEqual([{ theme: "dark" }]);
-		expect(
-			within(themes).getByRole("button", { name: "Dark" }),
-		).toHaveAttribute("aria-pressed", "true");
-		expect(
-			within(themes).getByRole("button", { name: "Auto" }),
-		).toHaveAttribute("aria-pressed", "false");
-	});
-
 	it("toggles uptime percentages and says what that shows", async () => {
 		const user = userEvent.setup();
 		const seen: Partial<PageForm>[] = [];
@@ -179,7 +153,7 @@ describe("GeneralSection", () => {
 		expect(screen.queryByText("Percentages shown")).not.toBeInTheDocument();
 	});
 
-	it("disables the theme choice and the uptime switch when read-only", async () => {
+	it("disables the uptime switch when read-only", async () => {
 		await renderWithProviders(
 			<GeneralHarness initial={formFromPage(page())} readOnly />,
 		);
@@ -187,26 +161,15 @@ describe("GeneralSection", () => {
 			"aria-disabled",
 			"true",
 		);
-		const themes = screen.getByRole("group", {
-			name: "Theme of the public page",
-		});
-		expect(within(themes).getAllByRole("button")).toHaveLength(3);
-		for (const option of within(themes).getAllByRole("button"))
-			expect(option).toHaveAttribute("aria-disabled", "true");
 	});
 
-	it("leaves the theme choice and the uptime switch usable by default", async () => {
+	it("leaves the uptime switch usable by default", async () => {
 		await renderWithProviders(
 			<GeneralHarness initial={formFromPage(page())} />,
 		);
 		expect(
 			screen.getByRole("switch", { name: "Show uptime" }),
 		).not.toHaveAttribute("aria-disabled", "true");
-		const themes = screen.getByRole("group", {
-			name: "Theme of the public page",
-		});
-		for (const option of within(themes).getAllByRole("button"))
-			expect(option).not.toHaveAttribute("aria-disabled", "true");
 	});
 });
 

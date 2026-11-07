@@ -90,7 +90,7 @@ func Register(h huma.API, svc *auth.Service, sessions *scs.SessionManager) {
 		Description: "Answers 202 whether or not the account exists, so it cannot be used to find out which emails are registered; " +
 			"accounts that sign in only through an identity provider get no email. The link works once and expires after 30 minutes. " +
 			"Limited to 10 requests per hour per client IP and 3 per hour per email address. " +
-			"503 `password_reset_unavailable` when the instance has no SMTP relay or team email channel, or no public URL.",
+			"503 `password_reset_unavailable` when the instance has no mail relay or team email channel, or no public URL.",
 		DefaultStatus: http.StatusAccepted,
 		Errors:        []int{http.StatusTooManyRequests, http.StatusServiceUnavailable},
 	}), func(ctx context.Context, in *passwordResetRequestInput) (*passwordResetRequestOutput, error) {

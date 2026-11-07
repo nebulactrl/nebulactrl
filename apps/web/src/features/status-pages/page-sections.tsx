@@ -2,7 +2,6 @@ import { CheckIcon, CircleIcon, ExternalLinkIcon } from "lucide-react";
 import type { StatusPageView } from "#/api/gen/types.gen";
 import { Button } from "#/components/ui/button";
 import { FieldError } from "#/components/ui/field";
-import { Segmented } from "#/components/ui/segmented";
 import { Switch } from "#/components/ui/switch";
 import { Textarea } from "#/components/ui/textarea";
 import {
@@ -20,13 +19,11 @@ import {
 	type PageForm,
 	type PageFormErrors,
 	publicUrl,
-	THEMES,
-	type Theme,
 } from "./model";
 
 export type FormChange = (change: Partial<PageForm>) => void;
 
-/** What the page says about itself: heading, address segment, text, theme. */
+/** What the page says about itself: heading, address segment, text, uptime display. */
 export function GeneralSection({
 	form,
 	errors,
@@ -90,21 +87,6 @@ export function GeneralSection({
 					onChange={(event) => onChange({ footer: event.target.value })}
 				/>
 				<FieldError>{errors.footer}</FieldError>
-			</SettingRow>
-			<SettingRow
-				label="Theme"
-				description="Auto follows each visitor's own light or dark setting."
-			>
-				<div>
-					<Segmented<Theme>
-						aria-label="Theme of the public page"
-						font="sans"
-						density="regular"
-						value={form.theme}
-						onValueChange={(theme) => onChange({ theme })}
-						options={THEMES.map((theme) => ({ ...theme, disabled: readOnly }))}
-					/>
-				</div>
 			</SettingRow>
 			<SettingRow
 				label="Show uptime"

@@ -24,9 +24,11 @@ coverage:
     patch:
       default:
         target: 85%
-comment:
-  layout: "condensed_header, diff, flags, condensed_files"
-  require_changes: true # no comment on pull requests that do not change coverage
+# No pull request comment. Its header shows a red cross whenever any changed line
+# is uncovered, whatever the patch target, and no setting ties it to the target
+# (codecov/feedback#54, codecov/umbrella#1380). The codecov/patch check is the
+# gate; uncovered lines are annotated in the pull request's "Files changed".
+comment: false
 
 flag_management:
   default_rules:

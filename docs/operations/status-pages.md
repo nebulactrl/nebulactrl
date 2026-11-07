@@ -31,7 +31,6 @@ curl -X POST "$NEBULACTRL_URL/api/v1/status-pages" -H "Authorization: Bearer $TO
 | `footer` | up to 500 characters, plain text with line breaks, shown under the page (a contact address, a link to your social account). It is never interpreted as markup |
 | `hostname` | optional at first, see [Hostname and DNS](#hostname-and-dns) |
 | `showUptime` | show the availability percentages next to the day bars. Default `true` |
-| `theme` | `auto` (the visitor's preference, default), `light` or `dark` |
 | `fromProjectId` | optional: start with a project's production services that have a public domain, see [Start from a project](#start-from-a-project) |
 
 A new page is **unpublished**: nothing is served yet. `PATCH /status-pages/{pageId}` changes any field later (`GET /status-pages`, `GET /status-pages/{pageId}`, `DELETE /status-pages/{pageId}` complete the set). Deleting a page withdraws its route; incidents and maintenance windows that were posted to it stay.
@@ -279,7 +278,7 @@ Only `GET` and `HEAD`; everything else is `405`.
 - **Head**: `<meta name="description">` (the description cut at 155 characters, or the overall state when there is none), Open Graph title and description, and `<link rel="alternate" type="application/atom+xml">` for the feed.
 - **Anchors**: every incident and window has an element id (`inc-<key>`, `mw-<key>`) that the feed links to.
 
-The page follows the page's **theme**: `light`, `dark`, or `auto`, which follows the visitor's `prefers-color-scheme`. Every state has an icon shape and a text label, so colour is never the only cue. A component that an active incident names says "Incident in progress" beside its state. On narrow screens the bar shows the last 30 days and a line under it says the uptime figure covers 90.
+The page always uses the dark palette (`color-scheme: dark`), whatever the visitor's operating system prefers; there is no light theme and no per-page setting for it. Every state has an icon shape and a text label, so colour is never the only cue. A component that an active incident names says "Incident in progress" beside its state. On narrow screens the bar shows the last 30 days and a line under it says the uptime figure covers 90.
 
 ### Atom feed
 

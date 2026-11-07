@@ -296,7 +296,7 @@ func (s *Service) Public(ctx context.Context, hostname string) (PublicPage, erro
 	}
 
 	out := PublicPage{
-		Title: page.Title, Description: page.Description, Footer: page.Footer, Theme: page.Theme, ShowUptime: page.ShowUptime, GeneratedAt: now,
+		Title: page.Title, Description: page.Description, Footer: page.Footer, ShowUptime: page.ShowUptime, GeneratedAt: now,
 		Groups: []PublicGroup{}, ActiveIncidents: []PublicIncident{}, Maintenance: []PublicMaintenance{}, PastIncidents: []PublicIncident{},
 	}
 	states := make([]string, 0, len(comps))

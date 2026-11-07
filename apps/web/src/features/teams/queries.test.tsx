@@ -98,7 +98,8 @@ describe("canCreateTeam", () => {
 	const base: InstanceSettings = {
 		allowTeamCreation: false,
 		canManage: false,
-		smtpConfigured: false,
+		mailConfigured: false,
+		mailProvider: "smtp",
 	};
 	test.each([
 		["not loaded", undefined, false],

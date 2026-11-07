@@ -224,6 +224,25 @@ describe("draftProblem", () => {
 		expect(draftProblem({ ...base, port: "25a" }, false)).toContain("port");
 	});
 
+	test("a Resend email needs an API key (unless one is stored on edit), sender and recipients, but no host", () => {
+		const base = draft({
+			kind: "email",
+			provider: "resend",
+			apiKey: "re_key",
+			from: "alerts@example.com",
+			to: "ops@example.com",
+			url: "",
+		});
+		expect(draftProblem(base, false)).toBeNull();
+		expect(draftProblem({ ...base, apiKey: "" }, false)).toContain("API key");
+		expect(draftProblem({ ...base, apiKey: "" }, true)).toContain("API key");
+		expect(
+			draftProblem({ ...base, apiKey: "", apiKeyStored: true }, true),
+		).toBeNull();
+		expect(draftProblem({ ...base, from: "nope" }, false)).toContain("sender");
+		expect(draftProblem({ ...base, to: "" }, false)).toContain("recipient");
+	});
+
 	test("telegram needs a bot token on create and a chat id", () => {
 		const base = draft({
 			kind: "telegram",
@@ -291,6 +310,7 @@ describe("request bodies", () => {
 			}),
 		);
 		expect(body.config).toEqual({
+			provider: "smtp",
 			host: "smtp.example.com",
 			port: 2525,
 			tls: "implicit",
@@ -300,6 +320,28 @@ describe("request bodies", () => {
 			insecureSkipVerify: false,
 		});
 		expect(body.secrets).toEqual({ password: "pw" });
+	});
+
+	test("a Resend email sends provider, sender and recipients in config and only the API key in secrets", () => {
+		const body = createBody(
+			draft({
+				kind: "email",
+				provider: "resend",
+				url: "",
+				host: "left-over.example.com",
+				username: "left-over",
+				password: "left-over",
+				apiKey: " re_key ",
+				from: "alerts@example.com",
+				to: "a@x.io",
+			}),
+		);
+		expect(body.config).toEqual({
+			provider: "resend",
+			from: "alerts@example.com",
+			to: ["a@x.io"],
+		});
+		expect(body.secrets).toEqual({ apiKey: "re_key" });
 	});
 
 	test("an empty port is left to the server's default", () => {

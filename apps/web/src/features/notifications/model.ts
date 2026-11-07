@@ -13,6 +13,7 @@ import type { StatusKind } from "#/components/ui/status-icon";
 export type ChannelKind = ChannelView["kind"];
 export type Severity = ChannelRule["minSeverity"];
 export type TlsMode = NonNullable<ChannelConfig["tls"]>;
+export type EmailProvider = NonNullable<ChannelConfig["provider"]>;
 export type DeliveryStatus = ChannelDelivery["status"];
 
 export interface KindInfo {
@@ -26,7 +27,7 @@ export const CHANNEL_KINDS: readonly KindInfo[] = [
 	{ kind: "slack", label: "Slack", blurb: "Incoming webhook" },
 	{ kind: "discord", label: "Discord", blurb: "Channel webhook" },
 	{ kind: "telegram", label: "Telegram", blurb: "Bot and chat" },
-	{ kind: "email", label: "Email", blurb: "Your SMTP server" },
+	{ kind: "email", label: "Email", blurb: "SMTP or Resend" },
 	{ kind: "webhook", label: "Webhook", blurb: "Signed JSON" },
 ];
 
@@ -137,11 +138,15 @@ export interface Draft {
 	kind: ChannelKind;
 	enabled: boolean;
 	// email
+	provider: EmailProvider;
 	host: string;
 	port: string;
 	tls: TlsMode;
 	username: string;
 	password: string;
+	apiKey: string;
+	/** An API key is already stored (editing a Resend channel): empty keeps it. */
+	apiKeyStored: boolean;
 	from: string;
 	to: string;
 	insecureSkipVerify: boolean;
@@ -167,11 +172,14 @@ export function draftFor(
 		name: channel?.name ?? "",
 		kind: channel?.kind ?? "slack",
 		enabled: channel?.enabled ?? true,
+		provider: c?.provider ?? "smtp",
 		host: c?.host ?? "",
 		port: c?.port ? String(c.port) : "",
 		tls: c?.tls ?? "starttls",
 		username: c?.username ?? "",
 		password: "",
+		apiKey: "",
+		apiKeyStored: Boolean(channel?.secrets.apiKey),
 		from: c?.from ?? "",
 		to: (c?.to ?? []).join("\n"),
 		insecureSkipVerify: c?.insecureSkipVerify ?? false,
@@ -225,9 +233,19 @@ export function draftProblem(draft: Draft, editing: boolean): string | null {
 	if (draft.name.trim() === "") return "Give the channel a name.";
 	switch (draft.kind) {
 		case "email": {
-			if (draft.host.trim() === "") return "Enter the SMTP server's host.";
-			if (draft.port !== "" && !/^\d{1,5}$/u.test(draft.port)) {
+			const smtp = draft.provider === "smtp";
+			if (smtp && draft.host.trim() === "") {
+				return "Enter the SMTP server's host.";
+			}
+			if (smtp && draft.port !== "" && !/^\d{1,5}$/u.test(draft.port)) {
 				return "The port must be a number.";
+			}
+			if (
+				!smtp &&
+				draft.apiKey.trim() === "" &&
+				!(editing && draft.apiKeyStored)
+			) {
+				return "Paste the Resend API key.";
 			}
 			if (!validFrom(draft.from)) {
 				return "The sender must be an email address, like alerts@example.com.";
@@ -237,7 +255,12 @@ export function draftProblem(draft: Draft, editing: boolean): string | null {
 			if (to.some((a) => !EMAIL_RE.test(a))) {
 				return "One of the recipients is not an email address.";
 			}
-			if (draft.username.trim() !== "" && !editing && draft.password === "") {
+			if (
+				smtp &&
+				draft.username.trim() !== "" &&
+				!editing &&
+				draft.password === ""
+			) {
 				return "A user name needs its password.";
 			}
 			break;
@@ -296,7 +319,15 @@ function ruleBody(draft: Draft): ChannelRuleInput {
 
 function configBody(draft: Draft): ChannelConfig | undefined {
 	if (draft.kind === "email") {
+		if (draft.provider === "resend") {
+			return {
+				provider: "resend",
+				from: draft.from.trim(),
+				to: parseRecipients(draft.to),
+			};
+		}
 		return {
+			provider: "smtp",
 			host: draft.host.trim(),
 			...(draft.port !== "" ? { port: Number(draft.port) } : {}),
 			tls: draft.tls,
@@ -314,8 +345,12 @@ function secretsBody(
 	draft: Draft,
 ): NonNullable<PatchChannelInputBody["secrets"]> {
 	const s: NonNullable<PatchChannelInputBody["secrets"]> = {};
-	if (draft.kind === "email" && draft.password !== "")
-		s.password = draft.password;
+	if (draft.kind === "email") {
+		if (draft.provider === "smtp" && draft.password !== "")
+			s.password = draft.password;
+		if (draft.provider === "resend" && draft.apiKey.trim() !== "")
+			s.apiKey = draft.apiKey.trim();
+	}
 	if (draft.kind === "telegram" && draft.botToken.trim() !== "")
 		s.botToken = draft.botToken.trim();
 	if (draft.url.trim() !== "") s.url = draft.url.trim();

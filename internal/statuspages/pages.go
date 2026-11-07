@@ -41,9 +41,6 @@ const (
 	dnsLookupTimeout = 10 * time.Second // the authoritative servers, then the public resolvers, then the host's
 )
 
-// Themes of a public page.
-var themes = []string{"auto", "light", "dark"}
-
 var slugPattern = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
 
 // StatusPageView is a status page as the API shows it.
@@ -56,7 +53,6 @@ type StatusPageView struct {
 	Hostname    *string                   `json:"hostname" doc:"The public hostname; null until one is set"`
 	Published   bool                      `json:"published" doc:"Served on the hostname (needs a hostname and at least one component)"`
 	ShowUptime  bool                      `json:"showUptime" doc:"Show availability percentages next to the day bars"`
-	Theme       string                    `json:"theme" enum:"auto,light,dark"`
 	Components  []StatusPageComponentView `json:"components" doc:"In page order"`
 	CreatedAt   time.Time                 `json:"createdAt"`
 	UpdatedAt   time.Time                 `json:"updatedAt"`
@@ -83,7 +79,6 @@ type PageCreate struct {
 	Footer      string
 	Hostname    string
 	ShowUptime  *bool // default true
-	Theme       string
 	// FromProjectID starts the page with the components of a project: its
 	// production-environment services that have a public domain.
 	FromProjectID *uuid.UUID
@@ -99,7 +94,6 @@ type PagePatch struct {
 	Hostname    *string
 	Published   *bool
 	ShowUptime  *bool
-	Theme       *string
 }
 
 // ComponentInput is one entry of a page's ordered component list.
@@ -128,7 +122,7 @@ func toPageView(row db.StatusPage, comps []StatusPageComponentView) StatusPageVi
 	}
 	return StatusPageView{
 		ID: row.ID, Title: row.Title, Slug: row.Slug, Description: row.Description, Hostname: row.Hostname,
-		Published: row.Published, ShowUptime: row.ShowUptime, Theme: row.Theme, Components: comps,
+		Published: row.Published, ShowUptime: row.ShowUptime, Components: comps,
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, Footer: row.Footer,
 	}
 }
@@ -235,13 +229,6 @@ func checkSlug(slug string) (string, error) {
 	return slug, nil
 }
 
-func checkTheme(theme string) error {
-	if !slices.Contains(themes, theme) {
-		return apierr.Unprocessable("invalid_theme", "theme must be auto, light or dark")
-	}
-	return nil
-}
-
 // checkComponentURL validates the optional link of a component: an absolute
 // https URL with a host and no credentials, at most 300 characters. Empty
 // means no link.
@@ -328,13 +315,6 @@ func (s *Service) Create(ctx context.Context, in PageCreate) (StatusPageView, er
 	if err != nil {
 		return StatusPageView{}, err
 	}
-	theme := in.Theme
-	if theme == "" {
-		theme = "auto"
-	}
-	if err := checkTheme(theme); err != nil {
-		return StatusPageView{}, err
-	}
 	showUptime := in.ShowUptime == nil || *in.ShowUptime
 	var host *string
 	if strings.TrimSpace(in.Hostname) != "" {
@@ -374,7 +354,7 @@ func (s *Service) Create(ctx context.Context, in PageCreate) (StatusPageView, er
 		var err error
 		row, err = q.InsertStatusPage(ctx, db.InsertStatusPageParams{
 			WorkspaceID: ws, Title: title, Slug: slug, Description: desc, Footer: footer, Hostname: host,
-			Published: false, ShowUptime: showUptime, Theme: theme,
+			Published: false, ShowUptime: showUptime,
 		})
 		if err != nil {
 			return err
@@ -480,13 +460,6 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in PagePatch) (Statu
 			next.ShowUptime = *in.ShowUptime
 			set("showUptime")
 		}
-		if in.Theme != nil {
-			if err := checkTheme(*in.Theme); err != nil {
-				return err
-			}
-			next.Theme = *in.Theme
-			set("theme")
-		}
 		if next.Published && (!before.Published || hostChanged) {
 			n, err := q.CountLiveStatusPageComponents(ctx, id)
 			if err != nil {
@@ -498,7 +471,7 @@ func (s *Service) Update(ctx context.Context, id uuid.UUID, in PagePatch) (Statu
 		}
 		after, err = q.UpdateStatusPage(ctx, db.UpdateStatusPageParams{
 			ID: id, WorkspaceID: ws, Title: next.Title, Slug: next.Slug, Description: next.Description, Footer: next.Footer, Hostname: next.Hostname,
-			Published: next.Published, ShowUptime: next.ShowUptime, Theme: next.Theme,
+			Published: next.Published, ShowUptime: next.ShowUptime,
 		})
 		if err != nil {
 			return err

@@ -30,8 +30,7 @@ type PublicPage struct {
 	Description string
 	// Footer is plain text shown under the page (line breaks kept, no markup).
 	Footer     string
-	Theme      string // auto, light or dark
-	ShowUptime bool   // show availability percentages
+	ShowUptime bool // show availability percentages
 	// Overall is the worst of the component states and the impact of the
 	// active incidents (critical: major_outage, major: partial_outage, minor:
 	// degraded), maintenance only when nothing is worse.

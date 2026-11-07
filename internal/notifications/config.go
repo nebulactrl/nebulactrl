@@ -32,20 +32,28 @@ const (
 	TLSNone     = "none"     // plain text (port 25; trusted networks only)
 )
 
+// Email providers: how a channel (or the instance relay) hands mail off.
+const (
+	ProviderSMTP   = "smtp"
+	ProviderResend = "resend"
+)
+
 // maxRecipients bounds an email channel's To list.
 const maxRecipients = 20
 
 // ChannelConfig holds the settings of a channel that are not secret. Which
-// fields apply depends on the kind: email uses everything except ChatID,
-// Telegram only ChatID, the others none.
+// fields apply depends on the kind: email uses everything except ChatID (and,
+// with the resend provider, only Provider, From and To), Telegram only ChatID,
+// the others none.
 type ChannelConfig struct {
-	Host               string   `json:"host,omitempty" doc:"Email: SMTP server host name."`
-	Port               int      `json:"port,omitempty" minimum:"0" maximum:"65535" doc:"Email: SMTP port. Default: 465 (implicit TLS), 587 (STARTTLS), 25 (none)."`
-	TLS                string   `json:"tls,omitempty" enum:"implicit,starttls,none" doc:"Email: connection security. Default starttls."`
-	Username           string   `json:"username,omitempty" doc:"Email: SMTP user name; empty sends without authentication."`
+	Provider           string   `json:"provider,omitempty" enum:"smtp,resend" doc:"Email: how mail is sent. Default smtp."`
+	Host               string   `json:"host,omitempty" doc:"Email (smtp): SMTP server host name."`
+	Port               int      `json:"port,omitempty" minimum:"0" maximum:"65535" doc:"Email (smtp): SMTP port. Default: 465 (implicit TLS), 587 (STARTTLS), 25 (none)."`
+	TLS                string   `json:"tls,omitempty" enum:"implicit,starttls,none" doc:"Email (smtp): connection security. Default starttls."`
+	Username           string   `json:"username,omitempty" doc:"Email (smtp): SMTP user name; empty sends without authentication."`
 	From               string   `json:"from,omitempty" doc:"Email: sender, \"alerts@example.com\" or \"NebulaCtrl <alerts@example.com>\"."`
 	To                 []string `json:"to,omitempty" maxItems:"20" doc:"Email: recipients."`
-	InsecureSkipVerify bool     `json:"insecureSkipVerify,omitempty" doc:"Email: accept any server certificate (self-signed relays). The connection is still encrypted."`
+	InsecureSkipVerify bool     `json:"insecureSkipVerify,omitempty" doc:"Email (smtp): accept any server certificate (self-signed relays). The connection is still encrypted."`
 	ChatID             string   `json:"chatId,omitempty" doc:"Telegram: chat id (-100123...) or @channelname the bot posts to."`
 }
 
@@ -53,7 +61,8 @@ type ChannelConfig struct {
 type secrets struct {
 	URL           string `json:"url,omitempty"`           // slack, discord, webhook
 	BotToken      string `json:"botToken,omitempty"`      // telegram
-	Password      string `json:"password,omitempty"`      // email
+	Password      string `json:"password,omitempty"`      // email (smtp)
+	APIKey        string `json:"apiKey,omitempty"`        // email (resend)
 	SigningSecret string `json:"signingSecret,omitempty"` // webhook
 }
 
@@ -62,7 +71,8 @@ type secrets struct {
 type ChannelSecretsInput struct {
 	URL           string `json:"url,omitempty" doc:"Slack, Discord and webhook: the endpoint URL (it is the credential for Slack and Discord)."`
 	BotToken      string `json:"botToken,omitempty" doc:"Telegram: the bot token from @BotFather."`
-	Password      string `json:"password,omitempty" doc:"Email: the SMTP password."`
+	Password      string `json:"password,omitempty" doc:"Email (smtp): the SMTP password."`
+	APIKey        string `json:"apiKey,omitempty" doc:"Email (resend): the Resend API key. Required for the resend provider."`
 	SigningSecret string `json:"signingSecret,omitempty" doc:"Webhook: the HMAC signing secret. Omit on create to have one generated."`
 }
 
@@ -75,6 +85,9 @@ func (in ChannelSecretsInput) merge(cur secrets) secrets {
 	}
 	if in.Password != "" {
 		cur.Password = in.Password
+	}
+	if in.APIKey != "" {
+		cur.APIKey = in.APIKey
 	}
 	if in.SigningSecret != "" {
 		cur.SigningSecret = in.SigningSecret
@@ -110,7 +123,7 @@ func sealSecrets(box *secretbox.Box, id uuid.UUID, s secrets) ([]byte, error) {
 // all returns every non-empty secret value (for scrubbing errors).
 func (s secrets) all() []string {
 	var out []string
-	for _, v := range []string{s.URL, s.BotToken, s.Password, s.SigningSecret} {
+	for _, v := range []string{s.URL, s.BotToken, s.Password, s.APIKey, s.SigningSecret} {
 		if v != "" {
 			out = append(out, v)
 		}
@@ -146,6 +159,9 @@ func (s secrets) hints() map[string]string {
 	}
 	if s.Password != "" {
 		out["password"] = mask
+	}
+	if s.APIKey != "" {
+		out["apiKey"] = mask
 	}
 	if s.SigningSecret != "" {
 		out["signingSecret"] = mask
@@ -193,23 +209,32 @@ func validEndpoint(raw string, allowHTTP bool) error {
 func normalizeConfig(kind string, cfg ChannelConfig) (ChannelConfig, error) {
 	switch kind {
 	case KindEmail:
-		cfg.Host = strings.TrimSpace(cfg.Host)
-		if cfg.Host == "" || !hostRe.MatchString(cfg.Host) && net.ParseIP(strings.Trim(cfg.Host, "[]")) == nil {
-			return cfg, bad("host must be the SMTP server's host name or address")
+		switch cfg.Provider {
+		case "", ProviderSMTP:
+			cfg.Provider = ProviderSMTP
+			cfg.Host = strings.TrimSpace(cfg.Host)
+			if cfg.Host == "" || !hostRe.MatchString(cfg.Host) && net.ParseIP(strings.Trim(cfg.Host, "[]")) == nil {
+				return cfg, bad("host must be the SMTP server's host name or address")
+			}
+			if cfg.TLS == "" {
+				cfg.TLS = TLSStartTLS
+			}
+			if cfg.TLS != TLSImplicit && cfg.TLS != TLSStartTLS && cfg.TLS != TLSNone {
+				return cfg, bad("tls must be implicit, starttls or none")
+			}
+			if cfg.Port == 0 {
+				cfg.Port = map[string]int{TLSImplicit: 465, TLSStartTLS: 587, TLSNone: 25}[cfg.TLS]
+			}
+			if cfg.Port < 1 || cfg.Port > 65535 {
+				return cfg, bad("port must be between 1 and 65535")
+			}
+			cfg.Username = strings.TrimSpace(cfg.Username)
+		case ProviderResend:
+			// Resend is an HTTPS API: none of the SMTP connection settings apply.
+			cfg.Host, cfg.Port, cfg.TLS, cfg.Username, cfg.InsecureSkipVerify = "", 0, "", "", false
+		default:
+			return cfg, bad("provider must be smtp or resend")
 		}
-		if cfg.TLS == "" {
-			cfg.TLS = TLSStartTLS
-		}
-		if cfg.TLS != TLSImplicit && cfg.TLS != TLSStartTLS && cfg.TLS != TLSNone {
-			return cfg, bad("tls must be implicit, starttls or none")
-		}
-		if cfg.Port == 0 {
-			cfg.Port = map[string]int{TLSImplicit: 465, TLSStartTLS: 587, TLSNone: 25}[cfg.TLS]
-		}
-		if cfg.Port < 1 || cfg.Port > 65535 {
-			return cfg, bad("port must be between 1 and 65535")
-		}
-		cfg.Username = strings.TrimSpace(cfg.Username)
 		from, err := mail.ParseAddress(strings.TrimSpace(cfg.From))
 		if err != nil {
 			return cfg, bad("from must be an email address, e.g. alerts@example.com")
@@ -246,10 +271,32 @@ func normalizeConfig(kind string, cfg ChannelConfig) (ChannelConfig, error) {
 	return cfg, nil
 }
 
+// pruneSecrets drops the credentials cfg's kind and provider do not use, so
+// switching an email channel between smtp and resend never leaves the other
+// provider's secret behind.
+func pruneSecrets(kind string, cfg ChannelConfig, s secrets) secrets {
+	if kind != KindWebhook {
+		s.SigningSecret = ""
+	}
+	if kind != KindEmail || cfg.Provider != ProviderResend {
+		s.APIKey = ""
+	}
+	if kind == KindEmail && cfg.Provider == ProviderResend {
+		s.Password = ""
+	}
+	return s
+}
+
 // validateSecrets checks the credentials a kind needs.
 func validateSecrets(kind string, cfg ChannelConfig, s secrets) error {
 	switch kind {
 	case KindEmail:
+		if cfg.Provider == ProviderResend {
+			if s.APIKey == "" {
+				return bad("the Resend API key is required")
+			}
+			break
+		}
 		if s.Password != "" && cfg.Username == "" {
 			return bad("a password needs a username")
 		}

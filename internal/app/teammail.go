@@ -12,7 +12,7 @@ import (
 )
 
 // teamMailer sends team invite emails through the notifications module: the
-// team's own email channel when it has one, else the instance SMTP relay.
+// team's own email channel when it has one, else the instance mail relay.
 type teamMailer struct{ n *notifications.Service }
 
 var _ teams.Mailer = teamMailer{}
@@ -22,7 +22,7 @@ func (m teamMailer) SendInvite(ctx context.Context, teamID uuid.UUID, relay *tea
 	if relay != nil {
 		r = &notifications.MailRelay{
 			Host: relay.Host, Port: relay.Port, TLS: relay.TLS, Username: relay.Username, Password: relay.Password,
-			From: relay.From, InsecureSkipVerify: relay.InsecureSkipVerify,
+			Provider: relay.Provider, APIKey: relay.APIKey, From: relay.From, InsecureSkipVerify: relay.InsecureSkipVerify,
 		}
 	}
 	inviter := im.InviterName

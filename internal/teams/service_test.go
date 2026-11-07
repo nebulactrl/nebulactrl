@@ -510,7 +510,7 @@ func TestInstanceSettingsVisibilityAndUpdate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, forBob.AllowTeamCreation)
 	require.False(t, forBob.CanManage)
-	require.False(t, forBob.SMTPConfigured)
+	require.False(t, forBob.MailConfigured)
 	require.Nil(t, forBob.SMTPHost)
 	_, err = f.svc.GetInstance(context.Background())
 	requireAPI(t, err, 401, "unauthorized")
@@ -518,16 +518,16 @@ func TestInstanceSettingsVisibilityAndUpdate(t *testing.T) {
 	host, port, tls, user, from, pw := "smtp.example.com", 2525, "starttls", "mailer", "NebulaCtrl <no-reply@example.com>", "s3cret"
 	skip := true
 	got, err := f.svc.UpdateInstance(f.asAda(), InstancePatch{
-		SMTPHost: &host, SMTPPort: &port, SMTPTLS: &tls, SMTPUsername: &user, SMTPFrom: &from, SMTPPassword: &pw, SMTPInsecureSkipVerify: &skip,
+		SMTPHost: &host, SMTPPort: &port, SMTPTLS: &tls, SMTPUsername: &user, MailFrom: &from, SMTPPassword: &pw, SMTPInsecureSkipVerify: &skip,
 	})
 	require.NoError(t, err)
 	require.True(t, got.CanManage)
-	require.True(t, got.SMTPConfigured)
+	require.True(t, got.MailConfigured)
 	require.Equal(t, host, *got.SMTPHost)
 	require.Equal(t, port, *got.SMTPPort)
 	require.Equal(t, tls, *got.SMTPTLS)
 	require.Equal(t, user, *got.SMTPUsername)
-	require.Equal(t, from, *got.SMTPFrom)
+	require.Equal(t, from, *got.MailFrom)
 	require.True(t, *got.SMTPPasswordSet)
 	require.True(t, *got.SMTPInsecureSkipVerify)
 	require.Equal(t, 1, f.audits("instance.update"))
@@ -540,7 +540,7 @@ func TestInstanceSettingsVisibilityAndUpdate(t *testing.T) {
 	// The relay is what mails use, with the password opened again.
 	relay, err := f.svc.InstanceRelay(context.Background())
 	require.NoError(t, err)
-	require.Equal(t, &Relay{Host: host, Port: port, TLS: tls, Username: user, Password: pw, From: from, InsecureSkipVerify: true}, relay)
+	require.Equal(t, &Relay{Provider: "smtp", Host: host, Port: port, TLS: tls, Username: user, Password: pw, From: from, InsecureSkipVerify: true}, relay)
 
 	// A later patch keeps what it does not mention, password included.
 	allow := false
@@ -551,7 +551,7 @@ func TestInstanceSettingsVisibilityAndUpdate(t *testing.T) {
 	forBob, err = f.svc.GetInstance(f.as(bob, f.team))
 	require.NoError(t, err)
 	require.False(t, forBob.AllowTeamCreation)
-	require.True(t, forBob.SMTPConfigured)
+	require.True(t, forBob.MailConfigured)
 	require.Nil(t, forBob.SMTPHost, "the relay details stay with the instance admin")
 	require.Nil(t, forBob.SMTPPasswordSet)
 
@@ -567,12 +567,111 @@ func TestInstanceSettingsVisibilityAndUpdate(t *testing.T) {
 
 	// Without a sender the relay does not count as configured.
 	noFrom := ""
-	got, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{SMTPFrom: &noFrom})
+	got, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{MailFrom: &noFrom})
 	require.NoError(t, err)
-	require.False(t, got.SMTPConfigured)
+	require.False(t, got.MailConfigured)
 	relay, err = f.svc.InstanceRelay(context.Background())
 	require.NoError(t, err)
 	require.Nil(t, relay)
+}
+
+func TestInstanceResendRelay(t *testing.T) {
+	f := newTf(t)
+	bob := f.member("bob@example.com", auth.RoleAdmin)
+	provider, from, key := "resend", "NebulaCtrl <no-reply@example.com>", "re_SUPERSECRETKEYVALUE"
+
+	// Resend needs a sender and a key; neither alone is a relay.
+	got, err := f.svc.UpdateInstance(f.asAda(), InstancePatch{MailProvider: &provider, MailFrom: &from})
+	require.NoError(t, err)
+	require.Equal(t, "resend", *got.MailProvider)
+	require.False(t, *got.ResendAPIKeySet)
+	require.False(t, got.MailConfigured)
+	relay, err := f.svc.InstanceRelay(context.Background())
+	require.NoError(t, err)
+	require.Nil(t, relay)
+
+	got, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{ResendAPIKey: &key})
+	require.NoError(t, err)
+	require.True(t, got.MailConfigured)
+	require.True(t, *got.ResendAPIKeySet)
+	require.Equal(t, from, *got.MailFrom)
+	require.False(t, *got.SMTPPasswordSet)
+	// The key is stored sealed and is never part of a view or the audit trail.
+	var enc []byte
+	require.NoError(t, f.pool.QueryRow(context.Background(), `SELECT resend_api_key_enc FROM instance_settings`).Scan(&enc))
+	require.NotEmpty(t, enc)
+	require.False(t, bytes.Contains(enc, []byte(key)))
+	var md string
+	require.NoError(t, f.pool.QueryRow(context.Background(), `SELECT string_agg(metadata::text, ' ') FROM audit_events WHERE action = 'instance.update'`).Scan(&md))
+	require.NotContains(t, md, "SUPERSECRETKEYVALUE")
+	require.Contains(t, md, `"resendApiKeyChanged": true`)
+
+	relay, err = f.svc.InstanceRelay(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, &Relay{Provider: "resend", From: from, APIKey: key}, relay)
+
+	// Everyone sees that mail works; only the instance admin sees the provider.
+	forBob, err := f.svc.GetInstance(f.as(bob, f.team))
+	require.NoError(t, err)
+	require.True(t, forBob.MailConfigured)
+	require.Nil(t, forBob.MailProvider)
+	require.Nil(t, forBob.MailFrom)
+	require.Nil(t, forBob.ResendAPIKeySet)
+
+	// A later patch keeps the key; SMTP settings do not count while Resend is selected.
+	allow := false
+	got, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{AllowTeamCreation: &allow})
+	require.NoError(t, err)
+	require.True(t, *got.ResendAPIKeySet)
+	require.True(t, got.MailConfigured)
+
+	// Back to smtp without a host: not configured, but the key is kept for the way back.
+	smtpProvider := "smtp"
+	got, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{MailProvider: &smtpProvider})
+	require.NoError(t, err)
+	require.False(t, got.MailConfigured)
+	require.True(t, *got.ResendAPIKeySet)
+	host := "smtp.example.com"
+	got, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{SMTPHost: &host})
+	require.NoError(t, err)
+	require.True(t, got.MailConfigured, "the sender is shared by both providers")
+	relay, err = f.svc.InstanceRelay(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "smtp", relay.Provider)
+	require.Equal(t, host, relay.Host)
+	require.Empty(t, relay.APIKey)
+	got, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{MailProvider: &provider})
+	require.NoError(t, err)
+	require.True(t, got.MailConfigured)
+
+	// An empty key clears it.
+	empty := ""
+	got, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{ResendAPIKey: &empty})
+	require.NoError(t, err)
+	require.False(t, *got.ResendAPIKeySet)
+	require.False(t, got.MailConfigured)
+
+	// Unknown providers are refused.
+	bad := "sendgrid"
+	_, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{MailProvider: &bad})
+	requireAPI(t, err, 422, "invalid_provider")
+
+	// Storing a key needs a secret key.
+	noBox := NewService(Deps{Pool: f.pool, Auth: f.au})
+	_, err = noBox.UpdateInstance(f.asAda(), InstancePatch{ResendAPIKey: &key})
+	requireAPI(t, err, 422, "no_secret_key")
+}
+
+func TestInstanceRelayToleratesAResendKeyThatCannotBeOpened(t *testing.T) {
+	f := newTf(t)
+	f.exec(`UPDATE instance_settings SET mail_provider='resend', mail_from='a@example.com', resend_api_key_enc=$1`, []byte("garbage-not-a-sealed-value"))
+	relay, err := f.svc.InstanceRelay(context.Background())
+	require.NoError(t, err)
+	require.Nil(t, relay, "a Resend relay without a usable key is no relay")
+	view, err := f.svc.GetInstance(f.asAda())
+	require.NoError(t, err)
+	require.False(t, view.MailConfigured)
+	require.True(t, *view.ResendAPIKeySet)
 }
 
 func TestUpdateInstanceValidationAndAuthorization(t *testing.T) {
@@ -585,7 +684,7 @@ func TestUpdateInstanceValidationAndAuthorization(t *testing.T) {
 		"port 0":      {SMTPPort: &zero},
 		"port > max":  {SMTPPort: &big},
 		"unknown tls": {SMTPTLS: &bad},
-		"bad sender":  {SMTPFrom: &notAddr},
+		"bad sender":  {MailFrom: &notAddr},
 	} {
 		_, err := f.svc.UpdateInstance(f.asAda(), patch)
 		require.Error(t, err, name)
@@ -597,7 +696,7 @@ func TestUpdateInstanceValidationAndAuthorization(t *testing.T) {
 	requireAPI(t, err, 422, "invalid_port")
 	_, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{SMTPTLS: &bad})
 	requireAPI(t, err, 422, "invalid_tls")
-	_, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{SMTPFrom: &notAddr})
+	_, err = f.svc.UpdateInstance(f.asAda(), InstancePatch{MailFrom: &notAddr})
 	requireAPI(t, err, 422, "invalid_email")
 	require.Zero(t, f.audits("instance.update"), "refused patches change and record nothing")
 
@@ -627,7 +726,7 @@ func TestUpdateInstanceValidationAndAuthorization(t *testing.T) {
 
 func TestInstanceRelayToleratesAPasswordThatCannotBeOpened(t *testing.T) {
 	f := newTf(t)
-	f.exec(`UPDATE instance_settings SET smtp_host='smtp.example.com', smtp_from='a@example.com', smtp_port=587, smtp_tls='starttls', smtp_password_enc=$1`, []byte("garbage-not-a-sealed-value"))
+	f.exec(`UPDATE instance_settings SET smtp_host='smtp.example.com', mail_from='a@example.com', smtp_port=587, smtp_tls='starttls', smtp_password_enc=$1`, []byte("garbage-not-a-sealed-value"))
 	relay, err := f.svc.InstanceRelay(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, relay)

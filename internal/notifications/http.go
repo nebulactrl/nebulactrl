@@ -111,7 +111,7 @@ func Register(h huma.API, svc *Service) {
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "createNotificationChannel", Method: http.MethodPost, Path: "/notifications/channels", Tags: tag,
 		Summary: "Add a notification channel", DefaultStatus: http.StatusCreated,
-		Description: "Kinds: `email` (SMTP: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`), `slack` and `discord` (webhook URL in `secrets.url`), " +
+		Description: "Kinds: `email` (`config.provider` `smtp` (default: host, port, tls implicit|starttls|none, username, from, to; password in `secrets`) or `resend` (from, to; API key in `secrets.apiKey`)), `slack` and `discord` (webhook URL in `secrets.url`), " +
 			"`telegram` (`config.chatId`, bot token in `secrets.botToken`) and `webhook` (URL in `secrets.url`; every request is signed with HMAC-SHA256 in the `X-NebulaCtrl-Signature` header). " +
 			"A webhook's signing secret is generated when omitted and returned once. Not idempotent: the response can carry that secret, so a repeated name answers 409 `channel_conflict` instead of replaying it. Requires the admin scope.",
 		Errors: append(errs[:2], http.StatusConflict, http.StatusUnprocessableEntity),

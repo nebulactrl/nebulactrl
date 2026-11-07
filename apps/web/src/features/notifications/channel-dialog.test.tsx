@@ -198,6 +198,7 @@ describe("ChannelDialog: creating", () => {
 			kind: "email",
 			name: "Mail",
 			config: {
+				provider: "smtp",
 				host: "smtp.example.com",
 				port: 2465,
 				tls: "implicit",
@@ -240,6 +241,42 @@ describe("ChannelDialog: creating", () => {
 			sent<{ config: { insecureSkipVerify: boolean } }>(api, "POST").config
 				.insecureSkipVerify,
 		).toBe(true);
+	});
+
+	test("creates a Resend email channel: provider and API key, no SMTP settings", async () => {
+		const { api, user } = await openCreate({
+			[`POST ${CHANNELS}`]: {
+				status: 201,
+				body: { channel: channel({ kind: "email", name: "Mail" }) },
+			},
+		});
+		await catalogueLoaded();
+		await user.click(screen.getByRole("radio", { name: /Email/ }));
+		await user.click(screen.getByRole("button", { name: "Resend" }));
+		expect(screen.queryByLabelText("SMTP server")).not.toBeInTheDocument();
+		expect(screen.queryByLabelText("User name")).not.toBeInTheDocument();
+		expect(screen.getByLabelText("API key")).toHaveAttribute(
+			"type",
+			"password",
+		);
+		await fill(user, screen.getByLabelText("Name"), "Mail");
+		await fill(user, screen.getByLabelText("From"), "alerts@example.com");
+		await fill(user, screen.getByLabelText("Recipients"), "ops@example.com");
+		expect(submit()).toHaveAttribute("title", "Paste the Resend API key.");
+		await fill(user, screen.getByLabelText("API key"), " re_secret ");
+		await user.click(submit());
+		await screen.findByText("Channel added");
+		const post = sent<{ config: object; secrets: unknown }>(api, "POST");
+		expect(post).toMatchObject({
+			kind: "email",
+			config: {
+				provider: "resend",
+				from: "alerts@example.com",
+				to: ["ops@example.com"],
+			},
+			secrets: { apiKey: "re_secret" },
+		});
+		expect(post.config).not.toHaveProperty("host");
 	});
 
 	test("a webhook without a signing secret gets one generated and shown once with verification code", async () => {
@@ -544,6 +581,7 @@ describe("ChannelDialog: editing", () => {
 		};
 		expect(body.secrets).toEqual({});
 		expect(body.config).toEqual({
+			provider: "smtp",
 			host: "smtp.example.com",
 			port: 587,
 			tls: "starttls",
@@ -552,6 +590,42 @@ describe("ChannelDialog: editing", () => {
 			to: ["ops@example.com", "dev@example.com"],
 			insecureSkipVerify: false,
 		});
+	});
+
+	test("editing a Resend channel shows the stored-key hint, and switching to SMTP shows the SMTP fields", async () => {
+		const mail = channel({
+			kind: "email",
+			name: "Mail",
+			config: {
+				provider: "resend",
+				from: "alerts@example.com",
+				to: ["ops@example.com"],
+			},
+			secrets: { apiKey: "re_••••" },
+		});
+		const { api, user } = await openEdit(mail, {
+			[`PATCH ${CHANNELS}/c1`]: { body: mail },
+		});
+		const key = screen.getByLabelText("API key (leave empty to keep)");
+		expect(key).toHaveValue("");
+		expect(key).toHaveAttribute("placeholder", "re_••••");
+		expect(screen.queryByLabelText("SMTP server")).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save" })).toBeEnabled();
+
+		await user.click(screen.getByRole("button", { name: "Save" }));
+		await screen.findByText("Channel saved");
+		const body = sent<{ config: unknown; secrets: unknown }>(api, "PATCH");
+		expect(body.secrets).toEqual({});
+		expect(body.config).toEqual({
+			provider: "resend",
+			from: "alerts@example.com",
+			to: ["ops@example.com"],
+		});
+
+		await user.click(screen.getByRole("button", { name: "SMTP" }));
+		expect(screen.getByLabelText("SMTP server")).toHaveValue("");
+		expect(screen.queryByLabelText(/API key/)).not.toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Save" })).toBeDisabled();
 	});
 
 	test("editing a webhook names the stored receiver and points to Rotate secret", async () => {

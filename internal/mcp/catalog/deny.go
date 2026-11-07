@@ -94,6 +94,7 @@ var denyEntries = map[string]Deny{
 	"rotateNotificationChannelSecret": {Reason: ReasonMintsCredential, Why: "Returns a new webhook signing secret once."},
 	"rotateGitWebhookSecret":          {Reason: ReasonMintsCredential, Why: "Returns a new git webhook secret once."},
 	"startGitHubAppManifest":          {Reason: ReasonMintsCredential, Why: "Creates a GitHub App whose private key and secrets are issued to this instance."},
+	"restartGitHubAppManifest":        {Reason: ReasonMintsCredential, Why: "Creates a GitHub App whose private key and secrets are issued to this instance."},
 	"testTailscaleIntegration":        {Reason: ReasonMintsCredential, Why: "Mints and revokes an auth key on the tailnet to test the connection."},
 	"startGitConnectionOAuth":         {Reason: ReasonAuthPlumbing, Why: "Starts an OAuth consent flow that only a person can complete."},
 

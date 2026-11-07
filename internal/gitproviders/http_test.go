@@ -3,10 +3,14 @@ package gitproviders_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"regexp"
 	"testing"
 	"time"
 
@@ -454,6 +458,7 @@ func TestStartGitHubManifestOverHTTP(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	start := decodeJSON[gitproviders.ManifestStart](t, rec)
 	require.Equal(t, "https://github.com/organizations/acme/settings/apps/new?state="+url.QueryEscape(start.State), start.PostURL)
+	require.Equal(t, "https://nebula.example.com/api/v1/git/github/manifest/form?state="+url.QueryEscape(start.State), start.FormURL)
 	require.NotEmpty(t, start.State)
 	require.Contains(t, start.Manifest, "https://nebula.example.com/hooks/git/github/"+start.ConnectionID.String())
 	conn, err := f.svc.GetConnection(f.ctx, start.ConnectionID)
@@ -600,6 +605,90 @@ func TestManifestCallbackRedirectsToGitHubInstall(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, rec.Code)
 	require.Equal(t, f.provider.srv.URL+"/apps/nebula-app/installations/new?state="+url.QueryEscape(start.State), rec.Header().Get("Location"),
 		"the user goes on to install the App")
+}
+
+// manifestFormFields reads the form the manifest page submits.
+func manifestFormFields(t *testing.T, body string) (action, manifest, script string) {
+	t.Helper()
+	field := func(re string) string {
+		m := regexp.MustCompile(re).FindStringSubmatch(body)
+		require.NotNil(t, m, "%s in %s", re, body)
+		return html.UnescapeString(m[1])
+	}
+	return field(`<form id="manifest" method="post" action="([^"]*)"`), field(`name="manifest" value="([^"]*)"`), field(`(?s)<script>(.*?)</script>`)
+}
+
+func TestManifestFormPostsTheManifestToGitHubOnly(t *testing.T) {
+	f := newFixture(t)
+	start, err := f.svc.StartGitHubManifest(f.ctx, gitproviders.ManifestInput{Owner: "acme", BaseURL: f.provider.srv.URL})
+	require.NoError(t, err)
+
+	rec, _ := f.browse(f.ctx, "/git/github/manifest/form?state="+url.QueryEscape(start.State))
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	require.Equal(t, "no-store", rec.Header().Get("Cache-Control"))
+	action, manifest, script := manifestFormFields(t, rec.Body.String())
+	require.Equal(t, f.provider.srv.URL+"/organizations/acme/settings/apps/new?state="+url.QueryEscape(start.State), action)
+	var m struct {
+		Hook map[string]any `json:"hook_attributes"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(manifest), &m), manifest)
+	require.Equal(t, "https://nebula.example.com/hooks/git/github/"+start.ConnectionID.String(), m.Hook["url"])
+
+	csp := rec.Header().Get("Content-Security-Policy")
+	require.Contains(t, csp, "form-action "+f.provider.srv.URL+";", "the form may go to the flow's GitHub host and nowhere else")
+	sum := sha256.Sum256([]byte(script))
+	require.Contains(t, csp, "script-src 'sha256-"+base64.StdEncoding.EncodeToString(sum[:])+"'", "the auto-submit script is allowed by its hash")
+	require.NotContains(t, csp, "unsafe-inline")
+
+	// A non-admin, an unknown state and a missing state go back to Settings with the reason.
+	_, q := f.browse(f.reader, "/git/github/manifest/form?state="+url.QueryEscape(start.State))
+	require.NotEmpty(t, q.Get("git_error"))
+	_, q = f.browse(f.ctx, "/git/github/manifest/form?state=nope")
+	require.Contains(t, q.Get("git_error"), "expired or was already completed")
+	_, q = f.browse(f.ctx, "/git/github/manifest/form")
+	require.Contains(t, q.Get("git_error"), "state is required")
+}
+
+func TestRestartGitHubManifestReplacesTheStateUntilTheAppExists(t *testing.T) {
+	f := newFixture(t)
+	_, keyPEM := newAppKey(t)
+	f.provider.json("POST /api/v3/app-manifests/CODE/conversions", 201, map[string]any{
+		"id": 7, "slug": "nebula-app", "client_id": "c", "client_secret": "s", "webhook_secret": "w", "pem": keyPEM,
+	})
+	start, err := f.svc.StartGitHubManifest(f.ctx, gitproviders.ManifestInput{Owner: "acme", BaseURL: f.provider.srv.URL})
+	require.NoError(t, err)
+	path := "/git/connections/" + start.ConnectionID.String() + "/github/manifest"
+
+	require.Equal(t, http.StatusForbidden, f.do(f.reader, http.MethodPost, path, nil).Code)
+	rec := f.do(f.ctx, http.MethodPost, path, nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	again := decodeJSON[gitproviders.ManifestStart](t, rec)
+	require.Equal(t, start.ConnectionID, again.ConnectionID)
+	require.NotEqual(t, start.State, again.State)
+	require.Equal(t, f.provider.srv.URL+"/organizations/acme/settings/apps/new?state="+url.QueryEscape(again.State), again.PostURL, "the owner is kept")
+	list, err := f.svc.ListConnections(f.ctx)
+	require.NoError(t, err)
+	require.Len(t, list, 1, "restarting creates no second connection")
+
+	_, q := f.browse(f.ctx, "/git/github/manifest/form?state="+url.QueryEscape(start.State))
+	require.Contains(t, q.Get("git_error"), "expired or was already completed", "the old state stops working")
+	rec, _ = f.browse(f.ctx, "/git/github/manifest/form?state="+url.QueryEscape(again.State))
+	require.Equal(t, http.StatusOK, rec.Code)
+
+	// Once GitHub created the App, the form and the restart are refused: install it instead.
+	_, err = f.svc.CompleteManifest(f.ctx, "CODE", again.State)
+	require.NoError(t, err)
+	_, q = f.browse(f.ctx, "/git/github/manifest/form?state="+url.QueryEscape(again.State))
+	require.Contains(t, q.Get("git_error"), "already created")
+	rec = f.do(f.ctx, http.MethodPost, path, nil)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	require.Equal(t, "app_exists", errCode(t, rec))
+
+	bb, err := f.svc.CreateConnection(f.ctx, gitproviders.CreateConnectionInput{Provider: gitproviders.Bitbucket, Name: "bb"})
+	require.NoError(t, err)
+	rec = f.do(f.ctx, http.MethodPost, "/git/connections/"+bb.Connection.ID.String()+"/github/manifest", nil)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	require.Equal(t, "not_applicable", errCode(t, rec))
 }
 
 func TestManifestCallbackFailureShowsTheErrorOnTheSettingsPage(t *testing.T) {

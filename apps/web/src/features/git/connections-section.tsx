@@ -6,6 +6,7 @@ import { listGitConnectionsOptions } from "#/api/gen/@tanstack/react-query.gen";
 import {
 	deleteGitConnection,
 	refreshGitHubInstallation,
+	restartGitHubAppManifest,
 	rotateGitWebhookSecret,
 	startGitConnectionOAuth,
 	testGitConnection,
@@ -248,6 +249,21 @@ export function GitConnectionsSection() {
 			toast.error("Could not start the authorization", errorMessage(e)),
 	});
 
+	// Resumes a GitHub App whose creation never reached GitHub. isSuccess stays
+	// true once navigation starts, so the card keeps its spinner while the page
+	// leaves.
+	const finish = useMutation({
+		mutationFn: async (c: ConnectionView) => {
+			const { data } = await restartGitHubAppManifest({
+				path: { connectionId: c.id },
+			});
+			return data.formUrl;
+		},
+		onSuccess: (url) => window.location.assign(url),
+		onError: (e) =>
+			toast.error("Could not resume the GitHub App setup", errorMessage(e)),
+	});
+
 	const refresh = useMutation({
 		mutationFn: async (c: ConnectionView) => {
 			await refreshGitHubInstallation({ path: { connectionId: c.id } });
@@ -326,6 +342,11 @@ export function GitConnectionsSection() {
 								onTest={() => test.mutate(c)}
 								onDeliveries={() => setLogOf(c)}
 								onAuthorize={() => authorize.mutate(c)}
+								onFinishGitHub={() => finish.mutate(c)}
+								finishing={
+									(finish.isPending || finish.isSuccess) &&
+									finish.variables?.id === c.id
+								}
 								onRefresh={() => refresh.mutate(c)}
 								onWebhook={() => setHookOf(c)}
 								onToken={() => setTokenOf(c)}

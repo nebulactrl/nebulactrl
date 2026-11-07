@@ -307,12 +307,25 @@ func Register(h huma.API, s *Service) {
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "startGitHubAppManifest", Method: http.MethodPost, Path: "/git/github/manifest", Tags: tags,
 		Summary: "Start creating a GitHub App",
-		Description: "Creates a pending GitHub connection and returns a manifest: submit it as the form field `manifest` with a POST to `postUrl` (the browser does this; GitHub asks the user to confirm). " +
+		Description: "Creates a pending GitHub connection and returns a manifest. Open `formUrl` in the browser: that NebulaCtrl page posts the manifest to GitHub (as the form field `manifest` to `postUrl`) and GitHub asks the user to confirm. " +
 			"GitHub then redirects back to NebulaCtrl, which stores the App and sends the user to install it. The App gets read access to code and metadata and write access to " +
 			"pull requests and commit statuses, and subscribes to push and pull_request events. Needs NEBULACTRL_PUBLIC_URL (422 `public_url_required`). Requires the `admin` scope.",
 		Errors: append(errs, http.StatusUnprocessableEntity),
 	}, policy.ScopeAdmin), func(ctx context.Context, in *manifestInput) (*manifestOutput, error) {
 		m, err := s.StartGitHubManifest(ctx, ManifestInput{Owner: in.Body.Owner, BaseURL: in.Body.BaseURL, Name: in.Body.Name})
+		if err != nil {
+			return nil, err
+		}
+		return &manifestOutput{Body: m}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "restartGitHubAppManifest", Method: http.MethodPost, Path: "/git/connections/{connectionId}/github/manifest", Tags: tags,
+		Summary:     "Start creating a pending connection's GitHub App again",
+		Description: "For a GitHub App connection whose App was never created: returns a new manifest and `formUrl` (see startGitHubAppManifest); the previous one stops working. 422 `app_exists` once GitHub created the App (install it instead). Requires the `admin` scope.",
+		Errors:      append(errs, http.StatusNotFound, http.StatusUnprocessableEntity),
+	}, policy.ScopeAdmin), func(ctx context.Context, in *ConnectionPath) (*manifestOutput, error) {
+		m, err := s.RestartGitHubManifest(ctx, in.ID)
 		if err != nil {
 			return nil, err
 		}
@@ -396,11 +409,12 @@ func Register(h huma.API, s *Service) {
 	})
 }
 
-// MountAPI attaches the browser redirects of the connection flows under
-// /api/v1 (session authenticated): the GitHub manifest and installation
-// callbacks and the OAuth callback. They answer with a redirect to
-// Team settings → Integrations.
+// MountAPI attaches the browser pages of the connection flows under /api/v1
+// (session authenticated): the page that posts a GitHub App manifest, the
+// GitHub manifest and installation callbacks and the OAuth callback. The
+// callbacks answer with a redirect to Team settings → Integrations.
 func (s *Service) MountAPI(r chi.Router) {
+	r.Get("/git/github/manifest/form", s.handleManifestForm)
 	r.Get("/git/github/manifest/callback", s.handleManifestCallback)
 	r.Get("/git/github/installed", s.handleInstalledCallback)
 	r.Get("/git/oauth/callback", s.handleOAuthCallback)

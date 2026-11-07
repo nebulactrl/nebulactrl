@@ -261,7 +261,7 @@ func (q *Queries) GetMaintenanceWindowForUpdate(ctx context.Context, arg GetMain
 
 const getPublishedStatusPageByHostname = `-- name: GetPublishedStatusPageByHostname :one
 
-SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE hostname = $1::text AND published
+SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE hostname = $1::text AND published
 `
 
 // Public view (Service.Public: a fixed number of queries per page) -----------
@@ -278,7 +278,6 @@ func (q *Queries) GetPublishedStatusPageByHostname(ctx context.Context, hostname
 		&i.Hostname,
 		&i.Published,
 		&i.ShowUptime,
-		&i.Theme,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CfZoneID,
@@ -346,7 +345,7 @@ func (q *Queries) GetStatusIncidentForUpdate(ctx context.Context, arg GetStatusI
 }
 
 const getStatusPage = `-- name: GetStatusPage :one
-SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE id = $1 AND workspace_id = $2
+SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE id = $1 AND workspace_id = $2
 `
 
 type GetStatusPageParams struct {
@@ -367,7 +366,6 @@ func (q *Queries) GetStatusPage(ctx context.Context, arg GetStatusPageParams) (S
 		&i.Hostname,
 		&i.Published,
 		&i.ShowUptime,
-		&i.Theme,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CfZoneID,
@@ -384,7 +382,7 @@ func (q *Queries) GetStatusPage(ctx context.Context, arg GetStatusPageParams) (S
 
 const getStatusPageByID = `-- name: GetStatusPageByID :one
 
-SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE id = $1
+SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE id = $1
 `
 
 // Cloudflare DNS of a page's hostname (internal/integrations/cloudflare) -------
@@ -402,7 +400,6 @@ func (q *Queries) GetStatusPageByID(ctx context.Context, id uuid.UUID) (StatusPa
 		&i.Hostname,
 		&i.Published,
 		&i.ShowUptime,
-		&i.Theme,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CfZoneID,
@@ -418,7 +415,7 @@ func (q *Queries) GetStatusPageByID(ctx context.Context, id uuid.UUID) (StatusPa
 }
 
 const getStatusPageForUpdate = `-- name: GetStatusPageForUpdate :one
-SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE id = $1 AND workspace_id = $2 FOR UPDATE
+SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE id = $1 AND workspace_id = $2 FOR UPDATE
 `
 
 type GetStatusPageForUpdateParams struct {
@@ -440,7 +437,6 @@ func (q *Queries) GetStatusPageForUpdate(ctx context.Context, arg GetStatusPageF
 		&i.Hostname,
 		&i.Published,
 		&i.ShowUptime,
-		&i.Theme,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CfZoneID,
@@ -641,10 +637,10 @@ func (q *Queries) InsertStatusIncidentUpdate(ctx context.Context, arg InsertStat
 const insertStatusPage = `-- name: InsertStatusPage :one
 
 
-INSERT INTO status_pages (workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme)
+INSERT INTO status_pages (workspace_id, title, slug, description, footer, hostname, published, show_uptime)
 VALUES ($1, $2, $3, $4, $5, $6,
-        $7, $8, $9)
-RETURNING id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at
+        $7, $8)
+RETURNING id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at
 `
 
 type InsertStatusPageParams struct {
@@ -656,7 +652,6 @@ type InsertStatusPageParams struct {
 	Hostname    *string   `json:"hostname"`
 	Published   bool      `json:"published"`
 	ShowUptime  bool      `json:"showUptime"`
-	Theme       string    `json:"theme"`
 }
 
 // Status pages, incidents and maintenance windows (internal/statuspages).
@@ -671,7 +666,6 @@ func (q *Queries) InsertStatusPage(ctx context.Context, arg InsertStatusPagePara
 		arg.Hostname,
 		arg.Published,
 		arg.ShowUptime,
-		arg.Theme,
 	)
 	var i StatusPage
 	err := row.Scan(
@@ -684,7 +678,6 @@ func (q *Queries) InsertStatusPage(ctx context.Context, arg InsertStatusPagePara
 		&i.Hostname,
 		&i.Published,
 		&i.ShowUptime,
-		&i.Theme,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CfZoneID,
@@ -751,7 +744,7 @@ func (q *Queries) ListCloudflareStatusPageIDs(ctx context.Context) ([]uuid.UUID,
 }
 
 const listCloudflareWorkspaceStatusPages = `-- name: ListCloudflareWorkspaceStatusPages :many
-SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE workspace_id = $1 AND hostname IS NOT NULL AND hostname <> '' ORDER BY created_at, id
+SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE workspace_id = $1 AND hostname IS NOT NULL AND hostname <> '' ORDER BY created_at, id
 `
 
 // Every status page of a workspace that has a hostname.
@@ -774,7 +767,6 @@ func (q *Queries) ListCloudflareWorkspaceStatusPages(ctx context.Context, worksp
 			&i.Hostname,
 			&i.Published,
 			&i.ShowUptime,
-			&i.Theme,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CfZoneID,
@@ -1574,7 +1566,7 @@ func (q *Queries) ListStatusPageComponents(ctx context.Context, arg ListStatusPa
 }
 
 const listStatusPages = `-- name: ListStatusPages :many
-SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE workspace_id = $1 ORDER BY lower(title), id
+SELECT id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at FROM status_pages WHERE workspace_id = $1 ORDER BY lower(title), id
 `
 
 func (q *Queries) ListStatusPages(ctx context.Context, workspaceID uuid.UUID) ([]StatusPage, error) {
@@ -1596,7 +1588,6 @@ func (q *Queries) ListStatusPages(ctx context.Context, workspaceID uuid.UUID) ([
 			&i.Hostname,
 			&i.Published,
 			&i.ShowUptime,
-			&i.Theme,
 			&i.CreatedAt,
 			&i.UpdatedAt,
 			&i.CfZoneID,
@@ -1745,7 +1736,7 @@ const setStatusPageCloudflareSettings = `-- name: SetStatusPageCloudflareSetting
 UPDATE status_pages
 SET cf_proxied = COALESCE($1::boolean, cf_proxied)
 WHERE id = $2
-RETURNING id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at
+RETURNING id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at
 `
 
 type SetStatusPageCloudflareSettingsParams struct {
@@ -1766,7 +1757,6 @@ func (q *Queries) SetStatusPageCloudflareSettings(ctx context.Context, arg SetSt
 		&i.Hostname,
 		&i.Published,
 		&i.ShowUptime,
-		&i.Theme,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CfZoneID,
@@ -1832,7 +1822,7 @@ func (q *Queries) SetStatusPageCloudflareZone(ctx context.Context, arg SetStatus
 }
 
 const setStatusPageOriginLock = `-- name: SetStatusPageOriginLock :one
-UPDATE status_pages SET cf_origin_lock = $1 WHERE id = $2 RETURNING id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at
+UPDATE status_pages SET cf_origin_lock = $1 WHERE id = $2 RETURNING id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at
 `
 
 type SetStatusPageOriginLockParams struct {
@@ -1853,7 +1843,6 @@ func (q *Queries) SetStatusPageOriginLock(ctx context.Context, arg SetStatusPage
 		&i.Hostname,
 		&i.Published,
 		&i.ShowUptime,
-		&i.Theme,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CfZoneID,
@@ -2000,10 +1989,9 @@ UPDATE status_pages SET
     hostname = $5,
     published = $6,
     show_uptime = $7,
-    theme = $8,
     updated_at = now()
-WHERE id = $9 AND workspace_id = $10
-RETURNING id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, theme, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at
+WHERE id = $8 AND workspace_id = $9
+RETURNING id, workspace_id, title, slug, description, footer, hostname, published, show_uptime, created_at, updated_at, cf_zone_id, cf_zone_name, cf_proxied, cf_origin_lock, cf_status, cf_message, cf_error, cf_checked_at
 `
 
 type UpdateStatusPageParams struct {
@@ -2014,7 +2002,6 @@ type UpdateStatusPageParams struct {
 	Hostname    *string   `json:"hostname"`
 	Published   bool      `json:"published"`
 	ShowUptime  bool      `json:"showUptime"`
-	Theme       string    `json:"theme"`
 	ID          uuid.UUID `json:"id"`
 	WorkspaceID uuid.UUID `json:"workspaceId"`
 }
@@ -2028,7 +2015,6 @@ func (q *Queries) UpdateStatusPage(ctx context.Context, arg UpdateStatusPagePara
 		arg.Hostname,
 		arg.Published,
 		arg.ShowUptime,
-		arg.Theme,
 		arg.ID,
 		arg.WorkspaceID,
 	)
@@ -2043,7 +2029,6 @@ func (q *Queries) UpdateStatusPage(ctx context.Context, arg UpdateStatusPagePara
 		&i.Hostname,
 		&i.Published,
 		&i.ShowUptime,
-		&i.Theme,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.CfZoneID,

@@ -16,6 +16,7 @@ import {
 	foldServices,
 	formatAvailability,
 	formatSpan,
+	formatUtcDay,
 	formatUtcStamp,
 	latencySummary,
 	monitorChanged,
@@ -679,5 +680,25 @@ describe("formatUtcStamp", () => {
 
 	test("is empty for a value that is not a date", () => {
 		expect(formatUtcStamp("later", now)).toBe("");
+	});
+});
+
+describe("formatUtcDay", () => {
+	test("writes the day as month, day and year without a leading zero", () => {
+		expect(formatUtcDay("2026-10-09")).toBe("Oct 9, 2026");
+		expect(formatUtcDay("2026-12-31")).toBe("Dec 31, 2026");
+	});
+
+	test("keeps the UTC day at the edges of the year and of the day", () => {
+		expect(formatUtcDay("2026-01-01")).toBe("Jan 1, 2026");
+		expect(formatUtcDay("2026-01-01T00:00:00Z")).toBe("Jan 1, 2026");
+		expect(formatUtcDay("2026-10-09T23:59:59Z")).toBe("Oct 9, 2026");
+	});
+
+	test("returns text that is not a day as given", () => {
+		expect(formatUtcDay("")).toBe("");
+		expect(formatUtcDay("yesterday")).toBe("yesterday");
+		expect(formatUtcDay("2026-13-05")).toBe("2026-13-05");
+		expect(formatUtcDay("2026-00-05")).toBe("2026-00-05");
 	});
 });
