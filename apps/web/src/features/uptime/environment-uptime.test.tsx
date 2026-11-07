@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import { useRouterState } from "@tanstack/react-router";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { EnvironmentService } from "#/api/gen/types.gen";
 import { renderWithProviders } from "#/test/render";
@@ -202,6 +202,33 @@ describe("EnvironmentUptimeList", () => {
 		expect(screen.getByText("Last check")).toBeInTheDocument();
 		// "30 days" heads the column and labels the figure in the narrow layout.
 		expect(screen.getAllByText("30 days")).toHaveLength(2);
+	});
+
+	test("the wide header names the first and last day of the range from the data", async () => {
+		const days = (from: string, to: string): EnvironmentService["days"] =>
+			[from, to].map((at) => ({
+				at,
+				avgLatencyMs: 0,
+				checks: 1,
+				degraded: 0,
+				down: 0,
+				maintenance: 0,
+				maxLatencyMs: 0,
+				up: 1,
+			}));
+		await render([
+			// Sorts first but has no days, so the range comes from the next one.
+			service("api", { state: "down", lastError: "HTTP 500", days: [] }),
+			service("web", { days: days("2026-03-02T00:00:00Z", "2026-03-31") }),
+		]);
+		// The days also render in the bars; the header row is the one with "Service".
+		const header = screen.getByText("Service").parentElement as HTMLElement;
+		expect(within(header).getByText("Mar 2, 2026")).toBeInTheDocument();
+		expect(within(header).getByText("Mar 31, 2026")).toBeInTheDocument();
+		expect(within(header).getByTitle("Last 30 days, UTC")).toBeInTheDocument();
+		expect(
+			within(header).queryByText("Last 30 days, UTC"),
+		).not.toBeInTheDocument();
 	});
 
 	test("a link keeps the project and environment it was given", async () => {
