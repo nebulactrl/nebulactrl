@@ -204,7 +204,7 @@ describe("EnvironmentUptimeList", () => {
 		expect(screen.getAllByText("30 days")).toHaveLength(2);
 	});
 
-	test("the wide header names the first and last day of the range from the data", async () => {
+	test("the wide header and the narrow range row name the first and last day from the data", async () => {
 		const days = (from: string, to: string): EnvironmentService["days"] =>
 			[from, to].map((at) => ({
 				at,
@@ -229,6 +229,12 @@ describe("EnvironmentUptimeList", () => {
 		expect(
 			within(header).queryByText("Last 30 days, UTC"),
 		).not.toBeInTheDocument();
+		// The narrow layout has no header, so it names the same range once, not per row.
+		const narrow = screen
+			.getAllByTitle("Last 30 days, UTC")
+			.find((el) => !header.contains(el)) as HTMLElement;
+		expect(within(narrow).getByText("Mar 2, 2026")).toBeInTheDocument();
+		expect(within(narrow).getByText("Mar 31, 2026")).toBeInTheDocument();
 	});
 
 	test("a link keeps the project and environment it was given", async () => {

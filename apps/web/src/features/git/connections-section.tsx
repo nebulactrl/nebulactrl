@@ -38,6 +38,7 @@ import { ConnectionCard } from "./connection-card";
 import { DeliveriesDialog } from "./deliveries-dialog";
 import { readFlowResult } from "./model";
 import { invalidateGit } from "./queries";
+import { useResetOnPageRestore } from "./use-reset-on-page-restore";
 import { WebhookPanel } from "./webhook-panel";
 
 /** Reports the outcome a connection flow redirected back with, then cleans the URL. */
@@ -263,6 +264,7 @@ export function GitConnectionsSection() {
 		onError: (e) =>
 			toast.error("Could not resume the GitHub App setup", errorMessage(e)),
 	});
+	useResetOnPageRestore(finish.reset);
 
 	const refresh = useMutation({
 		mutationFn: async (c: ConnectionView) => {

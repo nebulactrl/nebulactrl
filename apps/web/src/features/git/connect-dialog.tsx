@@ -32,6 +32,7 @@ import { gitProviderGuide } from "#/lib/credential-links";
 import { type GitProvider, PROVIDERS, providerInfo } from "./model";
 import { ProviderIcon } from "./provider-icon";
 import { invalidateGit } from "./queries";
+import { useResetOnPageRestore } from "./use-reset-on-page-restore";
 import { WebhookPanel } from "./webhook-panel";
 
 type AuthChoice = "token" | "oauth";
@@ -79,6 +80,7 @@ function GitHubForm({ onClose }: { onClose(): void }) {
 		},
 		onError: (e) => setError(errorMessage(e)),
 	});
+	useResetOnPageRestore(start.reset);
 	const submit = (event: FormEvent) => {
 		event.preventDefault();
 		setError(null);

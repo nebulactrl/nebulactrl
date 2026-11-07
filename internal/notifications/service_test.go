@@ -254,6 +254,28 @@ func TestEmailDefaultsAndRecipientDedupe(t *testing.T) {
 	require.Empty(t, res.Channel.Secrets, "no password: nothing stored")
 }
 
+func TestEmailSenderIsShownAsTyped(t *testing.T) {
+	f := newFixture(t)
+	cfg := func(from string) ChannelConfig {
+		return ChannelConfig{Provider: ProviderResend, From: from, To: []string{"ops@example.com"}}
+	}
+	res, err := f.svc.CreateChannel(f.ctx, ChannelInput{Name: "mail", Kind: KindEmail, Config: cfg("alerts@example.com"), Secrets: ChannelSecretsInput{APIKey: "re_key"}})
+	require.NoError(t, err)
+	require.Equal(t, "alerts@example.com", res.Channel.Config.From, "no display name: no angle brackets")
+
+	named := cfg("NebulaCtrl <alerts@example.com>")
+	got, err := f.svc.UpdateChannel(f.ctx, res.Channel.ID, ChannelPatch{Config: &named})
+	require.NoError(t, err)
+	require.Equal(t, "NebulaCtrl <alerts@example.com>", got.Config.From)
+
+	// A channel saved before the fix holds "<alerts@example.com>"; it is shown clean.
+	_, err = f.pool.Exec(context.Background(), `UPDATE notification_channels SET config = jsonb_set(config, '{from}', '"<alerts@example.com>"') WHERE id = $1`, res.Channel.ID)
+	require.NoError(t, err)
+	got, err = f.svc.GetChannel(f.ctx, res.Channel.ID)
+	require.NoError(t, err)
+	require.Equal(t, "alerts@example.com", got.Config.From)
+}
+
 func TestDefaultRuleSubscribesFailuresAndAlertsOnly(t *testing.T) {
 	f := newFixture(t)
 	v := f.slack("ops", "https://hooks.slack.com/services/a/b/c", nil)
@@ -1077,7 +1099,7 @@ func TestResendChannelStoresOnlyTheKeyAndMasksIt(t *testing.T) {
 	})
 	require.NoError(t, err)
 	c := res.Channel.Config
-	require.Equal(t, ChannelConfig{Provider: ProviderResend, From: "\"NebulaCtrl\" <alerts@example.com>", To: []string{"ops@example.com"}}, c)
+	require.Equal(t, ChannelConfig{Provider: ProviderResend, From: "NebulaCtrl <alerts@example.com>", To: []string{"ops@example.com"}}, c)
 	require.Equal(t, map[string]string{"apiKey": mask}, res.Channel.Secrets)
 
 	got, err := f.svc.GetChannel(f.ctx, res.Channel.ID)
@@ -1147,7 +1169,7 @@ func TestResendChannelUpdateKeepsRotatesAndSwitchesProvider(t *testing.T) {
 	require.Equal(t, secrets{Password: "smtp-pw"}, f.storedSecrets(id))
 	got, err = f.svc.UpdateChannel(f.ctx, id, ChannelPatch{Config: &resendCfg, Secrets: &ChannelSecretsInput{APIKey: "re_third"}})
 	require.NoError(t, err)
-	require.Equal(t, ChannelConfig{Provider: ProviderResend, From: "<alerts@example.com>", To: []string{"ops@example.com"}}, got.Config)
+	require.Equal(t, ChannelConfig{Provider: ProviderResend, From: "alerts@example.com", To: []string{"ops@example.com"}}, got.Config)
 	require.Equal(t, map[string]string{"apiKey": mask}, got.Secrets)
 	require.Equal(t, secrets{APIKey: "re_third"}, f.storedSecrets(id))
 }

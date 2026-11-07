@@ -1,12 +1,16 @@
 import { afterEach, describe, expect, test } from "bun:test";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { ConnectionView } from "#/api/gen/types.gen";
 import { stubApi } from "#/test/api";
 import { make, problem } from "#/test/factories";
 import { renderWithProviders } from "#/test/render";
 import { GitConnectionsSection } from "./connections-section";
-import { connection, stubLocationAssign } from "./test-fixtures";
+import {
+	connection,
+	restoreFromBfcache,
+	stubLocationAssign,
+} from "./test-fixtures";
 
 afterEach(() => window.history.replaceState(null, "", "/"));
 
@@ -353,6 +357,43 @@ describe("authorize and install", () => {
 			);
 			expect(api.calls.find((c) => c.method === "POST")?.path).toBe(
 				"/git/connections/c1/github/manifest",
+			);
+		} finally {
+			loc.restore();
+		}
+	});
+
+	test("restoring the page from the back/forward cache makes Finish setup usable again", async () => {
+		const loc = stubLocationAssign();
+		try {
+			stubApi({
+				...list(unfinished),
+				"POST /git/connections/:id/github/manifest": {
+					body: {
+						connectionId: "c1",
+						formUrl: "/api/v1/git/github/manifest/form?state=s1",
+						manifest: "{}",
+						postUrl: "https://github.com/settings/apps/new?state=s1",
+						state: "s1",
+					},
+				},
+			});
+			await renderWithProviders(<GitConnectionsSection />);
+			await screen.findByRole("article", { name: "Acme GitHub" });
+			await userEvent
+				.setup()
+				.click(screen.getByRole("button", { name: "Finish setup" }));
+			await waitFor(() => expect(loc.urls).toHaveLength(1));
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: /Finish setup/ }),
+				).toBeDisabled(),
+			);
+			act(() => restoreFromBfcache());
+			await waitFor(() =>
+				expect(
+					screen.getByRole("button", { name: "Finish setup" }),
+				).toBeEnabled(),
 			);
 		} finally {
 			loc.restore();

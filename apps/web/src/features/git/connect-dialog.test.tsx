@@ -1,11 +1,15 @@
 import { describe, expect, mock, test } from "bun:test";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { stubApi } from "#/test/api";
 import { make, problem } from "#/test/factories";
 import { renderWithProviders } from "#/test/render";
 import { ConnectDialog } from "./connect-dialog";
-import { connection, stubLocationAssign } from "./test-fixtures";
+import {
+	connection,
+	restoreFromBfcache,
+	stubLocationAssign,
+} from "./test-fixtures";
 
 async function open() {
 	const onOpenChange = mock();
@@ -124,6 +128,27 @@ describe("GitHub", () => {
 			await user.click(create);
 			expect(api.calls).toHaveLength(1);
 			expect(loc.urls).toEqual([FORM_URL]);
+		} finally {
+			loc.restore();
+		}
+	});
+
+	test("restoring the page from the back/forward cache makes the button usable again", async () => {
+		const loc = stubLocationAssign();
+		try {
+			const api = stubApi({ "POST /git/github/manifest": started });
+			const { user } = await open();
+			await pick(user, "GitHub");
+			const create = screen.getByRole("button", {
+				name: /Create the GitHub App/,
+			});
+			await user.click(create);
+			await waitFor(() => expect(loc.urls).toEqual([FORM_URL]));
+			await waitFor(() => expect(create).toBeDisabled());
+			act(() => restoreFromBfcache());
+			await waitFor(() => expect(create).toBeEnabled());
+			await user.click(create);
+			await waitFor(() => expect(api.calls).toHaveLength(2));
 		} finally {
 			loc.restore();
 		}

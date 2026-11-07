@@ -203,9 +203,9 @@ export function MailRelaySection() {
 	return (
 		<SettingsPlate
 			id="mail-relay"
-			title="Mail relay for invites"
+			title="Mail relay for invites and password resets"
 			tipLabel="About the mail relay"
-			tip="Used when a team has no email notification channel. Without either, invites are link-only: you copy the link and send it yourself."
+			tip="Sends password resets, and invites for teams without an email notification channel, through SMTP or Resend. With neither a relay nor a channel, invites are link-only (copy the link and send it yourself) and password resets need a link from an admin."
 		>
 			<form onSubmit={submit} className="flex flex-col gap-4">
 				<div>

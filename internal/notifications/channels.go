@@ -164,6 +164,9 @@ func (s *Service) view(ch db.NotificationChannel, st ChannelStats) (ChannelView,
 			return ChannelView{}, fmt.Errorf("decode channel config: %w", err)
 		}
 	}
+	if ch.Kind == KindEmail {
+		cfg.From = displaySender(cfg.From)
+	}
 	ids := ch.ProjectIds
 	if ids == nil {
 		ids = []uuid.UUID{}
