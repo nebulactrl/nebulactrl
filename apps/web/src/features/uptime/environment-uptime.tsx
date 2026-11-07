@@ -225,6 +225,16 @@ export function EnvironmentUptimeList({
 				)}
 				<span className={`${HEAD} text-right`}>Last check</span>
 			</div>
+			{/* The wide header carries the range; this is the same range for the narrow layout, once rather than under every bar. */}
+			{range ? (
+				<div
+					title="Last 30 days, UTC"
+					className={`${HEAD} flex justify-between gap-2 border-line-faint border-b py-2 @min-[640px]:hidden`}
+				>
+					<span>{range.from}</span>
+					<span>{range.to}</span>
+				</div>
+			) : null}
 			<ul id={listId} className="rule-rows">
 				{rows.map((item) => {
 					const reveal = expanded ? hidden.indexOf(item) : -1;

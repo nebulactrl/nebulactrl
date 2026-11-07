@@ -94,6 +94,16 @@ export function stubLocationAssign(): { urls: string[]; restore(): void } {
 	};
 }
 
+/**
+ * Fires what the browser fires when it restores the page from its
+ * back/forward cache (the user pressed Back from the page the app navigated to).
+ */
+export function restoreFromBfcache(): void {
+	const event = new Event("pageshow");
+	Object.defineProperty(event, "persisted", { value: true });
+	window.dispatchEvent(event);
+}
+
 /** The two fields the git section reads off a service. */
 export function service(over: { id?: string; name?: string } = {}): Service {
 	return { id: "svc-1", name: "api", ...over } as Service;

@@ -235,11 +235,12 @@ func normalizeConfig(kind string, cfg ChannelConfig) (ChannelConfig, error) {
 		default:
 			return cfg, bad("provider must be smtp or resend")
 		}
-		from, err := mail.ParseAddress(strings.TrimSpace(cfg.From))
+		raw := strings.TrimSpace(cfg.From)
+		from, err := mail.ParseAddress(raw)
 		if err != nil {
 			return cfg, bad("from must be an email address, e.g. alerts@example.com")
 		}
-		cfg.From = from.String()
+		cfg.From = tidySender(raw, from)
 		if len(cfg.To) == 0 || len(cfg.To) > maxRecipients {
 			return cfg, bad(fmt.Sprintf("add between 1 and %d recipients", maxRecipients))
 		}
@@ -269,6 +270,27 @@ func normalizeConfig(kind string, cfg ChannelConfig) (ChannelConfig, error) {
 		return cfg, bad("kind must be email, slack, discord, telegram or webhook")
 	}
 	return cfg, nil
+}
+
+// tidySender is the sender as typed, except that one without a display name is
+// the bare address (a stray "<alerts@example.com>" loses its angle brackets).
+// Address.String is not used: it quotes the display name.
+func tidySender(raw string, a *mail.Address) string {
+	if a.Name == "" {
+		return a.Address
+	}
+	return raw
+}
+
+// displaySender cleans a stored sender for display: channels saved with an
+// earlier version kept "<alerts@example.com>". An unparseable value is left as is.
+func displaySender(from string) string {
+	raw := strings.TrimSpace(from)
+	a, err := mail.ParseAddress(raw)
+	if err != nil {
+		return from
+	}
+	return tidySender(raw, a)
 }
 
 // pruneSecrets drops the credentials cfg's kind and provider do not use, so

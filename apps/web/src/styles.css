@@ -2080,7 +2080,7 @@ html[data-vt-variant]::view-transition-new(vt-page) {
 /*
  * A card, row or header grows into its destination: both snapshots fill the
  * moving group (cropped from the top-left, never squashed) and cross-fade.
- * Titles keep the browser's aspect-preserving default.
+ * Titles are sized by height, below.
  */
 html[data-vt-variant]::view-transition-old(*.vt-card),
 html[data-vt-variant]::view-transition-new(*.vt-card),
@@ -2089,4 +2089,26 @@ html[data-vt-variant]::view-transition-new(*.vt-row) {
 	height: 100%;
 	object-fit: cover;
 	object-position: top left;
+}
+
+/*
+ * A title (sidebar label -> page heading) is text, and text should grow by
+ * its font size. The browser's default sizes both snapshots to the group's
+ * WIDTH (width: 100%, height: auto), which is the ratio of the two boxes'
+ * widths: with different words ("Variables" -> "Shared variables") the label
+ * was drawn 3x its size before it faded. Sizing by the group's HEIGHT (a
+ * line box, so proportional to the font size) makes both snapshots scale by
+ * the font-size ratio whatever the words; width follows the snapshot's own
+ * aspect ratio and starts at the inline start (the UA's default inset), so
+ * the text grows from where the label was without drifting. The image pair
+ * clips, so a title much wider than the label's box does not spill out of
+ * the group while that box is still small.
+ */
+html[data-vt-variant]::view-transition-old(*.vt-title),
+html[data-vt-variant]::view-transition-new(*.vt-title) {
+	height: 100%;
+	width: auto;
+}
+html[data-vt-variant]::view-transition-image-pair(*.vt-title) {
+	overflow: clip;
 }

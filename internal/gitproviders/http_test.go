@@ -647,6 +647,14 @@ func TestManifestFormPostsTheManifestToGitHubOnly(t *testing.T) {
 	require.Contains(t, q.Get("git_error"), "expired or was already completed")
 	_, q = f.browse(f.ctx, "/git/github/manifest/form")
 	require.Contains(t, q.Get("git_error"), "state is required")
+
+	// CSP cannot express an IPv6 literal as a form-action source, so the page
+	// explains instead of rendering a form the browser would block.
+	v6, err := f.svc.StartGitHubManifest(f.ctx, gitproviders.ManifestInput{BaseURL: "https://[2001:db8::1]"})
+	require.NoError(t, err)
+	rec, q = f.browse(f.ctx, "/git/github/manifest/form?state="+url.QueryEscape(v6.State))
+	require.Equal(t, http.StatusSeeOther, rec.Code)
+	require.Contains(t, q.Get("git_error"), "IPv6")
 }
 
 func TestRestartGitHubManifestReplacesTheStateUntilTheAppExists(t *testing.T) {

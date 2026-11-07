@@ -3,12 +3,14 @@ package gitproviders
 import (
 	"crypto/sha256"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"html/template"
 	"net/http"
 	"net/url"
 	"regexp"
+	"strings"
+
+	"github.com/nebulactrl/nebulactrl/internal/apierr"
 )
 
 // The page that sends a GitHub App manifest to GitHub. GitHub only takes the
@@ -18,7 +20,11 @@ import (
 // of the flow (github.com or the Enterprise Server).
 
 const (
-	manifestFormScript = `document.getElementById("manifest").submit();`
+	// Back from GitHub can land on this page again (Firefox and Safari re-run
+	// it instead of restoring the dashboard); posting again would send the user
+	// straight back to GitHub, so a history navigation leaves the visible button
+	// as the manual way on.
+	manifestFormScript = `if(performance.getEntriesByType("navigation")[0]?.type!=="back_forward")document.getElementById("manifest").submit();`
 	manifestFormStyle  = `:root{color-scheme:dark}body{margin:0;min-height:100vh;display:grid;place-items:center;background:#121417;color:#c0c4cc;font:14px/1.5 system-ui,sans-serif}form{display:grid;gap:12px;justify-items:center}button{font:inherit;padding:6px 14px;cursor:pointer;color:#f1f3f8;background:#24262a;border:1px solid rgb(255 255 255/.16);border-radius:8px}`
 )
 
@@ -44,8 +50,10 @@ var (
 	manifestFormCSP = "default-src 'none'; script-src " + cspHash(manifestFormScript) + "; style-src " + cspHash(manifestFormStyle) +
 		"; form-action %s; base-uri 'none'; frame-ancestors 'none'"
 	// cspSourceOK keeps an origin that could not be written into a CSP source
-	// expression out of the policy.
-	cspSourceOK = regexp.MustCompile(`^https?://[A-Za-z0-9.\-:\[\]]+$`)
+	// expression out of the policy. Bracketed IPv6 literals are out: CSP
+	// host-sources cannot express them, so browsers would drop the form-action
+	// source and block the form silently.
+	cspSourceOK = regexp.MustCompile(`^https?://[A-Za-z0-9.\-:]+$`)
 )
 
 func cspHash(s string) string {
@@ -65,7 +73,11 @@ func (s *Service) handleManifestForm(w http.ResponseWriter, r *http.Request) {
 		origin = u.Scheme + "://" + u.Host
 	}
 	if !cspSourceOK.MatchString(origin) {
-		s.flowError(w, r, errors.New("the GitHub URL of the connection cannot be used as a form target: "+postURL))
+		msg := "the GitHub URL of the connection cannot be used as a form target: " + postURL
+		if err == nil && strings.HasPrefix(u.Host, "[") {
+			msg = "a GitHub Enterprise Server at an IPv6 address cannot be used; give it a host name: " + postURL
+		}
+		s.flowError(w, r, apierr.Unprocessable("validation_failed", msg))
 		return
 	}
 	h := w.Header()
