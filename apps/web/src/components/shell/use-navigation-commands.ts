@@ -11,6 +11,7 @@ import {
 	PlusIcon,
 	RadioTowerIcon,
 	RocketIcon,
+	ScrollTextIcon,
 	ServerIcon,
 } from "lucide-react";
 import { useMemo } from "react";
@@ -167,14 +168,24 @@ export function useNavigationCommands() {
 					id: "go:observability",
 					label: "Open observability",
 					group: "Go to",
-					hint: "logs and resources",
+					hint: "uptime, traffic and resources",
 					icon: ActivityIcon,
-					keywords: ["logs", "metrics", "traffic"],
+					keywords: ["metrics", "traffic"],
 					run: () =>
 						void navigate({
 							to: "/p/$projectId/$envSlug/observability",
 							params,
 						}),
+				},
+				{
+					id: "go:logs",
+					label: "Open logs",
+					group: "Go to",
+					hint: "search runtime output and requests",
+					icon: ScrollTextIcon,
+					keywords: ["logs", "search", "requests", "errors", "tail"],
+					run: () =>
+						void navigate({ to: "/p/$projectId/$envSlug/logs", params }),
 				},
 			);
 		}

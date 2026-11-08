@@ -1,7 +1,15 @@
-// The last ten queries a person ran, newest first, kept in localStorage.
+// The last ten queries a person ran in a team, newest first, kept in localStorage.
+// A query can name a customer or a token, so the list belongs to one user in
+// one team and is not shown to the next person on the same browser.
 
-const KEY = "nebulactrl.logs.recent-queries";
+/** The one global key older builds wrote; it belonged to nobody. */
+const LEGACY_KEY = "nebulactrl.logs.recent-queries";
+const STORAGE_PREFIX = "nebulactrl.logs.recent-queries:";
 const MAX = 10;
+
+function storageKey(teamId: string, userId: string): string {
+	return `${STORAGE_PREFIX}${teamId}:${userId}`;
+}
 
 /** Puts `query` first, drops an earlier copy and keeps the newest ten. Blank queries are ignored. */
 export function pushRecent(list: readonly string[], query: string): string[] {
@@ -10,9 +18,11 @@ export function pushRecent(list: readonly string[], query: string): string[] {
 	return [trimmed, ...list.filter((item) => item !== trimmed)].slice(0, MAX);
 }
 
-export function loadRecent(): string[] {
+/** What `userId` ran in `teamId`. The old global list is dropped, not carried over. */
+export function loadRecent(teamId: string, userId: string): string[] {
 	try {
-		const raw = localStorage.getItem(KEY);
+		localStorage.removeItem(LEGACY_KEY);
+		const raw = localStorage.getItem(storageKey(teamId, userId));
 		const value: unknown = raw ? JSON.parse(raw) : [];
 		if (!Array.isArray(value)) return [];
 		return value
@@ -23,9 +33,13 @@ export function loadRecent(): string[] {
 	}
 }
 
-export function saveRecent(list: readonly string[]) {
+export function saveRecent(
+	teamId: string,
+	userId: string,
+	list: readonly string[],
+) {
 	try {
-		localStorage.setItem(KEY, JSON.stringify(list));
+		localStorage.setItem(storageKey(teamId, userId), JSON.stringify(list));
 	} catch {
 		// Private mode or a full quota: recents are a convenience.
 	}

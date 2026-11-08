@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, spyOn, test } from "bun:test";
 import { loadRecent, pushRecent, saveRecent } from "./recent";
 
-const KEY = "nebulactrl.logs.recent-queries";
+const LEGACY_KEY = "nebulactrl.logs.recent-queries";
+const KEY = `${LEGACY_KEY}:t1:u1`;
 
 afterEach(() => localStorage.clear());
 
@@ -37,22 +38,42 @@ describe("pushRecent", () => {
 
 describe("loadRecent / saveRecent", () => {
 	test("a saved list loads back", () => {
-		saveRecent(["level:error", "timeout"]);
-		expect(loadRecent()).toEqual(["level:error", "timeout"]);
+		saveRecent("t1", "u1", ["level:error", "timeout"]);
+		expect(loadRecent("t1", "u1")).toEqual(["level:error", "timeout"]);
 	});
 
 	test("nothing saved is an empty list", () => {
-		expect(loadRecent()).toEqual([]);
+		expect(loadRecent("t1", "u1")).toEqual([]);
+	});
+
+	test("another user's, or another team's, list is not read", () => {
+		saveRecent("t1", "u1", ["customer@example.com"]);
+		expect(loadRecent("t1", "u2")).toEqual([]);
+		expect(loadRecent("t2", "u1")).toEqual([]);
+		expect(loadRecent("t1", "u1")).toEqual(["customer@example.com"]);
+	});
+
+	test("saving for one user leaves another's list alone", () => {
+		saveRecent("t1", "u1", ["a"]);
+		saveRecent("t1", "u2", ["b"]);
+		expect(loadRecent("t1", "u1")).toEqual(["a"]);
+		expect(loadRecent("t1", "u2")).toEqual(["b"]);
+	});
+
+	test("the old global list is ignored and removed", () => {
+		localStorage.setItem(LEGACY_KEY, JSON.stringify(["old secret"]));
+		expect(loadRecent("t1", "u1")).toEqual([]);
+		expect(localStorage.getItem(LEGACY_KEY)).toBeNull();
 	});
 
 	test("unreadable JSON is an empty list", () => {
 		localStorage.setItem(KEY, "{not json");
-		expect(loadRecent()).toEqual([]);
+		expect(loadRecent("t1", "u1")).toEqual([]);
 	});
 
 	test("a stored value that is not a list is an empty list", () => {
 		localStorage.setItem(KEY, JSON.stringify({ a: 1 }));
-		expect(loadRecent()).toEqual([]);
+		expect(loadRecent("t1", "u1")).toEqual([]);
 	});
 
 	test("non-string entries are dropped and at most ten are read", () => {
@@ -63,7 +84,7 @@ describe("loadRecent / saveRecent", () => {
 			...Array.from({ length: 12 }, (_, i) => `q${i}`),
 		];
 		localStorage.setItem(KEY, JSON.stringify(stored));
-		const loaded = loadRecent();
+		const loaded = loadRecent("t1", "u1");
 		expect(loaded).toHaveLength(10);
 		expect(loaded.slice(0, 3)).toEqual(["a", "q0", "q1"]);
 	});
@@ -73,7 +94,7 @@ describe("loadRecent / saveRecent", () => {
 			throw new Error("quota");
 		});
 		try {
-			expect(() => saveRecent(["a"])).not.toThrow();
+			expect(() => saveRecent("t1", "u1", ["a"])).not.toThrow();
 		} finally {
 			spy.mockRestore();
 		}
@@ -84,7 +105,7 @@ describe("loadRecent / saveRecent", () => {
 			throw new Error("denied");
 		});
 		try {
-			expect(loadRecent()).toEqual([]);
+			expect(loadRecent("t1", "u1")).toEqual([]);
 		} finally {
 			spy.mockRestore();
 		}

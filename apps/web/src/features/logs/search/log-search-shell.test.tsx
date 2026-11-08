@@ -1,8 +1,10 @@
-import { afterEach, describe, expect, mock, test } from "bun:test";
+import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { stubApi } from "#/test/api";
 import { renderWithProviders } from "#/test/render";
 import type { BufferLine } from "./buffer";
+import { FacetStats } from "./facets";
 import { LogSearchShell, NoMatches } from "./log-search-shell";
 import { useLogSearch } from "./use-log-search";
 
@@ -37,6 +39,67 @@ function Harness({
 	);
 }
 
+const countsOf = (method: string) => ({
+	stats: {
+		facets: new FacetStats().facets,
+		attrs: new Map([
+			["method", { count: 3, numeric: 0, values: new Map([[method, 3]]) }],
+		]),
+	},
+	version: 1,
+});
+
+function Scoped({
+	onCaretChange,
+}: {
+	onCaretChange(caret: number | null): void;
+}) {
+	const search = useLogSearch({ lines });
+	return (
+		<LogSearchShell
+			search={search}
+			facetKeys={["level"]}
+			label="Search logs"
+			facetSource={countsOf("PUT")}
+			suggestSource={countsOf("PATCH")}
+			onCaretChange={onCaretChange}
+		>
+			<ul aria-label="window" />
+		</LogSearchShell>
+	);
+}
+
+function Served() {
+	const search = useLogSearch({ lines });
+	return (
+		<LogSearchShell
+			search={search}
+			facetKeys={["level", "service"]}
+			label="Search logs"
+			placeholder="Find lines"
+			beforeBody={<figure>chart</figure>}
+			facetSource={{
+				stats: {
+					facets: {
+						level: new Map([["fatal", 41]]),
+						service: new Map(),
+						stream: new Map(),
+						replica: new Map(),
+						status: new Map(),
+						deployment: new Map(),
+					},
+					attrs: new Map([
+						["method", { count: 9, numeric: 0, values: new Map([["PUT", 9]]) }],
+					]),
+				},
+				version: 1,
+			}}
+		>
+			<ul aria-label="window" />
+		</LogSearchShell>
+	);
+}
+
 const realWidth = Object.getOwnPropertyDescriptor(
 	HTMLElement.prototype,
 	"clientWidth",
@@ -47,6 +110,14 @@ function setWidth(width: number) {
 		get: () => width,
 	});
 }
+// The search asks who is signed in to key its recent queries; nothing here
+// depends on the answer, so it never comes.
+beforeEach(() => {
+	stubApi({
+		"GET /me": () => new Promise<Response>(() => {}),
+		"GET /teams": () => new Promise<Response>(() => {}),
+	});
+});
 afterEach(() => {
 	if (realWidth)
 		Object.defineProperty(HTMLElement.prototype, "clientWidth", realWidth);
@@ -151,6 +222,37 @@ describe("LogSearchShell", () => {
 		await waitFor(() =>
 			expect(items()).toEqual(["INFO server started", "ERROR disk full"]),
 		);
+	});
+
+	test("server counts replace the buffer's in the facets and the suggestions; the placeholder and a row above the body are the caller's", async () => {
+		const user = userEvent.setup();
+		setWidth(1200);
+		await renderWithProviders(<Served />);
+		const box = screen.getByRole("combobox", { name: "Search logs" });
+		expect(box).toHaveAttribute("placeholder", "Find lines");
+		expect(screen.getByRole("figure")).toHaveTextContent("chart");
+		const level = screen.getByRole("region", { name: "Level" });
+		expect(within(level).getByText("fatal")).toBeInTheDocument();
+		expect(within(level).getByText("41")).toBeInTheDocument();
+		expect(within(level).queryByText("error")).toBeNull();
+		await user.type(box, "@method:");
+		expect(
+			await screen.findByRole("option", { name: /PUT/ }),
+		).toBeInTheDocument();
+	});
+
+	test("the suggestions count over their own source and the caret is reported", async () => {
+		const user = userEvent.setup();
+		setWidth(1200);
+		const onCaretChange = mock();
+		await renderWithProviders(<Scoped onCaretChange={onCaretChange} />);
+		const box = screen.getByRole("combobox", { name: "Search logs" });
+		await user.type(box, "@method:");
+		expect(
+			await screen.findByRole("option", { name: /PATCH/ }),
+		).toBeInTheDocument();
+		expect(screen.queryByRole("option", { name: /PUT/ })).toBeNull();
+		expect(onCaretChange).toHaveBeenLastCalledWith(8);
 	});
 });
 

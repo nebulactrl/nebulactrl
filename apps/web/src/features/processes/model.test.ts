@@ -361,6 +361,30 @@ describe("processRow", () => {
 			processRow(process({ name: "old", removed: true, observed: null })).kind,
 		).toBe("stopped");
 	});
+
+	test("while a release rolls, running processes spin and staged or removed ones keep their word", () => {
+		const exited = process({
+			name: "worker",
+			observed: {
+				state: "exited",
+				health: "unhealthy",
+				replicasReady: 0,
+				replicasDesired: 1,
+			},
+		});
+		expect(processRow(exited, true)).toMatchObject({
+			kind: "deploying",
+			stateLabel: "Deploying",
+		});
+		expect(processRow(exited).kind).toBe("failed");
+		expect(
+			processRow(process({ name: "q", pending: true, observed: null }), true)
+				.stateLabel,
+		).toBe("Staged");
+		expect(
+			processRow(process({ name: "old", removed: true }), true).stateLabel,
+		).toBe("Removed");
+	});
 });
 
 describe("nodeProcessSummary", () => {

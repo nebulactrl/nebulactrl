@@ -2,7 +2,6 @@ import { Link, useSearch } from "@tanstack/react-router";
 import { cn } from "cn";
 import { RefreshCwIcon } from "lucide-react";
 import { type ReactNode, useEffect, useRef, useState } from "react";
-import type { LogLine } from "#/api/sse";
 import { Loading } from "#/components/common/loading";
 import {
 	Alert,
@@ -31,13 +30,13 @@ import { RangePicker } from "./range-picker";
 import { useHistoryRange } from "./url";
 import { type HistoryScope, useHistoryLogs } from "./use-history-logs";
 
-interface HistoryServer {
+export interface HistoryServer {
 	id: string;
 	name: string;
 }
 
 export interface HistoryLogsProps {
-	scope: HistoryScope;
+	scope: HistoryScope & { kind: "service" };
 	/** The servers the log lives on: named when one is offline, linked when capture is off. */
 	servers: readonly HistoryServer[];
 	/** The Live | History switch, first in the toolbar. */
@@ -47,15 +46,15 @@ export interface HistoryLogsProps {
 	/** The log window's accessible name. */
 	logLabel: string;
 	facetKeys: readonly FacetKey[];
-	skipBlank?: boolean;
-	/** A service column, for a log that merges several services. */
-	showService?: boolean;
-	serviceIcon?: (line: LogLine) => ReactNode;
 	className?: string;
 	bodyClassName?: string;
 }
 
-function ServerLinks({ servers }: { servers: readonly HistoryServer[] }) {
+export function ServerLinks({
+	servers,
+}: {
+	servers: readonly HistoryServer[];
+}) {
 	return servers.map((server, index) => (
 		<span key={server.id}>
 			{index > 0 ? ", " : null}
@@ -92,9 +91,6 @@ export function HistoryLogs({
 	label,
 	logLabel,
 	facetKeys,
-	skipBlank = false,
-	showService = false,
-	serviceIcon,
 	className,
 	bodyClassName,
 }: HistoryLogsProps) {
@@ -104,7 +100,6 @@ export function HistoryLogs({
 	const history = useHistoryLogs({ scope, range, query: sent });
 	const search = useLogSearch({
 		lines: history.lines,
-		skipBlank,
 		cap: HISTORY_MAX_LINES,
 	});
 	const settled = search.settled.input;
@@ -205,9 +200,8 @@ export function HistoryLogs({
 			<Alert key="capture" variant="warning">
 				<AlertTitle>Log capture is off</AlertTitle>
 				<AlertDescription>
-					{scope.kind === "service"
-						? "Log capture is switched off on this server. Turn it on in the server's settings."
-						: "Log capture is switched off on at least one server of this environment. Turn it on in the server's settings."}
+					Log capture is switched off on this server. Turn it on in the server's
+					settings.
 					{servers.length > 0 ? (
 						<>
 							{" "}
@@ -304,7 +298,6 @@ export function HistoryLogs({
 		: `${footerText({
 				lines: history.lines.length,
 				oldest: history.oldest,
-				scope: scope.kind,
 				continuation: next.kind,
 			})}${history.stale ? " Updating…" : ""}`;
 
@@ -320,18 +313,16 @@ export function HistoryLogs({
 				<>
 					<div className="flex h-8 items-center">{modeToggle}</div>
 					<RangePicker value={range} onChange={setRange} />
-					{scope.kind === "service" ? (
-						<DownloadLogsButton
-							target={{ kind: "service", id: scope.id }}
-							component={scope.component}
-							process={scope.process}
-							query={sent}
-							range={() => {
-								const r = resolveRange(range, Date.now());
-								return { from: r.from, to: r.to };
-							}}
-						/>
-					) : null}
+					<DownloadLogsButton
+						target={{ kind: "service", id: scope.id }}
+						component={scope.component}
+						process={scope.process}
+						query={sent}
+						range={() => {
+							const r = resolveRange(range, Date.now());
+							return { from: r.from, to: r.to };
+						}}
+					/>
 					<Button
 						variant="secondary"
 						size="sm"
@@ -364,8 +355,6 @@ export function HistoryLogs({
 						lines={search.visible}
 						terms={search.terms}
 						showLevel
-						showService={showService}
-						{...(serviceIcon ? { serviceIcon } : {})}
 						showDate
 						follow={false}
 						onLetGo={() => undefined}

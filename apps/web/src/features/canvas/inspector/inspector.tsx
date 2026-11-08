@@ -12,6 +12,7 @@ import type { Service } from "#/api/models";
 import { Badge } from "#/components/ui/badge";
 import { Sheet, SheetContent } from "#/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
+import { useDebugParam } from "#/features/deployments/debug/use-debug-param";
 import { whenIdle } from "#/lib/when-idle";
 import {
 	INSPECTOR_DOCKED_CSS,
@@ -176,6 +177,8 @@ function InspectorView({
 	// panel's first frame. A swap to another service is not an open, so it
 	// has none; the content just changes.
 	const slideRef = usePanelSlide(open, fullScreen ? "y" : "x", reduced);
+	// The deployment debug panel slides over the inspector: it recedes behind.
+	const stacked = useDebugParam().deploymentId !== undefined;
 
 	useTabChords(open, onTabChange);
 
@@ -249,6 +252,7 @@ function InspectorView({
 					saveWidth(storage(), widthClass, px);
 				}}
 				data-screen-label={INSPECTOR_SCREEN_LABEL}
+				data-stacked={stacked ? "" : undefined}
 				aria-label={`${shown.service.name} inspector`}
 				initialFocus={() =>
 					document.querySelector<HTMLElement>(

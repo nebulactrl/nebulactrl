@@ -283,6 +283,8 @@ export interface ApiSchemas {
 	"ExportVar": T.ExportVar;
 	"ExportView": T.ExportView;
 	"ExposureView": T.ExposureView;
+	"FacetField": T.FacetField;
+	"FacetValue": T.FacetValue;
 	"Facts": T.Facts;
 	"FieldChange": T.FieldChange;
 	"FileEntry": T.FileEntry;
@@ -320,6 +322,7 @@ export interface ApiSchemas {
 	"Header": T.Header;
 	"Healthcheck": T.Healthcheck;
 	"HealthcheckInput": T.HealthcheckInput;
+	"HistogramBucket": T.HistogramBucket;
 	"HistoryOutputBody": T.HistoryOutputBody;
 	"HookStatusView": T.HookStatusView;
 	"HostShellInfoView": T.HostShellInfoView;
@@ -368,6 +371,7 @@ export interface ApiSchemas {
 	"LogDrainTestResult": T.LogDrainTestResult;
 	"LogDrainTestState": T.LogDrainTestState;
 	"LogDrainView": T.LogDrainView;
+	"LogFacetsPage": T.LogFacetsPage;
 	"LogHistoryEntry": T.LogHistoryEntry;
 	"LogHistoryPage": T.LogHistoryPage;
 	"LogHistoryUnavailable": T.LogHistoryUnavailable;

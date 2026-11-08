@@ -12761,6 +12761,22 @@ type ExposureView struct {
 // ExposureViewPurpose defines model for ExposureView.Purpose.
 type ExposureViewPurpose string
 
+// FacetField defines model for FacetField.
+type FacetField struct {
+	Count   int64         `json:"count"`
+	Key     string        `json:"key"`
+	Max     *float64      `json:"max,omitempty"`
+	Min     *float64      `json:"min,omitempty"`
+	Numeric *bool         `json:"numeric,omitempty"`
+	Values  *[]FacetValue `json:"values"`
+}
+
+// FacetValue defines model for FacetValue.
+type FacetValue struct {
+	Count int64  `json:"count"`
+	Value string `json:"value"`
+}
+
 // Facts defines model for Facts.
 type Facts struct {
 	AgentUpgrade   *UpgradeReport    `json:"agentUpgrade,omitempty"`
@@ -13311,6 +13327,13 @@ type HealthcheckInput struct {
 
 // HealthcheckInputType defines model for HealthcheckInput.Type.
 type HealthcheckInputType string
+
+// HistogramBucket defines model for HistogramBucket.
+type HistogramBucket struct {
+	Count  int64     `json:"count"`
+	Errors int64     `json:"errors"`
+	Start  time.Time `json:"start"`
+}
 
 // HistoryOutputBody defines model for HistoryOutputBody.
 type HistoryOutputBody struct {
@@ -13935,6 +13958,38 @@ type LogDrainView struct {
 // LogDrainViewKind defines model for LogDrainView.Kind.
 type LogDrainViewKind string
 
+// LogFacetsPage defines model for LogFacetsPage.
+type LogFacetsPage struct {
+	// Attrs The most frequent log attributes (key with a leading @, from JSON and logfmt lines and request lines) and their top values.
+	Attrs     *[]FacetField `json:"attrs"`
+	Capturing bool          `json:"capturing"`
+
+	// Facets level, stream, status, replica and deployment (and service for an environment): the most frequent values and their counts.
+	Facets *[]FacetField `json:"facets"`
+
+	// Histogram Matching lines per equal time bucket over the range; errors counts level error or fatal and status 500 or more.
+	Histogram *[]HistogramBucket `json:"histogram"`
+
+	// Matched Lines that matched the query.
+	Matched int64 `json:"matched"`
+	Partial bool  `json:"partial"`
+
+	// PartialFrom With partial: the counts cover only lines at or after this time.
+	PartialFrom *time.Time `json:"partialFrom,omitempty"`
+
+	// QueryErrors The parts of the query that were ignored.
+	QueryErrors *[]string `json:"queryErrors,omitempty"`
+
+	// RequestsCapturing True when a server asked is storing request lines.
+	RequestsCapturing bool `json:"requestsCapturing"`
+
+	// Scanned Lines that were read to find them.
+	Scanned int64 `json:"scanned"`
+
+	// Unavailable Services whose counts could not be read (their server is offline, for example).
+	Unavailable *[]LogHistoryUnavailable `json:"unavailable,omitempty"`
+}
+
 // LogHistoryEntry defines model for LogHistoryEntry.
 type LogHistoryEntry struct {
 	DeploymentId *string   `json:"deploymentId,omitempty"`
@@ -14004,7 +14059,19 @@ type LogSettingsView struct {
 	// MaxServiceBytes Cap per service; the oldest lines go first.
 	MaxServiceBytes int64 `json:"maxServiceBytes"`
 	Online          bool  `json:"online"`
-	RetentionDays   int64 `json:"retentionDays"`
+
+	// RequestLogs Store one line per routed HTTP request on the host, searchable on the Logs page. Needs traffic analytics and capture on; requests are never shipped to drains. Retention days follow the runtime logs.
+	RequestLogs bool `json:"requestLogs"`
+
+	// RequestLogsKeepAssets Store the successful requests (2xx, 304) for scripts, stylesheets, images and fonts too. Off: only failed asset requests are stored; pages and API requests always are.
+	RequestLogsKeepAssets bool `json:"requestLogsKeepAssets"`
+
+	// RequestLogsKeepQuery Keep the query string of a request line. Off: it is dropped before anything is written.
+	RequestLogsKeepQuery bool `json:"requestLogsKeepQuery"`
+
+	// RequestsTotalBytes Disk the request logs use on the host, as the agent last reported; 0 until it has.
+	RequestsTotalBytes int64 `json:"requestsTotalBytes"`
+	RetentionDays      int64 `json:"retentionDays"`
 
 	// Usage What the agent last reported; absent until it has.
 	Usage *LogServerUsage `json:"usage,omitempty"`
@@ -15936,7 +16003,16 @@ type PutSettingsInputBody struct {
 	Capture         bool  `json:"capture"`
 	MaxServerBytes  int64 `json:"maxServerBytes"`
 	MaxServiceBytes int64 `json:"maxServiceBytes"`
-	RetentionDays   int64 `json:"retentionDays"`
+
+	// RequestLogs Store a line per routed HTTP request on the host. Omitted keeps the stored value (default on).
+	RequestLogs *bool `json:"requestLogs,omitempty"`
+
+	// RequestLogsKeepAssets Store successful asset requests (scripts, stylesheets, images, fonts) too. Omitted keeps the stored value (default off: only failed ones are stored).
+	RequestLogsKeepAssets *bool `json:"requestLogsKeepAssets,omitempty"`
+
+	// RequestLogsKeepQuery Keep query strings in request lines. Omitted keeps the stored value (default off).
+	RequestLogsKeepQuery *bool `json:"requestLogsKeepQuery,omitempty"`
+	RetentionDays        int64 `json:"retentionDays"`
 }
 
 // PutSettingsInputBody1 defines model for PutSettingsInputBody1.
@@ -20572,6 +20648,24 @@ type GetEnvironmentLogsParams struct {
 	Follow *bool `form:"follow,omitempty" json:"follow,omitempty"`
 }
 
+// GetEnvironmentLogFacetsParams defines parameters for GetEnvironmentLogFacets.
+type GetEnvironmentLogFacetsParams struct {
+	// From Start of the range (RFC 3339). Default: 15 minutes before to.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Q A log search query (the same language as the log views); only matching lines are counted.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Sources Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests.
+	Sources *string `form:"sources,omitempty" json:"sources,omitempty"`
+
+	// Buckets Histogram buckets over the range (default 60, max 240).
+	Buckets *int64 `form:"buckets,omitempty" json:"buckets,omitempty"`
+}
+
 // GetEnvironmentLogHistoryParams defines parameters for GetEnvironmentLogHistory.
 type GetEnvironmentLogHistoryParams struct {
 	// From Only lines at or after this time (RFC 3339). Default: the oldest line the server keeps.
@@ -20591,6 +20685,9 @@ type GetEnvironmentLogHistoryParams struct {
 
 	// Order desc (default): newest first. asc: oldest first.
 	Order *GetEnvironmentLogHistoryParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+
+	// Sources Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source.
+	Sources *string `form:"sources,omitempty" json:"sources,omitempty"`
 }
 
 // GetEnvironmentLogHistoryParamsOrder defines parameters for GetEnvironmentLogHistory.
@@ -21214,6 +21311,24 @@ type DownloadServiceLogsParams struct {
 // DownloadServiceLogsParamsFormat defines parameters for DownloadServiceLogs.
 type DownloadServiceLogsParamsFormat string
 
+// GetServiceLogFacetsParams defines parameters for GetServiceLogFacets.
+type GetServiceLogFacetsParams struct {
+	// From Start of the range (RFC 3339). Default: 15 minutes before to.
+	From *time.Time `form:"from,omitempty" json:"from,omitempty"`
+
+	// To End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from.
+	To *time.Time `form:"to,omitempty" json:"to,omitempty"`
+
+	// Q A log search query (the same language as the log views); only matching lines are counted.
+	Q *string `form:"q,omitempty" json:"q,omitempty"`
+
+	// Sources Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests.
+	Sources *string `form:"sources,omitempty" json:"sources,omitempty"`
+
+	// Buckets Histogram buckets over the range (default 60, max 240).
+	Buckets *int64 `form:"buckets,omitempty" json:"buckets,omitempty"`
+}
+
 // GetServiceLogHistoryParams defines parameters for GetServiceLogHistory.
 type GetServiceLogHistoryParams struct {
 	// Component Compose stacks only: only the lines of this component (stored lines keep the '<component> | ' prefix the agent adds).
@@ -21239,6 +21354,9 @@ type GetServiceLogHistoryParams struct {
 
 	// Order desc (default): newest first. asc: oldest first.
 	Order *GetServiceLogHistoryParamsOrder `form:"order,omitempty" json:"order,omitempty"`
+
+	// Sources Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source.
+	Sources *string `form:"sources,omitempty" json:"sources,omitempty"`
 }
 
 // GetServiceLogHistoryParamsOrder defines parameters for GetServiceLogHistory.
@@ -23079,9 +23197,16 @@ type ClientInterface interface {
 	// Corresponds with GET /environments/{environmentId}/logs (the `GetEnvironmentLogs` operationId).
 	GetEnvironmentLogs(ctx context.Context, environmentId string, params *GetEnvironmentLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetEnvironmentLogHistory Stored runtime logs of an environment
+	// GetEnvironmentLogFacets Log facets of an environment
 	//
-	// The same as the service endpoint for every service of the environment, merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.
+	// The same as the service endpoint for every service of the environment, summed, with a `service` facet that counts the matching lines of each service. Services whose server is offline are listed in `unavailable` instead of failing the request.
+	//
+	// Corresponds with GET /environments/{environmentId}/logs/facets (the `GetEnvironmentLogFacets` operationId).
+	GetEnvironmentLogFacets(ctx context.Context, environmentId string, params *GetEnvironmentLogFacetsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetEnvironmentLogHistory Stored logs of an environment
+	//
+	// The same as the service endpoint for every service of the environment (and every source in `sources`), merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.
 	//
 	// Corresponds with GET /environments/{environmentId}/logs/history (the `GetEnvironmentLogHistory` operationId).
 	GetEnvironmentLogHistory(ctx context.Context, environmentId string, params *GetEnvironmentLogHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -25201,14 +25326,14 @@ type ClientInterface interface {
 
 	// GetServerLogSettings A server's log history settings
 	//
-	// Capture on or off, retention days and size caps, with the usage the agent last reported.
+	// Capture on or off, retention days and size caps, whether HTTP request lines are stored (and with their query strings), with the usage the agent last reported.
 	//
 	// Corresponds with GET /servers/{serverId}/log-settings (the `GetServerLogSettings` operationId).
 	GetServerLogSettings(ctx context.Context, serverId string, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpdateServerLogSettingsWithBody Change a server's log history settings
 	//
-	// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.
+	// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -25217,7 +25342,7 @@ type ClientInterface interface {
 
 	// UpdateServerLogSettings Change a server's log history settings
 	//
-	// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.
+	// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -26080,9 +26205,16 @@ type ClientInterface interface {
 	// Corresponds with GET /services/{serviceId}/logs/download (the `DownloadServiceLogs` operationId).
 	DownloadServiceLogs(ctx context.Context, serviceId string, params *DownloadServiceLogsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// GetServiceLogHistory Stored runtime logs of a service
+	// GetServiceLogFacets Log facets of a service
 	//
-	// A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.
+	// Counts of the service's stored lines that match `q` within `from`..`to` (default the last 15 minutes): the most frequent values of level, stream, status, replica and deployment, of the log attributes (`@method`, `@path`, ...), and a histogram over time. `sources` picks runtime lines, request lines or both. The server's agent counts, so the answer is unavailable (503 `server_offline`) while the server is offline. The agent stops after a scan budget: `partial: true` then means the counts cover `partialFrom` onwards only. Secret values are redacted.
+	//
+	// Corresponds with GET /services/{serviceId}/logs/facets (the `GetServiceLogFacets` operationId).
+	GetServiceLogFacets(ctx context.Context, serviceId string, params *GetServiceLogFacetsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetServiceLogHistory Stored logs of a service
+	//
+	// A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. `sources=requests` reads the service's HTTP request lines instead (one per proxied request, stored on the host: `@method:POST`, `@path:/api/*`, `@duration_ms:>500`, `status:5*`), `sources=runtime,requests` both merged by time; each entry's `stream` says which. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.
 	//
 	// Corresponds with GET /services/{serviceId}/logs/history (the `GetServiceLogHistory` operationId).
 	GetServiceLogHistory(ctx context.Context, serviceId string, params *GetServiceLogHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -29563,9 +29695,26 @@ func (c *Client) GetEnvironmentLogs(ctx context.Context, environmentId string, p
 	return c.Client.Do(req)
 }
 
-// GetEnvironmentLogHistory Stored runtime logs of an environment
+// GetEnvironmentLogFacets Log facets of an environment
 //
-// The same as the service endpoint for every service of the environment, merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.
+// The same as the service endpoint for every service of the environment, summed, with a `service` facet that counts the matching lines of each service. Services whose server is offline are listed in `unavailable` instead of failing the request.
+//
+// Corresponds with GET /environments/{environmentId}/logs/facets (the `GetEnvironmentLogFacets` operationId).
+func (c *Client) GetEnvironmentLogFacets(ctx context.Context, environmentId string, params *GetEnvironmentLogFacetsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetEnvironmentLogFacetsRequest(c.Server, environmentId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetEnvironmentLogHistory Stored logs of an environment
+//
+// The same as the service endpoint for every service of the environment (and every source in `sources`), merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.
 //
 // Corresponds with GET /environments/{environmentId}/logs/history (the `GetEnvironmentLogHistory` operationId).
 func (c *Client) GetEnvironmentLogHistory(ctx context.Context, environmentId string, params *GetEnvironmentLogHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -34425,7 +34574,7 @@ func (c *Client) SetServerHostShell(ctx context.Context, serverId string, body S
 
 // GetServerLogSettings A server's log history settings
 //
-// Capture on or off, retention days and size caps, with the usage the agent last reported.
+// Capture on or off, retention days and size caps, whether HTTP request lines are stored (and with their query strings), with the usage the agent last reported.
 //
 // Corresponds with GET /servers/{serverId}/log-settings (the `GetServerLogSettings` operationId).
 func (c *Client) GetServerLogSettings(ctx context.Context, serverId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -34442,7 +34591,7 @@ func (c *Client) GetServerLogSettings(ctx context.Context, serverId string, reqE
 
 // UpdateServerLogSettingsWithBody Change a server's log history settings
 //
-// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.
+// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.
 //
 // Takes any type of body and a specified content type.
 //
@@ -34461,7 +34610,7 @@ func (c *Client) UpdateServerLogSettingsWithBody(ctx context.Context, serverId s
 
 // UpdateServerLogSettings Change a server's log history settings
 //
-// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.
+// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -36434,9 +36583,26 @@ func (c *Client) DownloadServiceLogs(ctx context.Context, serviceId string, para
 	return c.Client.Do(req)
 }
 
-// GetServiceLogHistory Stored runtime logs of a service
+// GetServiceLogFacets Log facets of a service
 //
-// A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.
+// Counts of the service's stored lines that match `q` within `from`..`to` (default the last 15 minutes): the most frequent values of level, stream, status, replica and deployment, of the log attributes (`@method`, `@path`, ...), and a histogram over time. `sources` picks runtime lines, request lines or both. The server's agent counts, so the answer is unavailable (503 `server_offline`) while the server is offline. The agent stops after a scan budget: `partial: true` then means the counts cover `partialFrom` onwards only. Secret values are redacted.
+//
+// Corresponds with GET /services/{serviceId}/logs/facets (the `GetServiceLogFacets` operationId).
+func (c *Client) GetServiceLogFacets(ctx context.Context, serviceId string, params *GetServiceLogFacetsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServiceLogFacetsRequest(c.Server, serviceId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetServiceLogHistory Stored logs of a service
+//
+// A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. `sources=requests` reads the service's HTTP request lines instead (one per proxied request, stored on the host: `@method:POST`, `@path:/api/*`, `@duration_ms:>500`, `status:5*`), `sources=runtime,requests` both merged by time; each entry's `stream` says which. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.
 //
 // Corresponds with GET /services/{serviceId}/logs/history (the `GetServiceLogHistory` operationId).
 func (c *Client) GetServiceLogHistory(ctx context.Context, serviceId string, params *GetServiceLogHistoryParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -43450,6 +43616,115 @@ func NewGetEnvironmentLogsRequest(server string, environmentId string, params *G
 	return req, nil
 }
 
+// NewGetEnvironmentLogFacetsRequest constructs an http.Request for the GetEnvironmentLogFacets method
+func NewGetEnvironmentLogFacetsRequest(server string, environmentId string, params *GetEnvironmentLogFacetsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "environmentId", environmentId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/environments/%s/logs/facets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "q", *params.Q, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sources != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "sources", *params.Sources, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Buckets != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "buckets", *params.Buckets, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetEnvironmentLogHistoryRequest constructs an http.Request for the GetEnvironmentLogHistory method
 func NewGetEnvironmentLogHistoryRequest(server string, environmentId string, params *GetEnvironmentLogHistoryParams) (*http.Request, error) {
 	var err error
@@ -43548,6 +43823,18 @@ func NewGetEnvironmentLogHistoryRequest(server string, environmentId string, par
 		if params.Order != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "order", *params.Order, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sources != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "sources", *params.Sources, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -56047,6 +56334,115 @@ func NewDownloadServiceLogsRequest(server string, serviceId string, params *Down
 	return req, nil
 }
 
+// NewGetServiceLogFacetsRequest constructs an http.Request for the GetServiceLogFacets method
+func NewGetServiceLogFacetsRequest(server string, serviceId string, params *GetServiceLogFacetsParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/logs/facets", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.From != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "from", *params.From, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.To != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "to", *params.To, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: "date-time"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Q != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "q", *params.Q, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sources != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "sources", *params.Sources, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Buckets != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "buckets", *params.Buckets, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 // NewGetServiceLogHistoryRequest constructs an http.Request for the GetServiceLogHistory method
 func NewGetServiceLogHistoryRequest(server string, serviceId string, params *GetServiceLogHistoryParams) (*http.Request, error) {
 	var err error
@@ -56169,6 +56565,18 @@ func NewGetServiceLogHistoryRequest(server string, serviceId string, params *Get
 		if params.Order != nil {
 
 			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "order", *params.Order, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Sources != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "sources", *params.Sources, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
 				return nil, err
 			} else {
 				for _, qp := range strings.Split(queryFrag, "&") {
@@ -62352,9 +62760,18 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /environments/{environmentId}/logs (the `GetEnvironmentLogs` operationId).
 	GetEnvironmentLogsWithResponse(ctx context.Context, environmentId string, params *GetEnvironmentLogsParams, reqEditors ...RequestEditorFn) (*GetEnvironmentLogsResponse, error)
 
-	// GetEnvironmentLogHistoryWithResponse Stored runtime logs of an environment
+	// GetEnvironmentLogFacetsWithResponse Log facets of an environment
 	//
-	// The same as the service endpoint for every service of the environment, merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.
+	// The same as the service endpoint for every service of the environment, summed, with a `service` facet that counts the matching lines of each service. Services whose server is offline are listed in `unavailable` instead of failing the request.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /environments/{environmentId}/logs/facets (the `GetEnvironmentLogFacets` operationId).
+	GetEnvironmentLogFacetsWithResponse(ctx context.Context, environmentId string, params *GetEnvironmentLogFacetsParams, reqEditors ...RequestEditorFn) (*GetEnvironmentLogFacetsResponse, error)
+
+	// GetEnvironmentLogHistoryWithResponse Stored logs of an environment
+	//
+	// The same as the service endpoint for every service of the environment (and every source in `sources`), merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -64702,7 +65119,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetServerLogSettingsWithResponse A server's log history settings
 	//
-	// Capture on or off, retention days and size caps, with the usage the agent last reported.
+	// Capture on or off, retention days and size caps, whether HTTP request lines are stored (and with their query strings), with the usage the agent last reported.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -64711,7 +65128,7 @@ type ClientWithResponsesInterface interface {
 
 	// UpdateServerLogSettingsWithBodyWithResponse Change a server's log history settings
 	//
-	// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.
+	// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -64720,7 +65137,7 @@ type ClientWithResponsesInterface interface {
 
 	// UpdateServerLogSettingsWithResponse Change a server's log history settings
 	//
-	// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.
+	// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -65683,9 +66100,18 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /services/{serviceId}/logs/download (the `DownloadServiceLogs` operationId).
 	DownloadServiceLogsWithResponse(ctx context.Context, serviceId string, params *DownloadServiceLogsParams, reqEditors ...RequestEditorFn) (*DownloadServiceLogsResponse, error)
 
-	// GetServiceLogHistoryWithResponse Stored runtime logs of a service
+	// GetServiceLogFacetsWithResponse Log facets of a service
 	//
-	// A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.
+	// Counts of the service's stored lines that match `q` within `from`..`to` (default the last 15 minutes): the most frequent values of level, stream, status, replica and deployment, of the log attributes (`@method`, `@path`, ...), and a histogram over time. `sources` picks runtime lines, request lines or both. The server's agent counts, so the answer is unavailable (503 `server_offline`) while the server is offline. The agent stops after a scan budget: `partial: true` then means the counts cover `partialFrom` onwards only. Secret values are redacted.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /services/{serviceId}/logs/facets (the `GetServiceLogFacets` operationId).
+	GetServiceLogFacetsWithResponse(ctx context.Context, serviceId string, params *GetServiceLogFacetsParams, reqEditors ...RequestEditorFn) (*GetServiceLogFacetsResponse, error)
+
+	// GetServiceLogHistoryWithResponse Stored logs of a service
+	//
+	// A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. `sources=requests` reads the service's HTTP request lines instead (one per proxied request, stored on the host: `@method:POST`, `@path:/api/*`, `@duration_ms:>500`, `status:5*`), `sources=runtime,requests` both merged by time; each entry's `stream` says which. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -74543,6 +74969,117 @@ func (r GetEnvironmentLogsResponse) ContentType() string {
 	return ""
 }
 
+type GetEnvironmentLogFacetsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LogFacetsPage
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Error
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON429 the response for an HTTP 429 `application/problem+json` response
+	ApplicationproblemJSON429 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSON502 the response for an HTTP 502 `application/problem+json` response
+	ApplicationproblemJSON502 *Error
+	// ApplicationproblemJSON504 the response for an HTTP 504 `application/problem+json` response
+	ApplicationproblemJSON504 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetEnvironmentLogFacetsResponse) GetJSON200() *LogFacetsPage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON400() *Error {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON429 returns the response for an HTTP 429 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON429() *Error {
+	return r.ApplicationproblemJSON429
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSON502 returns the response for an HTTP 502 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON502() *Error {
+	return r.ApplicationproblemJSON502
+}
+
+// GetApplicationproblemJSON504 returns the response for an HTTP 504 `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSON504() *Error {
+	return r.ApplicationproblemJSON504
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetEnvironmentLogFacetsResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetEnvironmentLogFacetsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetEnvironmentLogFacetsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetEnvironmentLogFacetsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetEnvironmentLogFacetsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetEnvironmentLogHistoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -74558,6 +75095,8 @@ type GetEnvironmentLogHistoryResponse struct {
 	ApplicationproblemJSON404 *Error
 	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
 	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON429 the response for an HTTP 429 `application/problem+json` response
+	ApplicationproblemJSON429 *Error
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
 	ApplicationproblemJSON500 *Error
 	// ApplicationproblemJSON502 the response for an HTTP 502 `application/problem+json` response
@@ -74596,6 +75135,11 @@ func (r GetEnvironmentLogHistoryResponse) GetApplicationproblemJSON404() *Error 
 // GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
 func (r GetEnvironmentLogHistoryResponse) GetApplicationproblemJSON422() *Error {
 	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON429 returns the response for an HTTP 429 `application/problem+json` response
+func (r GetEnvironmentLogHistoryResponse) GetApplicationproblemJSON429() *Error {
+	return r.ApplicationproblemJSON429
 }
 
 // GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
@@ -97726,6 +98270,131 @@ func (r DownloadServiceLogsResponse) ContentType() string {
 	return ""
 }
 
+type GetServiceLogFacetsResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *LogFacetsPage
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Error
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON429 the response for an HTTP 429 `application/problem+json` response
+	ApplicationproblemJSON429 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSON502 the response for an HTTP 502 `application/problem+json` response
+	ApplicationproblemJSON502 *Error
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Error
+	// ApplicationproblemJSON504 the response for an HTTP 504 `application/problem+json` response
+	ApplicationproblemJSON504 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetServiceLogFacetsResponse) GetJSON200() *LogFacetsPage {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON400() *Error {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON429 returns the response for an HTTP 429 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON429() *Error {
+	return r.ApplicationproblemJSON429
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSON502 returns the response for an HTTP 502 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON502() *Error {
+	return r.ApplicationproblemJSON502
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON503() *Error {
+	return r.ApplicationproblemJSON503
+}
+
+// GetApplicationproblemJSON504 returns the response for an HTTP 504 `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSON504() *Error {
+	return r.ApplicationproblemJSON504
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetServiceLogFacetsResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetServiceLogFacetsResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetServiceLogFacetsResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetServiceLogFacetsResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetServiceLogFacetsResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type GetServiceLogHistoryResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -97743,6 +98412,8 @@ type GetServiceLogHistoryResponse struct {
 	ApplicationproblemJSON409 *Error
 	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
 	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON429 the response for an HTTP 429 `application/problem+json` response
+	ApplicationproblemJSON429 *Error
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
 	ApplicationproblemJSON500 *Error
 	// ApplicationproblemJSON502 the response for an HTTP 502 `application/problem+json` response
@@ -97788,6 +98459,11 @@ func (r GetServiceLogHistoryResponse) GetApplicationproblemJSON409() *Error {
 // GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
 func (r GetServiceLogHistoryResponse) GetApplicationproblemJSON422() *Error {
 	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON429 returns the response for an HTTP 429 `application/problem+json` response
+func (r GetServiceLogHistoryResponse) GetApplicationproblemJSON429() *Error {
+	return r.ApplicationproblemJSON429
 }
 
 // GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
@@ -108984,9 +109660,24 @@ func (c *ClientWithResponses) GetEnvironmentLogsWithResponse(ctx context.Context
 	return ParseGetEnvironmentLogsResponse(rsp)
 }
 
-// GetEnvironmentLogHistoryWithResponse Stored runtime logs of an environment
+// GetEnvironmentLogFacetsWithResponse Log facets of an environment
 //
-// The same as the service endpoint for every service of the environment, merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.
+// The same as the service endpoint for every service of the environment, summed, with a `service` facet that counts the matching lines of each service. Services whose server is offline are listed in `unavailable` instead of failing the request.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /environments/{environmentId}/logs/facets (the `GetEnvironmentLogFacets` operationId).
+func (c *ClientWithResponses) GetEnvironmentLogFacetsWithResponse(ctx context.Context, environmentId string, params *GetEnvironmentLogFacetsParams, reqEditors ...RequestEditorFn) (*GetEnvironmentLogFacetsResponse, error) {
+	rsp, err := c.GetEnvironmentLogFacets(ctx, environmentId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetEnvironmentLogFacetsResponse(rsp)
+}
+
+// GetEnvironmentLogHistoryWithResponse Stored logs of an environment
+//
+// The same as the service endpoint for every service of the environment (and every source in `sources`), merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -112978,7 +113669,7 @@ func (c *ClientWithResponses) SetServerHostShellWithResponse(ctx context.Context
 
 // GetServerLogSettingsWithResponse A server's log history settings
 //
-// Capture on or off, retention days and size caps, with the usage the agent last reported.
+// Capture on or off, retention days and size caps, whether HTTP request lines are stored (and with their query strings), with the usage the agent last reported.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -112993,7 +113684,7 @@ func (c *ClientWithResponses) GetServerLogSettingsWithResponse(ctx context.Conte
 
 // UpdateServerLogSettingsWithBodyWithResponse Change a server's log history settings
 //
-// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.
+// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -113008,7 +113699,7 @@ func (c *ClientWithResponses) UpdateServerLogSettingsWithBodyWithResponse(ctx co
 
 // UpdateServerLogSettingsWithResponse Change a server's log history settings
 //
-// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.
+// Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -114637,9 +115328,24 @@ func (c *ClientWithResponses) DownloadServiceLogsWithResponse(ctx context.Contex
 	return ParseDownloadServiceLogsResponse(rsp)
 }
 
-// GetServiceLogHistoryWithResponse Stored runtime logs of a service
+// GetServiceLogFacetsWithResponse Log facets of a service
 //
-// A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.
+// Counts of the service's stored lines that match `q` within `from`..`to` (default the last 15 minutes): the most frequent values of level, stream, status, replica and deployment, of the log attributes (`@method`, `@path`, ...), and a histogram over time. `sources` picks runtime lines, request lines or both. The server's agent counts, so the answer is unavailable (503 `server_offline`) while the server is offline. The agent stops after a scan budget: `partial: true` then means the counts cover `partialFrom` onwards only. Secret values are redacted.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /services/{serviceId}/logs/facets (the `GetServiceLogFacets` operationId).
+func (c *ClientWithResponses) GetServiceLogFacetsWithResponse(ctx context.Context, serviceId string, params *GetServiceLogFacetsParams, reqEditors ...RequestEditorFn) (*GetServiceLogFacetsResponse, error) {
+	rsp, err := c.GetServiceLogFacets(ctx, serviceId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetServiceLogFacetsResponse(rsp)
+}
+
+// GetServiceLogHistoryWithResponse Stored logs of a service
+//
+// A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. `sources=requests` reads the service's HTTP request lines instead (one per proxied request, stored on the host: `@method:POST`, `@path:/api/*`, `@duration_ms:>500`, `status:5*`), `sources=runtime,requests` both merged by time; each entry's `stream` says which. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -123094,6 +123800,102 @@ func ParseGetEnvironmentLogsResponse(rsp *http.Response) (*GetEnvironmentLogsRes
 	return response, nil
 }
 
+// ParseGetEnvironmentLogFacetsResponse parses an HTTP response from a GetEnvironmentLogFacetsWithResponse call
+func ParseGetEnvironmentLogFacetsResponse(rsp *http.Response) (*GetEnvironmentLogFacetsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetEnvironmentLogFacetsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LogFacetsPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON502 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON504 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetEnvironmentLogHistoryResponse parses an HTTP response from a GetEnvironmentLogHistoryWithResponse call
 func ParseGetEnvironmentLogHistoryResponse(rsp *http.Response) (*GetEnvironmentLogHistoryResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -123149,6 +123951,13 @@ func ParseGetEnvironmentLogHistoryResponse(rsp *http.Response) (*GetEnvironmentL
 			return nil, err
 		}
 		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error
@@ -142293,6 +143102,116 @@ func ParseDownloadServiceLogsResponse(rsp *http.Response) (*DownloadServiceLogsR
 	return response, nil
 }
 
+// ParseGetServiceLogFacetsResponse parses an HTTP response from a GetServiceLogFacetsWithResponse call
+func ParseGetServiceLogFacetsResponse(rsp *http.Response) (*GetServiceLogFacetsResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetServiceLogFacetsResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest LogFacetsPage
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON429 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 502:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON502 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON504 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseGetServiceLogHistoryResponse parses an HTTP response from a GetServiceLogHistoryWithResponse call
 func ParseGetServiceLogHistoryResponse(rsp *http.Response) (*GetServiceLogHistoryResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -142355,6 +143274,13 @@ func ParseGetServiceLogHistoryResponse(rsp *http.Response) (*GetServiceLogHistor
 			return nil, err
 		}
 		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 429:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON429 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
 		var dest Error

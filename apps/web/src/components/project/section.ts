@@ -6,6 +6,7 @@
 const ENV_SECTIONS = [
 	"deployments",
 	"observability",
+	"logs",
 	"variables",
 	"previews",
 ] as const;
@@ -27,6 +28,8 @@ export function envSectionRoute(section: EnvSection | undefined) {
 			return "/p/$projectId/$envSlug/deployments" as const;
 		case "observability":
 			return "/p/$projectId/$envSlug/observability" as const;
+		case "logs":
+			return "/p/$projectId/$envSlug/logs" as const;
 		case "variables":
 			return "/p/$projectId/$envSlug/variables" as const;
 		case "previews":

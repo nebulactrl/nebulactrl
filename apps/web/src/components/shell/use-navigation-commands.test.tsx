@@ -189,6 +189,7 @@ describe("navigation commands inside an environment", () => {
 				"go:deployments",
 				"go:previews",
 				"go:observability",
+				"go:logs",
 				"project:p2",
 				"env:p1-production",
 			]),
@@ -202,6 +203,7 @@ describe("navigation commands inside an environment", () => {
 		["Open deployments", "/p/p1/staging/deployments"],
 		["Open previews", "/p/p1/staging/previews"],
 		["Open observability", "/p/p1/staging/observability"],
+		["Open logs", "/p/p1/staging/logs"],
 	])("%s goes to %s", async (label, expected) => {
 		shellApi();
 		const { router } = await renderAt(<Host />, {

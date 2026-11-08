@@ -41,6 +41,7 @@ import { Route as ServersServerIdUpdatesRouteImport } from './routes/servers.$se
 import { Route as StatusPagesIncidentsIncidentIdRouteImport } from './routes/status-pages.incidents.$incidentId'
 import { Route as PProjectIdEnvSlugBuildsRouteImport } from './routes/p.$projectId.$envSlug_.builds'
 import { Route as PProjectIdEnvSlugDeploymentsRouteImport } from './routes/p.$projectId.$envSlug_.deployments'
+import { Route as PProjectIdEnvSlugLogsRouteImport } from './routes/p.$projectId.$envSlug_.logs'
 import { Route as PProjectIdEnvSlugObservabilityRouteImport } from './routes/p.$projectId.$envSlug_.observability'
 import { Route as PProjectIdEnvSlugPreviewsRouteImport } from './routes/p.$projectId.$envSlug_.previews'
 import { Route as PProjectIdEnvSlugServicesRouteImport } from './routes/p.$projectId.$envSlug_.services'
@@ -210,6 +211,11 @@ const PProjectIdEnvSlugDeploymentsRoute =
     path: '/p/$projectId/$envSlug/deployments',
     getParentRoute: () => rootRouteImport,
   } as any)
+const PProjectIdEnvSlugLogsRoute = PProjectIdEnvSlugLogsRouteImport.update({
+  id: '/p/$projectId/$envSlug_/logs',
+  path: '/p/$projectId/$envSlug/logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PProjectIdEnvSlugObservabilityRoute =
   PProjectIdEnvSlugObservabilityRouteImport.update({
     id: '/p/$projectId/$envSlug_/observability',
@@ -280,6 +286,7 @@ export interface FileRoutesByFullPath {
   '/servers/$serverId/': typeof ServersServerIdIndexRoute
   '/p/$projectId/$envSlug/builds': typeof PProjectIdEnvSlugBuildsRoute
   '/p/$projectId/$envSlug/deployments': typeof PProjectIdEnvSlugDeploymentsRoute
+  '/p/$projectId/$envSlug/logs': typeof PProjectIdEnvSlugLogsRoute
   '/p/$projectId/$envSlug/observability': typeof PProjectIdEnvSlugObservabilityRoute
   '/p/$projectId/$envSlug/previews': typeof PProjectIdEnvSlugPreviewsRoute
   '/p/$projectId/$envSlug/services': typeof PProjectIdEnvSlugServicesRoute
@@ -317,6 +324,7 @@ export interface FileRoutesByTo {
   '/servers/$serverId': typeof ServersServerIdIndexRoute
   '/p/$projectId/$envSlug/builds': typeof PProjectIdEnvSlugBuildsRoute
   '/p/$projectId/$envSlug/deployments': typeof PProjectIdEnvSlugDeploymentsRoute
+  '/p/$projectId/$envSlug/logs': typeof PProjectIdEnvSlugLogsRoute
   '/p/$projectId/$envSlug/observability': typeof PProjectIdEnvSlugObservabilityRoute
   '/p/$projectId/$envSlug/previews': typeof PProjectIdEnvSlugPreviewsRoute
   '/p/$projectId/$envSlug/services': typeof PProjectIdEnvSlugServicesRoute
@@ -358,6 +366,7 @@ export interface FileRoutesById {
   '/servers/$serverId/': typeof ServersServerIdIndexRoute
   '/p/$projectId/$envSlug_/builds': typeof PProjectIdEnvSlugBuildsRoute
   '/p/$projectId/$envSlug_/deployments': typeof PProjectIdEnvSlugDeploymentsRoute
+  '/p/$projectId/$envSlug_/logs': typeof PProjectIdEnvSlugLogsRoute
   '/p/$projectId/$envSlug_/observability': typeof PProjectIdEnvSlugObservabilityRoute
   '/p/$projectId/$envSlug_/previews': typeof PProjectIdEnvSlugPreviewsRoute
   '/p/$projectId/$envSlug_/services': typeof PProjectIdEnvSlugServicesRoute
@@ -400,6 +409,7 @@ export interface FileRouteTypes {
     | '/servers/$serverId/'
     | '/p/$projectId/$envSlug/builds'
     | '/p/$projectId/$envSlug/deployments'
+    | '/p/$projectId/$envSlug/logs'
     | '/p/$projectId/$envSlug/observability'
     | '/p/$projectId/$envSlug/previews'
     | '/p/$projectId/$envSlug/services'
@@ -437,6 +447,7 @@ export interface FileRouteTypes {
     | '/servers/$serverId'
     | '/p/$projectId/$envSlug/builds'
     | '/p/$projectId/$envSlug/deployments'
+    | '/p/$projectId/$envSlug/logs'
     | '/p/$projectId/$envSlug/observability'
     | '/p/$projectId/$envSlug/previews'
     | '/p/$projectId/$envSlug/services'
@@ -477,6 +488,7 @@ export interface FileRouteTypes {
     | '/servers/$serverId/'
     | '/p/$projectId/$envSlug_/builds'
     | '/p/$projectId/$envSlug_/deployments'
+    | '/p/$projectId/$envSlug_/logs'
     | '/p/$projectId/$envSlug_/observability'
     | '/p/$projectId/$envSlug_/previews'
     | '/p/$projectId/$envSlug_/services'
@@ -509,6 +521,7 @@ export interface RootRouteChildren {
   StatusPagesIncidentsIncidentIdRoute: typeof StatusPagesIncidentsIncidentIdRoute
   PProjectIdEnvSlugBuildsRoute: typeof PProjectIdEnvSlugBuildsRoute
   PProjectIdEnvSlugDeploymentsRoute: typeof PProjectIdEnvSlugDeploymentsRoute
+  PProjectIdEnvSlugLogsRoute: typeof PProjectIdEnvSlugLogsRoute
   PProjectIdEnvSlugObservabilityRoute: typeof PProjectIdEnvSlugObservabilityRoute
   PProjectIdEnvSlugPreviewsRoute: typeof PProjectIdEnvSlugPreviewsRoute
   PProjectIdEnvSlugServicesRoute: typeof PProjectIdEnvSlugServicesRoute
@@ -741,6 +754,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PProjectIdEnvSlugDeploymentsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/p/$projectId/$envSlug_/logs': {
+      id: '/p/$projectId/$envSlug_/logs'
+      path: '/p/$projectId/$envSlug/logs'
+      fullPath: '/p/$projectId/$envSlug/logs'
+      preLoaderRoute: typeof PProjectIdEnvSlugLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/p/$projectId/$envSlug_/observability': {
       id: '/p/$projectId/$envSlug_/observability'
       path: '/p/$projectId/$envSlug/observability'
@@ -858,6 +878,7 @@ const rootRouteChildren: RootRouteChildren = {
   StatusPagesIncidentsIncidentIdRoute: StatusPagesIncidentsIncidentIdRoute,
   PProjectIdEnvSlugBuildsRoute: PProjectIdEnvSlugBuildsRoute,
   PProjectIdEnvSlugDeploymentsRoute: PProjectIdEnvSlugDeploymentsRoute,
+  PProjectIdEnvSlugLogsRoute: PProjectIdEnvSlugLogsRoute,
   PProjectIdEnvSlugObservabilityRoute: PProjectIdEnvSlugObservabilityRoute,
   PProjectIdEnvSlugPreviewsRoute: PProjectIdEnvSlugPreviewsRoute,
   PProjectIdEnvSlugServicesRoute: PProjectIdEnvSlugServicesRoute,

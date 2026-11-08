@@ -25,12 +25,14 @@ function Box({
 	onSubmit,
 	error,
 	hotkey,
+	onCaretChange,
 }: {
 	initial?: string;
 	recent?: string[];
 	onSubmit?: () => void;
 	error?: string;
 	hotkey?: boolean;
+	onCaretChange?: (caret: number | null) => void;
 }) {
 	const [value, setValue] = useState(initial);
 	const [stats] = useState(makeStats);
@@ -48,6 +50,7 @@ function Box({
 				recent={recent}
 				onSubmit={onSubmit ?? (() => {})}
 				{...(hotkey === undefined ? {} : { hotkey })}
+				{...(onCaretChange ? { onCaretChange } : {})}
 			/>
 		</div>
 	);
@@ -57,6 +60,30 @@ const box = () => screen.getByRole("combobox", { name: "Search logs" });
 const value = () => screen.getByLabelText("value").textContent;
 const options = () =>
 	screen.queryAllByRole("option").map((o) => o.textContent ?? "");
+
+describe("SearchInput caret reporting", () => {
+	test("tells the owner the caret while it is focused and suggesting, and null otherwise", async () => {
+		const user = userEvent.setup();
+		const onCaretChange = mock();
+		render(<Box onCaretChange={onCaretChange} />);
+		expect(onCaretChange).toHaveBeenLastCalledWith(null);
+		await user.click(box());
+		expect(onCaretChange).toHaveBeenLastCalledWith(0);
+		await user.type(box(), "@me");
+		expect(onCaretChange).toHaveBeenLastCalledWith(3);
+		await user.click(document.body);
+		expect(onCaretChange).toHaveBeenLastCalledWith(null);
+	});
+
+	test("Escape closes the suggestions and with them the report", async () => {
+		const user = userEvent.setup();
+		const onCaretChange = mock();
+		render(<Box initial="level:" onCaretChange={onCaretChange} />);
+		await user.click(box());
+		await user.keyboard("{Escape}");
+		expect(onCaretChange).toHaveBeenLastCalledWith(null);
+	});
+});
 
 describe("SearchInput", () => {
 	test("typing reports the new text", async () => {
@@ -267,5 +294,61 @@ describe("SearchInput", () => {
 		render(<Box />);
 		expect(box()).not.toHaveAttribute("aria-invalid");
 		expect(box()).not.toHaveAttribute("aria-describedby");
+	});
+});
+
+describe("SearchInput missing-value hint", () => {
+	const hint = (key: string) => `Add a value after ${key}`;
+
+	test("is not shown while the open list suggests values for the key", async () => {
+		const user = userEvent.setup();
+		render(<Box initial="level:" error={hint("level:")} />);
+		expect(screen.getByText(hint("level:"))).toBeInTheDocument();
+		await user.click(box());
+		expect(options().some((o) => o.includes("error"))).toBe(true);
+		expect(screen.queryByText(hint("level:"))).toBeNull();
+		expect(box()).not.toHaveAttribute("aria-invalid");
+		// Closing the list leaves the hint as the only cue.
+		await user.keyboard("{Escape}");
+		expect(screen.getByText(hint("level:"))).toBeInTheDocument();
+		expect(box()).toHaveAttribute("aria-invalid", "true");
+	});
+
+	test("is shown when the key has no values to suggest", async () => {
+		const user = userEvent.setup();
+		render(<Box initial="stream:" error={hint("stream:")} />);
+		await user.click(box());
+		expect(screen.getByText(hint("stream:"))).toBeInTheDocument();
+	});
+
+	test("other errors stay visible while the list is open", async () => {
+		const user = userEvent.setup();
+		render(<Box initial="level:" error="Missing closing ]" />);
+		await user.click(box());
+		expect(screen.getByText("Missing closing ]")).toBeInTheDocument();
+	});
+});
+
+describe("SearchInput suggestions from client-controlled values", () => {
+	test("a bidi control in a suggested value is shown as an escape", async () => {
+		const user = userEvent.setup();
+		const stats = new FacetStats();
+		stats.add(parseLine({ line: "x", serviceName: "api\u202Egnp" }));
+		render(
+			<SearchInput
+				label="Search logs"
+				value="service:"
+				onChange={() => {}}
+				parsed={parseQuery("service:")}
+				stats={stats}
+				statsVersion={1}
+				recent={[]}
+				onSubmit={() => {}}
+			/>,
+		);
+		await user.click(box());
+		const listed = options().join("|");
+		expect(listed).toContain("api\\u202Egnp");
+		expect(listed).not.toContain("\u202E");
 	});
 });

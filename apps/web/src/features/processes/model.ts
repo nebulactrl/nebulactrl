@@ -188,7 +188,13 @@ export interface ProcessRow {
 	removed: boolean;
 }
 
-export function processRow(process: ProcessLike): ProcessRow {
+/**
+ * One process' row. `rolling` is true while a deployment replaces the
+ * release: a process of the running release then shows the deploy spinner,
+ * not the state of containers that are being replaced. A staged or removed
+ * process keeps its own word.
+ */
+export function processRow(process: ProcessLike, rolling = false): ProcessRow {
 	const state = processState(process.observed);
 	const badge = process.removed ? "removed" : process.pending ? "staged" : null;
 	let kind = state.kind;
@@ -199,6 +205,9 @@ export function processRow(process: ProcessLike): ProcessRow {
 	} else if (process.pending && !process.observed) {
 		kind = "pending";
 		stateLabel = "Staged";
+	} else if (rolling) {
+		kind = "deploying";
+		stateLabel = "Deploying";
 	}
 	return {
 		name: process.name,
@@ -217,8 +226,11 @@ export function processRow(process: ProcessLike): ProcessRow {
 }
 
 /** One row per process, in the order the control plane sends them. */
-export function processRows(service: Partial<ProcessSource>): ProcessRow[] {
-	return serviceProcesses(service).map(processRow);
+export function processRows(
+	service: Partial<ProcessSource>,
+	rolling = false,
+): ProcessRow[] {
+	return serviceProcesses(service).map((p) => processRow(p, rolling));
 }
 
 // --- the canvas card --------------------------------------------------------
@@ -239,13 +251,14 @@ const isTrouble = (row: ProcessRow): boolean =>
 /**
  * The rows of a service's card. Up to `limit` processes it lists them all in
  * rollout order; past it, failed and degraded processes lead (rollout order
- * within each group), so a problem is never behind "+N more".
+ * within each group), so a problem is never behind "+N more". `rolling` as
+ * for `processRow`.
  */
 export function nodeProcessSummary(
 	service: Partial<ProcessSource>,
-	limit = NODE_PROCESS_LIMIT,
+	{ rolling = false, limit = NODE_PROCESS_LIMIT } = {},
 ): NodeProcessSummary {
-	const all = processRows(service);
+	const all = processRows(service, rolling);
 	const ordered =
 		all.length > limit
 			? [...all.filter(isTrouble), ...all.filter((row) => !isTrouble(row))]

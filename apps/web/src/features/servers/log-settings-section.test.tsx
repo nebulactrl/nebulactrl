@@ -106,6 +106,10 @@ function logView(over: Partial<LogSettingsView> = {}): LogSettingsView {
 		maxServiceBytes: 512 * MB,
 		maxServerBytes: 5 * GB,
 		online: true,
+		requestLogs: true,
+		requestLogsKeepQuery: false,
+		requestLogsKeepAssets: false,
+		requestsTotalBytes: 0,
 		...over,
 	};
 }
@@ -185,6 +189,114 @@ describe("LogSettingsSection: fields", () => {
 		).toBeDisabled();
 	});
 
+	test("the request log switches show the server's values and the stored size", async () => {
+		stubApi({
+			[SETTINGS]: {
+				body: logView({
+					requestLogs: true,
+					requestLogsKeepQuery: true,
+					requestLogsKeepAssets: true,
+					requestsTotalBytes: 3 * MB,
+				}),
+			},
+			...catalogue([]),
+		});
+		await renderWithProviders(<LogSettingsSection server={server()} />);
+		const store = await screen.findByRole("switch", {
+			name: "Store request logs",
+		});
+		expect(store).toBeChecked();
+		expect(store).not.toHaveAttribute("aria-disabled", "true");
+		const keep = screen.getByRole("switch", { name: "Keep query strings" });
+		expect(keep).toBeChecked();
+		expect(keep).not.toHaveAttribute("aria-disabled", "true");
+		const assets = screen.getByRole("switch", {
+			name: "Keep successful asset requests",
+		});
+		expect(assets).toBeChecked();
+		expect(assets).not.toHaveAttribute("aria-disabled", "true");
+		expect(
+			screen.getByText(
+				"Scripts, stylesheets, images and fonts that loaded fine. Off, only failed ones are stored.",
+			),
+		).toBeVisible();
+		expect(screen.getByText("3 MB")).toBeVisible();
+		expect(
+			screen.queryByText(/Needs traffic analytics, which reads/),
+		).toBeNull();
+	});
+
+	test("keep query strings is off by default and locked while request logs are off", async () => {
+		const user = userEvent.setup();
+		stubApi({
+			[SETTINGS]: { body: logView({ requestLogs: false }) },
+			...catalogue([]),
+		});
+		await renderWithProviders(<LogSettingsSection server={server()} />);
+		const store = await screen.findByRole("switch", {
+			name: "Store request logs",
+		});
+		expect(store).not.toBeChecked();
+		const keep = screen.getByRole("switch", { name: "Keep query strings" });
+		expect(keep).not.toBeChecked();
+		expect(keep).toHaveAttribute("aria-disabled", "true");
+		await user.click(store);
+		expect(
+			screen.getByRole("switch", { name: "Keep query strings" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+	});
+
+	test("keep successful asset requests is off by default and locked while request logs are off", async () => {
+		const user = userEvent.setup();
+		stubApi({
+			[SETTINGS]: { body: logView({ requestLogs: false }) },
+			...catalogue([]),
+		});
+		await renderWithProviders(<LogSettingsSection server={server()} />);
+		const store = await screen.findByRole("switch", {
+			name: "Store request logs",
+		});
+		const assets = screen.getByRole("switch", {
+			name: "Keep successful asset requests",
+		});
+		expect(assets).not.toBeChecked();
+		expect(assets).toHaveAttribute("aria-disabled", "true");
+		await user.click(store);
+		expect(
+			screen.getByRole("switch", { name: "Keep successful asset requests" }),
+		).not.toHaveAttribute("aria-disabled", "true");
+	});
+
+	test("with traffic analytics off, request logs cannot be switched and say why", async () => {
+		stubApi({ [SETTINGS]: { body: logView() }, ...catalogue([]) });
+		const current = server();
+		await renderWithProviders(
+			<LogSettingsSection
+				server={{
+					...current,
+					settings: { ...current.settings, trafficAnalyticsEnabled: false },
+				}}
+			/>,
+		);
+		const store = await screen.findByRole("switch", {
+			name: "Store request logs",
+		});
+		// Saved on, but with analytics off nothing is stored: it reads as off.
+		expect(store).not.toBeChecked();
+		expect(store).toHaveAttribute("aria-disabled", "true");
+		expect(
+			screen.getByRole("switch", { name: "Keep query strings" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			screen.getByRole("switch", { name: "Keep successful asset requests" }),
+		).toHaveAttribute("aria-disabled", "true");
+		expect(
+			screen.getByText(
+				"Needs traffic analytics, which reads the proxy's request log.",
+			),
+		).toBeVisible();
+	});
+
 	test("an online server shows no offline notice", async () => {
 		stubApi({ [SETTINGS]: { body: logView() }, ...catalogue([]) });
 		await renderWithProviders(<LogSettingsSection server={server()} />);
@@ -260,6 +372,55 @@ describe("LogSettingsSection: saving", () => {
 			retentionDays: 30,
 			maxServiceBytes: 256 * MB,
 			maxServerBytes: 5 * GB,
+			requestLogs: true,
+			requestLogsKeepQuery: false,
+			requestLogsKeepAssets: false,
+		});
+	});
+
+	test("Save PUTs the request log switches as toggled", async () => {
+		const user = userEvent.setup();
+		const api = stubApi({
+			[SETTINGS]: { body: logView() },
+			[SAVE]: { body: logView() },
+			...catalogue([]),
+		});
+		await renderWithProviders(<LogSettingsSection server={server()} />);
+		await user.click(
+			await screen.findByRole("switch", { name: "Keep query strings" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save log settings" }));
+		await screen.findByText("Log settings saved");
+		expect(api.calls.find((c) => c.method === "PUT")?.body).toMatchObject({
+			requestLogs: true,
+			requestLogsKeepQuery: true,
+			requestLogsKeepAssets: false,
+		});
+
+		await user.click(
+			screen.getByRole("switch", { name: "Keep successful asset requests" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save log settings" }));
+		await waitFor(() =>
+			expect(api.calls.filter((c) => c.method === "PUT")).toHaveLength(2),
+		);
+		expect(api.calls.filter((c) => c.method === "PUT")[1]?.body).toMatchObject({
+			requestLogs: true,
+			requestLogsKeepQuery: true,
+			requestLogsKeepAssets: true,
+		});
+
+		await user.click(
+			screen.getByRole("switch", { name: "Store request logs" }),
+		);
+		await user.click(screen.getByRole("button", { name: "Save log settings" }));
+		await waitFor(() =>
+			expect(api.calls.filter((c) => c.method === "PUT")).toHaveLength(3),
+		);
+		expect(api.calls.filter((c) => c.method === "PUT")[2]?.body).toMatchObject({
+			requestLogs: false,
+			requestLogsKeepQuery: true,
+			requestLogsKeepAssets: true,
 		});
 	});
 

@@ -20,13 +20,16 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
-// HistoryParams selects a page of stored runtime log.
+// HistoryParams selects a page of stored log.
 type HistoryParams struct {
 	From, To time.Time // zero = open
 	Query    string
 	Limit    int
 	Cursor   string
 	Order    string // desc (default, newest first) or asc
+	// Sources is a comma-separated subset of runtime and requests: the stores
+	// to read (default runtime).
+	Sources string
 	// Component limits a stack's history to one component: its lines carry the
 	// prefix `<component> | `. Only valid for ServiceHistory of a stack.
 	Component string
@@ -36,7 +39,8 @@ type HistoryParams struct {
 	Process string
 }
 
-// LogHistoryEntry is one stored line, redacted.
+// LogHistoryEntry is one stored line, redacted. Stream is the source the line
+// was read from: runtime or requests.
 type LogHistoryEntry struct {
 	TS           time.Time `json:"ts"`
 	Line         string    `json:"line"`
@@ -79,6 +83,33 @@ const (
 	maxHistoryLimit     = agentprotocol.LogQueryMaxLimit
 )
 
+// logSources are the stores a query can read, in the order they are asked.
+var logSources = []string{agentprotocol.LogSourceRuntime, agentprotocol.LogSourceRequests}
+
+// parseSources turns a `sources` value (a comma-separated subset of runtime
+// and requests; empty means runtime) into its distinct sources in the order of
+// logSources.
+func parseSources(raw string) ([]string, error) {
+	if strings.TrimSpace(raw) == "" {
+		return []string{agentprotocol.LogSourceRuntime}, nil
+	}
+	want := map[string]bool{}
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if !slicesContains(logSources, part) {
+			return nil, bad(fmt.Sprintf("sources must be a comma-separated list of %s (got %q)", strings.Join(logSources, ", "), part))
+		}
+		want[part] = true
+	}
+	out := make([]string, 0, len(want))
+	for _, source := range logSources {
+		if want[source] {
+			out = append(out, source)
+		}
+	}
+	return out, nil
+}
+
 func (p HistoryParams) limit() int {
 	switch {
 	case p.Limit <= 0:
@@ -108,7 +139,8 @@ func (p HistoryParams) validate() error {
 	default:
 		return bad("order must be desc or asc")
 	}
-	return nil
+	_, err := parseSources(p.Sources)
+	return err
 }
 
 // serverOf returns where a service's log lives: its placement, else the server
@@ -130,48 +162,70 @@ func (s *Service) serverOf(ctx context.Context, svc db.Service) (uuid.UUID, bool
 	return *deps[0].ServerID, true, nil
 }
 
-// queryOne asks the service's server for one page. unavail is set (and the
-// result empty) when the server cannot answer.
-func (s *Service) queryOne(ctx context.Context, svc db.Service, p HistoryParams, cursor string) (res agentprotocol.LogsQueryResult, unavail *LogHistoryUnavailable, err error) {
+// askAgent sends one command to the server that stores the service's log and
+// decodes the answer into R. never is the answer for a service that was never
+// deployed: nothing was written; answered is false for it, true when an agent
+// replied. unavail is set (and the result empty) when the server cannot
+// answer, including a requests question for an agent that does not advertise
+// agentprotocol.CapRequestLogs (it is not asked).
+func askAgent[R any](ctx context.Context, s *Service, svc db.Service, source, kind string, payload any, never R) (res R, answered bool, unavail *LogHistoryUnavailable, err error) {
 	serverID, ok, err := s.serverOf(ctx, svc)
 	if err != nil {
-		return res, nil, err
+		return res, false, nil, err
 	}
 	if !ok {
-		return agentprotocol.LogsQueryResult{Lines: []agentprotocol.HistoryLine{}, Capturing: true}, nil, nil // never deployed: nothing was written
+		return never, false, nil, nil
+	}
+	var srv *db.Server
+	if rows, err := s.q.LoadServerRows(ctx, []uuid.UUID{serverID}); err == nil && len(rows) == 1 {
+		srv = &rows[0]
 	}
 	name := ""
-	if srv, err := s.q.LoadServerRows(ctx, []uuid.UUID{serverID}); err == nil && len(srv) == 1 {
-		name = srv[0].Name
+	if srv != nil {
+		name = srv.Name
 	}
 	un := func(reason, msg string) *LogHistoryUnavailable {
 		return &LogHistoryUnavailable{ServiceID: svc.ID, ServiceName: svc.Name, ServerID: serverID, ServerName: name, Reason: reason, Message: msg}
 	}
-	q := agentprotocol.LogsQuery{
-		ServiceID: svc.ID.String(), ServiceName: svc.Name, From: p.From, To: p.To, Query: p.agentQuery(),
-		Limit: p.limit(), Cursor: cursor, Order: p.order(),
+	if source == agentprotocol.LogSourceRequests && srv != nil {
+		// Unknown facts (never connected) count as current.
+		if has, known := services.ServerHasCapability(*srv, agentprotocol.CapRequestLogs); known && !has {
+			return res, false, un("agent_outdated", "The agent on "+orServer(name)+" is too old to read request logs. Update it."), nil
+		}
 	}
-	frame, err := s.hub.Request(ctx, serverID, agentprotocol.KindLogsQuery, q, nil, s.QueryTimeout)
+	frame, err := s.hub.Request(ctx, serverID, kind, payload, nil, s.QueryTimeout)
 	if err != nil {
 		if ae, ok := apierr.As(err); ok && ae.Code == "server_offline" {
-			return res, un("server_offline", "History is stored on "+orServer(name)+" and is unavailable while it is offline."), nil
+			return res, false, un("server_offline", "History is stored on "+orServer(name)+" and is unavailable while it is offline."), nil
 		}
-		return res, nil, mapRequestError(err)
+		return res, false, nil, mapRequestError(err)
 	}
 	if frame.Outcome != agentprotocol.OutcomeSucceeded {
 		msg := agentFailure(frame)
 		switch {
 		case strings.Contains(msg, "not allowed") || strings.Contains(msg, "unsupported command"):
-			return res, un("agent_outdated", "The agent on "+orServer(name)+" is too old to read log history. Update it."), nil
+			return res, false, un("agent_outdated", "The agent on "+orServer(name)+" is too old to read log history. Update it."), nil
 		case strings.Contains(msg, "invalid cursor"):
-			return res, nil, apierr.BadRequest("invalid_cursor", "the cursor is not valid")
+			return res, false, nil, apierr.BadRequest("invalid_cursor", "the cursor is not valid")
 		}
-		return res, un("failed", msg), nil
+		return res, false, un("failed", msg), nil
 	}
 	if err := json.Unmarshal(frame.Data, &res); err != nil {
-		return res, nil, fmt.Errorf("decode history result: %w", err)
+		return res, false, nil, fmt.Errorf("decode %s result: %w", kind, err)
 	}
-	return res, nil, nil
+	return res, true, nil, nil
+}
+
+// queryOne asks the service's server for one page of one source. unavail is
+// set (and the result empty) when the server cannot answer.
+func (s *Service) queryOne(ctx context.Context, svc db.Service, source string, p HistoryParams, cursor string) (agentprotocol.LogsQueryResult, *LogHistoryUnavailable, error) {
+	q := agentprotocol.LogsQuery{
+		ServiceID: svc.ID.String(), ServiceName: svc.Name, Source: source, From: p.From, To: p.To, Query: p.agentQuery(source),
+		Limit: p.limit(), Cursor: cursor, Order: p.order(),
+	}
+	never := agentprotocol.LogsQueryResult{Lines: []agentprotocol.HistoryLine{}, Capturing: true}
+	res, _, un, err := askAgent(ctx, s, svc, source, agentprotocol.KindLogsQuery, q, never)
+	return res, un, err
 }
 
 func orServer(name string) string {
@@ -181,7 +235,41 @@ func orServer(name string) string {
 	return name
 }
 
-// ServiceHistory returns a page of one service's stored runtime log.
+// unavailableError is the failure of a single-service request whose server
+// cannot answer.
+func unavailableError(un LogHistoryUnavailable) error {
+	status := http.StatusBadGateway
+	code := "history_unavailable"
+	if un.Reason == "server_offline" {
+		status, code = http.StatusServiceUnavailable, "server_offline"
+	} else if un.Reason == "agent_outdated" {
+		status, code = http.StatusConflict, "agent_outdated"
+	}
+	return apierr.New(status, code, un.Message).WithDetails(map[string]any{"serverId": un.ServerID, "serverName": un.ServerName})
+}
+
+// appendUnavailable lists a service once, however many of its sources failed.
+func appendUnavailable(list []LogHistoryUnavailable, un LogHistoryUnavailable) []LogHistoryUnavailable {
+	for _, have := range list {
+		if have.ServiceID == un.ServiceID {
+			return list
+		}
+	}
+	return append(list, un)
+}
+
+// appendUnique appends the messages not yet in list.
+func appendUnique(list, add []string) []string {
+	for _, m := range add {
+		if !slicesContains(list, m) {
+			list = append(list, m)
+		}
+	}
+	return list
+}
+
+// ServiceHistory returns a page of one service's stored log: its runtime
+// output, its request lines, or both merged by time (Sources).
 func (s *Service) ServiceHistory(ctx context.Context, serviceID uuid.UUID, p HistoryParams) (LogHistoryPage, error) {
 	sc, err := services.LoadScope(ctx, s.q, policy.ScopeLogsRead, serviceID)
 	if err != nil {
@@ -193,6 +281,10 @@ func (s *Service) ServiceHistory(ctx context.Context, serviceID uuid.UUID, p His
 	if err := p.validate(); err != nil {
 		return LogHistoryPage{}, err
 	}
+	sources, err := parseSources(p.Sources)
+	if err != nil {
+		return LogHistoryPage{}, err
+	}
 	if err := services.CheckLogFilter(sc, p.Component, p.Process); err != nil {
 		return LogHistoryPage{}, err
 	}
@@ -201,19 +293,23 @@ func (s *Service) ServiceHistory(ctx context.Context, serviceID uuid.UUID, p His
 	if p.Process, _, _, err = services.ResolveServiceProcessFilter(ctx, s.q, sc.Service, p.Process); err != nil {
 		return LogHistoryPage{}, err
 	}
-	res, un, err := s.queryOne(ctx, sc.Service, p, p.Cursor)
+	if len(sources) > 1 {
+		page, err := s.mergeHistory(ctx, []db.Service{sc.Service}, sources, p)
+		if err != nil {
+			return LogHistoryPage{}, err
+		}
+		if len(page.Unavailable) > 0 {
+			return LogHistoryPage{}, unavailableError(page.Unavailable[0])
+		}
+		return page, nil
+	}
+	source := sources[0]
+	res, un, err := s.queryOne(ctx, sc.Service, source, p, p.Cursor)
 	if err != nil {
 		return LogHistoryPage{}, err
 	}
 	if un != nil {
-		status := http.StatusBadGateway
-		code := "history_unavailable"
-		if un.Reason == "server_offline" {
-			status, code = http.StatusServiceUnavailable, "server_offline"
-		} else if un.Reason == "agent_outdated" {
-			status, code = http.StatusConflict, "agent_outdated"
-		}
-		return LogHistoryPage{}, apierr.New(status, code, un.Message).WithDetails(map[string]any{"serverId": un.ServerID, "serverName": un.ServerName})
+		return LogHistoryPage{}, unavailableError(*un)
 	}
 	redact, err := s.redactor(ctx, serviceID)
 	if err != nil {
@@ -223,12 +319,8 @@ func (s *Service) ServiceHistory(ctx context.Context, serviceID uuid.UUID, p His
 		Items: make([]LogHistoryEntry, 0, len(res.Lines)), NextCursor: res.NextCursor, Partial: res.Partial,
 		QueryErrors: res.QueryErrors, Oldest: res.Oldest, Newest: res.Newest, Capturing: res.Capturing,
 	}
-	prefix := p.linePrefix()
-	for _, l := range res.Lines {
-		if prefix != "" && !strings.HasPrefix(l.Text, prefix) {
-			continue // the agent's phrase match is a substring test; the prefix is exact
-		}
-		page.Items = append(page.Items, entryOf(l, serviceID, "", redact))
+	for _, l := range keepLines(res.Lines, p.prefixOf(source)) {
+		page.Items = append(page.Items, entryOf(l, serviceID, "", source, redact))
 	}
 	sortEntries(page.Items, p.order())
 	return page, nil
@@ -245,10 +337,10 @@ func (s *Service) redactor(ctx context.Context, serviceID uuid.UUID) (func(strin
 	return fn, nil
 }
 
-func entryOf(l agentprotocol.HistoryLine, id uuid.UUID, name string, redact func(string) string) LogHistoryEntry {
+func entryOf(l agentprotocol.HistoryLine, id uuid.UUID, name, source string, redact func(string) string) LogHistoryEntry {
 	return LogHistoryEntry{
 		TS: l.TS, Line: redact(l.Text), ServiceID: id, ServiceName: name, Replica: l.Replica,
-		DeploymentID: l.DeploymentID, Stream: agentprotocol.StreamRuntime,
+		DeploymentID: l.DeploymentID, Stream: source,
 	}
 }
 
@@ -261,12 +353,53 @@ func sortEntries(items []LogHistoryEntry, order string) {
 	})
 }
 
+// keepLines drops the lines that do not start with prefix (all stay when
+// prefix is empty): the agent's phrase match is a substring test, the prefix
+// is exact.
+func keepLines(lines []agentprotocol.HistoryLine, prefix string) []agentprotocol.HistoryLine {
+	if prefix == "" {
+		return lines
+	}
+	kept := make([]agentprotocol.HistoryLine, 0, len(lines))
+	for _, l := range lines {
+		if strings.HasPrefix(l.Text, prefix) {
+			kept = append(kept, l)
+		}
+	}
+	return kept
+}
+
+// maxParallelAsks caps how many agents one request asks at once.
+const maxParallelAsks = 8
+
+// forEachParallel runs fn for every item, at most maxParallelAsks at a time,
+// and returns when all are done.
+func forEachParallel[T any](items []T, fn func(T)) {
+	sem := make(chan struct{}, maxParallelAsks)
+	var wg sync.WaitGroup
+	for _, item := range items {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			fn(item)
+		}()
+	}
+	wg.Wait()
+}
+
 // ---- environment ---------------------------------------------------------------------
 
-// envCursor remembers, per service, where the next page continues.
+// cursorKey names one (service, source) pair in an envCursor.
+func cursorKey(serviceID uuid.UUID, source string) string {
+	return serviceID.String() + "/" + source
+}
+
+// envCursor remembers, per (service, source) pair, where the next page continues.
 type envCursor struct {
-	C    map[string]string `json:"c,omitempty"` // service ID → agent cursor
-	Done []string          `json:"d,omitempty"` // services with nothing more
+	C    map[string]string `json:"c,omitempty"` // "<serviceId>/<source>" → agent cursor
+	Done []string          `json:"d,omitempty"` // pairs with nothing more
 }
 
 func (c envCursor) encode() string {
@@ -283,20 +416,45 @@ func decodeEnvCursor(s string) (envCursor, error) {
 	if err != nil || json.Unmarshal(raw, &c) != nil {
 		return c, apierr.BadRequest("invalid_cursor", "the cursor is not valid")
 	}
+	// A cursor of the time before sources named bare service IDs: they read
+	// the runtime store.
+	if len(c.C) > 0 {
+		upgraded := make(map[string]string, len(c.C))
+		for key, v := range c.C {
+			upgraded[upgradeCursorKey(key)] = v
+		}
+		c.C = upgraded
+	}
+	for i, key := range c.Done {
+		c.Done[i] = upgradeCursorKey(key)
+	}
 	return c, nil
 }
 
-type envResult struct {
-	svc   db.Service
-	res   agentprotocol.LogsQueryResult
-	unav  *LogHistoryUnavailable
-	err   error
-	lines []agentprotocol.HistoryLine
-	next  int // index of the next line to take
+// upgradeCursorKey names the runtime pair of a bare service ID, the key of a
+// cursor from before sources existed; other keys stay.
+func upgradeCursorKey(key string) string {
+	if strings.Contains(key, "/") {
+		return key
+	}
+	return key + "/" + agentprotocol.LogSourceRuntime
 }
 
-// EnvironmentHistory merges the stored runtime log of every service of an
-// environment: each service is asked on its own server, and the pages are
+// envResult is the answer for one (service, source) pair.
+type envResult struct {
+	svc    db.Service
+	source string
+	key    string // cursorKey of the pair
+	res    agentprotocol.LogsQueryResult
+	unav   *LogHistoryUnavailable
+	err    error
+	lines  []agentprotocol.HistoryLine
+	next   int    // index of the next line to take
+	taken  uint64 // sequence number of the last line taken
+}
+
+// EnvironmentHistory merges the stored log of every service of an environment:
+// each service is asked on its own server, once per source, and the pages are
 // merged by time. Services whose server is offline are listed in Unavailable.
 func (s *Service) EnvironmentHistory(ctx context.Context, envID uuid.UUID, p HistoryParams) (LogHistoryPage, error) {
 	env, err := services.LoadEnvironment(ctx, s.q, policy.ScopeLogsRead, envID)
@@ -306,7 +464,7 @@ func (s *Service) EnvironmentHistory(ctx context.Context, envID uuid.UUID, p His
 	if err := p.validate(); err != nil {
 		return LogHistoryPage{}, err
 	}
-	cur, err := decodeEnvCursor(p.Cursor)
+	sources, err := parseSources(p.Sources)
 	if err != nil {
 		return LogHistoryPage{}, err
 	}
@@ -314,30 +472,40 @@ func (s *Service) EnvironmentHistory(ctx context.Context, envID uuid.UUID, p His
 	if err != nil {
 		return LogHistoryPage{}, fmt.Errorf("list services: %w", err)
 	}
-	var asked []*envResult
+	svcs := make([]db.Service, 0, len(all))
 	for _, svc := range all {
-		if svc.Kind == services.KindRoute || slicesContains(cur.Done, svc.ID.String()) {
-			continue
+		if svc.Kind != services.KindRoute {
+			svcs = append(svcs, svc)
 		}
-		asked = append(asked, &envResult{svc: svc})
+	}
+	return s.mergeHistory(ctx, svcs, sources, p)
+}
+
+// mergeHistory asks the server of every service for every source and merges
+// the pages by time. The cursor covers every (service, source) pair.
+func (s *Service) mergeHistory(ctx context.Context, svcs []db.Service, sources []string, p HistoryParams) (LogHistoryPage, error) {
+	cur, err := decodeEnvCursor(p.Cursor)
+	if err != nil {
+		return LogHistoryPage{}, err
+	}
+	var asked []*envResult
+	for _, svc := range svcs {
+		for _, source := range sources {
+			key := cursorKey(svc.ID, source)
+			if slicesContains(cur.Done, key) {
+				continue
+			}
+			asked = append(asked, &envResult{svc: svc, source: source, key: key})
+		}
 	}
 	page := LogHistoryPage{Items: []LogHistoryEntry{}, Capturing: len(asked) == 0}
 	if len(asked) == 0 {
 		return page, nil
 	}
-	sem := make(chan struct{}, 8)
-	var wg sync.WaitGroup
-	for _, r := range asked {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			sem <- struct{}{}
-			defer func() { <-sem }()
-			r.res, r.unav, r.err = s.queryOne(ctx, r.svc, p, cur.C[r.svc.ID.String()])
-			r.lines = r.res.Lines
-		}()
-	}
-	wg.Wait()
+	forEachParallel(asked, func(r *envResult) {
+		r.res, r.unav, r.err = s.queryOne(ctx, r.svc, r.source, p, cur.C[r.key])
+		r.lines = keepLines(r.res.Lines, p.prefixOf(r.source))
+	})
 
 	redactors := map[uuid.UUID]func(string) string{}
 	for _, r := range asked {
@@ -345,21 +513,23 @@ func (s *Service) EnvironmentHistory(ctx context.Context, envID uuid.UUID, p His
 			return LogHistoryPage{}, r.err
 		}
 		if r.unav != nil {
-			page.Unavailable = append(page.Unavailable, *r.unav)
+			page.Unavailable = appendUnavailable(page.Unavailable, *r.unav)
 			continue
 		}
 		if r.res.Capturing {
 			page.Capturing = true
 		}
-		page.QueryErrors = r.res.QueryErrors
+		page.QueryErrors = appendUnique(page.QueryErrors, r.res.QueryErrors)
 		if r.res.Partial {
 			page.Partial = true
 		}
-		red, err := s.redactor(ctx, r.svc.ID)
-		if err != nil {
-			return LogHistoryPage{}, err
+		if _, ok := redactors[r.svc.ID]; !ok {
+			red, err := s.redactor(ctx, r.svc.ID)
+			if err != nil {
+				return LogHistoryPage{}, err
+			}
+			redactors[r.svc.ID] = red
 		}
-		redactors[r.svc.ID] = red
 		if r.res.Oldest != nil && (page.Oldest == nil || r.res.Oldest.Before(*page.Oldest)) {
 			page.Oldest = r.res.Oldest
 		}
@@ -368,12 +538,11 @@ func (s *Service) EnvironmentHistory(ctx context.Context, envID uuid.UUID, p His
 		}
 	}
 
-	// k-way merge by time. Each service's lines stay in the order the agent
+	// k-way merge by time. Each pair's lines stay in the order the agent
 	// returned them (by sequence), so what is taken from one is always a prefix
 	// and its cursor is the sequence number of the last line taken.
 	desc := p.order() == agentprotocol.LogOrderDesc
 	limit := p.limit()
-	taken := map[uuid.UUID]uint64{}
 	for len(page.Items) < limit {
 		var best *envResult
 		for _, r := range asked {
@@ -394,35 +563,34 @@ func (s *Service) EnvironmentHistory(ctx context.Context, envID uuid.UUID, p His
 		}
 		l := best.lines[best.next]
 		best.next++
-		taken[best.svc.ID] = l.Seq
-		page.Items = append(page.Items, entryOf(l, best.svc.ID, best.svc.Name, redactors[best.svc.ID]))
+		best.taken = l.Seq
+		page.Items = append(page.Items, entryOf(l, best.svc.ID, best.svc.Name, best.source, redactors[best.svc.ID]))
 	}
 
 	next := envCursor{C: map[string]string{}}
 	more := false
 	next.Done = append(next.Done, cur.Done...)
 	for _, r := range asked {
-		id := r.svc.ID.String()
 		if r.unav != nil {
 			// Not readable now: keep the position so a later page can still ask.
-			if c := cur.C[id]; c != "" {
-				next.C[id] = c
+			if c := cur.C[r.key]; c != "" {
+				next.C[r.key] = c
 			}
 			continue
 		}
 		leftover := r.next < len(r.lines)
 		switch {
 		case leftover && r.next == 0:
-			next.C[id] = cur.C[id] // nothing taken: ask again from where it was
+			next.C[r.key] = cur.C[r.key] // nothing taken: ask again from where it was
 			more = true
 		case leftover:
-			next.C[id] = fmt.Sprint(taken[r.svc.ID])
+			next.C[r.key] = fmt.Sprint(r.taken)
 			more = true
 		case r.res.NextCursor != "":
-			next.C[id] = r.res.NextCursor
+			next.C[r.key] = r.res.NextCursor
 			more = true
 		default:
-			next.Done = append(next.Done, id)
+			next.Done = append(next.Done, r.key)
 		}
 	}
 	if more {
@@ -456,18 +624,50 @@ func (p HistoryParams) linePrefix() string {
 	return ""
 }
 
-// agentQuery is the query the agent evaluates: the user's query, narrowed by
-// the line prefix of the component or process (a phrase, so the agent skips
-// other lines before the page fills; the exact prefix test happens when the
-// page arrives).
-func (p HistoryParams) agentQuery() string {
-	prefix := p.linePrefix()
-	if prefix == "" {
+// prefixOf is the exact prefix the lines of a source must carry: only runtime
+// lines are prefixed (request lines carry their process and component as
+// attributes).
+func (p HistoryParams) prefixOf(source string) string {
+	if source == agentprotocol.LogSourceRequests {
+		return ""
+	}
+	return p.linePrefix()
+}
+
+// quoteTerm writes v as a quoted value of the log search language.
+func quoteTerm(v string) string {
+	return `"` + strings.NewReplacer(`\`, `\\`, `"`, `\"`).Replace(v) + `"`
+}
+
+// requestTerm is the query term that selects the request lines of the
+// component or process: they carry both as attributes.
+func (p HistoryParams) requestTerm() string {
+	switch {
+	case p.Component != "":
+		return "@component:" + quoteTerm(p.Component)
+	case p.Process != "":
+		return "@process:" + quoteTerm(p.Process)
+	}
+	return ""
+}
+
+// agentQuery is the query the agent evaluates for a source: the user's query,
+// narrowed by the component or process. Runtime lines are narrowed by their
+// line prefix, as a phrase, so the agent skips other lines before the page
+// fills (the exact prefix test happens when the page arrives); request lines
+// by their @component or @process attribute.
+func (p HistoryParams) agentQuery(source string) string {
+	term := ""
+	if source == agentprotocol.LogSourceRequests {
+		term = p.requestTerm()
+	} else if prefix := p.linePrefix(); prefix != "" {
+		term = `"` + prefix + `"`
+	}
+	if term == "" {
 		return p.Query
 	}
-	phrase := `"` + prefix + `"`
 	if strings.TrimSpace(p.Query) == "" {
-		return phrase
+		return term
 	}
-	return "(" + p.Query + ") " + phrase
+	return "(" + p.Query + ") " + term
 }

@@ -125,35 +125,57 @@ func (s *Service) publish(typ string, ws, resource uuid.UUID) {
 
 // ---- retention settings -------------------------------------------------------------
 
-// settingsRow returns a server's retention (defaults when it has no row).
-func (s *Service) settingsRow(ctx context.Context, serverID uuid.UUID) (capture bool, ret agentprotocol.LogRetention, row *db.ServerLogSetting, err error) {
-	capture, ret = true, agentprotocol.LogRetention{}.WithDefaults()
-	r, err := s.q.GetServerLogSettings(ctx, serverID)
+// settingsRow returns a server's log settings through q. A server without a
+// row has the defaults: capture and request logs on, query strings off, default
+// retention.
+func (s *Service) settingsRow(ctx context.Context, q *db.Queries, serverID uuid.UUID) (db.ServerLogSetting, error) {
+	r, err := q.GetServerLogSettings(ctx, serverID)
 	switch {
 	case err == nil:
-		return r.Capture, agentprotocol.LogRetention{
-			Days: int(r.RetentionDays), MaxServiceBytes: r.MaxServiceBytes, MaxServerBytes: r.MaxServerBytes,
-		}, &r, nil
+		return r, nil
 	case isNoRows(err):
-		return capture, ret, nil, nil
+		ret := agentprotocol.LogRetention{}.WithDefaults()
+		return db.ServerLogSetting{
+			ServerID: serverID, Capture: true, RetentionDays: int32(ret.Days),
+			MaxServiceBytes: ret.MaxServiceBytes, MaxServerBytes: ret.MaxServerBytes, RequestLogs: true,
+		}, nil
 	}
-	return capture, ret, nil, err
+	return db.ServerLogSetting{}, err
+}
+
+// retention is the runtime log retention of a settings row.
+func retention(r db.ServerLogSetting) agentprotocol.LogRetention {
+	return agentprotocol.LogRetention{Days: int(r.RetentionDays), MaxServiceBytes: r.MaxServiceBytes, MaxServerBytes: r.MaxServerBytes}
 }
 
 // LogsConfigFor builds the log configuration of one server for its agent:
-// retention, the services it hosts and every drain of the team, with the
-// credentials of the enabled ones as send-time secrets. It implements
+// retention, request logs, the services it hosts and every drain of the team,
+// with the credentials of the enabled ones as send-time secrets. It implements
 // reconciler.LogsSource; never persist the secrets.
 func (s *Service) LogsConfigFor(ctx context.Context, serverID uuid.UUID) (*agentprotocol.LogsConfig, map[string]string, error) {
 	srv, err := s.q.LoadServerRow(ctx, db.LoadServerRowParams{ID: serverID})
 	if err != nil {
 		return nil, nil, fmt.Errorf("load server: %w", err)
 	}
-	capture, ret, _, err := s.settingsRow(ctx, serverID)
+	set, err := s.settingsRow(ctx, s.q, serverID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("log settings: %w", err)
 	}
-	cfg := &agentprotocol.LogsConfig{Capture: capture, Retention: ret, ServerName: srv.Name, Now: time.Now()}
+	ret := retention(set)
+	cfg := &agentprotocol.LogsConfig{Capture: set.Capture, Retention: ret, ServerName: srv.Name, Now: time.Now()}
+	// Request lines are a by-product of the traffic the agent already counts and
+	// follow the capture switch: without either there is nothing to store.
+	if set.RequestLogs && srv.TrafficAnalyticsEnabled && set.Capture {
+		cfg.Requests = &agentprotocol.RequestLogsConfig{
+			KeepQuery:  set.RequestLogsKeepQuery,
+			KeepAssets: set.RequestLogsKeepAssets,
+			Retention: agentprotocol.LogRetention{
+				Days:            ret.Days,
+				MaxServiceBytes: agentprotocol.DefaultRequestLogMaxServiceBytes,
+				MaxServerBytes:  agentprotocol.DefaultRequestLogMaxServerBytes,
+			},
+		}
+	}
 	rows, err := s.q.LogServicesOnServer(ctx, &serverID)
 	if err != nil {
 		return nil, nil, fmt.Errorf("list services: %w", err)
@@ -273,12 +295,16 @@ type LogServerUsage struct {
 	ReportedAt time.Time                       `json:"reportedAt"`
 }
 
+// storedLogUsage is the usage column of server_log_settings.
+type storedLogUsage struct {
+	TotalBytes         int64                           `json:"totalBytes"`
+	Services           []agentprotocol.LogServiceUsage `json:"services"`
+	RequestsTotalBytes int64                           `json:"requestsTotalBytes"`
+}
+
 // HandleLogStatus stores an agent's log status (agents.LogStatusSink).
 func (s *Service) HandleLogStatus(ctx context.Context, serverID uuid.UUID, st agentprotocol.LogStatus) error {
-	raw, err := json.Marshal(struct {
-		TotalBytes int64                           `json:"totalBytes"`
-		Services   []agentprotocol.LogServiceUsage `json:"services"`
-	}{st.TotalBytes, st.Services})
+	raw, err := json.Marshal(storedLogUsage{TotalBytes: st.TotalBytes, Services: st.Services, RequestsTotalBytes: st.RequestsTotalBytes})
 	if err != nil {
 		return err
 	}

@@ -4,6 +4,8 @@ import { envSection, envSectionRoute } from "./section";
 describe("envSection", () => {
 	test("keeps the page being read across a switch", () => {
 		expect(envSection("/p/abc/production/observability")).toBe("observability");
+		expect(envSection("/p/abc/production/logs")).toBe("logs");
+		expect(envSectionRoute("logs")).toBe("/p/$projectId/$envSlug/logs");
 		expect(envSection("/p/abc/staging/deployments/123")).toBe("deployments");
 		expect(envSectionRoute("variables")).toBe(
 			"/p/$projectId/$envSlug/variables",

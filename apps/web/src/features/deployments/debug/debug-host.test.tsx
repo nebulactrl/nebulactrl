@@ -54,8 +54,10 @@ describe("DeploymentDebugHost", () => {
 			path: "/?debug=dep-1",
 		});
 
-		expect(await screen.findByText("deployment dep-1")).toBeInTheDocument();
-		expect(await screen.findByText("· billing-api")).toBeInTheDocument();
+		expect(await screen.findByTitle("dep-1")).toBeInTheDocument();
+		expect(
+			await screen.findByRole("button", { name: "Back to billing-api" }),
+		).toBeInTheDocument();
 	});
 
 	test("the close button removes the param and the panel slides away", async () => {
@@ -67,7 +69,7 @@ describe("DeploymentDebugHost", () => {
 			</>,
 			{ path: "/?debug=dep-1" },
 		);
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 		expect(screen.getByLabelText("debug param")).toHaveTextContent("dep-1");
 
 		await userEvent
@@ -88,7 +90,7 @@ describe("DeploymentDebugHost", () => {
 			</>,
 			{ path: "/?debug=dep-1" },
 		);
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 
 		fireEvent.keyDown(document.body, { key: "Escape" });
 
@@ -113,13 +115,13 @@ describe("DeploymentDebugHost", () => {
 			</>,
 			{ path: "/?debug=dep-1" },
 		);
-		await screen.findByText("deployment dep-1");
+		await screen.findByTitle("dep-1");
 
 		await userEvent
 			.setup()
 			.click(screen.getByRole("button", { name: "switch" }));
 
-		expect(await screen.findByText("deployment dep-2")).toBeInTheDocument();
-		expect(screen.queryByText("deployment dep-1")).not.toBeInTheDocument();
+		expect(await screen.findByTitle("dep-2")).toBeInTheDocument();
+		expect(screen.queryByTitle("dep-1")).not.toBeInTheDocument();
 	});
 });

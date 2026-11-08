@@ -650,6 +650,23 @@ func TestOrphanIsStoppedWithItsOwnGraceAndOnlyAfterTheLastProcess(t *testing.T) 
 	require.Greater(t, opIndex(r.dk.ops, "stop:"+prevOld), opIndex(r.dk.ops, "start:"+pname(depV2, "scheduler", 0)), "a non-singleton orphan without volumes runs until the release is live")
 }
 
+// While the previous release retires (a worker's stop grace can take minutes)
+// the observer must already report the new release, not the old containers
+// going down as unhealthy.
+func TestNewReleaseIsObservedWhileThePreviousOneRetires(t *testing.T) {
+	r := newRig(t, nil)
+	r.previousProcesses()
+	var observedAtStop string
+	r.dk.onStop = func(name string) {
+		if name == prevWorker {
+			observedAtStop = r.eng.desiredSnapshot()[svcID].DeploymentID
+		}
+	}
+	res, dr := r.deploy(processPayload(), nil)
+	require.Equal(t, agentprotocol.OutcomeSucceeded, res.Outcome, dr.Message)
+	require.Equal(t, depV2, observedAtStop)
+}
+
 func TestLegacyReleaseIsRetiredByAMultiProcessDeploy(t *testing.T) {
 	r := newRig(t, nil)
 	r.previous() // an unlabelled single-process release

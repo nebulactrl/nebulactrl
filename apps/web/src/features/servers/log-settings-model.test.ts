@@ -21,6 +21,9 @@ const defaults = {
 	retentionDays: 7,
 	maxServiceBytes: 500 * MB,
 	maxServerBytes: 5 * GB,
+	requestLogs: true,
+	requestLogsKeepQuery: false,
+	requestLogsKeepAssets: false,
 };
 
 describe("size fields", () => {
@@ -48,6 +51,9 @@ describe("size fields", () => {
 			retentionDays: "7",
 			perService: { amount: "500", unit: "MB" },
 			perServer: { amount: "5", unit: "GB" },
+			requestLogs: true,
+			requestLogsKeepQuery: false,
+			requestLogsKeepAssets: false,
 		});
 		expect(requestBody(draft)).toEqual(defaults);
 	});
@@ -112,12 +118,18 @@ describe("validation", () => {
 				capture: false,
 				retentionDays: "30",
 				perService: { amount: "1", unit: "GB" },
+				requestLogs: false,
+				requestLogsKeepQuery: true,
+				requestLogsKeepAssets: true,
 			}),
 		).toEqual({
 			capture: false,
 			retentionDays: 30,
 			maxServiceBytes: GB,
 			maxServerBytes: 5 * GB,
+			requestLogs: false,
+			requestLogsKeepQuery: true,
+			requestLogsKeepAssets: true,
 		});
 	});
 });

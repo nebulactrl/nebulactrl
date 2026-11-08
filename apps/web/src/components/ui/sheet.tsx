@@ -135,9 +135,15 @@ const floatingSheetClassName =
  * height, square, one hairline on its inner edge, no gap. It takes the same
  * `motion` classes as the floating one (all of them slide it in along `transform`),
  * or `motion="external"` for none: the caller animates the element itself.
+ *
+ * With `data-stacked` set, a docked panel (the deployment debug panel) has
+ * slid over it: it recedes like the floating one, from its left edge, rounds
+ * into a card and dims, so the sliver left of the new panel reads as behind.
+ * It moves on `translate`, `scale` and `filter`, never `transform`, which the
+ * caller's slide owns; the timing is in styles.css (`.sheet-recedes`).
  */
 const dockedSheetClassName =
-	"surface-float fixed inset-y-0 right-0 z-40 flex w-[480px] max-w-[90vw] flex-col overflow-clip rounded-none text-ink-1 text-sm outline-none";
+	"sheet-recedes surface-float fixed inset-y-0 right-0 z-40 flex w-[480px] max-w-[90vw] origin-left flex-col overflow-clip rounded-none text-ink-1 text-sm outline-none data-stacked:-translate-x-3.5 data-stacked:scale-[0.965] data-stacked:rounded-l-panel data-stacked:brightness-[0.55] motion-reduce:data-stacked:translate-x-0 motion-reduce:data-stacked:scale-100";
 
 /*
  * A sheet over the canvas keeps a strip of it clear at its left: a card at

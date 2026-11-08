@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { ScrollTextIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Environment, Service } from "#/api/models";
 import { DocsButton } from "#/components/common/docs-button";
@@ -19,7 +20,6 @@ import {
 	EnvironmentUptimeSkeleton,
 	environmentUptimeQuery,
 } from "#/features/uptime";
-import { EnvLogStream } from "./env-log-stream";
 import { ServiceResourceCards } from "./service-resource-cards";
 
 function Section({
@@ -67,7 +67,6 @@ function ObservabilityBody({
 				>
 					<Skeleton className="h-48 rounded-card" />
 					<Skeleton className="h-56 rounded-card" />
-					<Skeleton className="h-72 rounded-card" />
 				</div>
 			}
 		>
@@ -123,7 +122,7 @@ function ObservabilityContent({
 				frame="none"
 				size="lg"
 				title="Create a service to see it here"
-				body={`Logs, resource use and traffic of ${environment.name} appear here once it has a deployed service.`}
+				body={`Resource use and traffic of ${environment.name} appear here once it has a deployed service.`}
 				action={
 					<Button
 						variant="primary"
@@ -193,20 +192,29 @@ function ObservabilityContent({
 					envSlug={envSlug}
 				/>
 			</Section>
-			<Section
-				title="Logs"
-				note="Runtime output of every service, merged in time order."
-			>
-				<EnvLogStream environmentId={environment.id} services={list} />
-			</Section>
+			<div>
+				<Button
+					variant="secondary"
+					nativeButton={false}
+					render={
+						<Link
+							to="/p/$projectId/$envSlug/logs"
+							params={{ projectId, envSlug }}
+						/>
+					}
+				>
+					<ScrollTextIcon />
+					Open logs
+				</Button>
+			</div>
 		</div>
 	);
 }
 
 /**
  * The environment's Observability page: each service's uptime, a traffic
- * summary, a resource card per service and the merged runtime log, on one
- * scrolling page.
+ * summary and a resource card per service, on one scrolling page, with a link
+ * to the environment's Logs.
  */
 export function ObservabilityPage({
 	projectId,
@@ -223,7 +231,7 @@ export function ObservabilityPage({
 			title="Observability"
 			width="full"
 			description={(environment) =>
-				`Uptime, traffic, resource use and runtime logs of ${environment.name}.`
+				`Uptime, traffic and resource use of ${environment.name}.`
 			}
 		>
 			{(environment) => (

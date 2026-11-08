@@ -51,7 +51,7 @@ func TestQueryFiltersWithTheSearchLanguage(t *testing.T) {
 		{"service:other", 0},
 	}
 	for _, c := range cases {
-		res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", ServiceName: "web", Query: c.query, Limit: 2000})
+		res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", ServiceName: "web", Query: c.query, Limit: 2000}, agentprotocol.StreamRuntime)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -62,7 +62,7 @@ func TestQueryFiltersWithTheSearchLanguage(t *testing.T) {
 	}
 
 	// Facets come from the line's own record: replica and deployment.
-	res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Query: "replica:1 deployment:d1 request", Limit: 2000})
+	res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Query: "replica:1 deployment:d1 request", Limit: 2000}, agentprotocol.StreamRuntime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestQueryFiltersWithTheSearchLanguage(t *testing.T) {
 	}
 
 	// A broken query still filters by its valid part and reports what it ignored.
-	res, err = st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Query: "boom (", Limit: 2000})
+	res, err = st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Query: "boom (", Limit: 2000}, agentprotocol.StreamRuntime)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -85,12 +85,33 @@ func TestQueryFiltersWithTheSearchLanguage(t *testing.T) {
 	}
 
 	// The time range is [from, to).
-	res, err = st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", From: base.Add(100 * time.Second), To: base.Add(110 * time.Second)})
+	res, err = st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", From: base.Add(100 * time.Second), To: base.Add(110 * time.Second)}, agentprotocol.StreamRuntime)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(res.Lines) != 10 || res.Lines[0].Text != "request 109 ok" {
 		t.Fatalf("range: %d lines, first %q", len(res.Lines), res.Lines[0].Text)
+	}
+}
+
+func TestQueryStreamIsTheCallers(t *testing.T) {
+	st, _ := seedHistory(t)
+	for _, c := range []struct {
+		stream, query string
+		want          int
+	}{
+		{agentprotocol.StreamRuntime, "stream:runtime", 300},
+		{agentprotocol.StreamRuntime, "stream:requests", 0},
+		{agentprotocol.StreamRequests, "stream:requests", 300},
+		{agentprotocol.StreamRequests, "stream:runtime", 0},
+	} {
+		res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Query: c.query, Limit: 2000}, c.stream)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(res.Lines) != c.want {
+			t.Errorf("stream %s, query %q: %d lines, want %d", c.stream, c.query, len(res.Lines), c.want)
+		}
 	}
 }
 
@@ -101,7 +122,7 @@ func TestQueryPagesNewestFirstWithoutGapsOrRepeats(t *testing.T) {
 		cursor := ""
 		pages := 0
 		for {
-			res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Limit: 70, Cursor: cursor, Order: order})
+			res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Limit: 70, Cursor: cursor, Order: order}, agentprotocol.StreamRuntime)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -127,18 +148,18 @@ func TestQueryPagesNewestFirstWithoutGapsOrRepeats(t *testing.T) {
 
 func TestQueryReportsBoundsAndRejectsABadCursor(t *testing.T) {
 	st, base := seedHistory(t)
-	res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Limit: 1})
+	res, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Limit: 1}, agentprotocol.StreamRuntime)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if res.Oldest == nil || !res.Oldest.Equal(base) || res.Newest == nil || !res.Newest.Equal(base.Add(299*time.Second)) {
 		t.Fatalf("bounds %v %v", res.Oldest, res.Newest)
 	}
-	if _, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Cursor: "nope"}); err == nil {
+	if _, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Cursor: "nope"}, agentprotocol.StreamRuntime); err == nil {
 		t.Fatal("a bad cursor was accepted")
 	}
 	// A service the agent has never seen is empty, not an error.
-	res, err = st.Query(agentprotocol.LogsQuery{ServiceID: "ghost"})
+	res, err = st.Query(agentprotocol.LogsQuery{ServiceID: "ghost"}, agentprotocol.StreamRuntime)
 	if err != nil || len(res.Lines) != 0 || res.Oldest != nil {
 		t.Fatalf("ghost: %+v %v", res, err)
 	}

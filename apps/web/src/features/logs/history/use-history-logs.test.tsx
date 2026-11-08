@@ -1,7 +1,9 @@
 import { describe, expect, spyOn, test } from "bun:test";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import type { LogHistoryEntry } from "#/api/gen/types.gen";
+import type { LogSource } from "#/features/logs-page/explorer/sources";
 import { stubApi } from "#/test/api";
 import { renderWithProviders } from "#/test/render";
 import type { RangeSelection } from "./model";
@@ -19,15 +21,22 @@ function Probe({
 	scope,
 	range = { kind: "preset", id: "1h" },
 	query = "",
+	sources,
+	enabled,
 }: {
 	scope: HistoryScope;
 	range?: RangeSelection;
 	query?: string;
+	sources?: readonly LogSource[];
+	enabled?: boolean;
 }) {
-	const h = useHistoryLogs({ scope, range, query });
+	const h = useHistoryLogs({ scope, range, query, sources, enabled });
 	return (
 		<div>
 			<output aria-label="lines">{h.lines.map((l) => l.line).join("|")}</output>
+			<output aria-label="streams">
+				{h.lines.map((l) => l.stream).join("|")}
+			</output>
 			<output aria-label="loading">{String(h.loading)}</output>
 			<output aria-label="fetching">{String(h.fetching)}</output>
 			<output aria-label="error">
@@ -59,6 +68,31 @@ const lines = () => {
 	return text === "" ? [] : text.split("|");
 };
 const service: HistoryScope = { kind: "service", id: "svc-1" };
+const environment: HistoryScope = { kind: "environment", id: "env-1" };
+
+function SourceSwitch() {
+	const [sources, setSources] = useState<readonly LogSource[]>(["runtime"]);
+	return (
+		<>
+			<Probe scope={environment} sources={sources} />
+			<button type="button" onClick={() => setSources(["requests"])}>
+				requests only
+			</button>
+		</>
+	);
+}
+
+function Waiting() {
+	const [enabled, setEnabled] = useState(false);
+	return (
+		<>
+			<Probe scope={service} enabled={enabled} />
+			<button type="button" onClick={() => setEnabled(true)}>
+				open
+			</button>
+		</>
+	);
+}
 
 describe("useHistoryLogs", () => {
 	test("a service's newest page is asked for the last hour, 500 lines, and shown oldest first", async () => {
@@ -284,5 +318,109 @@ describe("useHistoryLogs", () => {
 		await renderWithProviders(<Probe scope={service} />);
 		await waitFor(() => expect(out("capturing")).toBe("false"));
 		expect(lines()).toEqual([]);
+	});
+
+	test("an environment's runtime-only read sends no `sources`, as before", async () => {
+		const api = stubApi({
+			"GET /environments/:id/logs/history": {
+				body: { capturing: true, items: [entry(1)] },
+			},
+		});
+		await renderWithProviders(
+			<Probe scope={environment} sources={["runtime"]} />,
+		);
+		await waitFor(() => expect(lines()).toEqual(["line 1"]));
+		expect(api.calls[0]?.query.has("sources")).toBe(false);
+	});
+
+	test("no sources given sends no `sources` either", async () => {
+		const api = stubApi({
+			"GET /services/:id/logs/history": {
+				body: { capturing: true, items: [entry(1)] },
+			},
+		});
+		await renderWithProviders(<Probe scope={service} />);
+		await waitFor(() => expect(lines()).toEqual(["line 1"]));
+		expect(api.calls[0]?.query.has("sources")).toBe(false);
+	});
+
+	test("asking for requests as well sends the comma list, and request lines keep their stream", async () => {
+		const api = stubApi({
+			"GET /environments/:id/logs/history": {
+				body: {
+					capturing: true,
+					items: [
+						{ ...entry(2, "GET /"), stream: "requests" },
+						entry(1, "booted"),
+					],
+				},
+			},
+		});
+		await renderWithProviders(
+			<Probe scope={environment} sources={["requests", "runtime"]} />,
+		);
+		await waitFor(() => expect(lines()).toEqual(["booted", "GET /"]));
+		expect(api.calls[0]?.query.get("sources")).toBe("runtime,requests");
+		expect(out("streams")).toBe("stdout|requests");
+	});
+
+	test("requests alone are sent as `requests` on a service too", async () => {
+		const api = stubApi({
+			"GET /services/:id/logs/history": {
+				body: { capturing: true, items: [] },
+			},
+		});
+		await renderWithProviders(<Probe scope={service} sources={["requests"]} />);
+		await waitFor(() => expect(api.calls).toHaveLength(1));
+		expect(api.calls[0]?.query.get("sources")).toBe("requests");
+	});
+
+	test("a different set of sources is a new query", async () => {
+		const api = stubApi({
+			"GET /environments/:id/logs/history": {
+				body: { capturing: true, items: [entry(1)] },
+			},
+		});
+		const user = userEvent.setup();
+		await renderWithProviders(<SourceSwitch />);
+		await waitFor(() => expect(lines()).toEqual(["line 1"]));
+		await user.click(screen.getByRole("button", { name: "requests only" }));
+		await waitFor(() => expect(api.calls).toHaveLength(2));
+		expect(api.calls[0]?.query.has("sources")).toBe(false);
+		expect(api.calls[1]?.query.get("sources")).toBe("requests");
+	});
+
+	test("a disabled history asks for nothing", async () => {
+		const api = stubApi({
+			"GET /services/:id/logs/history": {
+				body: { capturing: true, items: [entry(1)] },
+			},
+		});
+		await renderWithProviders(<Probe scope={service} enabled={false} />);
+		const { promise, resolve } = Promise.withResolvers<void>();
+		setTimeout(resolve, 20);
+		await promise;
+		expect(api.calls).toHaveLength(0);
+		expect(lines()).toEqual([]);
+	});
+
+	test("a history that was waiting behind another view asks up to the moment it is enabled, not the moment it mounted", async () => {
+		const api = stubApi({
+			"GET /services/:id/logs/history": {
+				body: { capturing: true, items: [entry(1)] },
+			},
+		});
+		const user = userEvent.setup();
+		const mounted = Date.now();
+		await renderWithProviders(<Waiting />);
+		const { promise, resolve } = Promise.withResolvers<void>();
+		setTimeout(resolve, 30);
+		await promise;
+		await user.click(screen.getByRole("button", { name: "open" }));
+		await waitFor(() => expect(lines()).toEqual(["line 1"]));
+		expect(api.calls).toHaveLength(1);
+		expect(
+			Date.parse(api.calls[0]?.query.get("to") ?? ""),
+		).toBeGreaterThanOrEqual(mounted + 30);
 	});
 });

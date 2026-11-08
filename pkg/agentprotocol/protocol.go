@@ -113,6 +113,9 @@ const (
 	// calls, probe attempts, route changes, timings). It is stored with the
 	// deploy logs but hidden from the default log view and stream.
 	StreamDebug = "debug"
+	// StreamRequests carries the proxy's request lines of a service (stored
+	// per host, one RequestRecord as JSON per request).
+	StreamRequests = "requests"
 )
 
 // Deploy strategies.

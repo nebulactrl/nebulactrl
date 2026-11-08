@@ -193,3 +193,158 @@ describe("FacetsPopover", () => {
 		expect(changes).toEqual(["level:error"]);
 	});
 });
+
+function requestStats() {
+	const stats = new FacetStats();
+	const request = (extra: Record<string, unknown>) =>
+		stats.add(
+			parseLine({
+				line: JSON.stringify({
+					method: "GET",
+					path: "/api/orders",
+					duration_ms: 50,
+					kind: "api",
+					...extra,
+				}),
+			}),
+		);
+	for (const status of [200, 200, 204, 301, 404, 500, 503]) request({ status });
+	request({ status: 200, method: "POST", path: "/login", kind: "page" });
+	return stats;
+}
+
+function RequestPanel({ initial = "" }: { initial?: string }) {
+	const [query, setQuery] = useState(initial);
+	return (
+		<div>
+			<output aria-label="query">{query}</output>
+			<FacetPanel
+				stats={requestStats()}
+				statsVersion={1}
+				keys={["status"]}
+				query={query}
+				onQueryChange={setQuery}
+				statusClasses
+				requests
+			/>
+		</div>
+	);
+}
+
+describe("FacetPanel status classes", () => {
+	test("sums the status codes by class, with the class as text", () => {
+		render(<RequestPanel />);
+		const status = within(screen.getByRole("region", { name: "Status" }));
+		const row = (label: string) => status.getByText(label).closest("li");
+		expect(row("2xx")).toHaveTextContent("4");
+		expect(row("3xx")).toHaveTextContent("1");
+		expect(row("4xx")).toHaveTextContent("1");
+		expect(row("5xx")).toHaveTextContent("2");
+		// Exact codes wait behind the disclosure.
+		expect(status.queryByText("204")).toBeNull();
+	});
+
+	test("a class adds status:2* and its exclusion, and a second click removes it", async () => {
+		const user = userEvent.setup();
+		render(<RequestPanel />);
+		await user.click(screen.getByRole("button", { name: "Include status:2*" }));
+		expect(query()).toBe("status:2*");
+		await user.click(screen.getByRole("button", { name: "Exclude status:2*" }));
+		expect(query()).toBe("-status:2*");
+		await user.click(screen.getByRole("button", { name: "Exclude status:2*" }));
+		expect(query()).toBe("");
+		await user.click(screen.getByRole("button", { name: "Include status:5*" }));
+		expect(query()).toBe("status:5*");
+	});
+
+	test("the disclosure lists the exact codes, each with its own buttons", async () => {
+		const user = userEvent.setup();
+		render(<RequestPanel />);
+		const disclosure = screen.getByRole("button", { name: "Show 5xx codes" });
+		expect(disclosure).toHaveAttribute("aria-expanded", "false");
+		await user.click(disclosure);
+		expect(
+			screen.getByRole("button", { name: "Hide 5xx codes" }),
+		).toHaveAttribute("aria-expanded", "true");
+		const status = within(screen.getByRole("region", { name: "Status" }));
+		expect(status.getByText("500")).toBeInTheDocument();
+		expect(status.getByText("503")).toBeInTheDocument();
+		await user.click(
+			screen.getByRole("button", { name: "Include status:503" }),
+		);
+		expect(query()).toBe("status:503");
+	});
+
+	test("without statusClasses the status facet lists its values", () => {
+		render(<Panel stats={requestStats()} keys={["status"]} />);
+		const status = within(screen.getByRole("region", { name: "Status" }));
+		expect(status.getByText("204")).toBeInTheDocument();
+		expect(status.queryByText("2xx")).toBeNull();
+	});
+});
+
+describe("FacetPanel requests group", () => {
+	test("lists kind, method and path values with counts", () => {
+		render(<RequestPanel />);
+		const requests = within(screen.getByRole("region", { name: "Requests" }));
+		expect(
+			within(requests.getByRole("region", { name: "Kind" })).getByText("api"),
+		).toBeInTheDocument();
+		expect(
+			within(requests.getByRole("region", { name: "Method" })).getByText(
+				"POST",
+			),
+		).toBeInTheDocument();
+		const path = requests.getByRole("region", { name: "Path" });
+		expect(within(path).getByText("/api/orders")).toHaveAttribute(
+			"title",
+			"/api/orders",
+		);
+	});
+
+	test("a method value edits the query with its attribute key", async () => {
+		const user = userEvent.setup();
+		render(<RequestPanel />);
+		await user.click(
+			screen.getByRole("button", { name: "Include @method:POST" }),
+		);
+		expect(query()).toBe("@method:POST");
+	});
+
+	test("the duration ranges write the grammar's comparisons and replace each other", async () => {
+		const user = userEvent.setup();
+		render(<RequestPanel />);
+		const fast = screen.getByRole("button", { name: "< 100 ms" });
+		const mid = screen.getByRole("button", { name: "100 ms – 1 s" });
+		const slow = screen.getByRole("button", { name: "> 1 s" });
+		await user.click(fast);
+		expect(query()).toBe("@duration_ms:<100");
+		expect(fast).toHaveAttribute("aria-pressed", "true");
+		await user.click(mid);
+		expect(query()).toBe("@duration_ms:[100 TO 1000]");
+		expect(fast).toHaveAttribute("aria-pressed", "false");
+		await user.click(slow);
+		expect(query()).toBe("@duration_ms:>1000");
+		await user.click(slow);
+		expect(query()).toBe("");
+	});
+
+	test("is left out unless requests are asked for", () => {
+		render(<Panel stats={requestStats()} keys={["status"]} />);
+		expect(screen.queryByRole("region", { name: "Requests" })).toBeNull();
+	});
+
+	test("is left out when the counts have no request attribute", () => {
+		render(
+			<FacetPanel
+				stats={statsOf([{ line: "ERROR a" }])}
+				statsVersion={1}
+				keys={["level"]}
+				query=""
+				onQueryChange={() => {}}
+				requests
+			/>,
+		);
+		expect(screen.queryByRole("region", { name: "Requests" })).toBeNull();
+	});
+});

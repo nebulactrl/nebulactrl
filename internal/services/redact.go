@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -39,14 +40,29 @@ type redactorCache struct {
 }
 
 // encodedForms returns the encodings under which a secret commonly shows up in
-// logs: URL-escaped (query and path) and base64 (std, URL-safe, padded or not).
+// logs: URL-escaped (query and path), base64 (std, URL-safe, padded or not) and
+// JSON-escaped (as json.Marshal writes a string: \" \\ \u0026 \u003c \u003e,
+// and as an Encoder with SetEscapeHTML(false) writes it: the same without the
+// HTML escapes; request lines are JSON documents).
 func encodedForms(v string) []string {
 	b := []byte(v)
-	return []string{
+	forms := []string{
 		url.QueryEscape(v), url.PathEscape(v),
 		base64.StdEncoding.EncodeToString(b), base64.RawStdEncoding.EncodeToString(b),
 		base64.URLEncoding.EncodeToString(b), base64.RawURLEncoding.EncodeToString(b),
 	}
+	if q, err := json.Marshal(v); err == nil {
+		forms = append(forms, string(q[1:len(q)-1]))
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(v); err == nil {
+		// Encode ends the value with a newline; the quotes are not part of the form.
+		q := bytes.TrimSuffix(buf.Bytes(), []byte("\n"))
+		forms = append(forms, string(q[1:len(q)-1]))
+	}
+	return forms
 }
 
 // MakeRedactor returns a function masking every value of at least

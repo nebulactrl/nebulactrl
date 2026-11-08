@@ -17,20 +17,28 @@ import (
 
 // LogSettingsView is a server's log history setting with the agent's last usage report.
 type LogSettingsView struct {
-	Capture         bool            `json:"capture" doc:"Capture the runtime output of this server's services. Off: nothing new is stored; what is stored stays until it expires."`
-	RetentionDays   int             `json:"retentionDays"`
-	MaxServiceBytes int64           `json:"maxServiceBytes" doc:"Cap per service; the oldest lines go first."`
-	MaxServerBytes  int64           `json:"maxServerBytes" doc:"Cap for the whole server; the oldest lines of any service go first."`
-	Usage           *LogServerUsage `json:"usage,omitempty" doc:"What the agent last reported; absent until it has."`
-	Online          bool            `json:"online"`
+	Capture               bool            `json:"capture" doc:"Capture the runtime output of this server's services. Off: nothing new is stored; what is stored stays until it expires."`
+	RetentionDays         int             `json:"retentionDays"`
+	MaxServiceBytes       int64           `json:"maxServiceBytes" doc:"Cap per service; the oldest lines go first."`
+	MaxServerBytes        int64           `json:"maxServerBytes" doc:"Cap for the whole server; the oldest lines of any service go first."`
+	RequestLogs           bool            `json:"requestLogs" doc:"Store one line per routed HTTP request on the host, searchable on the Logs page. Needs traffic analytics and capture on; requests are never shipped to drains. Retention days follow the runtime logs."`
+	RequestLogsKeepQuery  bool            `json:"requestLogsKeepQuery" doc:"Keep the query string of a request line. Off: it is dropped before anything is written."`
+	RequestLogsKeepAssets bool            `json:"requestLogsKeepAssets" doc:"Store the successful requests (2xx, 304) for scripts, stylesheets, images and fonts too. Off: only failed asset requests are stored; pages and API requests always are."`
+	RequestsTotalBytes    int64           `json:"requestsTotalBytes" doc:"Disk the request logs use on the host, as the agent last reported; 0 until it has."`
+	Usage                 *LogServerUsage `json:"usage,omitempty" doc:"What the agent last reported; absent until it has."`
+	Online                bool            `json:"online"`
 }
 
-// SettingsInput replaces the setting.
+// SettingsInput replaces the setting. A nil RequestLogs, RequestLogsKeepQuery
+// or RequestLogsKeepAssets keeps the stored value.
 type SettingsInput struct {
-	Capture         bool
-	RetentionDays   int
-	MaxServiceBytes int64
-	MaxServerBytes  int64
+	Capture               bool
+	RetentionDays         int
+	MaxServiceBytes       int64
+	MaxServerBytes        int64
+	RequestLogs           *bool
+	RequestLogsKeepQuery  *bool
+	RequestLogsKeepAssets *bool
 }
 
 func (s *Service) server(ctx context.Context, scope string, id uuid.UUID) (db.Server, error) {
@@ -49,22 +57,23 @@ func (s *Service) server(ctx context.Context, scope string, id uuid.UUID) (db.Se
 }
 
 func (s *Service) settingsView(ctx context.Context, serverID uuid.UUID) (LogSettingsView, error) {
-	capture, ret, row, err := s.settingsRow(ctx, serverID)
+	row, err := s.settingsRow(ctx, s.q, serverID)
 	if err != nil {
 		return LogSettingsView{}, fmt.Errorf("log settings: %w", err)
 	}
 	v := LogSettingsView{
-		Capture: capture, RetentionDays: ret.Days, MaxServiceBytes: ret.MaxServiceBytes, MaxServerBytes: ret.MaxServerBytes,
+		Capture: row.Capture, RetentionDays: int(row.RetentionDays), MaxServiceBytes: row.MaxServiceBytes, MaxServerBytes: row.MaxServerBytes,
+		RequestLogs: row.RequestLogs, RequestLogsKeepQuery: row.RequestLogsKeepQuery, RequestLogsKeepAssets: row.RequestLogsKeepAssets,
 		Online: s.hub != nil && s.hub.Online(serverID),
 	}
-	if row != nil && row.UsageAt != nil && len(row.Usage) > 0 {
-		var u LogServerUsage
+	if row.UsageAt != nil && len(row.Usage) > 0 {
+		var u storedLogUsage
 		if err := json.Unmarshal(row.Usage, &u); err == nil {
-			u.ReportedAt = *row.UsageAt
 			if u.Services == nil {
 				u.Services = []agentprotocol.LogServiceUsage{}
 			}
-			v.Usage = &u
+			v.Usage = &LogServerUsage{TotalBytes: u.TotalBytes, Services: u.Services, ReportedAt: *row.UsageAt}
+			v.RequestsTotalBytes = u.RequestsTotalBytes
 		}
 	}
 	return v, nil
@@ -94,9 +103,25 @@ func (s *Service) UpdateSettings(ctx context.Context, serverID uuid.UUID, in Set
 		return LogSettingsView{}, bad("the per-service limit cannot exceed the server limit")
 	}
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		if _, err := db.New(tx).UpsertServerLogSettings(ctx, db.UpsertServerLogSettingsParams{
+		q := db.New(tx)
+		cur, err := s.settingsRow(ctx, q, serverID)
+		if err != nil {
+			return err
+		}
+		requestLogs, keepQuery, keepAssets := cur.RequestLogs, cur.RequestLogsKeepQuery, cur.RequestLogsKeepAssets
+		if in.RequestLogs != nil {
+			requestLogs = *in.RequestLogs
+		}
+		if in.RequestLogsKeepQuery != nil {
+			keepQuery = *in.RequestLogsKeepQuery
+		}
+		if in.RequestLogsKeepAssets != nil {
+			keepAssets = *in.RequestLogsKeepAssets
+		}
+		if _, err := q.UpsertServerLogSettings(ctx, db.UpsertServerLogSettingsParams{
 			ServerID: serverID, Capture: in.Capture, RetentionDays: int32(in.RetentionDays),
 			MaxServiceBytes: in.MaxServiceBytes, MaxServerBytes: in.MaxServerBytes,
+			RequestLogs: requestLogs, RequestLogsKeepQuery: keepQuery, RequestLogsKeepAssets: keepAssets,
 		}); err != nil {
 			return err
 		}
@@ -105,6 +130,7 @@ func (s *Service) UpdateSettings(ctx context.Context, serverID uuid.UUID, in Set
 			Metadata: map[string]any{
 				"server": srv.Name, "capture": in.Capture, "retentionDays": in.RetentionDays,
 				"maxServiceBytes": in.MaxServiceBytes, "maxServerBytes": in.MaxServerBytes,
+				"requestLogs": requestLogs, "requestLogsKeepQuery": keepQuery, "requestLogsKeepAssets": keepAssets,
 			},
 		})
 	})

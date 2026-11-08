@@ -138,4 +138,61 @@ export class LogBuffer<L extends BufferLine> {
 		this.visible = droppedHits === 0 ? combined : combined.slice(droppedHits);
 		return true;
 	}
+
+	/**
+	 * Takes lines of which some were placed among ones already seen (or some
+	 * seen ones are gone from the middle). Ids stay ascending, so one walk over
+	 * the buffer and the lines tells the kept ones (nothing is parsed, counted
+	 * or matched again) from the new and the gone. Returns whether anything changed.
+	 */
+	resync(lines: readonly L[]): boolean {
+		const last = lines[lines.length - 1];
+		if (!last) return this.sync(lines);
+		const old = this.entries;
+		const entries: Entry<L>[] = [];
+		const visible: L[] = [];
+		let at = 0;
+		let changed = false;
+		const drop = (entry: Entry<L>) => {
+			this.stats.remove(entry.parsed);
+			changed = true;
+		};
+		for (const line of lines) {
+			while (at < old.length && (old[at] as Entry<L>).line.id < line.id) {
+				drop(old[at] as Entry<L>);
+				at += 1;
+			}
+			const known = old[at];
+			if (known && known.line.id === line.id) {
+				at += 1;
+				if (known.line === line) {
+					entries.push(known);
+				} else {
+					entries.push({ ...known, line });
+					changed = true;
+				}
+			} else {
+				if (this.skipBlank && isBlankLine(line.line)) continue;
+				const parsed = parsedFor(line);
+				this.stats.add(parsed);
+				entries.push({ line, parsed, hit: this.matcher(parsed) });
+				changed = true;
+			}
+		}
+		while (at < old.length) {
+			drop(old[at] as Entry<L>);
+			at += 1;
+		}
+		const over = entries.length - this.cap;
+		if (over > 0) {
+			for (const entry of entries.slice(0, over)) drop(entry);
+			entries.splice(0, over);
+		}
+		for (const entry of entries) if (entry.hit) visible.push(entry.line);
+		this.entries = entries;
+		this.visible = visible;
+		this.lastId = last.id;
+		this.firstId = (lines[0] as L).id;
+		return changed;
+	}
 }

@@ -1957,6 +1957,25 @@
  * animation before it unmounts the panel.
  */
 
+/*
+ * A docked panel another panel slid over (`data-stacked`, see sheet.tsx):
+ * it recedes on the debug panel's own open curve and length, so the two
+ * read as one gesture, and comes forward on the faster close. Only for a
+ * panel without a CSS slide of its own (the inspector): `.panel-shell` owns
+ * the transitions of the panels that have one.
+ */
+.sheet-recedes:not(.panel-shell, .panel-shell-simple) {
+	transition:
+		translate var(--duration-fast) var(--ease-smooth-out),
+		scale var(--duration-fast) var(--ease-smooth-out),
+		filter var(--duration-fast) var(--ease-smooth-out),
+		border-radius var(--duration-fast) var(--ease-smooth-out);
+}
+
+.sheet-recedes:not(.panel-shell, .panel-shell-simple)[data-stacked] {
+	transition-duration: var(--duration-slow);
+}
+
 /* The rule at the top of this file zeroes every transition under reduced
    motion; the panels opt back in for a plain opacity fade, which is the
    only motion left and carries no travel (better-ui: cross-fade, never an
@@ -1978,6 +1997,12 @@
 	.panel-shell[data-ending-style],
 	.panel-shell-simple[data-ending-style] {
 		transition: opacity var(--duration-quick) var(--ease-out);
+		transition-duration: var(--duration-quick) !important;
+	}
+
+	/* Receding keeps only its dimming, as a fade. */
+	.sheet-recedes:not(.panel-shell, .panel-shell-simple) {
+		transition: filter var(--duration-quick) var(--ease-out);
 		transition-duration: var(--duration-quick) !important;
 	}
 }

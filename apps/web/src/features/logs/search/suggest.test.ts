@@ -1,7 +1,13 @@
 import { describe, expect, test } from "bun:test";
 import { FacetStats } from "./facets";
 import { parseLine } from "./line";
-import { applySuggestion, type SuggestContext, suggest } from "./suggest";
+import {
+	applySuggestion,
+	hasIncompleteTail,
+	type SuggestContext,
+	suggest,
+	withoutClauseAt,
+} from "./suggest";
 
 function context(recent: string[] = []): SuggestContext {
 	const stats = new FacetStats();
@@ -25,9 +31,10 @@ describe("suggest: a fresh term", () => {
 		expect(labels(items).slice(0, 2)).toEqual(["level:error", "timeout"]);
 		expect(items.slice(0, 2).every((i) => i.kind === "recent")).toBe(true);
 		const keys = items.filter((i) => i.kind === "key").map((i) => i.label);
-		expect(keys).toEqual(["level:", "service:"]);
-		// stream, replica, status and deployment have no values yet.
-		expect(keys).not.toContain("replica:");
+		expect(keys.slice(0, 2)).toEqual(["level:", "service:"]);
+		// Those without values yet follow, behind everything else.
+		expect(keys).toContain("stream:");
+		expect(keys.indexOf("stream:")).toBeGreaterThan(keys.indexOf("service:"));
 	});
 
 	test("without recents it starts at the keys, then a few attributes", () => {
@@ -296,5 +303,91 @@ describe("applySuggestion", () => {
 			end: 3,
 		});
 		expect(out).toEqual({ value: "error timeout", caret: 13 });
+	});
+});
+
+describe("suggest: with nothing counted yet", () => {
+	const empty = (): SuggestContext => ({
+		facets: new FacetStats().facets,
+		attrs: new Map(),
+		recent: [],
+	});
+
+	test("a fresh term still offers every built-in key", () => {
+		expect(
+			labels(suggest("", 0, empty())).filter((l) => l.endsWith(":")),
+		).toEqual([
+			"level:",
+			"service:",
+			"stream:",
+			"replica:",
+			"status:",
+			"deployment:",
+		]);
+	});
+
+	test("a partial key still completes", () => {
+		expect(labels(suggest("sta", 3, empty()))).toContain("status:");
+	});
+});
+
+describe("withoutClauseAt", () => {
+	test.each([
+		["@me", 3, ""],
+		["@", 1, ""],
+		["level:error @me", 15, "level:error"],
+		["level:error @me", 12, "level:error"],
+		["@me level:error", 2, "level:error"],
+		["level:error @method: status:5*", 20, "level:error status:5*"],
+		["level:error @method:PO status:5*", 22, "level:error status:5*"],
+		// A negation goes with its term.
+		["a -@me", 6, "a"],
+		["a -level:err b", 12, "a b"],
+		["a NOT level:err b", 14, "a b"],
+		// So does the OR or AND that joined it.
+		["a OR b", 6, "a"],
+		["a OR b", 1, "b"],
+		["a OR b OR c", 6, "a OR c"],
+		["a AND b", 7, "a"],
+		// A dangling operator or minus is a term of its own.
+		["a OR ", 5, "a"],
+		["a -", 3, "a"],
+		// A whole value group goes, the caret anywhere in it.
+		["level:(error OR warn) x", 12, "x"],
+		// A quoted phrase is one term.
+		['"two  words" x', 5, "x"],
+		// Terms inside parentheses are dropped one by one.
+		["(a b) c", 3, "(a ) c"],
+	])("%p with the caret at %p is %p", (input, caret, expected) => {
+		expect(withoutClauseAt(input, caret)).toBe(expected);
+	});
+
+	test("a caret touching no term leaves the query as it is", () => {
+		expect(withoutClauseAt("level:error  ", 13)).toBe("level:error");
+		expect(withoutClauseAt("", 0)).toBe("");
+	});
+
+	test("whitespace around the cut is closed up, inside phrases it is kept", () => {
+		expect(withoutClauseAt('a   @me   "x  y"', 5)).toBe('a "x  y"');
+	});
+});
+
+describe("hasIncompleteTail", () => {
+	test.each([
+		["@me", true],
+		["-@me", true],
+		["level:", true],
+		["level:error @method:", true],
+		["level:error -", true],
+		["a OR", true],
+		["a NOT", true],
+		['"unfinished', true],
+		["level:error", false],
+		["level:error @method:POST", false],
+		["timeout", false],
+		['"whole phrase"', false],
+		["", false],
+	])("%p is %p", (input, expected) => {
+		expect(hasIncompleteTail(input)).toBe(expected);
 	});
 });

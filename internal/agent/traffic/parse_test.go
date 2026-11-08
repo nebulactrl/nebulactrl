@@ -134,9 +134,32 @@ func TestCleanHostStripsPortAndCase(t *testing.T) {
 
 func TestRequestPath(t *testing.T) {
 	require.Equal(t, "/a/b", requestPath("/a/b?x=1#f"))
-	require.Equal(t, "/x", requestPath("http://h.example/x?y=1"))
-	require.Equal(t, "/", requestPath("http://h.example"))
 	require.Equal(t, "/", requestPath(""))
+	require.Equal(t, "/", requestPath("?x=1"))
+	// Traefik logs the origin-form path; a "://" inside it is path data.
+	require.Equal(t, "/web/2020/https://example.com/", requestPath("/web/2020/https://example.com/"))
+	require.Equal(t, "/redirect/http://h.example/x", requestPath("/redirect/http://h.example/x?y=1"))
+}
+
+func TestParseLineEndIsStartPlusDuration(t *testing.T) {
+	ev, err := ParseLine(fixtureLines(t)[0])
+	require.NoError(t, err)
+	require.Equal(t, ev.Time.Add(12345678*time.Nanosecond), ev.End)
+
+	line := func(durationNs string) []byte {
+		return []byte(`{"StartUTC":"2025-10-26T17:33:20.5Z","RouterName":"nc-` + svcA + `-https@file","RequestHost":"a.example.com",` +
+			`"RequestPath":"/ws","RequestMethod":"GET","DownstreamStatus":101,"Duration":` + durationNs + `}`)
+	}
+	ws, err := ParseLine(line("70000000000"))
+	require.NoError(t, err)
+	require.Equal(t, time.Date(2025, 10, 26, 17, 33, 20, 500_000_000, time.UTC), ws.Time)
+	require.Equal(t, time.Date(2025, 10, 26, 17, 34, 30, 500_000_000, time.UTC), ws.End, "a 70 s websocket ends 70 s after it started")
+
+	for _, d := range []string{"-5", "1e30"} {
+		bad, err := ParseLine(line(d))
+		require.NoError(t, err)
+		require.False(t, bad.End.Before(bad.Time), "a negative or absurd duration never moves End before Time or overflows (%s)", d)
+	}
 }
 
 func TestNormalizePath(t *testing.T) {

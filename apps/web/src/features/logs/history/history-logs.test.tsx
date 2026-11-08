@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import type { ReactNode } from "react";
 import type { LogHistoryEntry } from "#/api/gen/types.gen";
 import { stubApi } from "#/test/api";
 import { renderWithProviders } from "#/test/render";
@@ -27,29 +26,24 @@ const entry = (
 	...extra,
 });
 
-const SERVICE: HistoryScope = { kind: "service", id: "svc-1" };
-const ENV: HistoryScope = { kind: "environment", id: "env-1" };
+const SERVICE = {
+	kind: "service",
+	id: "svc-1",
+} as const satisfies HistoryScope;
 const HOST = { id: "srv-1", name: "hetzner-01" };
 
 async function show(
-	props: {
-		scope?: HistoryScope;
-		servers?: { id: string; name: string }[];
-		path?: string;
-		showService?: boolean;
-		serviceIcon?: (line: { id: number }) => ReactNode;
-	} = {},
+	props: { servers?: { id: string; name: string }[]; path?: string } = {},
 ) {
-	const { scope = SERVICE, servers = [HOST], path, ...rest } = props;
+	const { servers = [HOST], path } = props;
 	return renderWithProviders(
 		<HistoryLogs
-			scope={scope}
+			scope={SERVICE}
 			servers={servers}
 			modeToggle={<div>mode toggle</div>}
 			label="Search log history"
 			logLabel="api stored logs"
 			facetKeys={["level", "stream"]}
-			{...rest}
 		/>,
 		path ? { path } : {},
 	);
@@ -90,23 +84,6 @@ describe("HistoryLogs: lines", () => {
 		expect(screen.getByText("mode toggle")).toBeInTheDocument();
 	});
 
-	test("an environment says the servers keep logs", async () => {
-		stubApi({
-			"GET /environments/:id/logs/history": {
-				body: {
-					capturing: true,
-					items: [entry(1)],
-					oldest: "2026-10-01T09:30:00.000Z",
-				},
-			},
-		});
-		await show({ scope: ENV });
-		await waitFor(() => expect(rows()).toEqual(["line 1"]));
-		expect(
-			screen.getByText(/The servers keep logs back to/),
-		).toBeInTheDocument();
-	});
-
 	test("shows a loading state before the first page", async () => {
 		stubApi({ [`GET ${historyPath}`]: () => new Promise<Response>(() => {}) });
 		await show();
@@ -122,25 +99,6 @@ describe("HistoryLogs: lines", () => {
 			await screen.findByText("No lines in this range."),
 		).toBeInTheDocument();
 		expect(screen.queryByText(/start of the log/)).not.toBeInTheDocument();
-	});
-
-	test("a service column appears when the log merges several services", async () => {
-		stubApi({
-			"GET /environments/:id/logs/history": {
-				body: {
-					capturing: true,
-					items: [entry(1, { serviceName: "api" })],
-				},
-			},
-		});
-		await show({
-			scope: ENV,
-			showService: true,
-			serviceIcon: (l) => <i data-testid="icon">{l.id}</i>,
-		});
-		await waitFor(() => expect(rows()).toEqual(["line 1"]));
-		expect(within(log()).getByText("api")).toBeInTheDocument();
-		expect(screen.getByTestId("icon")).toBeInTheDocument();
 	});
 });
 
@@ -342,9 +300,9 @@ describe("HistoryLogs: states", () => {
 		expect(api.calls).toHaveLength(2);
 	});
 
-	test("services whose servers could not answer are listed in an environment's history", async () => {
+	test("services whose servers could not answer are listed", async () => {
 		stubApi({
-			"GET /environments/:id/logs/history": {
+			[`GET ${historyPath}`]: {
 				body: {
 					capturing: true,
 					items: [entry(1)],
@@ -361,7 +319,7 @@ describe("HistoryLogs: states", () => {
 				},
 			},
 		});
-		await show({ scope: ENV });
+		await show();
 		expect(
 			await screen.findByText("Some services are missing"),
 		).toBeInTheDocument();
@@ -392,40 +350,17 @@ describe("HistoryLogs: states", () => {
 			"/servers/srv-2/settings/logs-and-disk",
 		);
 	});
-
-	test("capture off in an environment names at least one server", async () => {
-		stubApi({
-			"GET /environments/:id/logs/history": {
-				body: { capturing: false, items: [] },
-			},
-		});
-		await show({ scope: ENV, servers: [] });
-		expect(
-			await screen.findByText(
-				/switched off on at least one server of this environment/,
-			),
-		).toBeInTheDocument();
-		expect(screen.queryByRole("link")).not.toBeInTheDocument();
-	});
 });
 
 describe("HistoryLogs: toolbar", () => {
-	test("a service has Download, an environment does not", async () => {
+	test("has Download", async () => {
 		stubApi({
 			[`GET ${historyPath}`]: { body: { capturing: true, items: [] } },
-			"GET /environments/:id/logs/history": {
-				body: { capturing: true, items: [] },
-			},
 		});
-		const first = await show();
+		await show();
 		expect(
-			screen.getByRole("button", { name: /Download/ }),
+			await screen.findByRole("button", { name: /Download/ }),
 		).toBeInTheDocument();
-		first.unmount();
-		await show({ scope: ENV });
-		expect(
-			screen.queryByRole("button", { name: /Download/ }),
-		).not.toBeInTheDocument();
 	});
 
 	test("Refresh looks for newer lines from a new now", async () => {

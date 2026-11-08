@@ -45,6 +45,7 @@ func TestFactsAdvertiseProxyV2AndHostTailscale(t *testing.T) {
 	f := c.Facts(context.Background())
 	require.Contains(t, f.Capabilities, agentprotocol.CapProxyV2)
 	require.Contains(t, f.Capabilities, agentprotocol.CapProcesses, "several processes per service is advertised unconditionally")
+	require.Contains(t, f.Capabilities, agentprotocol.CapRequestLogs, "the request store exists on every agent")
 	require.NotNil(t, f.HostTailscale, "host tailscale detection always reports a result")
 }
 

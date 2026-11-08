@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -34,6 +35,7 @@ type fakeDocker struct {
 	envFile        string // content of the env script copied into the planner
 	envFileMode    os.FileMode
 	planFails      bool
+	planTransient  int // how many planner runs fail on a tool download first
 }
 
 func (f *fakeDocker) run(_ context.Context, args, env []string, out io.Writer) error {
@@ -52,6 +54,11 @@ func (f *fakeDocker) run(_ context.Context, args, env []string, out io.Writer) e
 		if f.planFails {
 			_, _ = out.Write([]byte("error: no provider matched\n"))
 			return errors.New("exit status 1")
+		}
+		if f.planTransient > 0 {
+			f.planTransient--
+			_, _ = out.Write([]byte("ERRO failed to ensure mise is installed: failed to download and install: temporary failure fetching https://github.com/jdx/mise/releases/download/v1/mise.tar.gz: unexpected status 504 Gateway Timeout\n"))
+			return errors.New("exit status 75")
 		}
 		_, _ = out.Write([]byte("Railpack 0.43.0\n"))
 	case args[0] == "cp" && strings.Contains(args[1], ":/tmp/railpack-info.json"):
@@ -268,6 +275,32 @@ func TestRailpackPlanFailureNamesTheReason(t *testing.T) {
 	require.ErrorContains(t, err, "railpack could not plan this source")
 	require.Contains(t, f.verbs(), "rm", "the planner container is removed")
 	require.NotContains(t, f.verbs(), "build")
+}
+
+func TestRailpackPlanRetriesATransientToolDownload(t *testing.T) {
+	old := railpackPlanRetryWait
+	railpackPlanRetryWait = time.Millisecond
+	t.Cleanup(func() { railpackPlanRetryWait = old })
+
+	t.Run("a download that recovers builds", func(t *testing.T) {
+		f := &fakeDocker{t: t, fixture: "node", containerd: true, planTransient: 2}
+		_, err := railpackBuilder(t, f, map[string]string{"package.json": "{}"}).Build(context.Background(), goodRequest(), func(string) {})
+		require.NoError(t, err)
+		starts := 0
+		for _, v := range f.verbs() {
+			if v == "start" {
+				starts++
+			}
+		}
+		require.Equal(t, 3, starts)
+	})
+	t.Run("a download that keeps failing names the reason", func(t *testing.T) {
+		f := &fakeDocker{t: t, fixture: "node", containerd: true, planTransient: 5}
+		_, err := railpackBuilder(t, f, map[string]string{"package.json": "{}"}).Build(context.Background(), goodRequest(), func(string) {})
+		require.ErrorContains(t, err, "railpack could not plan this source: failed to ensure mise is installed")
+		require.ErrorContains(t, err, "504 Gateway Timeout")
+		require.NotContains(t, f.verbs(), "build")
+	})
 }
 
 func TestRailpackRequestedOverridesDockerfile(t *testing.T) {

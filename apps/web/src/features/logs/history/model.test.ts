@@ -432,33 +432,17 @@ describe("states", () => {
 			footerText({
 				lines: 500,
 				oldest: "2026-10-20T14:02:00Z",
-				scope: "service",
 				stamp,
 				continuation: "more",
 			}),
 		).toBe("Showing 500 lines. This server keeps logs back to 20 Oct, 14:02.");
 		expect(
-			footerText({
-				lines: 1,
-				oldest: undefined,
-				scope: "environment",
-				continuation: "end",
-			}),
+			footerText({ lines: 1, oldest: undefined, continuation: "end" }),
 		).toBe("Showing 1 line.");
-		expect(
-			footerText({
-				lines: 2,
-				oldest: "2026-10-20T14:02:00Z",
-				scope: "environment",
-				stamp,
-				continuation: "end",
-			}),
-		).toContain("The servers keep logs back to");
 		expect(
 			footerText({
 				lines: HISTORY_MAX_LINES,
 				oldest: undefined,
-				scope: "service",
 				continuation: "full",
 			}),
 		).toContain("Narrow the range");

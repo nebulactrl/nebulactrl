@@ -57,7 +57,9 @@ export function ProcessCard({
 	const base = cardStatus(service);
 	const now = useTicker(base.clockFrom !== null);
 	const status = base.clockFrom === null ? base : cardStatus(service, now);
-	const summary = nodeProcessSummary(service);
+	const summary = nodeProcessSummary(service, {
+		rolling: status.kind === "deploying",
+	});
 	const prefetch = useInspectorPrefetch(service);
 	const unreachable =
 		service.server?.status === "offline" ||

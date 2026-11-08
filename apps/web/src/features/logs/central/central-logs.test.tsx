@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, describe, expect, spyOn, test } from "bun:test";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { meQuery } from "#/api/hooks";
 import type { Service } from "#/api/models";
+import { teamsQuery } from "#/features/teams/queries";
 import { stubApi } from "#/test/api";
 import { make, problem } from "#/test/factories";
-import { renderWithProviders } from "#/test/render";
+import { renderWithProviders, testQueryClient } from "#/test/render";
 import { stubLayout } from "../test-layout";
 import { CentralLogs } from "./central-logs";
 
@@ -30,8 +32,15 @@ const page = (lines: ReturnType<typeof entry>[]) => ({
 const toggle = <div>mode toggle</div>;
 
 async function show(props: Partial<Parameters<typeof CentralLogs>[0]> = {}) {
+	// Who is signed in is already known, as it is inside the app: no call for it.
+	const queryClient = testQueryClient();
+	queryClient.setQueryData(meQuery().queryKey, make("MeBody"));
+	queryClient.setQueryData(teamsQuery().queryKey, {
+		items: [make("Team", { current: true })],
+	});
 	return renderWithProviders(
 		<CentralLogs service={service} modeToggle={toggle} {...props} />,
+		{ queryClient },
 	);
 }
 

@@ -16,6 +16,10 @@ const (
 	// KindLogsQuery reads a page of a service's stored runtime log. Ephemeral:
 	// the control plane writes it straight to the socket and waits for the result.
 	KindLogsQuery = "logs_query"
+	// KindLogsFacets counts the values of a service's stored log lines that match
+	// a query (facets, attributes and volume over time). Ephemeral, like
+	// KindLogsQuery.
+	KindLogsFacets = "logs_facets"
 	// KindLogsDrainTest sends one test line through a drain from the agent's host.
 	// Ephemeral. The drain's secrets ride in Command.Secrets.
 	KindLogsDrainTest = "logs_drain_test"
@@ -26,7 +30,14 @@ const (
 
 func init() {
 	AllowedKinds[KindLogsQuery] = true
+	AllowedKinds[KindLogsFacets] = true
 	AllowedKinds[KindLogsDrainTest] = true
+	// Log lines and their counts are customer data the log store already keeps
+	// under its own retention: the agent's result store must not keep a second,
+	// unredacted copy for as long as it keeps command records.
+	EphemeralResultKinds[KindLogsQuery] = true
+	EphemeralResultKinds[KindLogsFacets] = true
+	EphemeralResultKinds[KindLogsDrainTest] = true
 }
 
 // LogStatusInterval is how often the agent reports the log store and drains.
@@ -46,6 +57,27 @@ const (
 	// lines are skipped and counted as dropped).
 	DefaultDrainBufferBytes = int64(256) << 20
 )
+
+// Request log byte caps. Request lines live in a store of their own
+// (<state-dir>/requests), so their volume never evicts runtime lines; the age
+// limit is the server's LogRetention.Days.
+const (
+	DefaultRequestLogMaxServiceBytes = int64(200) << 20
+	DefaultRequestLogMaxServerBytes  = int64(2) << 30
+)
+
+// Log sources: which store a query reads. A source is also the `stream` facet
+// value of its lines.
+const (
+	LogSourceRuntime  = StreamRuntime
+	LogSourceRequests = StreamRequests
+)
+
+// CapRequestLogs is advertised in Facts.Capabilities by agents that keep the
+// request store and honour LogsQuery.Source. An older agent ignores Source and
+// answers from its runtime store, so the control plane reports such a server
+// agent_outdated for the requests source instead of asking it.
+const CapRequestLogs = "logs.requests"
 
 // Log drain kinds.
 const (
@@ -144,7 +176,63 @@ type LogsConfig struct {
 	// Services is every service whose current deployment runs on this server.
 	Services []LogServiceMeta `json:"services,omitempty"`
 	Drains   []LogDrain       `json:"drains,omitempty"`
+	// Requests switches request logs on (nil: off). Request lines are stored on
+	// the host only: no drain and no central log ever reads them.
+	Requests *RequestLogsConfig `json:"requests,omitempty"`
 }
+
+// RequestLogsConfig is how the agent stores one line per proxied request of a
+// routed service (RequestRecord as JSON). Unrouted requests are never stored.
+type RequestLogsConfig struct {
+	// KeepQuery stores the query string in RequestRecord.Query; off, the query
+	// string is dropped before anything is written.
+	KeepQuery bool `json:"keepQuery"`
+	// KeepAssets stores successful (2xx, 304) requests of RequestKindAsset;
+	// off, only the failed ones are stored.
+	KeepAssets bool `json:"keepAssets"`
+	// Retention: Days follows the server's log retention; the byte caps default
+	// to DefaultRequestLogMaxServiceBytes and DefaultRequestLogMaxServerBytes.
+	Retention LogRetention `json:"retention"`
+}
+
+// RequestRecord is the text of one stored request line, as JSON with these
+// keys in this order, so `@method:`, `@path:`, `@duration_ms:>500` and
+// `status:5*` query it. The client address is never stored whole: IP is the
+// /24 (IPv4) or /48 (IPv6) network it belongs to.
+type RequestRecord struct {
+	Method string `json:"method"`
+	Host   string `json:"host"`
+	Path   string `json:"path"`
+	// Kind is what was requested: one of the RequestKind* values.
+	Kind string `json:"kind"`
+	// Level follows the status (error for 5xx, warn for 4xx, info otherwise),
+	// so `level:` means the same for request lines as for runtime lines and
+	// nothing in the path or user agent can set it.
+	Level      string  `json:"level"`
+	Query      string  `json:"query,omitempty"`
+	Status     int     `json:"status"`
+	DurationMs float64 `json:"duration_ms"`
+	Bytes      int64   `json:"bytes"`
+	BytesIn    int64   `json:"bytes_in,omitempty"`
+	UserAgent  string  `json:"ua,omitempty"`
+	IP         string  `json:"ip,omitempty"`
+	Process    string  `json:"process,omitempty"`
+	Component  string  `json:"component,omitempty"`
+}
+
+// Request kinds (RequestRecord.Kind), from the response's Content-Type and,
+// without one, the path's extension.
+const (
+	// RequestKindPage is an HTML document.
+	RequestKindPage = "page"
+	// RequestKindAPI is a JSON, XML, form, gRPC or event-stream exchange.
+	RequestKindAPI = "api"
+	// RequestKindAsset is a script, stylesheet, image, font, media file,
+	// source map or web manifest.
+	RequestKindAsset = "asset"
+	// RequestKindOther is anything else (a redirect without a body, plain text).
+	RequestKindOther = "other"
+)
 
 // LogDrain is one destination the agent ships log lines to. The kind's own
 // config is set (the others nil). A line is shipped when its service passes the
@@ -241,19 +329,88 @@ const (
 )
 
 // LogsQuery is the payload of KindLogsQuery: a page of one service's stored
-// runtime log, within a time range, filtered by the log search language.
+// log, within a time range, filtered by the log search language.
 type LogsQuery struct {
 	ServiceID string `json:"serviceId"`
 	// ServiceName is what the `service:` facet matches (the control plane sends
 	// the display name, like the live view does).
-	ServiceName string    `json:"serviceName,omitempty"`
-	From        time.Time `json:"from,omitempty"` // inclusive; zero = the oldest line
-	To          time.Time `json:"to,omitempty"`   // exclusive; zero = now
-	Query       string    `json:"query,omitempty"`
-	Limit       int       `json:"limit,omitempty"`
+	ServiceName string `json:"serviceName,omitempty"`
+	// Source picks the store: LogSourceRuntime ("" too) or LogSourceRequests.
+	Source string    `json:"source,omitempty" enum:"runtime,requests"`
+	From   time.Time `json:"from,omitempty"` // inclusive; zero = the oldest line
+	To     time.Time `json:"to,omitempty"`   // exclusive; zero = now
+	Query  string    `json:"query,omitempty"`
+	Limit  int       `json:"limit,omitempty"`
 	// Cursor continues a previous page (LogsQueryResult.NextCursor).
 	Cursor string `json:"cursor,omitempty"`
 	Order  string `json:"order,omitempty" enum:"desc,asc"`
+}
+
+// Limits of a facets query.
+const (
+	LogFacetsDefaultBuckets = 60
+	LogFacetsMaxBuckets     = 240
+	// LogFacetsMaxValues is how many values one facet or attribute reports.
+	LogFacetsMaxValues = 20
+	// LogFacetsMaxAttrs is how many attribute paths a result reports.
+	LogFacetsMaxAttrs = 50
+)
+
+// LogsFacetsQuery is the payload of KindLogsFacets: the counts of one
+// service's stored lines of one source that match Query within [From, To).
+type LogsFacetsQuery struct {
+	ServiceID   string    `json:"serviceId"`
+	ServiceName string    `json:"serviceName,omitempty"`
+	Source      string    `json:"source,omitempty" enum:"runtime,requests"`
+	From        time.Time `json:"from"`
+	To          time.Time `json:"to"`
+	Query       string    `json:"query,omitempty"`
+	// Buckets is the number of equal histogram buckets over [From, To)
+	// (0: LogFacetsDefaultBuckets, at most LogFacetsMaxBuckets).
+	Buckets int `json:"buckets,omitempty"`
+}
+
+// FacetValue is one value of a facet or attribute and how many matching lines carry it.
+type FacetValue struct {
+	Value string `json:"value"`
+	Count int64  `json:"count"`
+}
+
+// FacetField is the top values of one facet (Key without "@": level, stream,
+// status, replica, deployment, service) or attribute (Key with "@", e.g.
+// "@method"), most frequent first. Count is how many matching lines carry the
+// key at all. Numeric keys report Min and Max over the matching lines.
+type FacetField struct {
+	Key     string       `json:"key"`
+	Count   int64        `json:"count"`
+	Numeric bool         `json:"numeric,omitempty"`
+	Min     *float64     `json:"min,omitempty"`
+	Max     *float64     `json:"max,omitempty"`
+	Values  []FacetValue `json:"values"`
+}
+
+// HistogramBucket is the matching lines in [Start, Start+width). Errors counts
+// those whose level is error or fatal, or whose status is 500 or more.
+type HistogramBucket struct {
+	Start  time.Time `json:"start"`
+	Count  int64     `json:"count"`
+	Errors int64     `json:"errors"`
+}
+
+// LogsFacetsResult is ResultFrame.Data of KindLogsFacets.
+type LogsFacetsResult struct {
+	// Matched is how many lines matched; Scanned how many were read.
+	Matched int64 `json:"matched"`
+	Scanned int64 `json:"scanned"`
+	// Partial reports that the scan budget ended before the range was read
+	// (newest first): the counts cover [PartialFrom, To) only.
+	Partial     bool              `json:"partial,omitempty"`
+	PartialFrom *time.Time        `json:"partialFrom,omitempty"`
+	Facets      []FacetField      `json:"facets"`
+	Attrs       []FacetField      `json:"attrs"`
+	Histogram   []HistogramBucket `json:"histogram"`
+	QueryErrors []string          `json:"queryErrors,omitempty"`
+	Capturing   bool              `json:"capturing"`
 }
 
 // HistoryLine is one stored log line.
@@ -324,4 +481,9 @@ type LogStatus struct {
 	TotalBytes int64             `json:"totalBytes"`
 	Services   []LogServiceUsage `json:"services"`
 	Drains     []LogDrainStatus  `json:"drains"`
+	// RequestsCapturing reports request logs on; RequestsTotalBytes and
+	// Requests are the request store's usage (separate from the runtime store).
+	RequestsCapturing  bool              `json:"requestsCapturing,omitempty"`
+	RequestsTotalBytes int64             `json:"requestsTotalBytes,omitempty"`
+	Requests           []LogServiceUsage `json:"requests,omitempty"`
 }

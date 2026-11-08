@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"time"
 
 	"golang.org/x/crypto/pbkdf2"
 
@@ -149,9 +150,29 @@ func prepareCreateArgs(name string, keys []string) []string {
 	return args
 }
 
+// Railpack downloads its tools (mise) from GitHub release assets while it
+// plans, in a fresh container every time. A download that fails with a
+// server error is reported as a "temporary failure"; planning is retried
+// railpackPlanAttempts times in all, railpackPlanRetryWait apart.
+const (
+	railpackPlanAttempts  = 3
+	railpackTransientMark = "temporary failure"
+)
+
+// railpackPlanRetryWait is the pause before a planning retry (a var for tests).
+var railpackPlanRetryWait = 5 * time.Second
+
 // railpackPrepare plans the build of srcDir. workDir receives the plan files.
 func (b *Builder) railpackPrepare(ctx context.Context, name, srcDir, workDir string, vars map[string]string, logf func(string)) (*railpackPlan, error) {
-	lw := &LineWriter{Fn: logf}
+	// lastErr is the last error line Railpack printed: the reason when it
+	// fails before it writes its info file (a tool download, say).
+	var lastErr string
+	lw := &LineWriter{Fn: func(line string) {
+		if strings.Contains(line, "ERRO") || strings.HasPrefix(line, "error") {
+			lastErr = line
+		}
+		logf(line)
+	}}
 	defer lw.Flush()
 	run := func(args ...string) error { return b.run(ctx, args, nil, lw) }
 
@@ -190,6 +211,16 @@ func (b *Builder) railpackPrepare(ctx context.Context, name, srcDir, workDir str
 	planFile := filepath.Join(workDir, "railpack-plan.json")
 	infoFile := filepath.Join(workDir, "railpack-info.json")
 	startErr := run("start", "-a", name)
+	for attempt := 1; startErr != nil && attempt < railpackPlanAttempts && strings.Contains(lastErr, railpackTransientMark); attempt++ {
+		logf(fmt.Sprintf("Railpack could not download its tools; retrying in %s (attempt %d of %d)", railpackPlanRetryWait, attempt+1, railpackPlanAttempts))
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(railpackPlanRetryWait):
+		}
+		lastErr = ""
+		startErr = run("start", "-a", name)
+	}
 	// The info file is written even when planning fails; it carries the reason.
 	infoErr := run("cp", name+":"+infoPathInContainer, infoFile)
 	var info railpackInfo
@@ -200,11 +231,18 @@ func (b *Builder) railpackPrepare(ctx context.Context, name, srcDir, workDir str
 	}
 	if startErr != nil {
 		msg := "railpack could not plan this source"
+		reason := ""
 		for _, l := range info.Logs {
 			if l.Level == "error" {
-				msg += ": " + l.Msg
+				reason = l.Msg
 				break
 			}
+		}
+		if reason == "" {
+			reason = strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(lastErr), "ERRO"))
+		}
+		if reason != "" {
+			msg += ": " + reason
 		}
 		return nil, fmt.Errorf("%s (%w)", msg, startErr)
 	}

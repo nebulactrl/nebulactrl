@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { stubApi } from "#/test/api";
 import { make, problem } from "#/test/factories";
@@ -105,11 +105,15 @@ describe("DeploymentDebugPanel header", () => {
 		stubApi(routes());
 		await renderPanel();
 
-		expect(await screen.findByText("· billing-api")).toBeInTheDocument();
-		expect(screen.getByText("deployment dep-1")).toBeInTheDocument();
+		expect(
+			await screen.findByRole("button", { name: "Back to billing-api" }),
+		).toBeInTheDocument();
+		expect(screen.getByTitle("dep-1")).toHaveTextContent("dep-1");
+		expect(
+			screen.getByRole("heading", { name: /Debug deployment/ }),
+		).toHaveTextContent("Succeeded");
 		const meta = (label: string) =>
 			screen.getByText(label, { selector: "dt" }).nextElementSibling;
-		expect(meta("Status")).toHaveTextContent("Succeeded");
 		expect(meta("Trigger")).toHaveTextContent("Deploy");
 		expect(meta("Actor")).toHaveTextContent("Ada");
 		expect(meta("Duration")).toHaveTextContent("1m 00s");
@@ -126,7 +130,7 @@ describe("DeploymentDebugPanel header", () => {
 		);
 		await renderPanel();
 
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 		const meta = screen.getByText("Server", {
 			selector: "dt",
 		}).nextElementSibling;
@@ -145,7 +149,7 @@ describe("DeploymentDebugPanel header", () => {
 		);
 		await renderPanel();
 
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 		expect(
 			screen.getByText("Server · built on", { selector: "dt" })
 				.nextElementSibling,
@@ -214,7 +218,7 @@ describe("DeploymentDebugPanel header", () => {
 		const api = stubApi(routes());
 		await renderPanel({ open: false });
 		expect(api.calls).toEqual([]);
-		expect(screen.queryByText("deployment dep-1")).not.toBeInTheDocument();
+		expect(screen.queryByTitle("dep-1")).not.toBeInTheDocument();
 	});
 });
 
@@ -310,7 +314,7 @@ describe("DeploymentDebugPanel closing", () => {
 		let closed = 0;
 		stubApi(routes());
 		await renderPanel({ onClose: () => (closed += 1) });
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 
 		fireEvent.keyDown(document.body, { key: "Escape" });
 
@@ -321,7 +325,7 @@ describe("DeploymentDebugPanel closing", () => {
 		let closed = 0;
 		stubApi(routes());
 		await renderPanel({ onClose: () => (closed += 1) });
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 		const menu = document.createElement("div");
 		menu.setAttribute("role", "menu");
 		menu.setAttribute("data-open", "");
@@ -338,7 +342,7 @@ describe("DeploymentDebugPanel copy report", () => {
 		const api = stubApi(routes());
 		await renderPanel();
 		const user = userEvent.setup();
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 
 		await user.click(screen.getByRole("button", { name: "Copy debug report" }));
 
@@ -374,7 +378,7 @@ describe("DeploymentDebugPanel copy report", () => {
 			}),
 		);
 		await renderPanel();
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 
 		await userEvent
 			.setup()
@@ -389,7 +393,7 @@ describe("DeploymentDebugPanel copy report", () => {
 	test("a blocked clipboard says so", async () => {
 		stubApi(routes());
 		await renderPanel();
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 		const user = userEvent.setup();
 		// user-event installs its own clipboard on setup: refuse after that.
 		navigator.clipboard.writeText = async () => {
@@ -426,7 +430,7 @@ describe("DeploymentDebugPanel copy report", () => {
 			}),
 		);
 		await renderPanel();
-		await screen.findByText("· billing-api");
+		await screen.findByRole("button", { name: "Back to billing-api" });
 
 		await userEvent
 			.setup()
@@ -448,7 +452,8 @@ describe("DeploymentDebugPanel within", () => {
 	test("lives in a labelled dialog the page can find", async () => {
 		stubApi(routes());
 		await renderPanel();
-		const dialog = await screen.findByRole("dialog");
-		expect(within(dialog).getByText("Debug")).toBeInTheDocument();
+		expect(
+			await screen.findByRole("dialog", { name: /Debug deployment/ }),
+		).toBeInTheDocument();
 	});
 });

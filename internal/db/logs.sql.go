@@ -100,7 +100,7 @@ func (q *Queries) GetLogDrain(ctx context.Context, arg GetLogDrainParams) (LogDr
 }
 
 const getServerLogSettings = `-- name: GetServerLogSettings :one
-SELECT server_id, capture, retention_days, max_service_bytes, max_server_bytes, usage, usage_at, updated_at FROM server_log_settings WHERE server_id = $1
+SELECT server_id, capture, retention_days, max_service_bytes, max_server_bytes, usage, usage_at, updated_at, request_logs, request_logs_keep_query, request_logs_keep_assets FROM server_log_settings WHERE server_id = $1
 `
 
 func (q *Queries) GetServerLogSettings(ctx context.Context, serverID uuid.UUID) (ServerLogSetting, error) {
@@ -115,6 +115,9 @@ func (q *Queries) GetServerLogSettings(ctx context.Context, serverID uuid.UUID) 
 		&i.Usage,
 		&i.UsageAt,
 		&i.UpdatedAt,
+		&i.RequestLogs,
+		&i.RequestLogsKeepQuery,
+		&i.RequestLogsKeepAssets,
 	)
 	return i, err
 }
@@ -488,21 +491,26 @@ func (q *Queries) UpsertLogDrainStatus(ctx context.Context, arg UpsertLogDrainSt
 }
 
 const upsertServerLogSettings = `-- name: UpsertServerLogSettings :one
-INSERT INTO server_log_settings (server_id, capture, retention_days, max_service_bytes, max_server_bytes)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO server_log_settings (server_id, capture, retention_days, max_service_bytes, max_server_bytes, request_logs, request_logs_keep_query, request_logs_keep_assets)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (server_id) DO UPDATE
 SET capture = EXCLUDED.capture, retention_days = EXCLUDED.retention_days,
     max_service_bytes = EXCLUDED.max_service_bytes, max_server_bytes = EXCLUDED.max_server_bytes,
+    request_logs = EXCLUDED.request_logs, request_logs_keep_query = EXCLUDED.request_logs_keep_query,
+    request_logs_keep_assets = EXCLUDED.request_logs_keep_assets,
     updated_at = now()
-RETURNING server_id, capture, retention_days, max_service_bytes, max_server_bytes, usage, usage_at, updated_at
+RETURNING server_id, capture, retention_days, max_service_bytes, max_server_bytes, usage, usage_at, updated_at, request_logs, request_logs_keep_query, request_logs_keep_assets
 `
 
 type UpsertServerLogSettingsParams struct {
-	ServerID        uuid.UUID `json:"serverId"`
-	Capture         bool      `json:"capture"`
-	RetentionDays   int32     `json:"retentionDays"`
-	MaxServiceBytes int64     `json:"maxServiceBytes"`
-	MaxServerBytes  int64     `json:"maxServerBytes"`
+	ServerID              uuid.UUID `json:"serverId"`
+	Capture               bool      `json:"capture"`
+	RetentionDays         int32     `json:"retentionDays"`
+	MaxServiceBytes       int64     `json:"maxServiceBytes"`
+	MaxServerBytes        int64     `json:"maxServerBytes"`
+	RequestLogs           bool      `json:"requestLogs"`
+	RequestLogsKeepQuery  bool      `json:"requestLogsKeepQuery"`
+	RequestLogsKeepAssets bool      `json:"requestLogsKeepAssets"`
 }
 
 func (q *Queries) UpsertServerLogSettings(ctx context.Context, arg UpsertServerLogSettingsParams) (ServerLogSetting, error) {
@@ -512,6 +520,9 @@ func (q *Queries) UpsertServerLogSettings(ctx context.Context, arg UpsertServerL
 		arg.RetentionDays,
 		arg.MaxServiceBytes,
 		arg.MaxServerBytes,
+		arg.RequestLogs,
+		arg.RequestLogsKeepQuery,
+		arg.RequestLogsKeepAssets,
 	)
 	var i ServerLogSetting
 	err := row.Scan(
@@ -523,6 +534,9 @@ func (q *Queries) UpsertServerLogSettings(ctx context.Context, arg UpsertServerL
 		&i.Usage,
 		&i.UsageAt,
 		&i.UpdatedAt,
+		&i.RequestLogs,
+		&i.RequestLogsKeepQuery,
+		&i.RequestLogsKeepAssets,
 	)
 	return i, err
 }

@@ -16,6 +16,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "#/components/ui/table";
+import { cardStatus } from "#/features/canvas/lib/status";
 import { scaleRows } from "#/features/scaling/model";
 import { ScaleDialog } from "#/features/scaling/scale-dialog";
 import { useStackNavigation } from "#/features/stacks/url";
@@ -42,7 +43,8 @@ import { useProcessParam } from "./url";
 export function ProcessesTable({ service }: { service: Service }) {
 	const highlighted = useProcessParam();
 	const { show } = useStackNavigation();
-	const rows = useMemo(() => processRows(service), [service]);
+	const rolling = cardStatus(service).kind === "deploying";
+	const rows = useMemo(() => processRows(service, rolling), [service, rolling]);
 	const scaling = useMemo(
 		() => new Map(scaleRows(service).map((row) => [row.name, row])),
 		[service],
