@@ -85,13 +85,18 @@ RUN --mount=type=cache,target=/go/pkg/mod \
 # Alpine, not distroless: the control-plane backup runs pg_dump and
 # `nebulactrl-server restore` runs pg_restore. The client major version must be
 # at least the database server's (the compose file runs Postgres 17).
-FROM alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+# The base is pinned by digest; `apk upgrade` applies the branch's security
+# fixes published after that digest (zlib CVE-2026-4738 shipped in 1.4-r0 while
+# every 3.24 base image still carried 1.3.2), so a release never waits for a
+# new base image to clear the image scan.
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 ARG VERSION=dev
 LABEL org.opencontainers.image.title="NebulaCtrl control plane" \
       org.opencontainers.image.description="Self-hosted Docker-native PaaS control plane" \
       org.opencontainers.image.source="https://github.com/nebulactrl/nebulactrl" \
       org.opencontainers.image.version="${VERSION}"
-RUN apk add --no-cache postgresql17-client \
+RUN apk upgrade --no-cache \
+    && apk add --no-cache postgresql17-client \
     && addgroup -g 65532 -S nonroot \
     && adduser -u 65532 -S -G nonroot -H -h /nonexistent -s /sbin/nologin nonroot \
     && install -d -o 65532 -g 65532 -m 0700 /var/lib/nebulactrl/backups
