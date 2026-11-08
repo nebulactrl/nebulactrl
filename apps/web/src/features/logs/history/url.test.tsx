@@ -4,7 +4,12 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "#/test/render";
 import type { RangeSelection } from "./model";
-import { type LogsMode, useHistoryRange, useLogsMode } from "./url";
+import {
+	type LogsMode,
+	useHistoryRange,
+	useLogsMode,
+	useSearchWriter,
+} from "./url";
 
 function Probe() {
 	const [mode, setMode] = useLogsMode();
@@ -125,5 +130,29 @@ describe("useHistoryRange", () => {
 		await waitFor(() => expect(range()).toEqual({ kind: "preset", id: "6h" }));
 		expect(search().textContent).toContain("range=6h");
 		expect(search().textContent).not.toContain("from=");
+	});
+});
+
+function Writer() {
+	const write = useSearchWriter();
+	const search = useRouterState({ select: (s) => s.location.searchStr });
+	return (
+		<div>
+			<output aria-label="search">{search}</output>
+			<button type="button" onClick={() => write({ a: "abc", q: undefined })}>
+				write
+			</button>
+		</div>
+	);
+}
+
+describe("useSearchWriter", () => {
+	it("sets a key, removes one given as undefined, and keeps the others", async () => {
+		const user = userEvent.setup();
+		await renderWithProviders(<Writer />, { path: "/?q=error&keep=yes" });
+		await user.click(screen.getByRole("button", { name: "write" }));
+		await waitFor(() => expect(search().textContent).toContain("a=abc"));
+		expect(search().textContent).not.toContain("q=");
+		expect(search().textContent).toContain("keep=yes");
 	});
 });

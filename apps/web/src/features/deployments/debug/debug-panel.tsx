@@ -1,6 +1,8 @@
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
+import { exact } from "@nebulactrl/tokens";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BugIcon, CheckIcon, ClipboardCopyIcon, XIcon } from "lucide-react";
+import { BugIcon, ChevronLeftIcon, XIcon } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import { errorMessage } from "#/api/client-config";
 import {
@@ -10,9 +12,15 @@ import {
 	serviceQuery,
 } from "#/api/hooks";
 import { useLogStream } from "#/api/sse";
-import { COPIED_MS, writeClipboard } from "#/components/common/copy-button";
+import {
+	COPIED_MS,
+	CopyButton,
+	writeClipboard,
+} from "#/components/common/copy-button";
 import { ErrorState } from "#/components/common/error-state";
 import { Relative } from "#/components/common/relative";
+import { CopyCheckIcon } from "#/components/icons/animated/copy-check-icon";
+import { TextMorph } from "#/components/motion/text-morph";
 import { Button } from "#/components/ui/button";
 import {
 	SheetContent,
@@ -24,8 +32,11 @@ import { Skeleton } from "#/components/ui/skeleton";
 import { StatusIcon } from "#/components/ui/status-icon";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "#/components/ui/tabs";
 import { toast } from "#/components/ui/toast";
+import { EASE_OUT } from "#/lib/ease";
 import { absoluteTime, formatDuration } from "#/lib/format";
+import { lastInputWasKeyboard } from "#/lib/input-modality";
 import {
+	deploymentMessage,
 	durationMs,
 	isInFlight,
 	STATUS_KIND,
@@ -122,6 +133,9 @@ export function DeploymentDebugPanel({
 function DebugBody({ deploymentId, open, onClose }: DebugPanelProps) {
 	const queryClient = useQueryClient();
 	const [tab, setTab] = useState<DebugTab>("timeline");
+	// Opened with `d`: everything is there at once, nothing moves (a keyboard
+	// action never waits on an animation).
+	const [still] = useState(lastInputWasKeyboard);
 	const deployment = useQuery({
 		...deploymentQuery(deploymentId),
 		enabled: open,
@@ -234,51 +248,91 @@ function DebugBody({ deploymentId, open, onClose }: DebugPanelProps) {
 		}
 	};
 
+	const message = d ? deploymentMessage(d).text : null;
+	const serviceName = service.data?.name;
+	const eventCount = events.data?.length;
+	const lineCount = stream.lines.length;
+
 	return (
 		<>
-			<header className="flex shrink-0 flex-col gap-3 border-line border-b px-5 pt-4 pb-3.5">
-				<div className="flex items-start gap-3 pr-1">
-					<span
-						aria-hidden
-						className="surface-well mt-0.5 grid size-8 shrink-0 place-items-center rounded-ctl text-ink-2"
+			<header className="flex shrink-0 flex-col gap-3 border-line border-b px-5 pt-3 pb-3.5">
+				<Rise index={0} still={still} className="flex items-center gap-2">
+					<Button
+						variant="ghost"
+						size="sm"
+						onClick={onClose}
+						aria-label={
+							serviceName ? `Back to ${serviceName}` : "Back to the service"
+						}
+						className="-ml-2 min-w-0 gap-1 pr-2.5 pl-1.5 text-ink-3 hover:text-ink-1"
 					>
-						<BugIcon className="size-4" />
-					</span>
-					<div className="flex min-w-0 flex-1 flex-col gap-1">
-						<SheetTitle className="flex items-center gap-2 text-[17px]">
-							Debug
-							{service.data ? (
-								<span className="truncate font-normal text-ink-3">
-									· {service.data.name}
-								</span>
-							) : null}
-						</SheetTitle>
-						<SheetDescription className="truncate">
-							deployment {deploymentId}
-						</SheetDescription>
-					</div>
+						<ChevronLeftIcon aria-hidden />
+						<span className="truncate">{serviceName ?? "Back"}</span>
+						<span aria-hidden className="text-ink-4">
+							/ Deployments
+						</span>
+					</Button>
+					<span className="flex-1" />
 					<Button
 						variant="secondary"
 						size="sm"
 						onClick={() => void copyReport()}
 						disabled={!d || copying}
 						aria-busy={copying}
+						className={copied ? "text-status-live-on" : undefined}
 					>
-						{copied ? (
-							<CheckIcon aria-hidden />
-						) : (
-							<ClipboardCopyIcon aria-hidden />
-						)}
-						{copied ? "Copied" : "Copy debug report"}
+						<CopyCheckIcon
+							copied={copied}
+							checkClassName="text-status-live-on"
+						/>
+						<TextMorph text={copied ? "Copied" : "Copy debug report"} />
 					</Button>
 					<DialogPrimitive.Close
 						render={<Button variant="ghost" size="icon" />}
 						aria-label="Close the debug panel"
+						title="Close (Esc)"
 						onClick={onClose}
 					>
 						<XIcon aria-hidden />
 					</DialogPrimitive.Close>
-				</div>
+				</Rise>
+
+				<Rise index={0} still={still} className="flex items-start gap-3">
+					<span
+						aria-hidden
+						className="surface-well mt-0.5 grid size-9 shrink-0 place-items-center rounded-ctl text-ink-2"
+					>
+						<BugIcon className="size-4" />
+					</span>
+					<div className="flex min-w-0 flex-1 flex-col gap-1">
+						<SheetTitle className="flex min-w-0 items-center gap-2 text-[17px]">
+							Debug deployment
+							{d ? (
+								<span className="flex shrink-0 items-center gap-1.5 font-medium text-[12px] text-ink-2">
+									<StatusIcon kind={STATUS_KIND[d.status]} label="" />
+									{STATUS_LABEL[d.status]}
+								</span>
+							) : null}
+						</SheetTitle>
+						<SheetDescription className="flex min-w-0 items-center gap-1.5">
+							{message ? (
+								<span className="min-w-0 truncate" title={message}>
+									{message}
+								</span>
+							) : null}
+							<span className="shrink-0 font-mono text-[11.5px] text-ink-3">
+								<span aria-hidden>{message ? "· " : ""}</span>
+								<span title={deploymentId}>{deploymentId.slice(0, 8)}</span>
+							</span>
+							<CopyButton
+								value={deploymentId}
+								label="Copy the deployment ID"
+								variant="ghost"
+								size="icon-xs"
+							/>
+						</SheetDescription>
+					</div>
+				</Rise>
 
 				{deployment.isPending ? (
 					<Skeleton className="h-9 w-full" />
@@ -289,13 +343,12 @@ function DebugBody({ deploymentId, open, onClose }: DebugPanelProps) {
 						retry={() => void deployment.refetch()}
 					/>
 				) : (
-					<dl className="grid grid-cols-2 gap-x-5 gap-y-2.5 text-xs sm:grid-cols-3 lg:grid-cols-6">
-						<Meta label="Status">
-							<span className="flex items-center gap-1.5 font-medium">
-								<StatusIcon kind={STATUS_KIND[d.status]} label="" />
-								{STATUS_LABEL[d.status]}
-							</span>
-						</Meta>
+					<Rise
+						index={1}
+						still={still}
+						as="dl"
+						className="surface-well grid grid-cols-2 gap-x-5 gap-y-2.5 rounded-ctl px-3.5 py-2.5 text-xs sm:grid-cols-3 lg:grid-cols-5"
+					>
 						<Meta label="Trigger">{TRIGGER_LABEL[d.trigger]}</Meta>
 						<Meta label="Actor">{d.actorLabel}</Meta>
 						<Meta label="Started">
@@ -316,72 +369,145 @@ function DebugBody({ deploymentId, open, onClose }: DebugPanelProps) {
 									: ""}
 							</span>
 						</Meta>
-					</dl>
+					</Rise>
 				)}
 			</header>
 
-			<Tabs
-				value={tab}
-				onValueChange={(next) => setTab(next as DebugTab)}
-				className="min-h-0 flex-1"
-			>
-				<TabsList
-					variant="sheet"
-					aria-label="Debug sections"
-					className="shrink-0 gap-6 border-line border-b px-5"
+			<Rise index={2} still={still} className="flex min-h-0 flex-1 flex-col">
+				<Tabs
+					value={tab}
+					onValueChange={(next) => setTab(next as DebugTab)}
+					className="min-h-0 flex-1"
 				>
-					{DEBUG_TABS.map((id) => (
-						<TabsTrigger
-							key={id}
-							value={id}
-							className="h-10 shrink-0 font-medium text-[13px]"
-						>
-							{TAB_LABEL[id]}
-						</TabsTrigger>
-					))}
-				</TabsList>
-				<TabsContent
-					value="timeline"
-					className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-				>
-					<TimelineTab
-						events={events.data}
-						pending={events.isPending}
-						error={events.isError}
-						onRetry={() => void events.refetch()}
-						originIso={d?.createdAt ?? ""}
-						live={running}
-					/>
-				</TabsContent>
-				<TabsContent value="log" className="min-h-0 flex-1">
-					<LogTab stream={stream} running={running} />
-				</TabsContent>
-				<TabsContent
-					value="release"
-					className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-				>
-					<ReleaseTab
-						release={release.data}
-						pending={release.isPending}
-						error={release.error}
-						onRetry={() => void release.refetch()}
-					/>
-				</TabsContent>
-				<TabsContent
-					value="commands"
-					className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
-				>
-					<CommandsTab
-						commands={commands.data}
-						pending={commands.isPending}
-						error={commands.isError}
-						onRetry={() => void commands.refetch()}
-					/>
-				</TabsContent>
-			</Tabs>
+					<TabsList
+						variant="sheet"
+						aria-label="Debug sections"
+						className="shrink-0 gap-6 border-line border-b px-5"
+					>
+						{DEBUG_TABS.map((id) => {
+							const count =
+								id === "timeline"
+									? eventCount
+									: id === "log" && lineCount > 0
+										? lineCount
+										: undefined;
+							return (
+								<TabsTrigger
+									key={id}
+									value={id}
+									className="h-10 shrink-0 gap-1.5 font-medium text-[13px]"
+								>
+									{TAB_LABEL[id]}
+									{count !== undefined ? (
+										<span
+											aria-hidden
+											className="font-mono text-[11px] text-ink-3 tabular-nums"
+										>
+											{count.toLocaleString()}
+										</span>
+									) : null}
+								</TabsTrigger>
+							);
+						})}
+					</TabsList>
+					<TabsContent
+						value="timeline"
+						className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+					>
+						<TimelineTab
+							events={events.data}
+							pending={events.isPending}
+							error={events.isError}
+							onRetry={() => void events.refetch()}
+							originIso={d?.createdAt ?? ""}
+							live={running}
+						/>
+					</TabsContent>
+					<TabsContent value="log" className="min-h-0 flex-1">
+						<LogTab stream={stream} running={running} />
+					</TabsContent>
+					<TabsContent
+						value="release"
+						className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+					>
+						<ReleaseTab
+							release={release.data}
+							pending={release.isPending}
+							error={release.error}
+							onRetry={() => void release.refetch()}
+						/>
+					</TabsContent>
+					<TabsContent
+						value="commands"
+						className="min-h-0 flex-1 overflow-y-auto overscroll-contain"
+					>
+						<CommandsTab
+							commands={commands.data}
+							pending={commands.isPending}
+							error={commands.isError}
+							onRetry={() => void commands.refetch()}
+						/>
+					</TabsContent>
+				</Tabs>
+			</Rise>
 		</>
 	);
 }
+
+/**
+ * One chunk of the panel's staged entrance (better-ui, exact): opacity, a
+ * 4px blur and a 12px rise over 300ms, chunks 100ms apart, starting while
+ * the panel is still sliding in so the two read as one motion. Runs once, on
+ * open. `still` (opened from the keyboard) shows it at once; under reduced
+ * motion it only fades. The settled chunk keeps no transform or filter, so it
+ * does not become a containing block for what it holds.
+ */
+function Rise({
+	index,
+	still,
+	as = "div",
+	className,
+	children,
+}: {
+	index: number;
+	still: boolean;
+	as?: "div" | "dl";
+	className?: string;
+	children: React.ReactNode;
+}) {
+	const reduced = useReducedMotion() ?? false;
+	const Tag = as === "dl" ? motion.dl : motion.div;
+	const { enter } = exact;
+	const from = reduced
+		? { opacity: 0 }
+		: {
+				opacity: 0,
+				transform: `translateY(${enter.rise}px)`,
+				filter: `blur(${enter.blur}px)`,
+			};
+	return (
+		<Tag
+			className={className}
+			initial={still ? false : from}
+			animate={{
+				opacity: 1,
+				transform: "translateY(0px)",
+				filter: "blur(0px)",
+				transitionEnd: { transform: "none", filter: "none" },
+			}}
+			transition={{
+				duration: enter.duration / 1000,
+				ease: EASE_OUT,
+				delay: (RISE_DELAY_MS + index * enter.stagger) / 1000,
+			}}
+		>
+			{children}
+		</Tag>
+	);
+}
+
+/** The entrance starts once the panel has moved far enough to carry it. */
+const RISE_DELAY_MS = 80;
 
 function Meta({
 	label,

@@ -78,6 +78,10 @@ describe("Sidebar navigation inside an environment", () => {
 		expect(
 			project.getByRole("link", { name: "Observability" }),
 		).toHaveAttribute("href", "/p/p1/staging/observability");
+		expect(project.getByRole("link", { name: "Logs" })).toHaveAttribute(
+			"href",
+			"/p/p1/staging/logs",
+		);
 		expect(
 			project.getByRole("link", { name: "Project settings" }),
 		).toHaveAttribute("href", "/p/p1/settings");
@@ -199,7 +203,7 @@ describe("Sidebar outside a project", () => {
 		shellApi();
 		await renderAt(<Sidebar user={ME as never} />, { path: "/servers" });
 		await waitFor(() =>
-			expect(screen.getAllByTitle("Open a project first").length).toBe(6),
+			expect(screen.getAllByTitle("Open a project first").length).toBe(7),
 		);
 		const canvas = screen.getByRole("button", { name: "Canvas" });
 		expect(canvas).toHaveAttribute("aria-disabled", "true");
@@ -210,7 +214,7 @@ describe("Sidebar outside a project", () => {
 		shellApi({ "GET /projects": { body: { items: [] } } });
 		await renderAt(<Sidebar user={ME as never} />, { path: "/servers" });
 		await waitFor(() =>
-			expect(screen.getAllByTitle("Create a project first").length).toBe(6),
+			expect(screen.getAllByTitle("Create a project first").length).toBe(7),
 		);
 	});
 

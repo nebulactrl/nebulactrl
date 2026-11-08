@@ -185,6 +185,7 @@ function LogSettingsForm({
 		save.mutate();
 	};
 
+	const analyticsOff = !server.settings.trafficAnalyticsEnabled;
 	const usage = view.usage;
 	const rows = topServices(usage, names);
 
@@ -280,6 +281,69 @@ function LogSettingsForm({
 								<FieldError>{shown("perServer")}</FieldError>
 							) : null}
 						</div>
+					</KvRow>
+
+					<SectionLabel className="pt-5 pb-1">Request logs</SectionLabel>
+					<KvRow
+						label="Store request logs"
+						description={
+							<>
+								One line per request to a service on this server, kept on this
+								server only. Client addresses are shortened to their network.
+								{analyticsOff ? (
+									<span className="mt-1 block text-ink-2">
+										Needs traffic analytics, which reads the proxy's request
+										log.
+									</span>
+								) : null}
+							</>
+						}
+						htmlFor="srv-log-requests"
+					>
+						<Switch
+							id="srv-log-requests"
+							checked={draft.requestLogs && !analyticsOff}
+							disabled={analyticsOff}
+							onCheckedChange={(requestLogs) =>
+								setDraft((d) => ({ ...d, requestLogs }))
+							}
+						/>
+					</KvRow>
+					<KvRow
+						label="Keep query strings"
+						description="Query strings can carry tokens and emails. Off, they are dropped before anything is written."
+						htmlFor="srv-log-requests-query"
+					>
+						<Switch
+							id="srv-log-requests-query"
+							checked={draft.requestLogsKeepQuery}
+							disabled={analyticsOff || !draft.requestLogs}
+							onCheckedChange={(requestLogsKeepQuery) =>
+								setDraft((d) => ({ ...d, requestLogsKeepQuery }))
+							}
+						/>
+					</KvRow>
+					<KvRow
+						label="Keep successful asset requests"
+						description="Scripts, stylesheets, images and fonts that loaded fine. Off, only failed ones are stored."
+						htmlFor="srv-log-requests-assets"
+					>
+						<Switch
+							id="srv-log-requests-assets"
+							checked={draft.requestLogsKeepAssets}
+							disabled={analyticsOff || !draft.requestLogs}
+							onCheckedChange={(requestLogsKeepAssets) =>
+								setDraft((d) => ({ ...d, requestLogsKeepAssets }))
+							}
+						/>
+					</KvRow>
+					<KvRow
+						label="Stored request logs"
+						description="What request logs take on this server now, as the agent last reported it."
+					>
+						<span className="font-mono text-ink-1 text-sm tabular-nums">
+							{formatCap(view.requestsTotalBytes)}
+						</span>
 					</KvRow>
 
 					<SectionLabel className="pt-5 pb-2">Space used</SectionLabel>

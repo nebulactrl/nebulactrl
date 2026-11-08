@@ -16,10 +16,11 @@ const (
 )
 
 // Query answers a history query for one service: a page of the lines within
-// the time range that match the query. Lines come in sequence order (newest
+// the time range that match the query. stream is the `stream` facet of every
+// line of this store (the log source). Lines come in sequence order (newest
 // first by default, which is what the cursor pages through); a replica read
 // late can put a line slightly out of time order, so readers sort by time.
-func (st *Store) Query(q agentprotocol.LogsQuery) (agentprotocol.LogsQueryResult, error) {
+func (st *Store) Query(q agentprotocol.LogsQuery, stream string) (agentprotocol.LogsQueryResult, error) {
 	limit := q.Limit
 	if limit <= 0 {
 		limit = agentprotocol.LogQueryDefaultLimit
@@ -49,7 +50,7 @@ func (st *Store) Query(q agentprotocol.LogsQuery) (agentprotocol.LogsQueryResult
 	size := 0
 	scan, err := st.Scan(q.ServiceID, opts, func(r Record) bool {
 		l := query.NewLine(query.Input{
-			Line: r.Text, Stream: agentprotocol.StreamRuntime, ServiceName: q.ServiceName,
+			Line: r.Text, Stream: stream, ServiceName: q.ServiceName,
 			Replica: strconv.Itoa(r.Replica), DeploymentID: r.DeploymentID,
 		})
 		if !match(l) {

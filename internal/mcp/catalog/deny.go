@@ -173,6 +173,8 @@ var denyEntries = map[string]Deny{
 	"getServiceLogHistory":     {Reason: ReasonSuperseded, Why: "tail_logs reads history with since, grep and cursor, redacted and wrapped as untrusted text."},
 	"getServiceCentralLogs":    {Reason: ReasonSuperseded, Why: "tail_logs reads logs redacted and wrapped as untrusted text; central log lines are not returned raw."},
 	"getEnvironmentLogHistory": {Reason: ReasonSuperseded, Why: "tail_logs reads the merged environment log, redacted and wrapped as untrusted text."},
+	"getServiceLogFacets":      {Reason: ReasonSuperseded, Why: "Facet values are raw log content (paths, user agents); tail_logs returns lines redacted and wrapped as untrusted text."},
+	"getEnvironmentLogFacets":  {Reason: ReasonSuperseded, Why: "Facet values are raw log content (paths, user agents); tail_logs returns lines redacted and wrapped as untrusted text."},
 	"deployService":            {Reason: ReasonSuperseded, Why: "apply_changes deploys with a reviewed plan, expectedGeneration and the production approval."},
 	"deployStaged":             {Reason: ReasonSuperseded, Why: "apply_changes deploys staged changes per service or per environment with the production approval."},
 	"rollbackDeployment":       {Reason: ReasonSuperseded, Why: "rollback_service previews what rolls back, handles image_pruned and always asks for approval."},

@@ -137,6 +137,10 @@ const LOGS = {
 	maxServiceBytes: 512 * 1024 * 1024,
 	maxServerBytes: 5 * 1024 * 1024 * 1024,
 	online: true,
+	requestLogs: true,
+	requestLogsKeepQuery: false,
+	requestLogsKeepAssets: false,
+	requestsTotalBytes: 0,
 };
 
 /** Every call the pages make; each test reads only what its page asks for. */

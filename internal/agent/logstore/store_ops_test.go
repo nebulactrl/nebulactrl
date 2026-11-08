@@ -425,7 +425,7 @@ func TestQueryErrorsReadAsText(t *testing.T) {
 	}
 	ck := &clock{t: t0}
 	st := openTest(t, t.TempDir(), ck, nil)
-	_, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Cursor: "nope"})
+	_, err := st.Query(agentprotocol.LogsQuery{ServiceID: "svc1", Cursor: "nope"}, agentprotocol.StreamRuntime)
 	if err == nil || !strings.Contains(err.Error(), "invalid cursor") {
 		t.Fatalf("bad cursor error: %v", err)
 	}

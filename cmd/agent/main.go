@@ -326,6 +326,7 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 	}
 	// Log history and drains: every managed container's output is captured into
 	// <state-dir>/logs; the control plane queries it and configures the drains.
+	// Request lines go to their own store, <state-dir>/requests.
 	logHistory, err := loghistory.New(eng, o.StateDir, client, log)
 	if err != nil {
 		return fmt.Errorf("open log history: %w", err)
@@ -393,12 +394,30 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 	client.SetHandler(handler)
 	client.SetReconciler(deployer)
 	go deployer.Run(ctx)
-	go logHistory.Run(ctx)
+	// The request-line writer (inside the traffic collector) must finish
+	// before the log history closes its stores, and the process must not exit
+	// before both are done: Hold orders the two, historyDone is waited for on
+	// the way out (bounded, so a stuck disk cannot hang the shutdown).
+	releaseRequests := logHistory.Hold()
+	historyDone := make(chan struct{})
+	go func() { defer close(historyDone); logHistory.Run(ctx) }()
+	defer func() {
+		cancelRun()
+		select {
+		case <-historyDone:
+		case <-time.After(15 * time.Second):
+			log.Warn("log history did not stop in time; unwritten log lines may be lost")
+		}
+	}()
 
 	// Traffic analytics: aggregate the proxy's access log, ship completed minutes.
-	tc := traffic.NewCollector(traffic.Config{Engine: eng, Buffer: st, Sender: client, Container: agentprotocol.ProxyContainer, Logger: log, Geo: geo.DB()})
+	tc := traffic.NewCollector(traffic.Config{
+		Engine: eng, Buffer: st, Sender: client, Container: agentprotocol.ProxyContainer, Logger: log, Geo: geo.DB(),
+		// Request logs: one line per routed request, on this host only.
+		Requests: logHistory.Requests, RequestLogs: logHistory.RequestLogs, Routes: px.Current, RequestsResume: logHistory.RequestsResume,
+	})
 	client.SetTrafficAckHandler(tc.Ack)
-	go tc.Run(ctx)
+	go func() { defer releaseRequests(); tc.Run(ctx) }()
 	client.SetProbesAckHandler(uptimeCollector.Ack)
 	go uptimeCollector.Run(ctx)
 	go lp.Run(ctx)

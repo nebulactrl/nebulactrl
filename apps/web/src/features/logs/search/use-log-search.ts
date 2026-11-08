@@ -1,9 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { meQuery } from "#/api/hooks";
+import { useCurrentTeam } from "#/features/teams/queries";
 import { BUFFER_CAP, type BufferLine, LogBuffer } from "./buffer";
 import { compileQuery, type HighlightTerm, highlightTerms } from "./match";
 import { type ParsedQuery, parseQuery } from "./query";
 import { loadRecent, pushRecent, saveRecent } from "./recent";
+import { hasIncompleteTail } from "./suggest";
 
 /** How long typing rests before the query is applied to the buffer. */
 const SEARCH_DEBOUNCE_MS = 120;
@@ -17,10 +21,16 @@ export interface UseLogSearchOptions<L extends BufferLine> {
 	/** How many lines the buffer keeps (default 5,000, what a live tail needs). */
 	cap?: number;
 	/**
-	 * Bump it when lines were placed before ones already seen (the stream's
-	 * `epoch`): the buffer takes the lines afresh, not only the new ones.
+	 * Bump it when the lines were replaced (the stream's `epoch`): the buffer
+	 * takes the lines afresh, not only the new ones.
 	 */
 	epoch?: number;
+	/**
+	 * Bump it when lines were placed among ones already seen, or dropped from
+	 * the middle, with the rest unchanged: the buffer keeps what it learned of
+	 * the lines that stayed and takes only the difference.
+	 */
+	reorder?: number;
 }
 
 export interface LogSearch<L extends BufferLine> {
@@ -77,12 +87,28 @@ export function useLogSearch<L extends BufferLine>({
 	skipBlank = false,
 	cap = BUFFER_CAP,
 	epoch = 0,
+	reorder = 0,
 }: UseLogSearchOptions<L>): LogSearch<L> {
 	const [urlQuery, writeUrl] = useQueryParam();
 	const [text, setText] = useState(urlQuery);
 	const parsed = useMemo(() => parseQuery(text), [text]);
 	const [settled, setSettled] = useState(parsed);
-	const [recent, setRecent] = useState<string[]>(loadRecent);
+	const { team } = useCurrentTeam();
+	const teamId = team?.id;
+	const userId = useQuery(meQuery()).data?.id;
+	// The list belongs to a team and a user; a switch of either reads that
+	// one's own, and with either still unknown there is none to show.
+	const owner =
+		teamId === undefined || userId === undefined
+			? undefined
+			: `${teamId}:${userId}`;
+	const ownList = () =>
+		teamId === undefined || userId === undefined
+			? []
+			: loadRecent(teamId, userId);
+	const [stored, setStored] = useState(() => ({ owner, list: ownList() }));
+	if (stored.owner !== owner) setStored({ owner, list: ownList() });
+	const recent = stored.list;
 	const [announcement, setAnnouncement] = useState("");
 
 	useEffect(() => {
@@ -119,6 +145,7 @@ export function useLogSearch<L extends BufferLine>({
 		buffer.current = new LogBuffer<L>(cap, skipBlank);
 	}
 	const seenEpoch = useRef(epoch);
+	const seenReorder = useRef(reorder);
 	const view = useMemo(() => {
 		const b = buffer.current as LogBuffer<L>;
 		if (seenEpoch.current !== epoch) {
@@ -126,9 +153,14 @@ export function useLogSearch<L extends BufferLine>({
 			b.reset();
 		}
 		b.setMatcher(matcher);
-		b.sync(lines);
+		if (seenReorder.current !== reorder) {
+			seenReorder.current = reorder;
+			b.resync(lines);
+		} else {
+			b.sync(lines);
+		}
 		return { visible: b.visible, total: b.total, version: b.stats.version };
-	}, [lines, matcher, epoch]);
+	}, [lines, matcher, epoch, reorder]);
 
 	const counts = useRef({ shown: 0, total: 0 });
 	counts.current = { shown: view.visible.length, total: view.total };
@@ -145,13 +177,20 @@ export function useLogSearch<L extends BufferLine>({
 	}, [settled]);
 
 	const commit = useCallback(() => {
-		if (parsed.input.trim() === "" || parsed.errors.length > 0) return;
-		setRecent((current) => {
-			const next = pushRecent(current, parsed.input);
-			saveRecent(next);
-			return next;
-		});
-	}, [parsed]);
+		// A query that ends mid-word (`@`, `@method:`) is half typed, not one to come back to.
+		if (
+			parsed.input.trim() === "" ||
+			parsed.errors.length > 0 ||
+			hasIncompleteTail(parsed.input)
+		) {
+			return;
+		}
+		// Until the team and the user are known there is no list to add to.
+		if (teamId === undefined || userId === undefined) return;
+		const next = pushRecent(recent, parsed.input);
+		saveRecent(teamId, userId, next);
+		setStored({ owner, list: next });
+	}, [parsed, recent, teamId, userId, owner]);
 
 	const clear = useCallback(() => {
 		setText("");

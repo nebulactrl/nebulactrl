@@ -13,6 +13,7 @@ import {
 import { ToneIcon } from "#/components/common/tone-icon";
 import { Input } from "#/components/ui/input";
 import { Kbd } from "#/components/ui/kbd";
+import { SafeText } from "#/features/logs-page/explorer/safe-text";
 import type { FacetStats } from "./facets";
 import { highlightSegments, type ParsedQuery, type SegmentKind } from "./query";
 import {
@@ -61,6 +62,8 @@ export interface SearchInputProps {
 	className?: string;
 	/** `/` focuses the box when nothing is being typed into. Default on. */
 	hotkey?: boolean;
+	/** Where the caret is while the box is focused and offering suggestions; null otherwise. */
+	onCaretChange?: (caret: number | null) => void;
 }
 
 function isEditable(target: EventTarget | null): boolean {
@@ -84,7 +87,7 @@ export function SearchInput({
 	value,
 	onChange,
 	parsed,
-	error,
+	error: reported,
 	stats,
 	statsVersion,
 	recent,
@@ -93,6 +96,7 @@ export function SearchInput({
 	placeholder,
 	className,
 	hotkey = true,
+	onCaretChange,
 }: SearchInputProps) {
 	const id = useId();
 	const listId = `${id}-list`;
@@ -120,6 +124,22 @@ export function SearchInput({
 		[open, value, caret, stats, statsVersion, recent],
 	);
 	const expanded = open && items.length > 0;
+	// "Add a value after @method:" says what the open list already offers.
+	const error =
+		expanded &&
+		reported?.startsWith("Add a value after ") &&
+		items.some((item) => item.kind === "value")
+			? undefined
+			: reported;
+	// While the box is focused and offering suggestions, tell the owner where
+	// the caret is: it counts the values it suggests over the query without
+	// the clause being edited. Null when the box is not in use.
+	const reportCaret = useRef(onCaretChange);
+	reportCaret.current = onCaretChange;
+	const inUse = focused && open;
+	useEffect(() => {
+		reportCaret.current?.(inUse ? caret : null);
+	}, [inUse, caret]);
 	const segments = useMemo(() => highlightSegments(parsed), [parsed]);
 
 	const syncScroll = useCallback(() => {
@@ -338,7 +358,9 @@ export function SearchInput({
 							<span className="type-micro w-[58px] shrink-0">
 								{KIND_LABEL[item.kind]}
 							</span>
-							<span className="min-w-0 flex-1 truncate">{item.label}</span>
+							<span className="min-w-0 flex-1 truncate">
+								<SafeText text={item.label} />
+							</span>
 							{item.detail ? (
 								<span className="shrink-0 text-ink-4 tabular-nums">
 									{item.detail}

@@ -1,6 +1,6 @@
 ---
 title: Monitoring and retention
-description: "Health endpoints, JSON logs, metrics and disk alerts."
+description: "Health endpoints, JSON logs, metrics, request logs and disk alerts."
 section: Observability
 order: 10
 ---
@@ -34,7 +34,8 @@ Agent logs: `journalctl -u nebulactrl-agent -f` on the host (also JSON).
 | What | Where | Retention |
 |---|---|---|
 | Build and deploy output | Deployment row → logs | stored per deployment, **capped at 10,000 lines** (a final marker line says so) |
-| Runtime logs | Service → Logs, Environment → Observability | **stored on each server by its agent**, 7 days and 500 MB per service by default (configurable per server); **Live** streams, **History** searches the stored lines. Not available while the server is offline. [Log history and drains](logs.md) |
+| Runtime logs | Service → Logs, environment → Logs | **stored on each server by its agent**, 7 days and 500 MB per service by default (configurable per server); **Live** streams, **History** searches the stored lines. Not available while the server is offline. [Log history and drains](logs.md) |
+| Request logs | environment → Logs (`stream:requests`) | one line per request routed to a service, **stored on each server by its agent in a store of its own**, 7 days (the server's log retention), 200 MiB per service and 2 GiB per server; client address as /24 or /48, no query string unless the server keeps it; never shipped. [Request logs](logs.md#request-logs) |
 | Audit log | Team settings → Audit log (`GET /api/v1/audit-events`) | kept indefinitely (not pruned) |
 
 ## Resource metrics
@@ -52,15 +53,18 @@ Change the settings on the server page (Settings → Monitoring), or with `PATCH
 
 ## Traffic analytics
 
-Request analytics (requests, bandwidth, status classes, p95 latency, unique visitors, top paths, referrers, browsers, devices) are collected **from the agent-managed Traefik's access log, on each host, as aggregates only**. Raw access logs are never shipped or stored by the control plane. Unique visitors are hashed with a salt that rotates daily; raw IP addresses are never sent.
+Request analytics (requests, bandwidth, status classes, p95 latency, unique visitors, top paths, referrers, browsers, devices) are collected **from the agent-managed Traefik's access log, on each host, as aggregates only**. Raw access logs are never shipped and the control plane never stores them; on the host they stay in the proxy container's own log (Docker's `json-file` log, 3 files of 10 MB, rotating). Unique visitors are hashed with a salt that rotates daily; raw IP addresses are never sent. The same access log also feeds the host-local [request logs](logs.md#request-logs): one line per routed request kept on the host, not shipped, with the client address reduced to its /24 or /48 network.
 
 | Setting (per server) | Default | Effect |
 |---|---|---|
-| `trafficAnalyticsEnabled` | on | Turn collection off per server. This recreates the proxy container (a brief proxy restart), because the access log is a static Traefik setting. |
+| `trafficAnalyticsEnabled` | on | Turn collection off per server. This recreates the proxy container (a brief proxy restart), because the access log is a static Traefik setting. Turning it off also stops request logs. |
 | `trafficHourlyRetentionDays` | 7 | Hourly buckets (fine-grained charts) kept this long. |
 | `trafficDailyRetentionDays` | 90 | Daily roll-ups kept this long. |
+| `requestLogs` | on | Store one line per routed request on the host (a [log setting](logs.md#settings-per-server), not a traffic setting). Needs `trafficAnalyticsEnabled`. Changing it does not restart the proxy. |
+| `requestLogsKeepQuery` | off | Keep query strings in request lines. |
+| `requestLogsKeepAssets` | off | Also store the successful (2xx, 304) requests of kind `asset`: scripts, stylesheets, images, fonts. Off, only the failed ones are stored. |
 
-Views: service inspector → Analytics, server page → Traffic, environment → Observability. Each has a "Where requests come from" map (country, optionally city); see [Traffic analytics and request origins](traffic-analytics.md) for the GeoIP databases, licences and settings. Runtime logs can be shipped to Loki, OTLP, syslog or an HTTP intake: [log drains](logs.md#log-drains).
+Views: service inspector → Analytics, server page → Traffic, environment → Observability. Each has a "Where requests come from" map (country, optionally city); see [Traffic analytics and request origins](traffic-analytics.md) for the GeoIP databases, licences and settings. Runtime logs can be shipped to Loki, OTLP, syslog or an HTTP intake: [log drains](logs.md#log-drains). Request logs cannot.
 
 ## Liveness semantics
 

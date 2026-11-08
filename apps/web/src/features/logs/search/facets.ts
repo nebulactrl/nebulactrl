@@ -3,7 +3,7 @@
 // an include/exclude click into an edit of the query text.
 
 import { facetValue, type ParsedLine } from "./line";
-import { FACET_KEYS, type FacetKey, tokenize } from "./query";
+import { FACET_KEYS, type FacetKey, type Token, tokenize } from "./query";
 
 const MAX_ATTR_PATHS = 200;
 const MAX_ATTR_VALUES = 100;
@@ -137,9 +137,11 @@ interface FoundTerm {
 	negated: boolean;
 }
 
-function findTerm(query: string, key: string, value: string): FoundTerm | null {
+type TermTest = (key: Token, next: Token) => boolean;
+
+/** The top-level term whose key token and the token after it pass `test`. */
+function findTermWhere(query: string, test: TermTest): FoundTerm | null {
 	const tokens = tokenize(query);
-	const wanted = value.toLowerCase();
 	let depth = 0;
 	for (let i = 0; i < tokens.length; i++) {
 		const token = tokens[i];
@@ -147,16 +149,8 @@ function findTerm(query: string, key: string, value: string): FoundTerm | null {
 		if (token.kind === "lparen") depth += 1;
 		else if (token.kind === "rparen") depth -= 1;
 		if (token.kind !== "key" || depth !== 0) continue;
-		if (query.slice(token.start, token.end - 1) !== key) continue;
 		const next = tokens[i + 1];
-		if (
-			next?.kind !== "value" ||
-			next.start !== token.end ||
-			next.op ||
-			next.text.toLowerCase() !== wanted
-		) {
-			continue;
-		}
+		if (next === undefined || !test(token, next)) continue;
 		const before = tokens[i - 1];
 		const negated =
 			before !== undefined &&
@@ -172,6 +166,19 @@ function findTerm(query: string, key: string, value: string): FoundTerm | null {
 		};
 	}
 	return null;
+}
+
+function findTerm(query: string, key: string, value: string): FoundTerm | null {
+	const wanted = value.toLowerCase();
+	return findTermWhere(
+		query,
+		(token, next) =>
+			query.slice(token.start, token.end - 1) === key &&
+			next.kind === "value" &&
+			next.start === token.end &&
+			!next.op &&
+			next.text.toLowerCase() === wanted,
+	);
 }
 
 /** Whether the query already includes or excludes `key:value` at its top level. */
@@ -194,12 +201,15 @@ function cut(query: string, start: number, end: number): string {
 /**
  * Include or exclude `key:value`. Clicking the active choice removes it,
  * clicking the other one swaps it, otherwise the term is appended (AND).
+ * `wildcard` writes the value as it is, so a `*` in it stays a wildcard
+ * (`status:2*`): the caller guarantees it is a bare word.
  */
 export function toggleFacetTerm(
 	query: string,
 	key: string,
 	value: string,
 	mode: FacetMode,
+	{ wildcard = false }: { wildcard?: boolean } = {},
 ): string {
 	const found = findTerm(query, key, value);
 	let rest = query;
@@ -207,11 +217,51 @@ export function toggleFacetTerm(
 		rest = cut(query, found.start, found.end);
 		if ((found.negated ? "exclude" : "include") === mode) return rest;
 	}
-	const term = `${mode === "exclude" ? "-" : ""}${key}:${formatValue(value)}`;
-	let base = rest.trimEnd();
-	// AND binds tighter than OR: `a OR b` + a term would only narrow `b`.
+	const written = wildcard ? value : formatValue(value);
+	const term = `${mode === "exclude" ? "-" : ""}${key}:${written}`;
+	return append(rest, term);
+}
+
+/** `term` added to the query with AND: `a OR b` + a term would only narrow `b`, so it is grouped first. */
+function append(query: string, term: string): string {
+	let base = query.trimEnd();
 	if (hasTopLevelOr(base)) base = `(${base})`;
 	return base === "" ? term : `${base} ${term}`;
+}
+
+function findRawTerm(query: string, term: string): FoundTerm | null {
+	return findTermWhere(
+		query,
+		(token, next) =>
+			(next.kind === "value" || next.kind === "range") &&
+			next.start === token.end &&
+			query.slice(token.start, next.end) === term,
+	);
+}
+
+/** Whether the query has `term` (a `key:value` written exactly so, such as `@duration_ms:<100`) at its top level. */
+export function rawTermActive(query: string, term: string): boolean {
+	return findRawTerm(query, term)?.negated === false;
+}
+
+/**
+ * Adds `term` or, when the query has it, takes it out. `others` are terms
+ * that exclude each other with it (the duration ranges): any of them in the
+ * query is replaced.
+ */
+export function toggleRawTerm(
+	query: string,
+	term: string,
+	others: readonly string[] = [],
+): string {
+	const found = findRawTerm(query, term);
+	if (found && !found.negated) return cut(query, found.start, found.end);
+	let rest = query;
+	for (const other of others) {
+		const taken = findRawTerm(rest, other);
+		if (taken && !taken.negated) rest = cut(rest, taken.start, taken.end);
+	}
+	return append(rest, term);
 }
 
 function hasTopLevelOr(query: string): boolean {

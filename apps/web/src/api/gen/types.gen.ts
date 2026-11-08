@@ -4053,6 +4053,20 @@ export type ExposureView = {
     server: MeshServerRef;
 };
 
+export type FacetField = {
+    count: number;
+    key: string;
+    max?: number;
+    min?: number;
+    numeric?: boolean;
+    values: Array<FacetValue> | null;
+};
+
+export type FacetValue = {
+    count: number;
+    value: string;
+};
+
 export type Facts = {
     agentUpgrade?: UpgradeReport;
     arch: string;
@@ -4557,6 +4571,12 @@ export type HealthcheckInput = {
     successThreshold?: number;
     timeoutSeconds?: number;
     type?: 'http' | 'tcp' | 'docker' | 'exec' | 'none';
+};
+
+export type HistogramBucket = {
+    count: number;
+    errors: number;
+    start: string;
 };
 
 export type HistoryOutputBody = {
@@ -5169,6 +5189,47 @@ export type LogDrainView = {
     updatedAt: string;
 };
 
+export type LogFacetsPage = {
+    /**
+     * The most frequent log attributes (key with a leading @, from JSON and logfmt lines and request lines) and their top values.
+     */
+    attrs: Array<FacetField> | null;
+    capturing: boolean;
+    /**
+     * level, stream, status, replica and deployment (and service for an environment): the most frequent values and their counts.
+     */
+    facets: Array<FacetField> | null;
+    /**
+     * Matching lines per equal time bucket over the range; errors counts level error or fatal and status 500 or more.
+     */
+    histogram: Array<HistogramBucket> | null;
+    /**
+     * Lines that matched the query.
+     */
+    matched: number;
+    partial: boolean;
+    /**
+     * With partial: the counts cover only lines at or after this time.
+     */
+    partialFrom?: string;
+    /**
+     * The parts of the query that were ignored.
+     */
+    queryErrors?: Array<string> | null;
+    /**
+     * True when a server asked is storing request lines.
+     */
+    requestsCapturing: boolean;
+    /**
+     * Lines that were read to find them.
+     */
+    scanned: number;
+    /**
+     * Services whose counts could not be read (their server is offline, for example).
+     */
+    unavailable?: Array<LogHistoryUnavailable> | null;
+};
+
 export type LogHistoryEntry = {
     deploymentId?: string;
     line: string;
@@ -5236,6 +5297,22 @@ export type LogSettingsView = {
      */
     maxServiceBytes: number;
     online: boolean;
+    /**
+     * Store one line per routed HTTP request on the host, searchable on the Logs page. Needs traffic analytics and capture on; requests are never shipped to drains. Retention days follow the runtime logs.
+     */
+    requestLogs: boolean;
+    /**
+     * Store the successful requests (2xx, 304) for scripts, stylesheets, images and fonts too. Off: only failed asset requests are stored; pages and API requests always are.
+     */
+    requestLogsKeepAssets: boolean;
+    /**
+     * Keep the query string of a request line. Off: it is dropped before anything is written.
+     */
+    requestLogsKeepQuery: boolean;
+    /**
+     * Disk the request logs use on the host, as the agent last reported; 0 until it has.
+     */
+    requestsTotalBytes: number;
     retentionDays: number;
     /**
      * What the agent last reported; absent until it has.
@@ -7084,6 +7161,18 @@ export type PutSettingsInputBody = {
     capture: boolean;
     maxServerBytes: number;
     maxServiceBytes: number;
+    /**
+     * Store a line per routed HTTP request on the host. Omitted keeps the stored value (default on).
+     */
+    requestLogs?: boolean;
+    /**
+     * Store successful asset requests (scripts, stylesheets, images, fonts) too. Omitted keeps the stored value (default off: only failed ones are stored).
+     */
+    requestLogsKeepAssets?: boolean;
+    /**
+     * Keep query strings in request lines. Omitted keeps the stored value (default off).
+     */
+    requestLogsKeepQuery?: boolean;
     retentionDays: number;
 };
 
@@ -16093,6 +16182,90 @@ export type GetEnvironmentLogsResponses = {
 
 export type GetEnvironmentLogsResponse = GetEnvironmentLogsResponses[keyof GetEnvironmentLogsResponses];
 
+export type GetEnvironmentLogFacetsData = {
+    body?: never;
+    path: {
+        environmentId: string;
+    };
+    query?: {
+        /**
+         * Start of the range (RFC 3339). Default: 15 minutes before to.
+         */
+        from?: string;
+        /**
+         * End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from.
+         */
+        to?: string;
+        /**
+         * A log search query (the same language as the log views); only matching lines are counted.
+         */
+        q?: string;
+        /**
+         * Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests.
+         */
+        sources?: string;
+        /**
+         * Histogram buckets over the range (default 60, max 240).
+         */
+        buckets?: number;
+    };
+    url: '/environments/{environmentId}/logs/facets';
+};
+
+export type GetEnvironmentLogFacetsErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Too Many Requests
+     */
+    429: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Bad Gateway
+     */
+    502: Error;
+    /**
+     * Gateway Timeout
+     */
+    504: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type GetEnvironmentLogFacetsError = GetEnvironmentLogFacetsErrors[keyof GetEnvironmentLogFacetsErrors];
+
+export type GetEnvironmentLogFacetsResponses = {
+    /**
+     * OK
+     */
+    200: LogFacetsPage;
+};
+
+export type GetEnvironmentLogFacetsResponse = GetEnvironmentLogFacetsResponses[keyof GetEnvironmentLogFacetsResponses];
+
 export type GetEnvironmentLogHistoryData = {
     body?: never;
     path: {
@@ -16123,6 +16296,10 @@ export type GetEnvironmentLogHistoryData = {
          * desc (default): newest first. asc: oldest first.
          */
         order?: 'desc' | 'asc';
+        /**
+         * Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source.
+         */
+        sources?: string;
     };
     url: '/environments/{environmentId}/logs/history';
 };
@@ -16148,6 +16325,10 @@ export type GetEnvironmentLogHistoryErrors = {
      * Unprocessable Entity
      */
     422: Error;
+    /**
+     * Too Many Requests
+     */
+    429: Error;
     /**
      * Internal Server Error
      */
@@ -29745,6 +29926,98 @@ export type DownloadServiceLogsResponses = {
 
 export type DownloadServiceLogsResponse = DownloadServiceLogsResponses[keyof DownloadServiceLogsResponses];
 
+export type GetServiceLogFacetsData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: {
+        /**
+         * Start of the range (RFC 3339). Default: 15 minutes before to.
+         */
+        from?: string;
+        /**
+         * End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from.
+         */
+        to?: string;
+        /**
+         * A log search query (the same language as the log views); only matching lines are counted.
+         */
+        q?: string;
+        /**
+         * Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests.
+         */
+        sources?: string;
+        /**
+         * Histogram buckets over the range (default 60, max 240).
+         */
+        buckets?: number;
+    };
+    url: '/services/{serviceId}/logs/facets';
+};
+
+export type GetServiceLogFacetsErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Conflict
+     */
+    409: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Too Many Requests
+     */
+    429: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Bad Gateway
+     */
+    502: Error;
+    /**
+     * Service Unavailable
+     */
+    503: Error;
+    /**
+     * Gateway Timeout
+     */
+    504: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type GetServiceLogFacetsError = GetServiceLogFacetsErrors[keyof GetServiceLogFacetsErrors];
+
+export type GetServiceLogFacetsResponses = {
+    /**
+     * OK
+     */
+    200: LogFacetsPage;
+};
+
+export type GetServiceLogFacetsResponse = GetServiceLogFacetsResponses[keyof GetServiceLogFacetsResponses];
+
 export type GetServiceLogHistoryData = {
     body?: never;
     path: {
@@ -29783,6 +30056,10 @@ export type GetServiceLogHistoryData = {
          * desc (default): newest first. asc: oldest first.
          */
         order?: 'desc' | 'asc';
+        /**
+         * Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source.
+         */
+        sources?: string;
     };
     url: '/services/{serviceId}/logs/history';
 };
@@ -29812,6 +30089,10 @@ export type GetServiceLogHistoryErrors = {
      * Unprocessable Entity
      */
     422: Error;
+    /**
+     * Too Many Requests
+     */
+    429: Error;
     /**
      * Internal Server Error
      */

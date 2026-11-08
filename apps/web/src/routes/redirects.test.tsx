@@ -258,13 +258,39 @@ describe("project environment addresses", () => {
 		).toEqual({});
 	});
 
-	test("observability keeps its search", async () => {
+	test("an observability address carrying the old log search lands on Logs with it", async () => {
 		const router = await loadRoute(
-			"/p/proj-1/production/observability?q=error",
+			"/p/proj-1/production/observability?q=error&logs=history&range=1h",
 		);
-		expect(
-			validatedSearch(router, "/p/$projectId/$envSlug_/observability"),
-		).toMatchObject({ q: "error" });
+		expect(router.state.location.pathname).toBe("/p/proj-1/production/logs");
+		expect(validatedSearch(router, "/p/$projectId/$envSlug_/logs")).toEqual({
+			q: "error",
+			logs: "history",
+			range: "1h",
+		});
+	});
+
+	test("observability without a log search stays on observability", async () => {
+		const router = await loadRoute("/p/proj-1/production/observability");
+		expect(router.state.location.pathname).toBe(
+			"/p/proj-1/production/observability",
+		);
+	});
+
+	test("logs keeps its search and drops a malformed value", async () => {
+		const kept = await loadRoute(
+			"/p/proj-1/production/logs?q=error&logs=history&from=a&to=b",
+		);
+		expect(validatedSearch(kept, "/p/$projectId/$envSlug_/logs")).toEqual({
+			q: "error",
+			logs: "history",
+			from: "a",
+			to: "b",
+		});
+		const dropped = await loadRoute("/p/proj-1/production/logs?logs=bogus");
+		expect(validatedSearch(dropped, "/p/$projectId/$envSlug_/logs")).toEqual(
+			{},
+		);
 	});
 });
 

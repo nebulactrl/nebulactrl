@@ -3,7 +3,7 @@ import {
 	keepPreviousData,
 	useInfiniteQuery,
 } from "@tanstack/react-query";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 import {
 	getEnvironmentLogHistoryInfiniteQueryKey,
 	getServiceLogHistoryInfiniteQueryKey,
@@ -18,6 +18,11 @@ import type {
 } from "#/api/gen/types.gen";
 import type { LogLine } from "#/api/sse";
 import {
+	isRuntimeOnly,
+	type LogSource,
+	sourcesParam,
+} from "#/features/logs-page/explorer/sources";
+import {
 	type Continuation,
 	continuation,
 	epochOf,
@@ -26,6 +31,7 @@ import {
 	reachesNow,
 	resolveRange,
 } from "./model";
+import { useNowAnchor } from "./use-now-anchor";
 
 /** What one request asks for; the server's own default is 500, its maximum 2,000. */
 const PAGE_LIMIT = 500;
@@ -44,6 +50,13 @@ export interface UseHistoryLogsOptions {
 	range: RangeSelection;
 	/** The settled search query. It is sent to the server, which evaluates it. */
 	query: string;
+	/**
+	 * Which sources to read; default the runtime log alone. Request lines carry
+	 * `stream: "requests"`.
+	 */
+	sources?: readonly LogSource[] | undefined;
+	/** False: ask for nothing, because the view shows something else. Default true. */
+	enabled?: boolean | undefined;
 }
 
 export interface HistoryLogs {
@@ -103,19 +116,13 @@ export function useHistoryLogs({
 	scope,
 	range,
 	query,
+	sources,
+	enabled = true,
 }: UseHistoryLogsOptions): HistoryLogs {
-	// The moment "now" means for this range. A new range starts from a new now.
+	// The moment "now" means for this range. A new range, or the view becoming
+	// enabled after waiting behind another one, starts from a new now.
 	const rangeSignature = JSON.stringify(range);
-	const [anchor, setAnchor] = useState(() => ({
-		signature: rangeSignature,
-		at: Date.now(),
-	}));
-	let anchorAt = anchor.at;
-	if (anchor.signature !== rangeSignature) {
-		const next = { signature: rangeSignature, at: Date.now() };
-		setAnchor(next);
-		anchorAt = next.at;
-	}
+	const [anchorAt, reanchor] = useNowAnchor(rangeSignature, enabled);
 	const resolved = useMemo(
 		() => resolveRange(range, anchorAt),
 		[range, anchorAt],
@@ -126,6 +133,10 @@ export function useHistoryLogs({
 		...(resolved.from ? { from: resolved.from } : {}),
 		to: resolved.to,
 		...(search === "" ? {} : { q: search }),
+		// The runtime log is what the server serves without it.
+		...(sources === undefined || isRuntimeOnly(sources)
+			? {}
+			: { sources: sourcesParam(sources) }),
 		limit: PAGE_LIMIT,
 	};
 	const queryKey =
@@ -169,6 +180,7 @@ export function useHistoryLogs({
 			});
 			return data;
 		},
+		enabled,
 		initialPageParam: undefined,
 		getNextPageParam: (last) => last.nextCursor,
 		placeholderData: keepPreviousData,
@@ -199,11 +211,11 @@ export function useHistoryLogs({
 	}, [fetchNextPage]);
 	const refresh = useCallback(() => {
 		if (reachesNow(range)) {
-			setAnchor({ signature: rangeSignature, at: Date.now() });
+			reanchor();
 		} else {
 			void refetch();
 		}
-	}, [range, rangeSignature, refetch]);
+	}, [range, reanchor, refetch]);
 
 	return {
 		lines,

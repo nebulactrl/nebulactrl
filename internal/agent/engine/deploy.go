@@ -377,11 +377,13 @@ func (d *deploy) run(ctx context.Context) agentprotocol.DeployResult {
 		return d.abort(ctx, st, hadPrevious, "", routeReason)
 	}
 
-	// 6. Retire the previous release; the new one is live.
+	// 6. Retire the previous release; the new one is live. It is recorded
+	// first, so the observer reports the new containers while the old ones
+	// stop, not the old release going down.
+	d.recordCurrent()
 	stopRetire := d.phase("retire")
 	d.retire(ctx, st)
 	stopRetire()
-	d.recordCurrent()
 	d.pruneImages(ctx)
 	d.tailnetStep(ctx)
 	// 7. Post-deploy command. The release is live: its failure only warns.

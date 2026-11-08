@@ -11905,6 +11905,61 @@
         ],
         "type": "object"
       },
+      "FacetField": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "max": {
+            "format": "double",
+            "type": "number"
+          },
+          "min": {
+            "format": "double",
+            "type": "number"
+          },
+          "numeric": {
+            "type": "boolean"
+          },
+          "values": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "key",
+          "count",
+          "values"
+        ],
+        "type": "object"
+      },
+      "FacetValue": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "value",
+          "count"
+        ],
+        "type": "object"
+      },
       "Facts": {
         "additionalProperties": false,
         "properties": {
@@ -13532,6 +13587,29 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "HistogramBucket": {
+        "additionalProperties": false,
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "errors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "count",
+          "errors"
+        ],
         "type": "object"
       },
       "HistoryOutputBody": {
@@ -15249,6 +15327,97 @@
         ],
         "type": "object"
       },
+      "LogFacetsPage": {
+        "additionalProperties": false,
+        "properties": {
+          "attrs": {
+            "description": "The most frequent log attributes (key with a leading @, from JSON and logfmt lines and request lines) and their top values.",
+            "items": {
+              "$ref": "#/components/schemas/FacetField"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "capturing": {
+            "type": "boolean"
+          },
+          "facets": {
+            "description": "level, stream, status, replica and deployment (and service for an environment): the most frequent values and their counts.",
+            "items": {
+              "$ref": "#/components/schemas/FacetField"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "histogram": {
+            "description": "Matching lines per equal time bucket over the range; errors counts level error or fatal and status 500 or more.",
+            "items": {
+              "$ref": "#/components/schemas/HistogramBucket"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "matched": {
+            "description": "Lines that matched the query.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "partialFrom": {
+            "description": "With partial: the counts cover only lines at or after this time.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "queryErrors": {
+            "description": "The parts of the query that were ignored.",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "requestsCapturing": {
+            "description": "True when a server asked is storing request lines.",
+            "type": "boolean"
+          },
+          "scanned": {
+            "description": "Lines that were read to find them.",
+            "format": "int64",
+            "type": "integer"
+          },
+          "unavailable": {
+            "description": "Services whose counts could not be read (their server is offline, for example).",
+            "items": {
+              "$ref": "#/components/schemas/LogHistoryUnavailable"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "matched",
+          "scanned",
+          "partial",
+          "facets",
+          "attrs",
+          "histogram",
+          "capturing",
+          "requestsCapturing"
+        ],
+        "type": "object"
+      },
       "LogHistoryEntry": {
         "additionalProperties": false,
         "properties": {
@@ -15457,6 +15626,23 @@
           "online": {
             "type": "boolean"
           },
+          "requestLogs": {
+            "description": "Store one line per routed HTTP request on the host, searchable on the Logs page. Needs traffic analytics and capture on; requests are never shipped to drains. Retention days follow the runtime logs.",
+            "type": "boolean"
+          },
+          "requestLogsKeepAssets": {
+            "description": "Store the successful requests (2xx, 304) for scripts, stylesheets, images and fonts too. Off: only failed asset requests are stored; pages and API requests always are.",
+            "type": "boolean"
+          },
+          "requestLogsKeepQuery": {
+            "description": "Keep the query string of a request line. Off: it is dropped before anything is written.",
+            "type": "boolean"
+          },
+          "requestsTotalBytes": {
+            "description": "Disk the request logs use on the host, as the agent last reported; 0 until it has.",
+            "format": "int64",
+            "type": "integer"
+          },
           "retentionDays": {
             "format": "int64",
             "type": "integer"
@@ -15471,6 +15657,10 @@
           "retentionDays",
           "maxServiceBytes",
           "maxServerBytes",
+          "requestLogs",
+          "requestLogsKeepQuery",
+          "requestLogsKeepAssets",
+          "requestsTotalBytes",
           "online"
         ],
         "type": "object"
@@ -20957,6 +21147,18 @@
             "format": "int64",
             "minimum": 33554432,
             "type": "integer"
+          },
+          "requestLogs": {
+            "description": "Store a line per routed HTTP request on the host. Omitted keeps the stored value (default on).",
+            "type": "boolean"
+          },
+          "requestLogsKeepAssets": {
+            "description": "Store successful asset requests (scripts, stylesheets, images, fonts) too. Omitted keeps the stored value (default off: only failed ones are stored).",
+            "type": "boolean"
+          },
+          "requestLogsKeepQuery": {
+            "description": "Keep query strings in request lines. Omitted keeps the stored value (default off).",
+            "type": "boolean"
           },
           "retentionDays": {
             "format": "int64",
@@ -43252,9 +43454,208 @@
         ]
       }
     },
+    "/environments/{environmentId}/logs/facets": {
+      "get": {
+        "description": "The same as the service endpoint for every service of the environment, summed, with a `service` facet that counts the matching lines of each service. Services whose server is offline are listed in `unavailable` instead of failing the request.",
+        "operationId": "getEnvironmentLogFacets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "environmentId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Start of the range (RFC 3339). Default: 15 minutes before to.",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "description": "Start of the range (RFC 3339). Default: 15 minutes before to.",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from.",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "description": "End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from.",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A log search query (the same language as the log views); only matching lines are counted.",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "A log search query (the same language as the log views); only matching lines are counted.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests.",
+            "explode": false,
+            "in": "query",
+            "name": "sources",
+            "schema": {
+              "description": "Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Histogram buckets over the range (default 60, max 240).",
+            "explode": false,
+            "in": "query",
+            "name": "buckets",
+            "schema": {
+              "description": "Histogram buckets over the range (default 60, max 240).",
+              "format": "int64",
+              "maximum": 240,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogFacetsPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "logs:read"
+            ]
+          },
+          {
+            "cookie": [
+              "logs:read"
+            ]
+          }
+        ],
+        "summary": "Log facets of an environment",
+        "tags": [
+          "logs"
+        ]
+      }
+    },
     "/environments/{environmentId}/logs/history": {
       "get": {
-        "description": "The same as the service endpoint for every service of the environment, merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.",
+        "description": "The same as the service endpoint for every service of the environment (and every source in `sources`), merged by time. Entries carry `serviceId` and `serviceName`. Services whose server is offline are listed in `unavailable` instead of failing the request.",
         "operationId": "getEnvironmentLogHistory",
         "parameters": [
           {
@@ -43333,6 +43734,16 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source.",
+            "explode": false,
+            "in": "query",
+            "name": "sources",
+            "schema": {
+              "description": "Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source.",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -43396,6 +43807,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -43449,7 +43870,7 @@
             ]
           }
         ],
-        "summary": "Stored runtime logs of an environment",
+        "summary": "Stored logs of an environment",
         "tags": [
           "logs"
         ]
@@ -64037,7 +64458,7 @@
     },
     "/servers/{serverId}/log-settings": {
       "get": {
-        "description": "Capture on or off, retention days and size caps, with the usage the agent last reported.",
+        "description": "Capture on or off, retention days and size caps, whether HTTP request lines are stored (and with their query strings), with the usage the agent last reported.",
         "operationId": "getServerLogSettings",
         "parameters": [
           {
@@ -64129,7 +64550,7 @@
         ]
       },
       "put": {
-        "description": "Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.",
+        "description": "Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.",
         "operationId": "updateServerLogSettings",
         "parameters": [
           {
@@ -74103,9 +74524,228 @@
         ]
       }
     },
+    "/services/{serviceId}/logs/facets": {
+      "get": {
+        "description": "Counts of the service's stored lines that match `q` within `from`..`to` (default the last 15 minutes): the most frequent values of level, stream, status, replica and deployment, of the log attributes (`@method`, `@path`, ...), and a histogram over time. `sources` picks runtime lines, request lines or both. The server's agent counts, so the answer is unavailable (503 `server_offline`) while the server is offline. The agent stops after a scan budget: `partial: true` then means the counts cover `partialFrom` onwards only. Secret values are redacted.",
+        "operationId": "getServiceLogFacets",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serviceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Start of the range (RFC 3339). Default: 15 minutes before to.",
+            "explode": false,
+            "in": "query",
+            "name": "from",
+            "schema": {
+              "description": "Start of the range (RFC 3339). Default: 15 minutes before to.",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from.",
+            "explode": false,
+            "in": "query",
+            "name": "to",
+            "schema": {
+              "description": "End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from.",
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "description": "A log search query (the same language as the log views); only matching lines are counted.",
+            "explode": false,
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "description": "A log search query (the same language as the log views); only matching lines are counted.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests.",
+            "explode": false,
+            "in": "query",
+            "name": "sources",
+            "schema": {
+              "description": "Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests.",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Histogram buckets over the range (default 60, max 240).",
+            "explode": false,
+            "in": "query",
+            "name": "buckets",
+            "schema": {
+              "description": "Histogram buckets over the range (default 60, max 240).",
+              "format": "int64",
+              "maximum": 240,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogFacetsPage"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Request"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "502": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Bad Gateway"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "logs:read"
+            ]
+          },
+          {
+            "cookie": [
+              "logs:read"
+            ]
+          }
+        ],
+        "summary": "Log facets of a service",
+        "tags": [
+          "logs"
+        ]
+      }
+    },
     "/services/{serviceId}/logs/history": {
       "get": {
-        "description": "A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.",
+        "description": "A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. `sources=requests` reads the service's HTTP request lines instead (one per proxied request, stored on the host: `@method:POST`, `@path:/api/*`, `@duration_ms:\u003e500`, `status:5*`), `sources=runtime,requests` both merged by time; each entry's `stream` says which. The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.",
         "operationId": "getServiceLogHistory",
         "parameters": [
           {
@@ -74204,6 +74844,16 @@
               ],
               "type": "string"
             }
+          },
+          {
+            "description": "Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source.",
+            "explode": false,
+            "in": "query",
+            "name": "sources",
+            "schema": {
+              "description": "Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source.",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -74277,6 +74927,16 @@
             },
             "description": "Unprocessable Entity"
           },
+          "429": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Too Many Requests"
+          },
           "500": {
             "content": {
               "application/problem+json": {
@@ -74340,7 +75000,7 @@
             ]
           }
         ],
-        "summary": "Stored runtime logs of a service",
+        "summary": "Stored logs of a service",
         "tags": [
           "logs"
         ]

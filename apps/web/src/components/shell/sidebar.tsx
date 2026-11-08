@@ -12,6 +12,7 @@ import {
 	PanelLeftCloseIcon,
 	PanelLeftOpenIcon,
 	RadioTowerIcon,
+	ScrollTextIcon,
 	ShieldIcon,
 	SlidersHorizontalIcon,
 	XIcon,
@@ -87,6 +88,11 @@ const VariablesIcon: NavIcon = ({ className }) => (
 /** Pull-request previews; a static icon like Variables. */
 const PreviewsIcon: NavIcon = ({ className }) => (
 	<GitPullRequestIcon aria-hidden className={className} />
+);
+
+/** The environment's logs; a static icon like Previews. */
+const LogsIcon: NavIcon = ({ className }) => (
+	<ScrollTextIcon aria-hidden className={className} />
 );
 
 /** The team's project list; a static icon like Previews. */
@@ -231,7 +237,7 @@ function SectionHeading({
 
 /**
  * The console's left rail: brand, team switcher, the project's pages (Canvas,
- * Deployments, Variables, Previews, Observability, Project settings), the
+ * Deployments, Variables, Previews, Observability, Logs, Project settings), the
  * team's (Projects, Servers, Status pages, Team settings), and at the foot
  * Admin (the instance admin only), Collapse and the signed-in person. Docs and
  * Account settings are in the person's menu. It collapses to an icon rail (⌘B)
@@ -523,6 +529,17 @@ export function Sidebar({ user }: { user: Me }) {
 							target={
 								params
 									? { to: "/p/$projectId/$envSlug/observability", params }
+									: undefined
+							}
+							disabledReason={needsProject}
+						/>
+						<NavItem
+							icon={LogsIcon}
+							label="Logs"
+							collapsed={collapsed}
+							target={
+								params
+									? { to: "/p/$projectId/$envSlug/logs", params }
 									: undefined
 							}
 							disabledReason={needsProject}

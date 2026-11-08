@@ -601,13 +601,14 @@ func (d *deploy) runProcesses(ctx context.Context) agentprotocol.DeployResult {
 		return d.processesInterrupted(ctx, led)
 	}
 
-	// 5. Retire the previous release, once.
+	// 5. Retire the previous release, once. The new release is recorded
+	// first, so the observer reports its containers while the old ones stop.
+	d.recordCurrent()
 	stopRetire := d.phase("retire")
 	d.retireAll(ctx, led)
 	stopRetire()
 
 	// 6. Bookkeeping, tailnet and post-deploy, once.
-	d.recordCurrent()
 	d.pruneImages(ctx)
 	d.tailnetStep(ctx)
 	d.postDeploy(ctx, env)

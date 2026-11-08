@@ -174,6 +174,8 @@ func (c *Collector) Facts(ctx context.Context) agentprotocol.Facts {
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapBuildOptions, agentprotocol.CapUptime)
 	// Several processes per service is pure engine behaviour, so every agent (a build-only one included) advertises it.
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapProcesses)
+	// Every agent has the request store, which request-log queries read.
+	f.Capabilities = append(f.Capabilities, agentprotocol.CapRequestLogs)
 	if c.opt.EndpointStatus != nil { // a localproxy manager is wired: this agent can carry instance tunnels
 		f.Capabilities = append(f.Capabilities, agentprotocol.CapInstanceTunnel)
 	}

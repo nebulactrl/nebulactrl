@@ -127,4 +127,44 @@ describe("LogBuffer", () => {
 		expect(performance.now() - start).toBeLessThan(500);
 		expect(buffer.total).toBe(5000);
 	});
+
+	test("resync places lines among the kept ones and counts only the difference", () => {
+		const buffer = new LogBuffer<BufferLine>();
+		buffer.setMatcher(matcher("error"));
+		const a = mk(1, "ERROR a");
+		const b = mk(2, "ok b");
+		const c = mk(3, "ERROR c");
+		buffer.sync([a, b, c]);
+		const front = mk(0.5, "ERROR front");
+		const middle = mk(1.5, "ok middle");
+		const second = mk(2.5, "ERROR mid");
+		expect(buffer.resync([front, a, middle, b, second, c])).toBe(true);
+		expect(ids(buffer.visible)).toEqual([0.5, 1, 2.5, 3]);
+		expect(buffer.total).toBe(6);
+		expect(buffer.stats.lines).toBe(6);
+		expect(buffer.stats.facets.level.get("error")).toBe(4);
+		// The next flush still appends at the end.
+		buffer.sync([front, a, middle, b, second, c, mk(4, "ERROR d")]);
+		expect(ids(buffer.visible)).toEqual([0.5, 1, 2.5, 3, 4]);
+		expect(buffer.stats.lines).toBe(7);
+	});
+
+	test("resync uncounts lines gone from the middle and reports no change when nothing differs", () => {
+		const buffer = new LogBuffer<BufferLine>();
+		const a = mk(1, "ERROR a");
+		const b = mk(2, "ERROR b");
+		const c = mk(3, "ERROR c");
+		buffer.sync([a, b, c]);
+		expect(buffer.resync([a, c])).toBe(true);
+		expect(ids(buffer.visible)).toEqual([1, 3]);
+		expect(buffer.stats.lines).toBe(2);
+		expect(buffer.resync([a, c])).toBe(false);
+	});
+
+	test("resync keeps the cap and leaves blank lines out when asked", () => {
+		const buffer = new LogBuffer<BufferLine>(2, true);
+		buffer.resync([mk(1, "a"), mk(1.5, "  "), mk(2, "b"), mk(3, "c")]);
+		expect(ids(buffer.visible)).toEqual([2, 3]);
+		expect(buffer.stats.lines).toBe(2);
+	});
 });

@@ -2,11 +2,13 @@
 SELECT * FROM server_log_settings WHERE server_id = $1;
 
 -- name: UpsertServerLogSettings :one
-INSERT INTO server_log_settings (server_id, capture, retention_days, max_service_bytes, max_server_bytes)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO server_log_settings (server_id, capture, retention_days, max_service_bytes, max_server_bytes, request_logs, request_logs_keep_query, request_logs_keep_assets)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (server_id) DO UPDATE
 SET capture = EXCLUDED.capture, retention_days = EXCLUDED.retention_days,
     max_service_bytes = EXCLUDED.max_service_bytes, max_server_bytes = EXCLUDED.max_server_bytes,
+    request_logs = EXCLUDED.request_logs, request_logs_keep_query = EXCLUDED.request_logs_keep_query,
+    request_logs_keep_assets = EXCLUDED.request_logs_keep_assets,
     updated_at = now()
 RETURNING *;
 

@@ -1,6 +1,9 @@
 package services
 
 import (
+	"bytes"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/nebulactrl/nebulactrl/internal/databases/engines"
@@ -14,6 +17,30 @@ func TestRedactorMasksSecretValues(t *testing.T) {
 	// Values shorter than 6 characters are left alone.
 	require.Equal(t, "short stays", red("short stays"))
 	require.NotContains(t, red("x sekret-canary-12345 y"), "canary")
+}
+
+func TestRedactorMasksTheJSONEscapedForm(t *testing.T) {
+	secret := `pa&ss"w<o>rd\1`
+	red := MakeRedactor([]string{secret})
+	line, err := json.Marshal(map[string]string{"path": "/x?token=" + secret})
+	require.NoError(t, err)
+	require.Contains(t, string(line), `pa\u0026ss\"w\u003co\u003erd\\1`, "the line carries the escaped form")
+	got := red(string(line))
+	require.Equal(t, `{"path":"/x?token=`+Mask+`"}`, got)
+	require.Equal(t, "p="+Mask, red("p="+secret), "the raw form is still masked")
+}
+
+func TestRedactorMasksTheJSONFormWithoutHTMLEscapes(t *testing.T) {
+	secret := `p"a&ss1`
+	red := MakeRedactor([]string{secret})
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	require.NoError(t, enc.Encode(map[string]string{"path": "/x?token=" + secret}))
+	line := strings.TrimSuffix(buf.String(), "\n")
+	require.Contains(t, line, `p\"a&ss1`, "the line carries the form an Encoder with SetEscapeHTML(false) writes")
+	require.NotContains(t, line, `\u0026`)
+	require.Equal(t, `{"path":"/x?token=`+Mask+`"}`, red(line))
 }
 
 func TestProposeLinkVariables(t *testing.T) {

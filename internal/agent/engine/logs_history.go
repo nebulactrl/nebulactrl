@@ -9,7 +9,7 @@ import (
 // LogsService serves the log history commands and receives the control plane's
 // log configuration (retention limits, drains). *loghistory.Service implements it.
 type LogsService interface {
-	// HandleLogsCommand runs KindLogsQuery and KindLogsDrainTest.
+	// HandleLogsCommand runs KindLogsQuery, KindLogsFacets and KindLogsDrainTest.
 	HandleLogsCommand(ctx context.Context, cmd agentprotocol.Command) agentprotocol.ResultFrame
 	// ApplyLogsConfig installs Reconcile.Logs; secrets is Reconcile.Secrets.
 	ApplyLogsConfig(cfg *agentprotocol.LogsConfig, secrets map[string]string)

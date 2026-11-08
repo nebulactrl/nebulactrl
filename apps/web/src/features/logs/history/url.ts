@@ -21,7 +21,8 @@ export type LogsMode = "live" | "history" | "central";
 
 type Writer = (patch: Record<string, string | undefined>) => void;
 
-function useSearchWriter(): Writer {
+/** Merges a patch into the address's search, in place; an undefined value removes the key. */
+export function useSearchWriter(): Writer {
 	const navigate = useNavigate();
 	return useCallback(
 		(patch) => {

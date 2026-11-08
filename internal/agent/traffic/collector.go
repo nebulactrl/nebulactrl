@@ -2,12 +2,14 @@ package traffic
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
 	"io"
 	"log/slog"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/nebulactrl/nebulactrl/internal/agent/docker"
@@ -22,8 +24,13 @@ const (
 	// framePage is the number of buckets per traffic frame.
 	framePage      = 100
 	defaultAckWait = 30 * time.Second
-	// maxLineBytes bounds one access log line; longer lines are skipped.
-	maxLineBytes = 256 << 10
+	// maxLineBytes bounds one access log line as docker delivers it (chunk
+	// timestamps included); a longer line is dropped and counted. Traefik
+	// accepts headers of up to 1 MiB, and JSON can escape a byte to six.
+	maxLineBytes = 8 << 20
+	// dockerChunk is the size docker cuts a log message into: every chunk but
+	// the last carries exactly this many bytes of the message.
+	dockerChunk = 16 << 10
 )
 
 // Buffer is the durable store for unsent minutes, the log cursor and the
@@ -59,6 +66,19 @@ type Config struct {
 	// Geo, when set, counts request origins by country (and city) from the
 	// client IP; the IP itself is never stored or shipped. *GeoDB implements it.
 	Geo GeoLocator
+	// Requests, when set together with RequestLogs and Routes, receives one
+	// line per routed request (see RequestRecord). *logstore.Store implements it.
+	Requests RequestSink
+	// RequestLogs returns the server's request-log setting; nil means off.
+	RequestLogs func() *agentprotocol.RequestLogsConfig
+	// Routes returns the proxy's current route table, to find the service that
+	// owns the route of a request. (*proxy.Manager).Current implements it.
+	Routes func() []agentprotocol.Route
+	// RequestsResume returns, per service, the end time of the newest stored
+	// request line (services without a line are absent). A request that ended
+	// at or before its service's entry was stored by an earlier run and is not
+	// stored again; the later ones are, whatever the access-log cursor says.
+	RequestsResume func() map[string]time.Time
 }
 
 // Collector tails the proxy's access log, aggregates it and ships completed minutes.
@@ -66,12 +86,23 @@ type Collector struct {
 	cfg Config
 	log *slog.Logger
 	agg *Aggregator
+	// reqs is nil when request logs are not configured.
+	reqs *requestWriter
 
 	mu          sync.Mutex
 	flushedUpTo time.Time // events before this minute start are late and dropped
 	lastSeen    time.Time // newest event time read
-	seq         uint64
-	acks        chan uint64
+	// reqSeen is the newest docker timestamp of a line handled; the tail
+	// that follows a dropped stream skips lines up to reqSkip, the value of
+	// reqSeen when that tail began (they were handled by the stream before).
+	reqSeen time.Time
+	reqSkip time.Time
+	seq     uint64
+	acks    chan uint64
+
+	// oversized and unparsed count access lines dropped since the last report.
+	oversized atomic.Int64
+	unparsed  atomic.Int64
 }
 
 // NewCollector returns a Collector.
@@ -91,6 +122,14 @@ func NewCollector(cfg Config) *Collector {
 	c := &Collector{cfg: cfg, log: cfg.Logger.With("component", "traffic"), acks: make(chan uint64, 1)}
 	c.agg = NewAggregator(NewClassifier(), &daySalts{buf: cfg.Buffer, cache: map[string][]byte{}})
 	c.agg.SetGeo(cfg.Geo)
+	if cfg.Requests != nil && cfg.RequestLogs != nil && cfg.Routes != nil {
+		list := func(ctx context.Context) ([]docker.ContainerInfo, error) {
+			return cfg.Engine.ContainerList(ctx, docker.ListFilter{
+				Labels: map[string]string{agentprotocol.LabelManaged: "true", agentprotocol.LabelService: ""},
+			})
+		}
+		c.reqs = newRequestWriter(cfg.Requests, cfg.RequestLogs, newRouteResolver(cfg.Routes, list, cfg.Now, c.log), c.log)
+	}
 	return c
 }
 
@@ -121,22 +160,51 @@ func (c *Collector) Run(ctx context.Context) {
 	c.flushedUpTo = start.Truncate(time.Minute)
 	c.lastSeen = start.Add(-time.Nanosecond)
 	c.mu.Unlock()
+	if c.reqs != nil && c.cfg.RequestsResume != nil {
+		c.reqs.resume = c.cfg.RequestsResume()
+	}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() { defer wg.Done(); c.tailLoop(ctx) }()
+	var tail, writer sync.WaitGroup
+	tail.Add(1)
+	go func() { defer tail.Done(); c.tailLoop(ctx) }()
+	// The writer outlives the tail: it stops once the tail can queue no more
+	// lines, and then writes what is left.
+	stopWriter := func() {}
+	if c.reqs != nil {
+		var wctx context.Context
+		wctx, stopWriter = context.WithCancel(context.WithoutCancel(ctx))
+		writer.Add(1)
+		go func() { defer writer.Done(); c.reqs.Run(wctx) }()
+	}
 
 	timer := time.NewTimer(c.nextFlushDelay())
 	defer timer.Stop()
+	report := time.NewTicker(requestDropReport)
+	defer report.Stop()
 	for {
 		select {
 		case <-ctx.Done():
-			wg.Wait()
+			tail.Wait()
+			stopWriter()
+			writer.Wait()
+			c.reportDrops()
 			return
 		case <-timer.C:
 			c.Flush(ctx)
 			timer.Reset(c.nextFlushDelay())
+		case <-report.C:
+			c.reportDrops()
 		}
+	}
+}
+
+// reportDrops logs, and resets, the access lines that were left out because
+// they were longer than maxLineBytes or could not be read: their requests are
+// in no count and no request log.
+func (c *Collector) reportDrops() {
+	oversized, unparsed := c.oversized.Swap(0), c.unparsed.Swap(0)
+	if oversized > 0 || unparsed > 0 {
+		c.log.Warn("access log: lines dropped", "oversized", oversized, "unparseable", unparsed)
 	}
 }
 
@@ -253,6 +321,7 @@ func (c *Collector) tailLoop(ctx context.Context) {
 func (c *Collector) tail(ctx context.Context) error {
 	c.mu.Lock()
 	skipBefore := c.lastSeen // events at or before this were already counted
+	c.reqSkip = c.reqSeen
 	c.mu.Unlock()
 	rc, err := c.cfg.Engine.ContainerLogs(ctx, c.cfg.Container, docker.LogOptions{
 		Tail: -1, Follow: true, StdoutOnly: true, Since: skipBefore.Add(-time.Second),
@@ -265,9 +334,18 @@ func (c *Collector) tail(ctx context.Context) error {
 	defer rc.Close()
 	go func() { <-tctx.Done(); _ = rc.Close() }()
 
+	return c.consume(rc, skipBefore)
+}
+
+// consume handles the lines of a log stream until it ends. It returns nil at
+// the end of the stream.
+func (c *Collector) consume(rc io.Reader, skipBefore time.Time) error {
 	r := bufio.NewReaderSize(rc, 64<<10)
 	for {
-		line, err := readLine(r)
+		line, oversize, err := readLine(r)
+		if oversize {
+			c.oversized.Add(1)
+		}
 		if len(line) > 0 {
 			c.handleLine(line, skipBefore)
 		}
@@ -280,34 +358,53 @@ func (c *Collector) tail(ctx context.Context) error {
 	}
 }
 
-// handleLine parses one timestamped docker log line and counts it.
+// handleLine parses one timestamped docker log line and counts it. When
+// request logs are on, it also queues the line as a request line; that
+// decision is independent of the counting gate above (the cursor and the
+// flushed minutes are keyed by the request's start, but a request is stored
+// when it ends: one that began before the cursor or a flush and ends after is
+// stored). The writer drops what an earlier run stored (RequestsResume); the
+// docker timestamp drops what a dropped stream delivers a second time.
 func (c *Collector) handleLine(line string, skipBefore time.Time) {
-	_, text := docker.ParseLogLine(line)
+	dts, text := docker.ParseLogLine(line)
 	ev, err := ParseLine([]byte(text))
 	if err != nil {
+		if !errors.Is(err, ErrIgnored) {
+			c.unparsed.Add(1) // an access entry that could not be read
+		}
 		return // ignored or not an access entry
 	}
 	c.mu.Lock()
-	if !ev.Time.After(skipBefore) || ev.Time.Before(c.flushedUpTo) {
-		c.mu.Unlock()
-		return
-	}
-	if ev.Time.After(c.lastSeen) {
+	count := ev.Time.After(skipBefore) && !ev.Time.Before(c.flushedUpTo)
+	if count && ev.Time.After(c.lastSeen) {
 		c.lastSeen = ev.Time
 	}
+	storeRequest := c.reqs != nil && (dts.IsZero() || dts.After(c.reqSkip))
+	if dts.After(c.reqSeen) {
+		c.reqSeen = dts
+	}
 	c.mu.Unlock()
-	c.agg.Add(ev)
+	if count {
+		c.agg.Add(ev)
+	}
+	if storeRequest {
+		c.reqs.Add(ev)
+	}
 }
 
-// readLine returns the next line without its newline. Lines longer than
-// maxLineBytes are consumed and returned empty.
-func readLine(r *bufio.Reader) (string, error) {
+// readLine returns the next line without its newline; oversize is true when
+// the line was longer than maxLineBytes, which is consumed and returned empty.
+// Docker cuts a log message of more than dockerChunk bytes into chunks and,
+// with timestamps on, starts every chunk with its own: the stream then holds
+// "<ts> <16 KiB><ts> <16 KiB><ts> <rest>" as one line. The continuation
+// timestamps are removed, so the line is the message again.
+func readLine(r *bufio.Reader) (line string, oversize bool, err error) {
 	var buf []byte
 	skipping := false
 	for {
-		part, isPrefix, err := r.ReadLine()
-		if err != nil {
-			return string(buf), err
+		part, isPrefix, rerr := r.ReadLine()
+		if rerr != nil {
+			return unchunk(buf), skipping, rerr
 		}
 		if !skipping {
 			if len(buf)+len(part) > maxLineBytes {
@@ -317,9 +414,38 @@ func readLine(r *bufio.Reader) (string, error) {
 			}
 		}
 		if !isPrefix {
-			return string(buf), nil
+			return unchunk(buf), skipping, nil
 		}
 	}
+}
+
+// unchunk removes the timestamps docker put in the middle of a message it
+// split: a line "<ts> <text>" whose text is longer than dockerChunk continues,
+// after exactly dockerChunk bytes, with another "<ts> ". A line that does not
+// follow that shape is returned as it is.
+func unchunk(line []byte) string {
+	i := bytes.IndexByte(line, ' ')
+	if i <= 0 || len(line)-i-1 <= dockerChunk || !isTimestamp(line[:i]) {
+		return string(line)
+	}
+	out := make([]byte, 0, len(line))
+	out = append(out, line[:i+1]...)
+	rest := line[i+1:]
+	for len(rest) > dockerChunk {
+		out = append(out, rest[:dockerChunk]...)
+		rest = rest[dockerChunk:]
+		j := bytes.IndexByte(rest, ' ')
+		if j <= 0 || !isTimestamp(rest[:j]) {
+			break // not a chunk boundary after all: keep the bytes
+		}
+		rest = rest[j+1:]
+	}
+	return string(append(out, rest...))
+}
+
+func isTimestamp(b []byte) bool {
+	_, err := time.Parse(time.RFC3339Nano, string(b))
+	return err == nil
 }
 
 // daySalts persists one random salt per UTC day.

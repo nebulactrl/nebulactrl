@@ -15,16 +15,30 @@ import (
 )
 
 type HistoryQuery struct {
-	From   time.Time `query:"from" doc:"Only lines at or after this time (RFC 3339). Default: the oldest line the server keeps."`
-	To     time.Time `query:"to" doc:"Only lines before this time (RFC 3339). Default: now."`
-	Q      string    `query:"q" doc:"A log search query (the same language as the log views): free text, \"phrases\", level:error, -service:web, @status:[400 TO 499]. Evaluated on the server that stores the log."`
-	Limit  int       `query:"limit" minimum:"1" maximum:"2000" doc:"Page size (default 500, max 2000)."`
-	Cursor string    `query:"cursor" doc:"Opaque cursor from a previous page's nextCursor."`
-	Order  string    `query:"order" enum:"desc,asc" doc:"desc (default): newest first. asc: oldest first."`
+	From    time.Time `query:"from" doc:"Only lines at or after this time (RFC 3339). Default: the oldest line the server keeps."`
+	To      time.Time `query:"to" doc:"Only lines before this time (RFC 3339). Default: now."`
+	Q       string    `query:"q" doc:"A log search query (the same language as the log views): free text, \"phrases\", level:error, -service:web, @status:[400 TO 499]. Evaluated on the server that stores the log."`
+	Limit   int       `query:"limit" minimum:"1" maximum:"2000" doc:"Page size (default 500, max 2000)."`
+	Cursor  string    `query:"cursor" doc:"Opaque cursor from a previous page's nextCursor."`
+	Order   string    `query:"order" enum:"desc,asc" doc:"desc (default): newest first. asc: oldest first."`
+	Sources string    `query:"sources" doc:"Which stored logs to read, comma-separated: runtime (the containers' output, default), requests (one line per proxied HTTP request, stored on the host) or runtime,requests merged by time. Each line's stream is its source."`
 }
 
 func (q HistoryQuery) params() HistoryParams {
-	return HistoryParams{From: q.From, To: q.To, Query: q.Q, Limit: q.Limit, Cursor: q.Cursor, Order: q.Order}
+	return HistoryParams{From: q.From, To: q.To, Query: q.Q, Limit: q.Limit, Cursor: q.Cursor, Order: q.Order, Sources: q.Sources}
+}
+
+// FacetQuery is the query of the facets endpoints.
+type FacetQuery struct {
+	From    time.Time `query:"from" doc:"Start of the range (RFC 3339). Default: 15 minutes before to."`
+	To      time.Time `query:"to" doc:"End of the range, exclusive (RFC 3339). Default: now. At most 90 days after from."`
+	Q       string    `query:"q" doc:"A log search query (the same language as the log views); only matching lines are counted."`
+	Sources string    `query:"sources" doc:"Which stored logs to count, comma-separated: runtime (default), requests or runtime,requests."`
+	Buckets int       `query:"buckets" minimum:"1" maximum:"240" doc:"Histogram buckets over the range (default 60, max 240)."`
+}
+
+func (q FacetQuery) params() FacetParams {
+	return FacetParams{From: q.From, To: q.To, Query: q.Q, Sources: q.Sources, Buckets: q.Buckets}
 }
 
 type serviceHistoryInput struct {
@@ -40,6 +54,18 @@ type envHistoryInput struct {
 }
 
 type historyOutput struct{ Body LogHistoryPage }
+
+type serviceFacetsInput struct {
+	ID uuid.UUID `path:"serviceId"`
+	FacetQuery
+}
+
+type envFacetsInput struct {
+	ID uuid.UUID `path:"environmentId"`
+	FacetQuery
+}
+
+type facetsOutput struct{ Body LogFacetsPage }
 
 type serviceCentralInput struct {
 	ID      uuid.UUID `path:"serviceId"`
@@ -136,25 +162,36 @@ type settingsOutput struct{ Body LogSettingsView }
 type putSettingsInput struct {
 	ID   uuid.UUID `path:"serverId"`
 	Body struct {
-		Capture         bool  `json:"capture"`
-		RetentionDays   int   `json:"retentionDays" minimum:"1" maximum:"90"`
-		MaxServiceBytes int64 `json:"maxServiceBytes" minimum:"33554432"`
-		MaxServerBytes  int64 `json:"maxServerBytes" minimum:"33554432"`
+		Capture               bool  `json:"capture"`
+		RetentionDays         int   `json:"retentionDays" minimum:"1" maximum:"90"`
+		MaxServiceBytes       int64 `json:"maxServiceBytes" minimum:"33554432"`
+		MaxServerBytes        int64 `json:"maxServerBytes" minimum:"33554432"`
+		RequestLogs           *bool `json:"requestLogs,omitempty" doc:"Store a line per routed HTTP request on the host. Omitted keeps the stored value (default on)."`
+		RequestLogsKeepQuery  *bool `json:"requestLogsKeepQuery,omitempty" doc:"Keep query strings in request lines. Omitted keeps the stored value (default off)."`
+		RequestLogsKeepAssets *bool `json:"requestLogsKeepAssets,omitempty" doc:"Store successful asset requests (scripts, stylesheets, images, fonts) too. Omitted keeps the stored value (default off: only failed ones are stored)."`
 	}
 }
 
 // Register attaches the log history and drain endpoints.
 func Register(h huma.API, svc *Service) {
+	register(h, svc, newReadLimiter(maxConcurrentReadsPerPrincipal))
+}
+
+// register is Register with the limiter of the four log read routes.
+func register(h huma.API, svc *Service, reads *readLimiter) {
+	readMW := huma.Middlewares{reads.middleware}
 	errs := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound}
 	tag := []string{"logs"}
 
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "getServiceLogHistory", Method: http.MethodGet, Path: "/services/{serviceId}/logs/history", Tags: tag,
-		Summary: "Stored runtime logs of a service",
+		Summary: "Stored logs of a service",
 		Description: "A page of the service's runtime log from the server's own history (7 days by default), within an optional time range, filtered by the log search language. " +
+			"`sources=requests` reads the service's HTTP request lines instead (one per proxied request, stored on the host: `@method:POST`, `@path:/api/*`, `@duration_ms:>500`, `status:5*`), `sources=runtime,requests` both merged by time; each entry's `stream` says which. " +
 			"The server's agent answers, so history is unavailable (503 `server_offline`) while the server is offline. Secret values are redacted. " +
 			"Page with `nextCursor`; `partial: true` means the scan stopped early and the cursor continues it.",
-		Errors: append(errs, http.StatusBadRequest, http.StatusConflict, http.StatusUnprocessableEntity, http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout),
+		Errors:      append(errs, http.StatusBadRequest, http.StatusConflict, http.StatusTooManyRequests, http.StatusUnprocessableEntity, http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout),
+		Middlewares: readMW,
 	}, policy.ScopeLogsRead), func(ctx context.Context, in *serviceHistoryInput) (*historyOutput, error) {
 		p := in.params()
 		p.Component, p.Process = in.Component, in.Process
@@ -183,16 +220,48 @@ func Register(h huma.API, svc *Service) {
 
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "getEnvironmentLogHistory", Method: http.MethodGet, Path: "/environments/{environmentId}/logs/history", Tags: tag,
-		Summary: "Stored runtime logs of an environment",
-		Description: "The same as the service endpoint for every service of the environment, merged by time. Entries carry `serviceId` and `serviceName`. " +
+		Summary: "Stored logs of an environment",
+		Description: "The same as the service endpoint for every service of the environment (and every source in `sources`), merged by time. Entries carry `serviceId` and `serviceName`. " +
 			"Services whose server is offline are listed in `unavailable` instead of failing the request.",
-		Errors: append(errs, http.StatusBadRequest, http.StatusUnprocessableEntity, http.StatusBadGateway, http.StatusGatewayTimeout),
+		Errors:      append(errs, http.StatusBadRequest, http.StatusTooManyRequests, http.StatusUnprocessableEntity, http.StatusBadGateway, http.StatusGatewayTimeout),
+		Middlewares: readMW,
 	}, policy.ScopeLogsRead), func(ctx context.Context, in *envHistoryInput) (*historyOutput, error) {
 		page, err := svc.EnvironmentHistory(ctx, in.ID, in.params())
 		if err != nil {
 			return nil, err
 		}
 		return &historyOutput{Body: page}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "getServiceLogFacets", Method: http.MethodGet, Path: "/services/{serviceId}/logs/facets", Tags: tag,
+		Summary: "Log facets of a service",
+		Description: "Counts of the service's stored lines that match `q` within `from`..`to` (default the last 15 minutes): the most frequent values of level, stream, status, replica and deployment, of the log attributes (`@method`, `@path`, ...), and a histogram over time. " +
+			"`sources` picks runtime lines, request lines or both. The server's agent counts, so the answer is unavailable (503 `server_offline`) while the server is offline. " +
+			"The agent stops after a scan budget: `partial: true` then means the counts cover `partialFrom` onwards only. Secret values are redacted.",
+		Errors:      append(errs, http.StatusBadRequest, http.StatusConflict, http.StatusTooManyRequests, http.StatusUnprocessableEntity, http.StatusServiceUnavailable, http.StatusBadGateway, http.StatusGatewayTimeout),
+		Middlewares: readMW,
+	}, policy.ScopeLogsRead), func(ctx context.Context, in *serviceFacetsInput) (*facetsOutput, error) {
+		page, err := svc.ServiceFacets(ctx, in.ID, in.params())
+		if err != nil {
+			return nil, err
+		}
+		return &facetsOutput{Body: page}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "getEnvironmentLogFacets", Method: http.MethodGet, Path: "/environments/{environmentId}/logs/facets", Tags: tag,
+		Summary: "Log facets of an environment",
+		Description: "The same as the service endpoint for every service of the environment, summed, with a `service` facet that counts the matching lines of each service. " +
+			"Services whose server is offline are listed in `unavailable` instead of failing the request.",
+		Errors:      append(errs, http.StatusBadRequest, http.StatusTooManyRequests, http.StatusUnprocessableEntity, http.StatusBadGateway, http.StatusGatewayTimeout),
+		Middlewares: readMW,
+	}, policy.ScopeLogsRead), func(ctx context.Context, in *envFacetsInput) (*facetsOutput, error) {
+		page, err := svc.EnvironmentFacets(ctx, in.ID, in.params())
+		if err != nil {
+			return nil, err
+		}
+		return &facetsOutput{Body: page}, nil
 	})
 
 	huma.Register(h, api.WithScopes(huma.Operation{
@@ -306,7 +375,7 @@ func Register(h huma.API, svc *Service) {
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "getServerLogSettings", Method: http.MethodGet, Path: "/servers/{serverId}/log-settings", Tags: tag,
 		Summary:     "A server's log history settings",
-		Description: "Capture on or off, retention days and size caps, with the usage the agent last reported.",
+		Description: "Capture on or off, retention days and size caps, whether HTTP request lines are stored (and with their query strings), with the usage the agent last reported.",
 		Errors:      errs,
 	}, policy.ScopeServersRead), func(ctx context.Context, in *serverIDInput) (*settingsOutput, error) {
 		v, err := svc.GetSettings(ctx, in.ID)
@@ -319,11 +388,12 @@ func Register(h huma.API, svc *Service) {
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "updateServerLogSettings", Method: http.MethodPut, Path: "/servers/{serverId}/log-settings", Tags: tag,
 		Summary:     "Change a server's log history settings",
-		Description: "Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). The agent applies them at once.",
+		Description: "Retention 1-90 days (default 7); size caps of at least 32 MB (defaults 500 MB per service, 5 GB per server; the oldest lines go first). `requestLogs` (default on) stores one line per routed HTTP request on the host, in a store of its own with the same retention; `requestLogsKeepQuery` (default off) keeps the query strings in them; `requestLogsKeepAssets` (default off) also stores the successful requests for scripts, stylesheets, images and fonts, which are otherwise only stored when they failed. Omitted request settings keep their stored values. The agent applies them at once.",
 		Errors:      append(errs, http.StatusUnprocessableEntity),
 	}, policy.ScopeServersWrite), func(ctx context.Context, in *putSettingsInput) (*settingsOutput, error) {
 		v, err := svc.UpdateSettings(ctx, in.ID, SettingsInput{
 			Capture: in.Body.Capture, RetentionDays: in.Body.RetentionDays, MaxServiceBytes: in.Body.MaxServiceBytes, MaxServerBytes: in.Body.MaxServerBytes,
+			RequestLogs: in.Body.RequestLogs, RequestLogsKeepQuery: in.Body.RequestLogsKeepQuery, RequestLogsKeepAssets: in.Body.RequestLogsKeepAssets,
 		})
 		if err != nil {
 			return nil, err

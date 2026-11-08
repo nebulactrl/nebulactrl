@@ -10,7 +10,13 @@
 // string splice.
 
 import { type AttrStat, type FacetStats, formatValue } from "./facets";
-import { FACET_KEYS, isFacetKey, type Token, tokenize } from "./query";
+import {
+	FACET_KEYS,
+	type FacetKey,
+	isFacetKey,
+	type Token,
+	tokenize,
+} from "./query";
 
 export type SuggestionKind = "key" | "attr" | "value" | "operator" | "recent";
 
@@ -259,18 +265,11 @@ function freshTerm(
 			});
 		}
 	}
+	// A view whose counts have not arrived (or matched nothing) must not leave
+	// the list without keys: those without values follow after the rest.
 	for (const key of FACET_KEYS) {
 		const size = ctx.facets[key].size;
-		if (size === 0) continue;
-		out.push({
-			kind: "key",
-			label: `${key}:`,
-			insert: `${key}:`,
-			start: caret,
-			end: caret,
-			detail: `${size} ${size === 1 ? "value" : "values"}`,
-			count: size,
-		});
+		if (size > 0) out.push(keySuggestion(key, size, caret, caret));
 	}
 	const attrs = [...ctx.attrs].sort(
 		(a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]),
@@ -288,7 +287,32 @@ function freshTerm(
 	}
 	const before = tokens[nextIndex === -1 ? tokens.length - 1 : nextIndex - 1];
 	out.push(...operatorSuggestions(before, "", caret, caret));
+	// Behind everything else, so a crowded list drops them first.
+	for (const key of FACET_KEYS) {
+		if (ctx.facets[key].size > 0) continue;
+		out.push(keySuggestion(key, 0, caret, caret));
+	}
 	return out.slice(0, MAX_SUGGESTIONS);
+}
+
+function keySuggestion(
+	key: FacetKey,
+	size: number,
+	start: number,
+	end: number,
+): Suggestion {
+	return {
+		kind: "key",
+		label: `${key}:`,
+		insert: `${key}:`,
+		start,
+		end,
+		detail:
+			size === 0
+				? "no values yet"
+				: `${size} ${size === 1 ? "value" : "values"}`,
+		count: size,
+	};
 }
 
 function operatorSuggestions(
@@ -429,4 +453,160 @@ export function applySuggestion(
 		suggestion.insert +
 		input.slice(suggestion.end);
 	return { value, caret: suggestion.start + suggestion.insert.length };
+}
+
+// --- The query without the clause being edited -----------------------------------
+
+/** A term of the query: the tokens `first..last` (inclusive) and the text they span. */
+interface Term {
+	first: number;
+	last: number;
+	start: number;
+	end: number;
+}
+
+/** The `)` that closes the `(` at `open`; the last token when it is never closed. */
+function closingParen(tokens: readonly Token[], open: number): number {
+	let depth = 0;
+	for (let j = open; j < tokens.length; j++) {
+		const kind = (tokens[j] as Token).kind;
+		if (kind === "lparen") depth += 1;
+		else if (kind === "rparen") {
+			depth -= 1;
+			if (depth === 0) return j;
+		}
+	}
+	return tokens.length - 1;
+}
+
+/**
+ * The term that starts at token `i`, or null for a parenthesis (which groups
+ * terms but is none). A term is a word, a phrase, `key:value`, `key:(…)`, a
+ * lone `key:`, an operator word, or any of those behind a `-` or `NOT`.
+ */
+function termFrom(tokens: readonly Token[], i: number): Term | null {
+	const token = tokens[i] as Token;
+	let last = i;
+	switch (token.kind) {
+		case "key": {
+			const next = tokens[i + 1];
+			if (next && next.start === token.end) {
+				if (next.kind === "value" || next.kind === "range") last = i + 1;
+				else if (next.kind === "lparen" && next.group) {
+					last = closingParen(tokens, i + 1);
+				}
+			}
+			break;
+		}
+		case "minus":
+		case "not": {
+			const next = tokens[i + 1];
+			const attached = token.kind === "not" || next?.start === token.end;
+			if (
+				attached &&
+				next &&
+				(next.kind === "text" || next.kind === "phrase" || next.kind === "key")
+			) {
+				last = (termFrom(tokens, i + 1) as Term).last;
+			}
+			break;
+		}
+		case "text":
+		case "phrase":
+		case "value":
+		case "range":
+		case "or":
+		case "and":
+			break;
+		default:
+			return null;
+	}
+	return {
+		first: i,
+		last,
+		start: token.start,
+		end: (tokens[last] as Token).end,
+	};
+}
+
+function termsOf(tokens: readonly Token[]): Term[] {
+	const terms: Term[] = [];
+	for (let i = 0; i < tokens.length; ) {
+		const term = termFrom(tokens, i);
+		if (term) {
+			terms.push(term);
+			i = term.last + 1;
+		} else {
+			i += 1;
+		}
+	}
+	return terms;
+}
+
+/**
+ * The query with the term the caret is in or touching taken out (its `-` or
+ * `NOT`, and the `OR` or `AND` that joined it to its neighbour, with it), the
+ * seam closed up. This is what a value suggestion counts over: `level:error
+ * @me|` suggests attributes of the error lines, not of lines that match the
+ * half-typed `@me`. A caret touching no term leaves the query as it is.
+ */
+export function withoutClauseAt(input: string, caret: number): string {
+	const tokens = tokenize(input);
+	const terms = termsOf(tokens);
+	// A caret inside or at the end of a term wins over one at the start of the next.
+	// After `a OR ` (space and all) the dangling operator is what is being edited.
+	const term =
+		terms.find((t) => t.start < caret && caret <= t.end) ??
+		terms.find((t) => t.start <= caret && caret <= t.end) ??
+		terms.findLast(
+			(t) =>
+				t.first === t.last &&
+				t.end <= caret &&
+				input.slice(t.end, caret).trim() === "" &&
+				["or", "and", "not", "minus"].includes((tokens[t.first] as Token).kind),
+		);
+	if (!term) return input.trim();
+	let { start, end } = term;
+	const own = (tokens[term.first] as Token).kind;
+	if (own !== "or" && own !== "and") {
+		const before = tokens[term.first - 1];
+		const after = tokens[term.last + 1];
+		if (before && (before.kind === "or" || before.kind === "and")) {
+			start = before.start;
+		} else if (after && (after.kind === "or" || after.kind === "and")) {
+			end = after.end;
+		}
+	}
+	const head = input.slice(0, start).trimEnd();
+	const tail = input.slice(end).trimStart();
+	return head === "" || tail === "" ? `${head}${tail}` : `${head} ${tail}`;
+}
+
+/**
+ * Whether the query ends in a term that is still being typed: a `key:` with
+ * no value, an `@word` that is no key yet, an unfinished phrase, or a
+ * dangling `-`, `NOT`, `OR` or `AND`. Such a query matches nothing for want
+ * of its last word, so a view keeps the counts of the last whole query.
+ */
+export function hasIncompleteTail(input: string): boolean {
+	const tokens = tokenize(input);
+	const term = termsOf(tokens).at(-1);
+	if (!term) return false;
+	const tail = tokens[term.last] as Token;
+	switch (tail.kind) {
+		case "key":
+		case "minus":
+		case "not":
+		case "or":
+		case "and":
+			return true;
+		case "text":
+			// A `-` with nothing after it is a word to the tokenizer, not a minus.
+			return tail.text.startsWith("@") || tail.text === "-";
+		case "phrase":
+		case "value":
+			return tail.unterminated === true;
+		default:
+			return false;
+	}
 }

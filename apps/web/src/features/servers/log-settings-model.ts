@@ -33,6 +33,9 @@ export interface LogSettingsDraft {
 	retentionDays: string;
 	perService: CapField;
 	perServer: CapField;
+	requestLogs: boolean;
+	requestLogsKeepQuery: boolean;
+	requestLogsKeepAssets: boolean;
 }
 
 const UNIT_BYTES: Record<CapUnit, number> = { MB, GB };
@@ -57,7 +60,13 @@ export function capBytes(field: CapField): number | null {
 export function draftOf(
 	view: Pick<
 		LogSettingsView,
-		"capture" | "retentionDays" | "maxServiceBytes" | "maxServerBytes"
+		| "capture"
+		| "retentionDays"
+		| "maxServiceBytes"
+		| "maxServerBytes"
+		| "requestLogs"
+		| "requestLogsKeepQuery"
+		| "requestLogsKeepAssets"
 	>,
 ): LogSettingsDraft {
 	return {
@@ -65,6 +74,9 @@ export function draftOf(
 		retentionDays: String(view.retentionDays),
 		perService: capField(view.maxServiceBytes),
 		perServer: capField(view.maxServerBytes),
+		requestLogs: view.requestLogs,
+		requestLogsKeepQuery: view.requestLogsKeepQuery,
+		requestLogsKeepAssets: view.requestLogsKeepAssets,
 	};
 }
 
@@ -128,6 +140,9 @@ export function requestBody(
 		retentionDays,
 		maxServiceBytes,
 		maxServerBytes,
+		requestLogs: draft.requestLogs,
+		requestLogsKeepQuery: draft.requestLogsKeepQuery,
+		requestLogsKeepAssets: draft.requestLogsKeepAssets,
 	};
 }
 

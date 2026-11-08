@@ -399,16 +399,13 @@ export function emptyKind(query: string): EmptyKind {
 export function footerText(options: {
 	lines: number;
 	oldest: string | undefined;
-	scope: "service" | "environment";
 	stamp?: StampOptions;
 	continuation: Continuation["kind"];
 }): string {
 	const n = options.lines.toLocaleString();
 	let text = `Showing ${n} ${options.lines === 1 ? "line" : "lines"}.`;
 	if (options.oldest) {
-		const who =
-			options.scope === "service" ? "This server keeps" : "The servers keep";
-		text += ` ${who} logs back to ${formatStamp(options.oldest, options.stamp)}.`;
+		text += ` This server keeps logs back to ${formatStamp(options.oldest, options.stamp)}.`;
 	}
 	if (options.continuation === "full") {
 		text += ` That is as many as this view keeps (${HISTORY_MAX_LINES.toLocaleString()}). Narrow the range or the search to see more.`;

@@ -134,3 +134,60 @@ func TestReportLoopWithoutSenderStillStopsOnCancel(t *testing.T) {
 		t.Fatal("reportLoop ignored cancellation")
 	}
 }
+
+func TestRequestsResumeIsPerService(t *testing.T) {
+	s, _ := newService(t)
+	if got := s.RequestsResume(); len(got) != 0 {
+		t.Fatalf("no lines stored, resume points %v", got)
+	}
+	busy := time.Now().Add(-time.Second).UnixNano()
+	quiet := time.Now().Add(-3 * time.Hour).UnixNano()
+	if err := s.Requests.Append("busy", []logstore.Record{{TS: busy, Text: "{}"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := s.Requests.Append("quiet", []logstore.Record{{TS: quiet, Text: "{}"}}); err != nil {
+		t.Fatal(err)
+	}
+	got := s.RequestsResume()
+	if len(got) != 2 || got["busy"].UnixNano() != busy || got["quiet"].UnixNano() != quiet {
+		t.Fatalf("every service keeps its own newest line, got %v", got)
+	}
+}
+
+// A held request writer finishes before the stores close: lines it appends
+// after the shutdown began are still flushed.
+func TestRunClosesTheStoresAfterHeldWriters(t *testing.T) {
+	dir := t.TempDir()
+	s, err := New(nopDocker{}, dir, &statusCatcher{}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	release := s.Hold()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() { s.Run(ctx); close(done) }()
+	cancel()
+	select {
+	case <-done:
+		t.Fatal("Run closed the stores while a writer was still held")
+	case <-time.After(200 * time.Millisecond):
+	}
+	if err := s.Requests.Append("svc1", []logstore.Record{{TS: time.Now().UnixNano(), Text: "{}"}}); err != nil {
+		t.Fatal(err)
+	}
+	release()
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return after the writer was released")
+	}
+
+	reopened, err := logstore.Open(logstore.Options{Dir: filepath.Join(dir, "requests")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	usage, _ := reopened.Usage()
+	if len(usage) != 1 || usage[0].Lines != 1 {
+		t.Fatalf("request usage after restart %+v", usage)
+	}
+}

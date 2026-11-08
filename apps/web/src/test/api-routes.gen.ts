@@ -93,6 +93,7 @@ export type ApiRouteKey =
 	| `GET /environments/${string}/link-proposals`
 	| `GET /environments/${string}/links`
 	| `GET /environments/${string}/logs`
+	| `GET /environments/${string}/logs/facets`
 	| `GET /environments/${string}/logs/history`
 	| `GET /environments/${string}/mesh`
 	| `GET /environments/${string}/services`
@@ -194,6 +195,7 @@ export type ApiRouteKey =
 	| `GET /services/${string}/logs`
 	| `GET /services/${string}/logs/central`
 	| `GET /services/${string}/logs/download`
+	| `GET /services/${string}/logs/facets`
 	| `GET /services/${string}/logs/history`
 	| `GET /services/${string}/maintenance/preview`
 	| `GET /services/${string}/mesh`

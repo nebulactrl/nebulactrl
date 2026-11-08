@@ -1316,14 +1316,17 @@ type ServerHostShell struct {
 }
 
 type ServerLogSetting struct {
-	ServerID        uuid.UUID       `json:"serverId"`
-	Capture         bool            `json:"capture"`
-	RetentionDays   int32           `json:"retentionDays"`
-	MaxServiceBytes int64           `json:"maxServiceBytes"`
-	MaxServerBytes  int64           `json:"maxServerBytes"`
-	Usage           json.RawMessage `json:"usage"`
-	UsageAt         *time.Time      `json:"usageAt"`
-	UpdatedAt       time.Time       `json:"updatedAt"`
+	ServerID              uuid.UUID       `json:"serverId"`
+	Capture               bool            `json:"capture"`
+	RetentionDays         int32           `json:"retentionDays"`
+	MaxServiceBytes       int64           `json:"maxServiceBytes"`
+	MaxServerBytes        int64           `json:"maxServerBytes"`
+	Usage                 json.RawMessage `json:"usage"`
+	UsageAt               *time.Time      `json:"usageAt"`
+	UpdatedAt             time.Time       `json:"updatedAt"`
+	RequestLogs           bool            `json:"requestLogs"`
+	RequestLogsKeepQuery  bool            `json:"requestLogsKeepQuery"`
+	RequestLogsKeepAssets bool            `json:"requestLogsKeepAssets"`
 }
 
 type ServerMesh struct {

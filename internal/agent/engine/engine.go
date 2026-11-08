@@ -426,7 +426,7 @@ func (e *Engine) HandleCommand(ctx context.Context, cmd agentprotocol.Command) a
 		return e.handleLogsSubscribe(ctx, cmd)
 	case agentprotocol.KindLogsUnsubscribe:
 		return e.handleLogsUnsubscribe(cmd)
-	case agentprotocol.KindLogsQuery, agentprotocol.KindLogsDrainTest:
+	case agentprotocol.KindLogsQuery, agentprotocol.KindLogsFacets, agentprotocol.KindLogsDrainTest:
 		return e.handleLogsCommand(ctx, cmd)
 	case agentprotocol.KindBuildPlan:
 		return e.handleBuildPlan(ctx, cmd)

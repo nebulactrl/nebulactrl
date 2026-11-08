@@ -1,15 +1,15 @@
 ---
 title: Traffic analytics
-description: "What the proxy access log becomes: requests, status classes and origins."
+description: "What the proxy access log becomes: requests, status classes, origins and per-request lines kept on the host."
 section: Observability
 order: 30
 ---
 
 # Traffic analytics and request origins
 
-NebulaCtrl counts requests at each host's proxy. The agent reads the Traefik access log, folds it into **per-minute aggregates** and ships only those. Raw log lines, client IPs, user agents, referrer URLs and query strings never leave the host and are never stored by the control plane. Retention and the other traffic settings are in [Monitoring](monitoring.md#traffic-analytics).
+NebulaCtrl counts requests at each host's proxy. The agent reads the Traefik access log, folds it into **per-minute aggregates** and ships only those. Raw log lines, client IPs, user agents, referrer URLs and query strings are never sent to the control plane and never stored by it. They do stay on the host in the proxy's own container log (Docker's `json-file` log of the Traefik container, 3 files of 10 MB, rotating), as they did before request logs existed. Also on the host, [request logs](logs.md#request-logs) keep one line per request routed to a service, in a store of their own: the client address only as its /24 or /48 network, the query string only if the server keeps it, never shipped. Each line has a `kind` (page, api, asset or other), and successful requests for assets (scripts, styles, images, fonts) are not stored unless the server keeps them, although the aggregates here count every one of them. Retention and the other traffic settings are in [Monitoring](monitoring.md#traffic-analytics).
 
-Views: service inspector → Analytics, server page → Traffic (the Overview shows the last 24 hours in four numbers), environment → Observability.
+Views: service inspector → Analytics, server page → Traffic (the Overview shows the last 24 hours in four numbers), environment → Observability. The individual requests are on the environment's [Logs page](logs.md#the-logs-page) (`stream:requests`).
 
 ## Where requests come from
 
@@ -19,7 +19,7 @@ The "Where requests come from" card shows a dot map with the busiest places mark
 
 1. For every access-log line the agent looks the client IP (the same field the visitor count uses) up in a **local GeoIP database** inside the traffic aggregator.
 2. Per minute and host it keeps counts per country (ISO 3166-1 alpha-2) and, at the city level, the busiest 20 cities with their coordinates rounded to 0.1° plus an "other" counter. Requests the database cannot place (private, loopback or unlisted addresses) go in an "unknown" counter.
-3. Only those counts are sent. **The IP is never stored, logged or sent**: it is used for the lookup and dropped.
+3. Only those counts are sent. **The IP is never sent** to the control plane: it is used for the lookup and dropped. On the host it remains in two places: the /24 or /48 network in a [request log](logs.md#request-logs) line, and the full address in the proxy container's own access log (Docker's `json-file` log, 3 files of 10 MB, rotating). Neither leaves the host.
 4. The control plane stores the counts next to the other traffic aggregates, in the same minute, hour and day tiers and under the same retention, and rolls them up by addition (exact for countries; cities keep the busiest 100 per row).
 
 Reports gain a `geo` section: `level`, `source`, `attribution`, `countries` (`iso2`, `name`, `requests`, `share`) and `cities` (`name`, `country`, `lat`, `lon`, `requests`, `share`), plus `locatedRequests` and `unknownRequests`. `share` is the fraction of the located requests. When geolocation is off for every server in scope, `geo` is absent and `geoReason` says why (`geo_disabled` or `traffic_disabled`). The MCP tool `service_analytics` returns the same report, countries included, for a service.

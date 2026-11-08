@@ -1,42 +1,11 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test";
+import { describe, expect, test } from "bun:test";
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { DeploymentRef, ServiceView } from "#/api/gen/types.gen";
 import { serviceWire } from "#/features/canvas/lib/wire-fixtures";
-import { stubLayout } from "#/features/logs/test-layout";
 import { stubApi } from "#/test/api";
 import { renderWithProviders } from "#/test/render";
 import { ObservabilityPage } from "./observability-page";
-
-let restoreLayout: () => void;
-const openStreams: Array<() => void> = [];
-beforeEach(() => {
-	restoreLayout = stubLayout();
-});
-afterEach(() => {
-	restoreLayout();
-	for (const close of openStreams.splice(0)) {
-		try {
-			close();
-		} catch {
-			// already closed
-		}
-	}
-});
-
-/** A log stream that stays open and silent. */
-function silentStream(): Response {
-	let controller!: ReadableStreamDefaultController<Uint8Array>;
-	const body = new ReadableStream<Uint8Array>({
-		start: (c) => {
-			controller = c;
-		},
-	});
-	openStreams.push(() => controller.close());
-	return new Response(body, {
-		headers: { "Content-Type": "text/event-stream" },
-	});
-}
 
 const env = {
 	id: "env1",
@@ -124,7 +93,6 @@ function routes(
 			body: { items: [uptimeItem("api", "up"), uptimeItem("worker", "up")] },
 		},
 		"GET /analytics/traffic": problem(500, "traffic store down"),
-		"GET /environments/:id/logs": silentStream,
 		...overrides,
 	} as Parameters<typeof stubApi>[0];
 }
@@ -144,7 +112,7 @@ describe("ObservabilityPage", () => {
 		).toBeInTheDocument();
 		expect(
 			await screen.findByText(
-				"Uptime, traffic, resource use and runtime logs of Production.",
+				"Uptime, traffic and resource use of Production.",
 			),
 		).toBeInTheDocument();
 	});
@@ -158,31 +126,38 @@ describe("ObservabilityPage", () => {
 		);
 		await render();
 		// The environment resolves first; the page's own placeholder follows.
-		await screen.findByText(
-			"Uptime, traffic, resource use and runtime logs of Production.",
-		);
+		await screen.findByText("Uptime, traffic and resource use of Production.");
 		expect(
 			screen.getByRole("status", { name: "Loading observability" }),
 		).toBeInTheDocument();
 		expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
 	});
 
-	test("lays out Uptime, Traffic, Services and Logs, in that order", async () => {
+	test("lays out Uptime, Traffic and Services, in that order", async () => {
 		stubApi(routes());
 		await render();
 		await screen.findByRole("link", { name: "worker" });
 		const headings = screen
 			.getAllByRole("heading", { level: 2 })
 			.map((h) => h.textContent ?? "");
+		expect(headings).toHaveLength(3);
 		expect(headings[0]).toStartWith("Uptime");
 		expect(headings[1]).toStartWith("Traffic");
 		expect(headings[2]).toStartWith("Services");
-		expect(headings[3]).toStartWith("Logs");
 		expect(section("Traffic")).toHaveTextContent(
 			"Requests through the proxies of this environment's services.",
 		);
-		expect(section("Logs")).toHaveTextContent(
-			"Runtime output of every service, merged in time order.",
+	});
+
+	test("no longer renders the log and links to the Logs page instead", async () => {
+		stubApi(routes());
+		await render();
+		await screen.findByRole("link", { name: "worker" });
+		expect(screen.queryByRole("log")).toBeNull();
+		expect(screen.queryByLabelText("Search environment logs")).toBeNull();
+		expect(screen.getByRole("button", { name: "Open logs" })).toHaveAttribute(
+			"href",
+			"/p/p1/prod/logs",
 		);
 	});
 
@@ -282,35 +257,33 @@ describe("ObservabilityPage", () => {
 		expect(attempts).toBe(2);
 	});
 
-	test("asks for uptime, services and the live log of the environment", async () => {
+	test("asks for uptime and services, and no longer opens the log stream", async () => {
 		const api = stubApi(routes());
 		await render();
 		await screen.findByRole("link", { name: "worker" });
-		await waitFor(() =>
-			expect(api.calls.map((c) => c.path)).toContain("/environments/env1/logs"),
-		);
 		const paths = api.calls.map((c) => c.path);
 		expect(paths).toContain("/environments/env1/services");
 		expect(paths).toContain("/environments/env1/uptime");
+		expect(paths).not.toContain("/environments/env1/logs");
 	});
 
 	test("an environment with no services offers to open the canvas", async () => {
-		const api = stubApi(routes({}, []));
+		stubApi(routes({}, []));
 		await render();
 		expect(
 			await screen.findByText("Create a service to see it here"),
 		).toBeInTheDocument();
 		expect(
 			screen.getByText(
-				"Logs, resource use and traffic of Production appear here once it has a deployed service.",
+				"Resource use and traffic of Production appear here once it has a deployed service.",
 			),
 		).toBeInTheDocument();
 		const open = screen.getByRole("button", { name: "Open the canvas" });
 		expect(open.getAttribute("href")).toBe("/p/p1/prod");
 		expect(screen.getByText("How monitoring works")).toBeInTheDocument();
-		// Nothing below the empty state is mounted: no log stream, no sections.
+		// Nothing below the empty state is mounted: no sections, no logs link.
 		expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
-		expect(api.calls.some((c) => c.path.endsWith("/logs"))).toBe(false);
+		expect(screen.queryByRole("button", { name: "Open logs" })).toBeNull();
 	});
 
 	test("services that did not load say so and Try again fetches them", async () => {

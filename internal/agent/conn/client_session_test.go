@@ -347,19 +347,23 @@ func TestEphemeralResultKindsSendRowsButStoreNoData(t *testing.T) {
 	results := make(chan map[string][]agentprotocol.ResultFrame, 1)
 	srv.script = func(ctx context.Context, ws *websocket.Conn, _ agentprotocol.Hello) {
 		wsSend(t, ctx, ws, agentprotocol.TypeCommand, "q1", cmdPayload("q1", agentprotocol.KindDBQuery))
+		wsSend(t, ctx, ws, agentprotocol.TypeCommand, "l1", cmdPayload("l1", agentprotocol.KindLogsQuery))
+		wsSend(t, ctx, ws, agentprotocol.TypeCommand, "f1", cmdPayload("f1", agentprotocol.KindLogsFacets))
 		wsSend(t, ctx, ws, agentprotocol.TypeCommand, "r1", cmdPayload("r1", agentprotocol.KindRestartService))
-		collectResults(ctx, ws, 2, results)
+		collectResults(ctx, ws, 4, results)
 		<-ctx.Done()
 	}
 	runClient(t, c)
 
 	got := recv(t, results)
-	require.JSONEq(t, string(rows), string(got["q1"][0].Data), "the frame sent to the control plane carries the rows")
-	storedQuery, seen := st.SeenCommand("q1")
-	require.True(t, seen)
-	require.NotNil(t, storedQuery)
-	require.Equal(t, agentprotocol.OutcomeSucceeded, storedQuery.Outcome)
-	require.Empty(t, storedQuery.Data, "rows never land in the agent's store")
+	for _, id := range []string{"q1", "l1", "f1"} {
+		require.JSONEq(t, string(rows), string(got[id][0].Data), "%s: the frame sent to the control plane carries the data", id)
+		stored, seen := st.SeenCommand(id)
+		require.True(t, seen, id)
+		require.NotNil(t, stored, id)
+		require.Equal(t, agentprotocol.OutcomeSucceeded, stored.Outcome, id)
+		require.Empty(t, stored.Data, "%s: database rows and log lines never land in the agent's result store", id)
+	}
 
 	storedOther, _ := st.SeenCommand("r1")
 	require.NotNil(t, storedOther)

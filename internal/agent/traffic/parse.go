@@ -9,7 +9,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"math"
 	"net"
+	"net/url"
 	"strings"
 	"time"
 
@@ -22,10 +24,13 @@ var ErrIgnored = errors.New("access line ignored")
 
 // Event is one counted request.
 type Event struct {
-	Time        time.Time
-	ServiceID   string // from the router name nc-<serviceId>-https; empty when no service router matched
-	Host        string // lowercase, no port
-	Path        string // query stripped
+	Time        time.Time // request start (Traefik's StartUTC)
+	End         time.Time // Time + Duration: when the response ended and Traefik wrote the line
+	ServiceID   string    // from the router name nc-<serviceId>-https; empty when no service router matched
+	Host        string    // lowercase, no port
+	Path        string    // query stripped
+	Query       string    // raw query string of the request URI without '?'; empty when there is none
+	Upstream    string    // host:port of the backend that served the request ("" when unknown)
 	Method      string
 	Status      int
 	DurationMs  float64
@@ -46,6 +51,8 @@ type accessLine struct {
 	ServiceName           string  `json:"ServiceName"`
 	RequestHost           string  `json:"RequestHost"`
 	RequestPath           string  `json:"RequestPath"`
+	ServiceAddr           string  `json:"ServiceAddr"`
+	ServiceURL            string  `json:"ServiceURL"`
 	RequestMethod         string  `json:"RequestMethod"`
 	RequestScheme         string  `json:"RequestScheme"`
 	RequestContentSize    int64   `json:"RequestContentSize"`
@@ -61,6 +68,8 @@ type accessLine struct {
 var accessMarker = []byte(`"DownstreamStatus"`)
 
 const (
+	// maxDurationNs bounds a logged Duration (nanoseconds) so End cannot overflow.
+	maxDurationNs = float64(math.MaxInt64 / 4)
 	// routerPrefix starts every NebulaCtrl router name. HTTP: nc-<serviceId>-https
 	// (the service's router; -https-local for hosts on the internal CA) or
 	// nc-<serviceId>-http (its HTTP→HTTPS redirect); with per-domain rules
@@ -168,9 +177,12 @@ func ParseLine(line []byte) (Event, error) {
 	}
 	return Event{
 		Time:        ts.UTC(),
+		End:         ts.UTC().Add(time.Duration(min(max(l.Duration, 0), maxDurationNs))),
 		ServiceID:   svc,
 		Host:        cleanHost(l.RequestHost),
 		Path:        path,
+		Query:       requestQuery(l.RequestPath),
+		Upstream:    upstreamAddr(l.ServiceAddr, l.ServiceURL),
 		Method:      strings.ToUpper(l.RequestMethod),
 		Status:      l.DownstreamStatus,
 		DurationMs:  l.Duration / 1e6,
@@ -196,19 +208,42 @@ func clientIP(host string) string {
 	return host
 }
 
+// requestQuery returns the raw query string of a request URI without the
+// leading '?' and without the fragment ("" when the URI has none).
+func requestQuery(uri string) string {
+	i := strings.IndexByte(uri, '?')
+	if i < 0 {
+		return ""
+	}
+	q := uri[i+1:]
+	if j := strings.IndexByte(q, '#'); j >= 0 {
+		q = q[:j]
+	}
+	return q
+}
+
+// upstreamAddr is the host:port of the backend of a request: Traefik's
+// ServiceAddr, or the authority of ServiceURL when it logs no address.
+func upstreamAddr(addr, rawURL string) string {
+	if addr != "" {
+		return addr
+	}
+	if rawURL == "" {
+		return ""
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return ""
+	}
+	return u.Host
+}
+
 // requestPath returns the path of a request URI without query or fragment.
+// Traefik's RequestPath is the origin-form path of the request (never a scheme
+// or authority), so a "://" inside it is part of the path.
 func requestPath(uri string) string {
 	if i := strings.IndexAny(uri, "?#"); i >= 0 {
 		uri = uri[:i]
-	}
-	// Absolute-form request target (proxy style): drop scheme and authority.
-	if i := strings.Index(uri, "://"); i >= 0 {
-		rest := uri[i+3:]
-		if j := strings.IndexByte(rest, '/'); j >= 0 {
-			uri = rest[j:]
-		} else {
-			uri = "/"
-		}
 	}
 	if uri == "" {
 		return "/"
