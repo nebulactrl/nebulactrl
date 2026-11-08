@@ -101,12 +101,15 @@ export function CronPreview({
 		);
 	}
 
+	// shrink-0: in a scrolling flex column (a dialog body) the explicit
+	// min-height replaces the content-sized minimum, so the box would be
+	// squeezed to 112px and the run list would spill over the next field.
 	return (
 		<div
 			aria-live="polite"
 			data-slot="cron-preview"
 			className={cn(
-				"surface-well flex min-h-[112px] flex-col gap-1.5 rounded-card px-3 py-2.5",
+				"surface-well flex min-h-[112px] shrink-0 flex-col gap-1.5 rounded-card px-3 py-2.5",
 				stale && data ? "opacity-70" : null,
 			)}
 		>

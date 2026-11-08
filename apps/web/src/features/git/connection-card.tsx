@@ -30,6 +30,7 @@ export function ConnectionCard({
 	onRefresh,
 	onWebhook,
 	onToken,
+	onRename,
 	onRemove,
 	onFinishGitHub,
 	finishing,
@@ -42,6 +43,7 @@ export function ConnectionCard({
 	onRefresh(): void;
 	onWebhook(): void;
 	onToken(): void;
+	onRename(): void;
 	onRemove(): void;
 	onFinishGitHub(): void;
 	finishing: boolean;
@@ -157,6 +159,9 @@ export function ConnectionCard({
 						Add repositories
 					</Button>
 				) : null}
+				<Button variant="ghost" size="sm" onClick={onRename}>
+					Rename
+				</Button>
 				<Button
 					variant="ghost"
 					size="sm"

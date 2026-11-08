@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
@@ -489,6 +490,48 @@ func TestTestConnectionRecordsOutcome(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, gitproviders.StatusActive, conn.Status)
 	require.Equal(t, "token "+tok, f.provider.callsTo("GET", "/api/v1/user")[len(f.provider.callsTo("GET", "/api/v1/user"))-1].Auth)
+}
+
+// Every kind of connection can be renamed, pending or active, and a rename
+// touches nothing but the name: the status, account and credentials stay.
+func TestRenameWorksForEveryConnectionKind(t *testing.T) {
+	f := newFixture(t)
+	gitea := f.giteaConnection()
+	gitlab, err := f.svc.CreateConnection(f.ctx, gitproviders.CreateConnectionInput{
+		Provider: gitproviders.GitLab, Name: "GitLab", BaseURL: f.provider.srv.URL, AuthType: "oauth", ClientID: "c", ClientSecret: "s",
+	})
+	require.NoError(t, err)
+	bitbucket, err := f.svc.CreateConnection(f.ctx, gitproviders.CreateConnectionInput{Provider: gitproviders.Bitbucket, Name: "bb"})
+	require.NoError(t, err)
+	github, err := f.svc.StartGitHubManifest(f.ctx, gitproviders.ManifestInput{BaseURL: f.provider.srv.URL, Name: "GitHub 2"})
+	require.NoError(t, err)
+
+	for kind, id := range map[string]uuid.UUID{
+		"gitea token":          gitea.Connection.ID,
+		"gitlab oauth pending": gitlab.Connection.ID,
+		"bitbucket webhook":    bitbucket.Connection.ID,
+		"github app pending":   github.ConnectionID,
+	} {
+		before, err := f.svc.GetConnection(f.ctx, id)
+		require.NoError(t, err, kind)
+		name := "  Renamed " + kind + " "
+		after, err := f.svc.UpdateConnection(f.ctx, id, gitproviders.UpdateConnectionInput{Name: &name})
+		require.NoError(t, err, kind)
+		require.Equal(t, "Renamed "+kind, after.Name, kind)
+		require.Equal(t, before.Status, after.Status, kind)
+		require.Equal(t, before.AuthType, after.AuthType, kind)
+		require.Equal(t, before.AccountLogin, after.AccountLogin, kind)
+	}
+
+	taken := "Renamed gitea token"
+	_, err = f.svc.UpdateConnection(f.ctx, bitbucket.Connection.ID, gitproviders.UpdateConnectionInput{Name: &taken})
+	var ae *apierr.Error
+	require.ErrorAs(t, err, &ae)
+	require.Equal(t, "name_conflict", ae.Code)
+	blank := "   "
+	_, err = f.svc.UpdateConnection(f.ctx, bitbucket.Connection.ID, gitproviders.UpdateConnectionInput{Name: &blank})
+	require.ErrorAs(t, err, &ae)
+	require.Equal(t, "validation_failed", ae.Code)
 }
 
 func TestRotateWebhookSecretBitbucketOnly(t *testing.T) {
