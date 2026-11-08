@@ -189,11 +189,12 @@ func (st *Store) Facets(ctx context.Context, q agentprotocol.LogsFacetsQuery, st
 	if q.From.IsZero() || !q.From.Before(q.To) {
 		return agentprotocol.LogsFacetsResult{}, errBadRange
 	}
-	buckets := q.Buckets
-	if buckets <= 0 {
-		buckets = agentprotocol.LogFacetsDefaultBuckets
+	buckets := agentprotocol.LogFacetsDefaultBuckets
+	if q.Buckets > 0 && q.Buckets <= agentprotocol.LogFacetsMaxBuckets {
+		buckets = q.Buckets
+	} else if q.Buckets > agentprotocol.LogFacetsMaxBuckets {
+		buckets = agentprotocol.LogFacetsMaxBuckets
 	}
-	buckets = min(buckets, agentprotocol.LogFacetsMaxBuckets)
 
 	match, perrs := query.Compile(q.Query)
 	from, to := q.From.UnixNano(), q.To.UnixNano()
