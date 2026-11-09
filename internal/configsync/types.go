@@ -243,7 +243,10 @@ type SharedPlan struct {
 	Environment []PlanChange `json:"environment"`
 }
 
-// Guard tells whether an apply of the plan needs a human approval from a guarded principal.
+// Guard tells whether the caller's apply of the plan needs a person's approval:
+// "required" only for a guarded principal (prodguard.Guarded: MCP, or a token
+// without the production exemption) and production changes that take effect at
+// once. A person, or an exempt token, applies the same plan without approval.
 type Guard struct {
 	ProductionApproval string `json:"productionApproval" enum:"required,not_required"`
 	Reason             string `json:"reason,omitempty"`

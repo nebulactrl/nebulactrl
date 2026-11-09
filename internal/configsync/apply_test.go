@@ -1656,7 +1656,8 @@ func TestApplyInProductionByAPersonsTokenWorksAndNeedsNoApproval(t *testing.T) {
 
 	pl := f.plan("production", file)
 	require.True(t, pl.Environment.IsProduction)
-	require.Equal(t, configsync.ApprovalRequired, pl.Guard.ProductionApproval, "immediate changes in production")
+	require.Equal(t, configsync.ApprovalNotRequired, pl.Guard.ProductionApproval, "a person's plan asks for no approval")
+	require.True(t, pl.HasImmediateChanges())
 
 	res, err := f.apply(f.token(policy.AllScopes...), "production", file, applyWithPlanID(pl.PlanID))
 	require.NoError(t, err)

@@ -2143,17 +2143,20 @@ func TestUnitFinishProductionGuard(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		production bool
+		guarded    bool
 		changes    []PlanChange
 		want       string
 	}{
-		{"production with an immediate change", true, []PlanChange{unitChange("config.port", OpSet, AppliesStaged), unitChange("scale.replicas", OpSet, AppliesImmediate)}, ApprovalRequired},
-		{"production with a deferred change", true, []PlanChange{unitChange("backups.nightly", OpAdd, AppliesDeferred)}, ApprovalRequired},
-		{"production with staged changes only", true, []PlanChange{unitChange("config.port", OpSet, AppliesStaged)}, ApprovalNotRequired},
-		{"production without changes", true, nil, ApprovalNotRequired},
-		{"another environment with an immediate change", false, []PlanChange{unitChange("scale.replicas", OpSet, AppliesImmediate)}, ApprovalNotRequired},
+		{"production with an immediate change", true, true, []PlanChange{unitChange("config.port", OpSet, AppliesStaged), unitChange("scale.replicas", OpSet, AppliesImmediate)}, ApprovalRequired},
+		{"production with a deferred change", true, true, []PlanChange{unitChange("backups.nightly", OpAdd, AppliesDeferred)}, ApprovalRequired},
+		{"production with an immediate change, caller not guarded", true, false, []PlanChange{unitChange("scale.replicas", OpSet, AppliesImmediate)}, ApprovalNotRequired},
+		{"production with staged changes only", true, true, []PlanChange{unitChange("config.port", OpSet, AppliesStaged)}, ApprovalNotRequired},
+		{"production without changes", true, true, nil, ApprovalNotRequired},
+		{"another environment with an immediate change", false, true, []PlanChange{unitChange("scale.replicas", OpSet, AppliesImmediate)}, ApprovalNotRequired},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			p := unitPlanned(tc.production)
+			p.guarded = tc.guarded
 			p.svcs = []*svcPlan{unitUpdate("web", tc.changes...)}
 			p.finish()
 			require.Equal(t, tc.want, p.public.Guard.ProductionApproval)
@@ -2167,6 +2170,7 @@ func TestUnitFinishProductionGuard(t *testing.T) {
 
 	t.Run("a blocked service contributes nothing", func(t *testing.T) {
 		p := unitPlanned(true)
+		p.guarded = true
 		p.svcs = []*svcPlan{unitUpdate("web", unitChange("scale.replicas", OpSet, AppliesImmediate))}
 		p.svcs[0].pl.Action = ActionBlocked
 		p.finish()

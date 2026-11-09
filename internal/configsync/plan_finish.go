@@ -256,7 +256,7 @@ func (p *planned) finish() {
 	pub.Summary = sum
 	pub.Valid = sum.Errors == 0 && !blocked
 	pub.RequiredScopes = p.scopes.list()
-	if p.env.Env.IsProduction && (sum.Immediate > 0 || sum.Deferred > 0) {
+	if p.guarded && p.env.Env.IsProduction && (sum.Immediate > 0 || sum.Deferred > 0) {
 		pub.Guard = Guard{ProductionApproval: ApprovalRequired, Reason: "production environment with changes that take effect at once"}
 	}
 	pub.PlanID = p.planID()
