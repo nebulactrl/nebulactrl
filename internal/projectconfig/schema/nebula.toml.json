@@ -2119,6 +2119,11 @@
                 },
                 {
                   "required": [
+                    "tailnet"
+                  ]
+                },
+                {
+                  "required": [
                     "variables"
                   ]
                 },
@@ -2263,6 +2268,11 @@
                 {
                   "required": [
                     "cron"
+                  ]
+                },
+                {
+                  "required": [
+                    "tailnet"
                   ]
                 }
               ]
@@ -2663,6 +2673,15 @@
           "minimum": 1,
           "type": "integer"
         },
+        "tailnet": {
+          "$ref": "#/$defs/tailnet",
+          "description": "Put the service on your Tailscale or Headscale tailnet through a per-service sidecar. The whole table is owned as one unit: a key you leave out takes its default. Removing the table releases it and leaves the live setting as it is; write enabled = false to switch it off. Funnel (public internet exposure) is not a file key: set it in the dashboard.",
+          "examples": [
+            {
+              "enabled": true
+            }
+          ]
+        },
         "tasks": {
           "additionalProperties": {
             "$ref": "#/$defs/task"
@@ -2837,6 +2856,109 @@
           ]
         }
       ]
+    },
+    "tailnet": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "Put the service on the tailnet. false switches the node off (the other keys are then ignored).",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "extra_tags": {
+          "description": "Tags added to the integration's default tags. Each must be in the integration's allowed tags (checked when the change is applied).",
+          "examples": [
+            [
+              "tag:admin"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 10,
+          "type": "array"
+        },
+        "hide_public": {
+          "default": false,
+          "description": "Tailnet only: remove the service's public domain routers. The domains are kept but never routed.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "hostname": {
+          "description": "Machine name on the tailnet, an RFC 1123 label (letters, digits and hyphens; lower-cased). Absent derives <service>-<environment>.",
+          "examples": [
+            "admin-prod"
+          ],
+          "maxLength": 63,
+          "type": "string"
+        },
+        "tcp": {
+          "description": "Raw TCP ports forwarded to the service, at most 16. Each is { listen = 443, target = 8641, tls = true }.",
+          "examples": [
+            [
+              {
+                "listen": 443
+              }
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/tailnetPort"
+          },
+          "maxItems": 16,
+          "type": "array"
+        },
+        "web": {
+          "default": false,
+          "description": "Serve the service's HTTP port on the tailnet: HTTPS on 443 with Tailscale, plain HTTP on 80 with Headscale. Needs the service's port.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "type": "object"
+    },
+    "tailnetPort": {
+      "additionalProperties": false,
+      "properties": {
+        "listen": {
+          "description": "Port on the tailnet.",
+          "examples": [
+            443
+          ],
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "target": {
+          "description": "Port of the service the traffic is forwarded to. Absent means the same as listen.",
+          "examples": [
+            8641
+          ],
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "tls": {
+          "default": false,
+          "description": "Terminate TLS with the node certificate (Tailscale with HTTPS certificates only).",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "listen"
+      ],
+      "type": "object"
     },
     "task": {
       "additionalProperties": false,

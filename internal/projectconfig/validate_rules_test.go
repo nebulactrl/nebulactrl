@@ -75,6 +75,25 @@ func t2SectionCases() []t2case {
 		{name: "docker device without host_path", toml: t2doc(t2web + "[[services.web.docker.devices]]\npermissions = \"rw\"\n"), code: CodeMissingRequired, path: "services.web.docker.devices[0]"},
 		{name: "docker gpus incomplete", toml: t2doc(t2web + "[services.web.docker.gpus]\ncount = 1\n"), code: CodeMissingRequired, path: "services.web.docker.gpus"},
 
+		// tailnet
+		{name: "tailnet valid web and tcp", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\nhostname = \"admin\"\nextra_tags = [\"tag:admin\"]\nweb = true\ntcp = [{ listen = 5432 }, { listen = 8443, target = 8641, tls = true }]\nhide_public = true\n"), code: CodeInvalidValue, absent: true},
+		{name: "tailnet valid tcp only without a port", toml: t2doc("[services.w]\nimage = \"nginx:1\"\n\n[services.w.tailnet]\nenabled = true\ntcp = [{ listen = 5432 }]\n"), code: CodeInvalidValue, absent: true},
+		{name: "tailnet valid database", toml: t2doc("[services.db]\n\n[services.db.database]\nengine = \"postgres\"\n\n[services.db.tailnet]\nenabled = true\ntcp = [{ listen = 5432 }]\n"), code: CodeInvalidValue, absent: true},
+		{name: "tailnet off needs nothing else", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = false\nhostname = \"Not A Host\"\n"), code: CodeInvalidValue, absent: true},
+		{name: "tailnet without enabled", toml: t2doc(t2web + "[services.web.tailnet]\nweb = true\n"), code: CodeMissingRequired, path: "services.web.tailnet.enabled"},
+		{name: "tailnet bad hostname", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\nweb = true\nhostname = \"-bad host\"\n"), code: CodeInvalidValue, path: "services.web.tailnet.hostname", line: "hostname"},
+		{name: "tailnet upper-case hostname is lower-cased", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\nweb = true\nhostname = \"Admin\"\n"), code: CodeInvalidValue, absent: true},
+		{name: "tailnet bad tag", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\nweb = true\nextra_tags = [\"admin\"]\n"), code: CodeInvalidValue, path: "services.web.tailnet"},
+		{name: "tailnet no exposure", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\n"), code: CodeInvalidValue, path: "services.web.tailnet"},
+		{name: "tailnet web without a port", toml: t2doc("[services.w]\nimage = \"nginx:1\"\n\n[services.w.tailnet]\nenabled = true\nweb = true\n"), code: CodeInvalidValue, path: "services.w.tailnet"},
+		{name: "tailnet tcp listen twice", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\ntcp = [{ listen = 5432 }, { listen = 5432, target = 5433 }]\n"), code: CodeInvalidValue, path: "services.web.tailnet"},
+		{name: "tailnet tcp listen out of range", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\ntcp = [{ listen = 70000 }]\n"), code: CodeInvalidValue, path: "services.web.tailnet"},
+		{name: "tailnet tcp without listen", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\ntcp = [{ target = 5432 }]\n"), code: CodeMissingRequired, path: "services.web.tailnet.tcp[0].listen"},
+		{name: "tailnet tcp on the web ports", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\nweb = true\ntcp = [{ listen = 443 }]\n"), code: CodeInvalidValue, path: "services.web.tailnet"},
+		{name: "tailnet funnel is not a file key", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\nweb = true\nfunnel = true\n"), code: CodeUnknownKey, path: "services.web.tailnet.funnel", line: "funnel"},
+		{name: "tailnet funnel in an environment override", toml: t2doc(t2web + "[services.web.tailnet]\nenabled = true\nweb = true\n\n[environments.prod.services.web.tailnet]\nfunnel = true\n"), code: CodeUnknownKey, path: "environments.prod.services.web.tailnet.funnel"},
+		{name: "tailnet on a one-shot service", toml: t2doc("[services.w]\nimage = \"nginx:1\"\none_shot = true\n\n[services.w.tailnet]\nenabled = true\ntcp = [{ listen = 22 }]\n"), code: CodeInvalidValue, path: "services.w.tailnet"},
+
 		// volumes
 		{name: "volume with two replicas", toml: t2doc(t2web + "[services.web.volumes]\ndata = \"/data\"\n\n[services.web.scale]\nreplicas = 2\n"), code: CodeReplicasRequireStateles, path: "services.web.scale.replicas", line: "replicas ="},
 		{name: "volume with one replica", toml: t2doc(t2web + "[services.web.volumes]\ndata = \"/data\"\n\n[services.web.scale]\nreplicas = 1\n"), code: CodeReplicasRequireStateles, absent: true},

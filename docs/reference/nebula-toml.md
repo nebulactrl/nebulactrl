@@ -54,6 +54,7 @@ Common keys: `name` (immediate), `server` (staged; required for `route`), `only_
 | `port`, `command`, `health_check`, `one_shot` | yes | derived | no | no |
 | `cron` | yes | no | no | no |
 | `stop_grace_seconds`, `memory_mb`, `cpus`, `image_retention`, `block_egress`, `docker` | yes | yes | no | no |
+| `tailnet` | yes | yes | no | no |
 | `restart_policy`, `restart_max_retries` | yes | no | no | no |
 | `pre_deploy`, `post_deploy`, `files`, `volumes`, `scale`, `tasks` | yes | no | no | no |
 | `process_name`, `singleton`, `processes` | yes | no | no | no |
@@ -152,7 +153,7 @@ A service can run more than one command from the same build. The service's own `
 
 A process is owned as a whole: a key you leave out takes its default. `domains."<host>".process` names the process a domain routes to (apps only; stacks use `component`); without it a domain routes to the own process, or to the only process with a port. The process name `web` (or `process_name`) is taken by the own process. A service with volumes cannot scale a process above one replica.
 
-### `volumes`, `files`, `scale`, `uptime`, `tasks`, `docker`
+### `volumes`, `files`, `scale`, `uptime`, `tasks`, `docker`, `tailnet`
 
 - `volumes`: `name = "/mount/path"`, or the table form `name = { path = "/mount/path", owner = "10001:10001" }`; names match `^[a-z0-9][a-z0-9_.-]{0,62}$`, paths are absolute. The string form means no owner. `owner` is `"uid"` or `"uid:gid"`, numbers only (0-2147483647): the agent sets the owner of the volume's root directory (not recursively), for an image that runs as a non-root user and mounts a path the image does not contain ([volumes and their owner](../operations/deployments.md#volumes-and-their-owner)). Export writes the table form only for a volume that has an owner. An environment override replaces a volume entry as a unit. Staged. Detaching never deletes data. A service with volumes cannot have `scale.replicas` above 1.
 - `files."/path"`: `mode` (octal string, `0644`) and exactly one of `content` or `source` (an attachment). At most 16 files, 64 KiB each, 256 KiB in all. The whole set is one unit.
@@ -160,6 +161,26 @@ A process is owned as a whole: a key you leave out takes its default. `domains."
 - `uptime` (immediate, admin scope): `enabled`, `alerts`, `failure_threshold` (3, 1-20), `recovery_threshold` (2, 1-20), `reminder_minutes` (0, 0-1440).
 - `tasks.<name>` (immediate, at most 20): `schedule` (required cron), `timezone` (`UTC`), `action` (`command`, `restart`; `command` by default), `command` (argv, required unless `action = "restart"`, where it must be absent), `enabled`, `timeout_seconds` (1800, 1-86400; not with `restart`), `concurrency` (`forbid`, `allow`). A `restart` task restarts the service's running container on the schedule and is refused on a `one_shot` service.
 - `docker`: staged, each key owned individually. Allowed everywhere: `cap_add`, `cap_drop`, `no_new_privileges`, `read_only_rootfs`, `pids_limit`, `hostname`, `dns`, `sysctls`, `host_sysctls`, `user`, `group_add`, `ulimits`, `shm_size_mb`, `extra_hosts`, `labels`, `init`, `stop_signal`, `tmpfs`, `entrypoint`. Only on unrestricted servers: `devices`, `gpus`, `runtime`, `privileged`, `pid_host`, `seccomp_unconfined`, `apparmor_unconfined` and the capabilities `NET_ADMIN` and `SYS_ADMIN`.
+- `tailnet`: staged, **owned as one unit** (every key you leave out takes its default, like a process; the live Funnel flag is never touched). Puts the service on your Tailscale or Headscale tailnet; see [per-service tailnet](../operations/service-tailnet.md). Image, git and database services. A cron or `one_shot` service cannot be on a tailnet.
+
+  | Key | Type | Default | Notes |
+  |---|---|---|---|
+  | `enabled` | bool | required | `false` switches the node off; the other keys are then ignored. |
+  | `hostname` | string | `<service>-<environment>` | An RFC 1123 label, at most 63 characters; lower-cased. |
+  | `extra_tags` | array of strings | none | `tag:name`, at most 10. Each must be in the integration's allowed tags. |
+  | `web` | bool | `false` | Serves the service's `port` on the tailnet (HTTPS on 443 with Tailscale, HTTP on 80 with Headscale). Needs `port` in the file. |
+  | `tcp` | array of `{ listen, target, tls }` | none | At most 16 forwards: `listen` (1-65535, unique, required), `target` (the service port; defaults to `listen`), `tls` (terminate TLS with the node certificate; Tailscale only). With `web = true`, 80 and 443 are taken. |
+  | `hide_public` | bool | `false` | "Tailnet only": the service's public domain routers are removed. |
+
+  At least one of `web = true` or a `tcp` entry is needed. The values go through the same rules as `PATCH /services/{id}` (`tailnetcfg` validation), so the file and the API agree. What depends on the team's integration (`tailnet_not_configured`, `tailnet_tag_not_allowed`, the Tailscale-only features) is checked when the change is applied, not in the plan. `funnel` is **not a file key** (`unknown_key`): it publishes the service on the public internet and needs a typed confirmation in the dashboard. A file apply keeps whatever Funnel value is live, and refuses a table without `web = true` while Funnel is on. Removing the table releases it and leaves the node as it is; write `enabled = false` to switch it off. In an environment block the table merges by key like any other, and `tcp` replaces as an array; `unset = ["tailnet"]` releases it there.
+
+  ```toml
+  [services.web.tailnet]          # admin UI reachable only from the tailnet
+  enabled     = true
+  hostname    = "openheroes-admin"
+  tcp         = [{ listen = 443, target = 8641, tls = true }]
+  hide_public = true
+  ```
 
 ## Environments
 

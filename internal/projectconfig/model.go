@@ -131,6 +131,7 @@ type Service struct {
 	PreDeploy   *Hook        `toml:"pre_deploy" json:"pre_deploy,omitempty" doc:"Command run before the new release starts. A non-zero exit fails the deploy."`
 	PostDeploy  *Hook        `toml:"post_deploy" json:"post_deploy,omitempty" doc:"Command run after the new release is live. A failure only warns."`
 	Docker      *Docker      `toml:"docker" json:"docker,omitempty" doc:"Typed container options. Each key is owned individually. Devices, GPUs, runtime and host-level options need an unrestricted server."`
+	Tailnet     *Tailnet     `toml:"tailnet" json:"tailnet,omitempty" doc:"Put the service on your Tailscale or Headscale tailnet through a per-service sidecar. The whole table is owned as one unit: a key you leave out takes its default. Removing the table releases it and leaves the live setting as it is; write enabled = false to switch it off. Funnel (public internet exposure) is not a file key: set it in the dashboard."`
 	Scale       *Scale       `toml:"scale" json:"scale,omitempty" doc:"Replicas and autoscaling. Applied immediately."`
 	Uptime      *Uptime      `toml:"uptime" json:"uptime,omitempty" doc:"Uptime monitor settings. Applied immediately."`
 	Secrets     *Secrets     `toml:"secrets" json:"secrets,omitempty" doc:"Names of secret variables of this service. Values are never written in the file."`
@@ -179,6 +180,24 @@ type HealthCheck struct {
 	DeadlineSeconds    *int     `toml:"deadline_seconds" json:"deadline_seconds,omitempty" doc:"Seconds the deploy waits for the service to become healthy." example:"90" minimum:"1" maximum:"3600" default:"120"`
 	SuccessThreshold   *int     `toml:"success_threshold" json:"success_threshold,omitempty" doc:"Consecutive successful probes needed." example:"2" minimum:"1" default:"2"`
 	Command            []string `toml:"command" json:"command,omitempty" doc:"argv of an exec check; the first element is CMD or CMD-SHELL." example:"[\"CMD\", \"true\"]" minItems:"2"`
+}
+
+// Tailnet is the [services.<slug>.tailnet] table: the desired tailnet node of
+// the service (config.tailnet). The whole table is one owned unit.
+type Tailnet struct {
+	Enabled    *bool         `toml:"enabled" json:"enabled,omitempty" doc:"Put the service on the tailnet. false switches the node off (the other keys are then ignored)." example:"true"`
+	Hostname   *string       `toml:"hostname" json:"hostname,omitempty" doc:"Machine name on the tailnet, an RFC 1123 label (letters, digits and hyphens; lower-cased). Absent derives <service>-<environment>." example:"admin-prod" maxLength:"63"`
+	ExtraTags  []string      `toml:"extra_tags" json:"extra_tags,omitempty" doc:"Tags added to the integration's default tags. Each must be in the integration's allowed tags (checked when the change is applied)." example:"[\"tag:admin\"]" maxItems:"10"`
+	Web        *bool         `toml:"web" json:"web,omitempty" doc:"Serve the service's HTTP port on the tailnet: HTTPS on 443 with Tailscale, plain HTTP on 80 with Headscale. Needs the service's port." example:"true" default:"false"`
+	TCP        []TailnetPort `toml:"tcp" json:"tcp,omitempty" doc:"Raw TCP ports forwarded to the service, at most 16. Each is { listen = 443, target = 8641, tls = true }." example:"[{ listen = 443, target = 8641, tls = true }]" maxItems:"16"`
+	HidePublic *bool         `toml:"hide_public" json:"hide_public,omitempty" doc:"Tailnet only: remove the service's public domain routers. The domains are kept but never routed." example:"false" default:"false"`
+}
+
+// TailnetPort is one tailnet.tcp entry.
+type TailnetPort struct {
+	Listen *int  `toml:"listen" json:"listen,omitempty" doc:"Port on the tailnet." example:"443" minimum:"1" maximum:"65535"`
+	Target *int  `toml:"target" json:"target,omitempty" doc:"Port of the service the traffic is forwarded to. Absent means the same as listen." example:"8641" minimum:"1" maximum:"65535"`
+	TLS    *bool `toml:"tls" json:"tls,omitempty" doc:"Terminate TLS with the node certificate (Tailscale with HTTPS certificates only)." example:"true" default:"false"`
 }
 
 // Cron is the [services.<slug>.cron] table of a cron service.

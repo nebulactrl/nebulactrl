@@ -276,6 +276,14 @@ count = 1
 driver = "nvidia"
 capabilities = ["utility", "compute"]
 
+[services.img.tailnet]
+enabled = true
+hostname = "Img-Admin"
+extra_tags = ["tag:b", "tag:a", "tag:b"]
+web = true
+tcp = [{ listen = 5432 }, { listen = 2222, target = 22, tls = false }, { listen = 8443, target = 8641, tls = true }]
+hide_public = true
+
 [services.img.variables]
 PLAIN = "p"
 FANCY = { value = "f", comment = "documented", rotate_every_days = 30, public = true }
@@ -621,6 +629,7 @@ func TestFieldsPerKind(t *testing.T) {
 			"config.healthcheck.successThreshold",
 			"config.preDeployCommand", "config.preDeployTimeoutSeconds", "config.postDeployCommand", "config.postDeployTimeoutSeconds",
 			"config.files", "volumes.data",
+			"config.tailnet",
 			"variables.PLAIN", "variables.FANCY", "variables.REF", "variables.GEN", "variables.API_TOKEN#secret", "variables.OTHER_SECRET#secret",
 			"domains.shop.acme.com", "domains.shop.acme.com.cloudflare", "domains.shop.acme.com/api", "domains.plain.acme.com",
 			"scale.replicas", "scale.autoscaling.enabled", "scale.autoscaling.min", "scale.autoscaling.max", "scale.autoscaling.targetCpuPercent",
@@ -764,6 +773,14 @@ func TestFieldValuesOfTheImageService(t *testing.T) {
 		for _, df := range dockerFields {
 			require.Equal(t, df.typ, fmt.Sprintf("%T", val("config.docker."+df.json)), df.json)
 		}
+	})
+
+	t.Run("tailnet is one normalised unit", func(t *testing.T) {
+		require.Equal(t, TailnetValue{
+			Enabled: true, Hostname: "img-admin", ExtraTags: []string{"tag:a", "tag:b"}, Web: true, HidePublic: true,
+			TCP: []TailnetPortValue{{Listen: 2222, Target: 22}, {Listen: 5432, Target: 5432}, {Listen: 8443, Target: 8641, TLS: true}},
+		}, val("config.tailnet"), "trimmed and sorted, the target filled in, no funnel")
+		require.Equal(t, "services.img.tailnet", img["config.tailnet"].Path)
 	})
 
 	t.Run("files are sorted and default to 0644", func(t *testing.T) {

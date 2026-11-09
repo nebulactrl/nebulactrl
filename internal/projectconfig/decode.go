@@ -279,6 +279,11 @@ func (d *decoder) unknownKey(table []string, key string, kp []string) {
 		g.Hint = "delete the line"
 		return
 	}
+	if key == "funnel" && len(table) > 0 && table[len(table)-1] == "tailnet" {
+		g := d.fail(CodeUnknownKey, kp, `unknown key "funnel": Funnel publishes the service on the public internet and is not a file key`)
+		g.Hint = "delete the line; turn Funnel on or off in the dashboard (Service → Settings → Tailnet → Advanced), where it needs a typed confirmation. A file apply never changes it"
+		return
+	}
 	g := d.fail(CodeUnknownKey, kp, fmt.Sprintf("unknown key %q", key))
 	if sug := Suggest(logical, key); len(sug) > 0 {
 		g.Suggestions = sug

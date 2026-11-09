@@ -212,6 +212,7 @@ var cfgFields = map[string]cfgField{
 			return nil
 		},
 	},
+	"config.tailnet": tailnetField,
 }
 
 // filesValue is the comparable form of a file set: sorted by path, the default mode written out.

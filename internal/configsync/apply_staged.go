@@ -182,8 +182,10 @@ func (a *applier) createService(sp *svcPlan) (db.Service, error) {
 	case projectconfig.KindStack:
 		kind, source = services.KindStack, services.SourceCompose
 	}
+	cfg := sp.cfg
+	cfg.Tailnet = nil // staged by applyConfig once the service exists
 	return a.s.Services.CreateInTx(a.ctx, a.tx, p.env, services.CreateInput{
-		Name: name, Slug: sp.slug, Kind: kind, SourceType: source, Config: sp.cfg, ServerID: serverID,
+		Name: name, Slug: sp.slug, Kind: kind, SourceType: source, Config: cfg, ServerID: serverID,
 	})
 }
 
@@ -220,7 +222,12 @@ func (a *applier) applyConfig(sp *svcPlan) error {
 	nameChanged := nameField != nil && nameField.changed
 	serverChanged := serverField != nil && serverField.changed && !sp.create
 	if sp.create && sp.rs.Kind != projectconfig.KindDatabase {
-		return nil // the create call carried the whole config
+		// The create call carried the whole config but the tailnet: that goes through an update, so
+		// the team's integration is checked and the change audited like any other tailnet change.
+		cfgChanged, nameChanged = sp.changedWith("config.tailnet"), false
+		if len(cfgChanged) == 0 {
+			return nil
+		}
 	}
 	if sp.switchTo != "" && !sp.create {
 		if err := a.applySourceSwitch(sp); err != nil {

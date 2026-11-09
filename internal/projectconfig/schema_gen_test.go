@@ -71,28 +71,32 @@ var schemaTypeDefs = map[reflect.Type]string{
 	reflect.TypeFor[Tmpfs]():         "tmpfs",
 	reflect.TypeFor[Device]():        "device",
 	reflect.TypeFor[GPUs]():          "gpus",
+	reflect.TypeFor[Tailnet]():       "tailnet",
+	reflect.TypeFor[TailnetPort]():   "tailnetPort",
 }
 
 // schemaRequired lists the required keys of each table, in the order the
 // schema writes them. A table that is absent here has no required key.
 var schemaRequired = map[reflect.Type][]string{
-	reflect.TypeFor[File]():      {"schema"},
-	reflect.TypeFor[Variable]():  {"value"},
-	reflect.TypeFor[VolumeDef](): {"path"},
-	reflect.TypeFor[Secrets]():   {"keys"},
-	reflect.TypeFor[Git]():       {"branch"},
-	reflect.TypeFor[Hook]():      {"command"},
-	reflect.TypeFor[Database]():  {"engine"},
-	reflect.TypeFor[Route]():     {"protocol", "upstreams"},
-	reflect.TypeFor[Task]():      {"schedule"},
-	reflect.TypeFor[Cron]():      {"schedule"},
-	reflect.TypeFor[Backup]():    {"destination", "cron"},
-	reflect.TypeFor[CORS]():      {"origins"},
-	reflect.TypeFor[Redirect]():  {"regex", "replacement"},
-	reflect.TypeFor[RateLimit](): {"average", "period_seconds", "burst"},
-	reflect.TypeFor[Ulimit]():    {"soft", "hard"},
-	reflect.TypeFor[Device]():    {"host_path"},
-	reflect.TypeFor[GPUs]():      {"count", "driver"},
+	reflect.TypeFor[File]():        {"schema"},
+	reflect.TypeFor[Variable]():    {"value"},
+	reflect.TypeFor[VolumeDef]():   {"path"},
+	reflect.TypeFor[Secrets]():     {"keys"},
+	reflect.TypeFor[Git]():         {"branch"},
+	reflect.TypeFor[Hook]():        {"command"},
+	reflect.TypeFor[Database]():    {"engine"},
+	reflect.TypeFor[Route]():       {"protocol", "upstreams"},
+	reflect.TypeFor[Task]():        {"schedule"},
+	reflect.TypeFor[Cron]():        {"schedule"},
+	reflect.TypeFor[Backup]():      {"destination", "cron"},
+	reflect.TypeFor[CORS]():        {"origins"},
+	reflect.TypeFor[Redirect]():    {"regex", "replacement"},
+	reflect.TypeFor[RateLimit]():   {"average", "period_seconds", "burst"},
+	reflect.TypeFor[Ulimit]():      {"soft", "hard"},
+	reflect.TypeFor[Device]():      {"host_path"},
+	reflect.TypeFor[GPUs]():        {"count", "driver"},
+	reflect.TypeFor[Tailnet]():     {"enabled"},
+	reflect.TypeFor[TailnetPort](): {"listen"},
 }
 
 // Keys below are "Struct.toml_key".
@@ -490,7 +494,7 @@ func (g *schemaGen) serviceDef() map[string]any {
 	stackForbids := []string{
 		"port", "command", "health_check", "memory_mb", "cpus", "stop_grace_seconds", "image_retention",
 		"one_shot", "block_egress", "pre_deploy", "post_deploy", "docker", "files", "volumes", "build",
-		"tasks", "scale", "backups", "processes", "process_name", "singleton", "restart_policy", "restart_max_retries", "cron",
+		"tasks", "scale", "backups", "processes", "process_name", "singleton", "restart_policy", "restart_max_retries", "cron", "tailnet",
 	}
 	routeForbids := append(slices.Clone(stackForbids), "variables", "secrets", "networks")
 	// A process of a base service needs its command; an environment override may restate a single key of it.

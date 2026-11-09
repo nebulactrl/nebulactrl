@@ -18,6 +18,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/gitssh"
 	"github.com/nebulactrl/nebulactrl/internal/services"
+	"github.com/nebulactrl/nebulactrl/internal/tailnet/tailnetcfg"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 	"github.com/nebulactrl/nebulactrl/pkg/composestack"
 )
@@ -319,6 +320,52 @@ func derefInt(p *int) int {
 		return 0
 	}
 	return *p
+}
+
+// checkTailnet validates the [tailnet] table with the platform's own rules (tailnetcfg), so the
+// file and PATCH /services/{id} agree. What needs the team's integration (allowed tags, the
+// features of the provider) is checked when the change is applied.
+func (c *svcCtx) checkTailnet() {
+	t := c.def.Tailnet
+	if t == nil {
+		return
+	}
+	if t.Enabled == nil {
+		c.err(CodeMissingRequired, rp("tailnet", "enabled"), "tailnet needs `enabled`").Hint = "write `enabled = true`, or `enabled = false` to switch the node off"
+		return
+	}
+	if !*t.Enabled {
+		return // switched off: no other key is read
+	}
+	missing := false
+	for i, p := range t.TCP {
+		if p.Listen == nil {
+			c.err(CodeMissingRequired, rp("tailnet", "tcp", "["+itoa(i)+"]", "listen"), "a tcp entry needs `listen`")
+			missing = true
+		}
+	}
+	if missing {
+		return
+	}
+	if oneShotOf(c.def) {
+		c.err(CodeInvalidValue, rp("tailnet"), "a one-shot (or cron) service cannot be on a tailnet")
+		return
+	}
+	cfg := tailnetConfigOf(t)
+	n := tailnetcfg.Normalize(&cfg)
+	if n.Hostname != "" {
+		if err := tailnetcfg.ValidHostname(n.Hostname); err != nil {
+			c.err(CodeInvalidValue, rp("tailnet", "hostname"), "tailnet.hostname: %s", err)
+		}
+		n.Hostname = "" // reported above
+	}
+	port := derefInt(c.def.Port)
+	if err := n.Validate(port); err != nil {
+		g := c.err(CodeInvalidValue, rp("tailnet"), "tailnet: %s", err)
+		if n.Web && port <= 0 {
+			g.Hint = "write the service's HTTP `port`, or expose TCP ports with `tcp` only"
+		}
+	}
 }
 
 func (c *svcCtx) checkDocker() {

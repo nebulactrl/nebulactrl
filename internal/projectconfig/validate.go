@@ -183,6 +183,7 @@ func (v *view) validateService(c *svcCtx) {
 	c.checkHook("pre_deploy", c.def.PreDeploy)
 	c.checkHook("post_deploy", c.def.PostDeploy)
 	c.checkDocker()
+	c.checkTailnet()
 	c.checkDomains()
 	c.checkVolumes()
 	c.checkFiles()
@@ -265,6 +266,7 @@ func (c *svcCtx) checkKind() {
 	forbid("files", d.Files != nil)
 	forbid("volumes", d.Volumes != nil)
 	forbid("docker", d.Docker != nil)
+	forbid("tailnet", d.Tailnet != nil)
 	forbid("variables", d.Variables != nil)
 	forbid("secrets", d.Secrets != nil)
 	forbid("domains", d.Domains != nil)
@@ -310,7 +312,7 @@ func matrix(kind, key string) int {
 		default:
 			return mxForbidden
 		}
-	case "stop_grace_seconds", "memory_mb", "cpus", "image_retention", "block_egress", "docker":
+	case "stop_grace_seconds", "memory_mb", "cpus", "image_retention", "block_egress", "docker", "tailnet":
 		if !runtime && kind != KindDatabase {
 			return mxForbidden
 		}

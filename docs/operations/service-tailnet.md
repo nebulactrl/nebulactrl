@@ -31,6 +31,20 @@ This is **ingress to one service**. Routing the proxy to devices on your tailnet
 
 The canvas card shows a chip next to the host chip with the node name and a status dot, with the text state (`Online`, `Provisioning…`, `Offline`, `Needs attention`) in its tooltip and accessible label, a "Public" mark when Funnel is on and a lock icon (tooltip "Tailnet only") when public domains are paused.
 
+## From nebula.toml
+
+The same settings can be set from [`nebula.toml`](../reference/nebula-toml.md) with a `[services.<slug>.tailnet]` table (image, git and database services), so the repository describes a service that must be tailnet-only. The table is staged like a dashboard edit and applied by the next deployment:
+
+```toml
+[services.web.tailnet]
+enabled     = true
+hostname    = "openheroes-admin"
+tcp         = [{ listen = 443, target = 8641, tls = true }]
+hide_public = true
+```
+
+The keys are `enabled`, `hostname`, `extra_tags`, `web`, `tcp` (`{ listen, target, tls }`) and `hide_public`; the file owns the table as one unit, and `config export` writes it. Removing the table from the file leaves the node as it is, `enabled = false` switches it off. **Funnel is not a file key**: it stays a dashboard decision, and applying a file never changes it. The plan applies the same static rules as the API; `tailnet_not_configured` and `tailnet_tag_not_allowed` are answered when the change is applied.
+
 ## Tailnet only
 
 *Tailnet only* (`hidePublic`) removes the service's public routers: its domains are kept (and shown paused) but never routed, on any route-table push, until you turn it off and deploy. It follows the **applied** configuration, so a staged toggle changes nothing until the deploy that applies it. Services that other route services target stay reachable through those routes.
@@ -38,6 +52,8 @@ The canvas card shows a chip next to the host chip with the node name and a stat
 ## Funnel
 
 Funnel publishes the web exposure on the **public internet** through Tailscale's relays. It is off by default, lives under *Advanced* and needs a typed confirmation (the hostname). It bypasses NebulaCtrl's proxy: no access logs, no traffic analytics, bandwidth limits apply and the hostname is public. Your tailnet policy must grant the `funnel` node attribute to the tags. Audit: `tailnet.funnel_enabled`. Funnel is not available with Headscale (422 `tailnet_funnel_unsupported`).
+
+Funnel cannot be set from `nebula.toml` (`funnel` is an `unknown_key` there).
 
 ## What the plan and API refuse
 

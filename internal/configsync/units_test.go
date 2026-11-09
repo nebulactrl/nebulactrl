@@ -1296,6 +1296,10 @@ var unitCfgSamples = map[string]unitCfgSample{
 		value: []projectconfig.FileMount{{Path: "b.conf", Mode: "0600", Content: "b"}, {Path: "a.conf", Content: "a"}},
 		want:  []projectconfig.FileMount{{Path: "a.conf", Mode: "0644", Content: "a"}, {Path: "b.conf", Mode: "0600", Content: "b"}},
 	},
+	"config.tailnet": unitSame(projectconfig.TailnetValue{
+		Enabled: true, Hostname: "api-admin", ExtraTags: []string{"tag:a", "tag:b"}, Web: true, HidePublic: true,
+		TCP: []projectconfig.TailnetPortValue{{Listen: 2222, Target: 22}, {Listen: 8443, Target: 8641, TLS: true}},
+	}),
 	"config.processes.api": {
 		value: projectconfig.ProcessValue{
 			Name: "api", Command: []string{"bin/api", "--serve"}, Port: 9100, StopGraceSeconds: 90, Singleton: true, MemoryMB: 256, CPUs: 0.5,
@@ -1481,6 +1485,7 @@ func TestUnitConfigFieldSetRejectsWrongTypes(t *testing.T) {
 		{"config.processName", 5},
 		{"config.singleton", "yes"},
 		{"config.processes.worker", "x"},
+		{"config.tailnet", "x"},
 	} {
 		f, ok := lookupCfgField(tc.id)
 		require.True(t, ok, tc.id)
@@ -1563,6 +1568,7 @@ func TestUnitConfigDesiredEqualsLiveWhenAFileWritesADefault(t *testing.T) {
 		{"config.healthcheck.deadlineSeconds", 120},
 		{"config.healthcheck.successThreshold", 2},
 		{"config.healthcheck.type", "none"},
+		{"config.tailnet", projectconfig.TailnetValue{ExtraTags: []string{}, TCP: []projectconfig.TailnetPortValue{}}},
 	} {
 		dv, err := configOps{}.desired(pc, ls, projectconfig.FieldValue{ID: tc.id, Value: tc.v})
 		require.NoError(t, err, tc.id)

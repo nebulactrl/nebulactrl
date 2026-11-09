@@ -1,9 +1,11 @@
 package projectconfig
 
 import (
+	"slices"
 	"sort"
 
 	"github.com/nebulactrl/nebulactrl/internal/services"
+	"github.com/nebulactrl/nebulactrl/internal/tailnet/tailnetcfg"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
@@ -101,7 +103,7 @@ type FieldValue struct {
 	// config.files, scale.replicas, scale.autoscaling.<k>, git.<k>, uptime.<k>,
 	// tasks.<name>, backups.<key>, config.docker.<jsonName>, config.route.<k>,
 	// config.stack.<k>, config.database.<k>, config.processName, config.singleton,
-	// config.processes.<name>, processes.<name>.scale.<k>, generate_domain.
+	// config.processes.<name>, processes.<name>.scale.<k>, config.tailnet, generate_domain.
 	ID string
 	// Path is the file key path ("services.web.health_check.path").
 	Path string
@@ -248,6 +250,75 @@ func (v ProcessValue) Config() services.ProcessConfig {
 			Command: h.Command,
 		},
 	}
+}
+
+// TailnetValue is the value of config.tailnet: the whole table is one unit, in the
+// canonical form of tailnetcfg.Normalize (trimmed, sorted tags, ports sorted by listen
+// with the target filled in). A disabled node is the zero value with Enabled false.
+// Funnel is not part of it: a file never sets or compares it.
+type TailnetValue struct {
+	Enabled    bool               `json:"enabled"`
+	Hostname   string             `json:"hostname"`
+	ExtraTags  []string           `json:"extraTags"`
+	Web        bool               `json:"web"`
+	TCP        []TailnetPortValue `json:"tcp"`
+	HidePublic bool               `json:"hidePublic"`
+}
+
+// TailnetPortValue is one forwarded TCP port of a TailnetValue.
+type TailnetPortValue struct {
+	Listen int  `json:"listen"`
+	Target int  `json:"target"`
+	TLS    bool `json:"tls"`
+}
+
+// tailnetConfigOf is the platform's desired tailnet of a [tailnet] table, not yet normalised.
+func tailnetConfigOf(t *Tailnet) tailnetcfg.TailnetConfig {
+	cfg := tailnetcfg.TailnetConfig{
+		Enabled: derefBool(t.Enabled), Hostname: derefStr(t.Hostname), ExtraTags: t.ExtraTags,
+		Web: derefBool(t.Web), HidePublic: derefBool(t.HidePublic),
+	}
+	for _, p := range t.TCP {
+		cfg.TCP = append(cfg.TCP, tailnetcfg.TCPForward{Listen: derefInt(p.Listen), Target: derefInt(p.Target), TLS: derefBool(p.TLS)})
+	}
+	return cfg
+}
+
+// tailnetValue is the value of a [tailnet] table.
+func tailnetValue(t *Tailnet) TailnetValue {
+	cfg := tailnetConfigOf(t)
+	return TailnetValueOf(tailnetcfg.Normalize(&cfg))
+}
+
+// TailnetValueOf is the comparable form of a platform tailnet (nil: not on a tailnet).
+// Funnel is left out.
+func TailnetValueOf(c *tailnetcfg.TailnetConfig) TailnetValue {
+	n := tailnetcfg.Normalize(c)
+	v := TailnetValue{ExtraTags: []string{}, TCP: []TailnetPortValue{}}
+	if n == nil {
+		return v
+	}
+	v.Enabled, v.Hostname, v.Web, v.HidePublic = true, n.Hostname, n.Web, n.HidePublic
+	v.ExtraTags = append(v.ExtraTags, n.ExtraTags...)
+	for _, f := range n.TCP {
+		v.TCP = append(v.TCP, TailnetPortValue{Listen: f.Listen, Target: f.Target, TLS: f.TLS})
+	}
+	return v
+}
+
+// Config converts the value to the platform's desired tailnet; nil when the node is off.
+// A file never sets Funnel, so the caller passes the live value to keep.
+func (v TailnetValue) Config(funnel bool) *tailnetcfg.TailnetConfig {
+	if !v.Enabled {
+		return nil
+	}
+	cfg := &tailnetcfg.TailnetConfig{
+		Enabled: true, Hostname: v.Hostname, ExtraTags: slices.Clone(v.ExtraTags), Web: v.Web, Funnel: funnel, HidePublic: v.HidePublic,
+	}
+	for _, p := range v.TCP {
+		cfg.TCP = append(cfg.TCP, tailnetcfg.TCPForward{Listen: p.Listen, Target: p.Target, TLS: p.TLS})
+	}
+	return tailnetcfg.Normalize(cfg)
 }
 
 // BackupValue is the value of backups.<key>, defaults applied.

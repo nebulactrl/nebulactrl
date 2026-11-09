@@ -30,6 +30,8 @@ func display(v any) string {
 		return string(b)
 	case projectconfig.ProcessValue:
 		return processDisplay(x)
+	case projectconfig.TailnetValue:
+		return tailnetDisplay(x)
 	}
 	b, err := json.Marshal(v)
 	if err != nil {
