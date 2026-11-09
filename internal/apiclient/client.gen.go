@@ -25627,7 +25627,7 @@ type ClientInterface interface {
 
 	// UpdateServiceWithBody Update a service's configuration (staged until deployed)
 	//
-	// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+	// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -25636,7 +25636,7 @@ type ClientInterface interface {
 
 	// UpdateService Update a service's configuration (staged until deployed)
 	//
-	// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+	// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -35265,7 +35265,7 @@ func (c *Client) GetService(ctx context.Context, serviceId string, reqEditors ..
 
 // UpdateServiceWithBody Update a service's configuration (staged until deployed)
 //
-// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
 //
 // Takes any type of body and a specified content type.
 //
@@ -35284,7 +35284,7 @@ func (c *Client) UpdateServiceWithBody(ctx context.Context, serviceId string, pa
 
 // UpdateService Update a service's configuration (staged until deployed)
 //
-// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -65462,7 +65462,7 @@ type ClientWithResponsesInterface interface {
 
 	// UpdateServiceWithBodyWithResponse Update a service's configuration (staged until deployed)
 	//
-	// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+	// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -65471,7 +65471,7 @@ type ClientWithResponsesInterface interface {
 
 	// UpdateServiceWithResponse Update a service's configuration (staged until deployed)
 	//
-	// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+	// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -114246,7 +114246,7 @@ func (c *ClientWithResponses) GetServiceWithResponse(ctx context.Context, servic
 
 // UpdateServiceWithBodyWithResponse Update a service's configuration (staged until deployed)
 //
-// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -114261,7 +114261,7 @@ func (c *ClientWithResponses) UpdateServiceWithBodyWithResponse(ctx context.Cont
 
 // UpdateServiceWithResponse Update a service's configuration (staged until deployed)
 //
-// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+// Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //

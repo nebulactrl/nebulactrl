@@ -5053,7 +5053,7 @@ export const getService = <ThrowOnError extends boolean = true>(options: Options
 /**
  * Update a service's configuration (staged until deployed)
  *
- * Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+ * Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
  */
 export const updateService = <ThrowOnError extends boolean = true>(options: Options<UpdateServiceData, ThrowOnError>): RequestResult<UpdateServiceResponses, UpdateServiceErrors, ThrowOnError> => (options.client ?? client).patch<UpdateServiceResponses, UpdateServiceErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }, {

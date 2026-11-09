@@ -6411,7 +6411,7 @@ export const getServiceOptions = (options: Options<GetServiceData>) => queryOpti
 /**
  * Update a service's configuration (staged until deployed)
  *
- * Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. Every effective change increments the generation; the change takes effect on the next deployment.
+ * Requires `If-Match: "<generation>"`. A stale value returns 412 `generation_conflict`. `config` replaces the service's whole configuration, it is not merged: a field left out takes its default (read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). Every effective change increments the generation; the change takes effect on the next deployment.
  */
 export const updateServiceMutation = (options?: Partial<Options<UpdateServiceData>>): UseMutationOptions<UpdateServiceResponse, UpdateServiceError, Options<UpdateServiceData>> => {
     const mutationOptions: UseMutationOptions<UpdateServiceResponse, UpdateServiceError, Options<UpdateServiceData>> = {

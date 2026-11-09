@@ -338,6 +338,8 @@ func Register(h huma.API, svc *Service) {
 		OperationID: "updateService", Method: http.MethodPatch, Path: "/services/{serviceId}", Tags: []string{"services"},
 		Summary: "Update a service's configuration (staged until deployed)",
 		Description: "Requires `If-Match: \"<generation>\"`. A stale value returns 412 `generation_conflict`. " +
+			"`config` replaces the service's whole configuration, it is not merged: a field left out takes its default " +
+			"(read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). " +
 			"Every effective change increments the generation; the change takes effect on the next deployment.",
 		Errors: errs(nf, http.StatusPreconditionFailed, http.StatusPreconditionRequired, uc),
 	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *updateServiceInput) (*serviceOutput, error) {
@@ -356,7 +358,7 @@ func Register(h huma.API, svc *Service) {
 		}
 		v, err := svc.Update(ctx, in.ID, gen, ui)
 		if err != nil {
-			return nil, err
+			return nil, withReplaceHint(err, in.Body.Config != nil)
 		}
 		return viewOutput(v), nil
 	})
@@ -621,4 +623,16 @@ loop:
 		items = items[len(items)-tail:]
 	}
 	return items
+}
+
+// configReplaceHint explains a 422 to a caller that sent part of a config.
+const configReplaceHint = "config replaces the whole configuration: send the full config from GET /services/{serviceId} with your change"
+
+// withReplaceHint adds configReplaceHint to an invalid_config answer of a
+// request that sent a config: the usual cause is a partial config.
+func withReplaceHint(err error, sentConfig bool) error {
+	if e, ok := apierr.As(err); ok && sentConfig && e.Code == "invalid_config" && e.Details == nil {
+		return e.WithDetails(map[string]any{"hint": configReplaceHint})
+	}
+	return err
 }

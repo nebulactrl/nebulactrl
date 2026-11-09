@@ -61,6 +61,7 @@ Errors are [RFC 9457](https://www.rfc-editor.org/rfc/rfc9457) `application/probl
 - **Lists** are paginated with `?cursor=` and `?limit=` (default 50, maximum 200). The response carries `nextCursor` while more items exist.
 - **Idempotency.** Mutating calls that create things accept an `Idempotency-Key` header (up to 255 characters). A retry with the same key replays the original response for 24 hours, so a flaky network cannot create two deployments.
 - **Optimistic concurrency.** Updating a service takes `If-Match` with the generation you read. A mismatch returns `412` with `generation_conflict`.
+- **A service's `config` is replaced, not merged.** `PATCH /services/{id}` with a `config` stores exactly that config: a field you leave out takes its default (only `blockEgress` and a database's engine section keep their values when omitted). Read `config` from `GET /services/{id}`, change what you need and send all of it back. A `422 invalid_config` caused by a partial config carries `details.hint` saying so.
 - **Changes are staged.** Writing configuration, variables or domains stages the change and returns immediately. Nothing restarts until you call a deploy endpoint.
 - **Deploy and rollback return `202`** with the deployment. They run asynchronously and never report success before the agent has finished; poll the deployment, or use `nebulactrl services deploy --wait`.
 - **Secrets are write-only.** A secret variable is returned as `{key, isSecret: true, set: true}`, never its value.
