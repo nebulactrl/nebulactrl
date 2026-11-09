@@ -213,6 +213,14 @@ type createVolumeInput struct {
 	Body struct {
 		Name      string `json:"name" minLength:"1" maxLength:"63"`
 		MountPath string `json:"mountPath" minLength:"2" maxLength:"512"`
+		Owner     string `json:"owner,omitempty" maxLength:"21" doc:"Numeric owner of the volume's root directory: \"uid\" or \"uid:gid\" (0-2147483647). Set it when the image runs as a non-root user and mounts the volume at a path the image does not contain: Docker creates such a volume root as root:root, so the app could not write to it. The agent chowns the root only, never recursively. Empty leaves it as Docker created it." example:"10001:10001"`
+	}
+}
+
+type updateVolumeInput struct {
+	ID   uuid.UUID `path:"volumeId"`
+	Body struct {
+		Owner string `json:"owner" maxLength:"21" doc:"Numeric owner of the volume's root directory, \"uid\" or \"uid:gid\" (0-2147483647). Empty clears it." example:"10001:10001"`
 	}
 }
 
@@ -338,6 +346,8 @@ func Register(h huma.API, svc *Service) {
 		OperationID: "updateService", Method: http.MethodPatch, Path: "/services/{serviceId}", Tags: []string{"services"},
 		Summary: "Update a service's configuration (staged until deployed)",
 		Description: "Requires `If-Match: \"<generation>\"`. A stale value returns 412 `generation_conflict`. " +
+			"`config` replaces the service's whole configuration, it is not merged: a field left out takes its default " +
+			"(read `config` from `GET /services/{serviceId}`, change what you need, send all of it back). " +
 			"Every effective change increments the generation; the change takes effect on the next deployment.",
 		Errors: errs(nf, http.StatusPreconditionFailed, http.StatusPreconditionRequired, uc),
 	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *updateServiceInput) (*serviceOutput, error) {
@@ -356,7 +366,7 @@ func Register(h huma.API, svc *Service) {
 		}
 		v, err := svc.Update(ctx, in.ID, gen, ui)
 		if err != nil {
-			return nil, err
+			return nil, withReplaceHint(err, in.Body.Config != nil)
 		}
 		return viewOutput(v), nil
 	})
@@ -442,7 +452,19 @@ func Register(h huma.API, svc *Service) {
 		Summary: "Attach a named volume (staged until deployed)", DefaultStatus: http.StatusCreated,
 		Errors: errs(nf, http.StatusConflict, uc),
 	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *createVolumeInput) (*volumeOutput, error) {
-		v, err := svc.AddVolume(ctx, in.ID, in.Body.Name, in.Body.MountPath)
+		v, err := svc.AddVolume(ctx, in.ID, in.Body.Name, in.Body.MountPath, in.Body.Owner)
+		if err != nil {
+			return nil, err
+		}
+		return &volumeOutput{Body: v}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "updateVolume", Method: http.MethodPatch, Path: "/volumes/{volumeId}", Tags: []string{"volumes"},
+		Summary: "Change the owner of a volume's root directory (staged until deployed)",
+		Errors:  errs(nf, uc),
+	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *updateVolumeInput) (*volumeOutput, error) {
+		v, err := svc.UpdateVolume(ctx, in.ID, in.Body.Owner)
 		if err != nil {
 			return nil, err
 		}
@@ -621,4 +643,16 @@ loop:
 		items = items[len(items)-tail:]
 	}
 	return items
+}
+
+// configReplaceHint explains a 422 to a caller that sent part of a config.
+const configReplaceHint = "config replaces the whole configuration: send the full config from GET /services/{serviceId} with your change"
+
+// withReplaceHint adds configReplaceHint to an invalid_config answer of a
+// request that sent a config: the usual cause is a partial config.
+func withReplaceHint(err error, sentConfig bool) error {
+	if e, ok := apierr.As(err); ok && sentConfig && e.Code == "invalid_config" && e.Details == nil {
+		return e.WithDetails(map[string]any{"hint": configReplaceHint})
+	}
+	return err
 }

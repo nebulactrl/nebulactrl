@@ -106,6 +106,7 @@ var genericEntries = map[string]Generic{
 	"putTeamBuildSettings":   st(tConfig),
 	"checkStack":             rd(tConfig),
 	"listVolumes":            rd(tConfig),
+	"updateVolume":           st(tConfig),
 
 	// ── domains ──
 	"deleteDomainAuthUser": dl(tConfig),

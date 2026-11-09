@@ -87,6 +87,14 @@ type Variable struct {
 	Public          bool   `toml:"public" json:"public,omitempty" doc:"Asserts that a literal value is not a credential, which silences the literal_secret check for this variable. It is not stored." example:"false" default:"false"`
 }
 
+// VolumeDef is one volume entry: the mount path as a plain string, or a table
+// that also sets the owner of the volume's root directory. An entry is a leaf
+// for merging.
+type VolumeDef struct {
+	Path  string `toml:"path" json:"path" doc:"Absolute path the volume is mounted at in the container." example:"/dist" minLength:"2" maxLength:"512" pattern:"^/.+"`
+	Owner string `toml:"owner" json:"owner,omitempty" doc:"Numeric owner of the volume's root directory, \"uid\" or \"uid:gid\" (0-2147483647). Set it when the image runs as a non-root user and mounts the volume at a path the image does not contain: Docker creates such a volume root as root:root, so the app could not write to it. The agent chowns the root only, never recursively. Absent leaves the directory as Docker created it." example:"10001:10001" pattern:"^[0-9]{1,10}(:[0-9]{1,10})?$"`
+}
+
 // Service is a [services.<slug>] table, and also the body of an
 // [environments.<env>.services.<slug>] override (where Unset is allowed and
 // the source key is optional). Field order is the order Render writes keys:
@@ -123,17 +131,18 @@ type Service struct {
 	PreDeploy   *Hook        `toml:"pre_deploy" json:"pre_deploy,omitempty" doc:"Command run before the new release starts. A non-zero exit fails the deploy."`
 	PostDeploy  *Hook        `toml:"post_deploy" json:"post_deploy,omitempty" doc:"Command run after the new release is live. A failure only warns."`
 	Docker      *Docker      `toml:"docker" json:"docker,omitempty" doc:"Typed container options. Each key is owned individually. Devices, GPUs, runtime and host-level options need an unrestricted server."`
+	Tailnet     *Tailnet     `toml:"tailnet" json:"tailnet,omitempty" doc:"Put the service on your Tailscale or Headscale tailnet through a per-service sidecar. The whole table is owned as one unit: a key you leave out takes its default. Removing the table releases it and leaves the live setting as it is; write enabled = false to switch it off. Funnel (public internet exposure) is not a file key: set it in the dashboard."`
 	Scale       *Scale       `toml:"scale" json:"scale,omitempty" doc:"Replicas and autoscaling. Applied immediately."`
 	Uptime      *Uptime      `toml:"uptime" json:"uptime,omitempty" doc:"Uptime monitor settings. Applied immediately."`
 	Secrets     *Secrets     `toml:"secrets" json:"secrets,omitempty" doc:"Names of secret variables of this service. Values are never written in the file."`
 
-	Variables map[string]Variable `toml:"variables" json:"variables,omitempty" doc:"Variables of the service, keyed by name. A value is a string using the variable macro grammar, or a table with metadata."`
-	Domains   map[string]*Domain  `toml:"domains" json:"domains,omitempty" doc:"Domains of the service, keyed by hostname or hostname/path-prefix." example:"\"shop.acme.com\""`
-	Volumes   map[string]string   `toml:"volumes" json:"volumes,omitempty" doc:"Persistent volumes: name = absolute mount path. Detaching a volume never deletes its data." example:"uploads = \"/app/uploads\""`
-	Files     map[string]*Files   `toml:"files" json:"files,omitempty" doc:"Config files written into the container before it starts, keyed by absolute path." example:"\"/etc/app/app.conf\""`
-	Tasks     map[string]*Task    `toml:"tasks" json:"tasks,omitempty" doc:"Cron tasks that run in the service's image, keyed by task name. Applied immediately." example:"digest"`
-	Processes map[string]*Process `toml:"processes" json:"processes,omitempty" doc:"Additional processes that run from the same image, variables, volumes and release as the service, keyed by process name. The service's own port and command are its default process. A process is owned as a whole: a key you leave out takes its default. Processes deploy together; scale is applied immediately." example:"worker"`
-	Backups   map[string]*Backup  `toml:"backups" json:"backups,omitempty" doc:"Backup schedules of a database, keyed by a stable key. Applied immediately." example:"nightly"`
+	Variables map[string]Variable  `toml:"variables" json:"variables,omitempty" doc:"Variables of the service, keyed by name. A value is a string using the variable macro grammar, or a table with metadata."`
+	Domains   map[string]*Domain   `toml:"domains" json:"domains,omitempty" doc:"Domains of the service, keyed by hostname or hostname/path-prefix." example:"\"shop.acme.com\""`
+	Volumes   map[string]VolumeDef `toml:"volumes" json:"volumes,omitempty" doc:"Persistent volumes, keyed by name. A value is the absolute mount path, or a table { path, owner } when the volume root needs an owner. Detaching a volume never deletes its data." example:"uploads = \"/app/uploads\""`
+	Files     map[string]*Files    `toml:"files" json:"files,omitempty" doc:"Config files written into the container before it starts, keyed by absolute path." example:"\"/etc/app/app.conf\""`
+	Tasks     map[string]*Task     `toml:"tasks" json:"tasks,omitempty" doc:"Cron tasks that run in the service's image, keyed by task name. Applied immediately." example:"digest"`
+	Processes map[string]*Process  `toml:"processes" json:"processes,omitempty" doc:"Additional processes that run from the same image, variables, volumes and release as the service, keyed by process name. The service's own port and command are its default process. A process is owned as a whole: a key you leave out takes its default. Processes deploy together; scale is applied immediately." example:"worker"`
+	Backups   map[string]*Backup   `toml:"backups" json:"backups,omitempty" doc:"Backup schedules of a database, keyed by a stable key. Applied immediately." example:"nightly"`
 }
 
 // Git is the [services.<slug>.git] table.
@@ -171,6 +180,24 @@ type HealthCheck struct {
 	DeadlineSeconds    *int     `toml:"deadline_seconds" json:"deadline_seconds,omitempty" doc:"Seconds the deploy waits for the service to become healthy." example:"90" minimum:"1" maximum:"3600" default:"120"`
 	SuccessThreshold   *int     `toml:"success_threshold" json:"success_threshold,omitempty" doc:"Consecutive successful probes needed." example:"2" minimum:"1" default:"2"`
 	Command            []string `toml:"command" json:"command,omitempty" doc:"argv of an exec check; the first element is CMD or CMD-SHELL." example:"[\"CMD\", \"true\"]" minItems:"2"`
+}
+
+// Tailnet is the [services.<slug>.tailnet] table: the desired tailnet node of
+// the service (config.tailnet). The whole table is one owned unit.
+type Tailnet struct {
+	Enabled    *bool         `toml:"enabled" json:"enabled,omitempty" doc:"Put the service on the tailnet. false switches the node off (the other keys are then ignored)." example:"true"`
+	Hostname   *string       `toml:"hostname" json:"hostname,omitempty" doc:"Machine name on the tailnet, an RFC 1123 label (letters, digits and hyphens; lower-cased). Absent derives <service>-<environment>." example:"admin-prod" maxLength:"63"`
+	ExtraTags  []string      `toml:"extra_tags" json:"extra_tags,omitempty" doc:"Tags added to the integration's default tags. Each must be in the integration's allowed tags (checked when the change is applied)." example:"[\"tag:admin\"]" maxItems:"10"`
+	Web        *bool         `toml:"web" json:"web,omitempty" doc:"Serve the service's HTTP port on the tailnet: HTTPS on 443 with Tailscale, plain HTTP on 80 with Headscale. Needs the service's port." example:"true" default:"false"`
+	TCP        []TailnetPort `toml:"tcp" json:"tcp,omitempty" doc:"Raw TCP ports forwarded to the service, at most 16. Each is { listen = 443, target = 8641, tls = true }." example:"[{ listen = 443, target = 8641, tls = true }]" maxItems:"16"`
+	HidePublic *bool         `toml:"hide_public" json:"hide_public,omitempty" doc:"Tailnet only: remove the service's public domain routers. The domains are kept but never routed." example:"false" default:"false"`
+}
+
+// TailnetPort is one tailnet.tcp entry.
+type TailnetPort struct {
+	Listen *int  `toml:"listen" json:"listen,omitempty" doc:"Port on the tailnet." example:"443" minimum:"1" maximum:"65535"`
+	Target *int  `toml:"target" json:"target,omitempty" doc:"Port of the service the traffic is forwarded to. Absent means the same as listen." example:"8641" minimum:"1" maximum:"65535"`
+	TLS    *bool `toml:"tls" json:"tls,omitempty" doc:"Terminate TLS with the node certificate (Tailscale with HTTPS certificates only)." example:"true" default:"false"`
 }
 
 // Cron is the [services.<slug>.cron] table of a cron service.

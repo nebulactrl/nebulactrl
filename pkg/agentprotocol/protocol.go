@@ -575,6 +575,11 @@ type HealthcheckSpec struct {
 type VolumeMount struct {
 	Name      string `json:"name"` // full docker volume name nc-vol-<serviceId8>-<name>
 	MountPath string `json:"mountPath"`
+	// Owner ("uid" or "uid:gid", see ParseVolumeOwner) is who owns the volume's
+	// root directory. Empty leaves it as Docker created it (root, or the
+	// image's owner of the path). The agent chowns the root, never recursively,
+	// when it differs from the current owner.
+	Owner string `json:"owner,omitempty"`
 }
 
 // ImageSource describes an image to pull.

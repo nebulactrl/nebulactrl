@@ -170,17 +170,23 @@ export function VolumesSection({ service }: { service: Service }) {
 	const volumes = useQuery(volumesQuery(service.id));
 	const [name, setName] = useState("");
 	const [mountPath, setMountPath] = useState("");
+	const [owner, setOwner] = useState("");
 
 	const add = useMutation({
 		mutationFn: async () => {
 			await createVolume({
 				path: { serviceId: service.id },
-				body: { name: name.trim(), mountPath: mountPath.trim() },
+				body: {
+					name: name.trim(),
+					mountPath: mountPath.trim(),
+					...(owner.trim() === "" ? {} : { owner: owner.trim() }),
+				},
 			});
 		},
 		onSuccess: async () => {
 			setName("");
 			setMountPath("");
+			setOwner("");
 			await invalidateServices(queryClient);
 			toast.success("Volume added", "Staged until the next deploy.");
 		},
@@ -229,6 +235,11 @@ export function VolumesSection({ service }: { service: Service }) {
 									>
 										{volume.name} · {volume.dockerName}
 									</span>
+									{volume.owner ? (
+										<span className="block font-mono text-[11px] text-ink-4">
+											owner {volume.owner}
+										</span>
+									) : null}
 									{volume.restoreLabel ? (
 										<span className="block text-[11px] text-status-staged-on">
 											{volume.restoreLabel}
@@ -259,7 +270,7 @@ export function VolumesSection({ service }: { service: Service }) {
 				)}
 				<form
 					onSubmit={submit}
-					className="grid grid-cols-1 items-center gap-2 @md/section:grid-cols-[1fr_1.4fr_auto]"
+					className="grid grid-cols-1 items-center gap-2 @md/section:grid-cols-[1fr_1.4fr_0.8fr_auto]"
 				>
 					<Input
 						aria-label="Volume name"
@@ -276,6 +287,14 @@ export function VolumesSection({ service }: { service: Service }) {
 						placeholder="/var/lib/data"
 						value={mountPath}
 						onChange={(event) => setMountPath(event.target.value)}
+					/>
+					<Input
+						aria-label="Owner (uid:gid)"
+						autoComplete="off"
+						className="font-mono"
+						placeholder="Owner (uid:gid)"
+						value={owner}
+						onChange={(event) => setOwner(event.target.value)}
 					/>
 					<Button
 						type="submit"

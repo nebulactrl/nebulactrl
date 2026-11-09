@@ -85,7 +85,7 @@ func TestStackRefusesFeaturesItDoesNotHave(t *testing.T) {
 
 	_, err = scale.Set(ctx, st.ID, scaling.SetInput{Replicas: new(2)})
 	notApplicable(t, err, "scaling")
-	_, err = svcs.AddVolume(ctx, st.ID, "data", "/data")
+	_, err = svcs.AddVolume(ctx, st.ID, "data", "/data", "")
 	notApplicable(t, err, "volumes")
 	_, err = tsk.CreateTask(ctx, st.ID, tasks.TaskInput{Name: "nightly", Command: []string{"true"}, Schedule: "0 3 * * *"})
 	notApplicable(t, err, "tasks")

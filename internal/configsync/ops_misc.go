@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
+	"github.com/nebulactrl/nebulactrl/internal/services"
 )
 
 // display renders a value for a plan line.
@@ -29,6 +30,8 @@ func display(v any) string {
 		return string(b)
 	case projectconfig.ProcessValue:
 		return processDisplay(x)
+	case projectconfig.TailnetValue:
+		return tailnetDisplay(x)
 	}
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -119,7 +122,7 @@ func (volumeOps) live(pc *planCtx, ls *liveService, id, _ string) (fieldView, bo
 	name := strings.TrimPrefix(id, "volumes.")
 	for _, v := range ls.Volumes {
 		if v.Name == name {
-			return view(projectconfig.Volume{Name: v.Name, MountPath: v.MountPath}, v.MountPath), true
+			return view(projectconfig.Volume{Name: v.Name, MountPath: v.MountPath, Owner: v.Owner}, services.VolumeSummary(v.MountPath, v.Owner)), true
 		}
 	}
 	return fieldView{}, false
@@ -130,7 +133,7 @@ func (volumeOps) desired(_ *planCtx, _ *liveService, fv projectconfig.FieldValue
 	if !ok {
 		return fieldView{}, refErr("wrong_type", "volume %s has an unexpected value", fv.ID)
 	}
-	return view(projectconfig.Volume{Name: v.Name, MountPath: v.MountPath}, v.MountPath), nil
+	return view(projectconfig.Volume{Name: v.Name, MountPath: v.MountPath, Owner: v.Owner}, services.VolumeSummary(v.MountPath, v.Owner)), nil
 }
 
 // networkOps handles networks.<name>: attachment to a shared network.

@@ -7,12 +7,12 @@ import (
 
 // isMergeLeaf reports whether the node at rel (a key path relative to a
 // service root) replaces as a unit during a merge even though it is a table
-// (a merge leaf): a variable entry, a domain's options, a file and a stack
-// resource entry.
+// (a merge leaf): a variable entry, a volume entry, a domain's options, a file
+// and a stack resource entry.
 func isMergeLeaf(rel []string) bool {
 	switch len(rel) {
 	case 2:
-		return rel[0] == "variables" || rel[0] == "files"
+		return rel[0] == "variables" || rel[0] == "files" || rel[0] == "volumes"
 	case 3:
 		return (rel[0] == "domains" && rel[2] == "options") || (rel[0] == "stack" && rel[1] == "resources")
 	}
@@ -202,7 +202,7 @@ func unsetPathValid(segs []string) bool {
 		}
 		switch t.Kind() {
 		case reflect.Struct:
-			if t == variableType {
+			if t == variableType || t == volumeDefType {
 				return false
 			}
 			fi, ok := infoOf(t).byKey[segs[i]]

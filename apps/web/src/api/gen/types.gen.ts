@@ -2801,6 +2801,10 @@ export type CreateVolumeBackupInputBody = {
 export type CreateVolumeInputBody = {
     mountPath: string;
     name: string;
+    /**
+     * Numeric owner of the volume's root directory: "uid" or "uid:gid" (0-2147483647). Set it when the image runs as a non-root user and mounts the volume at a path the image does not contain: Docker creates such a volume root as root:root, so the app could not write to it. The agent chowns the root only, never recursively. Empty leaves it as Docker created it.
+     */
+    owner?: string;
 };
 
 export type CreateWildcardInputBody = {
@@ -10818,6 +10822,13 @@ export type UpdateView = {
     updating?: UpdatingView;
 };
 
+export type UpdateVolumeInputBody = {
+    /**
+     * Numeric owner of the volume's root directory, "uid" or "uid:gid" (0-2147483647). Empty clears it.
+     */
+    owner: string;
+};
+
 export type UpdateWildcardInputBody = {
     coverGenerated?: boolean;
     default?: boolean;
@@ -11463,6 +11474,10 @@ export type VolumeView = {
     id: string;
     mountPath: string;
     name: string;
+    /**
+     * Numeric owner of the volume's root directory, "uid" or "uid:gid". Empty leaves the directory as Docker created it.
+     */
+    owner?: string;
     restoreLabel?: string;
 };
 
@@ -35572,3 +35587,50 @@ export type DeleteVolumeResponses = {
 };
 
 export type DeleteVolumeResponse = DeleteVolumeResponses[keyof DeleteVolumeResponses];
+
+export type UpdateVolumeData = {
+    body: UpdateVolumeInputBody;
+    path: {
+        volumeId: string;
+    };
+    query?: never;
+    url: '/volumes/{volumeId}';
+};
+
+export type UpdateVolumeErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type UpdateVolumeError = UpdateVolumeErrors[keyof UpdateVolumeErrors];
+
+export type UpdateVolumeResponses = {
+    /**
+     * OK
+     */
+    200: VolumeView;
+};
+
+export type UpdateVolumeResponse = UpdateVolumeResponses[keyof UpdateVolumeResponses];

@@ -267,7 +267,7 @@ func TestFactorNestedDifferences(t *testing.T) {
 			"t2": {Schedule: new("0 8 * * *"), Command: []string{"echo", "2"}},
 		},
 		Files:     map[string]*Files{"/etc/a": {Mode: new("0644"), Content: new("x\n")}},
-		Volumes:   map[string]string{"data": "/data", "cache": "/cache"},
+		Volumes:   map[string]VolumeDef{"data": {Path: "/data"}, "cache": {Path: "/cache"}},
 		Variables: map[string]Variable{"A": {Value: "1"}, "B": {Value: "2"}},
 		Docker:    &Docker{Labels: map[string]string{"team": "a", "tier": "web"}, CapAdd: []string{"NET_BIND_SERVICE"}},
 	}
@@ -282,7 +282,7 @@ func TestFactorNestedDifferences(t *testing.T) {
 			"t2": {Schedule: new("0 8 * * *"), Command: []string{"echo", "2"}},
 		},
 		Files:     map[string]*Files{"/etc/a": {Mode: new("0600"), Content: new("y\n")}},
-		Volumes:   map[string]string{"data": "/data"},
+		Volumes:   map[string]VolumeDef{"data": {Path: "/data"}},
 		Variables: map[string]Variable{"A": {Value: "1"}},
 		Docker:    &Docker{Labels: map[string]string{"team": "b", "tier": "web"}},
 	}

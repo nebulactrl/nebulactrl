@@ -1656,7 +1656,8 @@ func TestApplyInProductionByAPersonsTokenWorksAndNeedsNoApproval(t *testing.T) {
 
 	pl := f.plan("production", file)
 	require.True(t, pl.Environment.IsProduction)
-	require.Equal(t, configsync.ApprovalRequired, pl.Guard.ProductionApproval, "immediate changes in production")
+	require.Equal(t, configsync.ApprovalNotRequired, pl.Guard.ProductionApproval, "a person's plan asks for no approval")
+	require.True(t, pl.HasImmediateChanges())
 
 	res, err := f.apply(f.token(policy.AllScopes...), "production", file, applyWithPlanID(pl.PlanID))
 	require.NoError(t, err)
@@ -1841,7 +1842,7 @@ command = ["echo", "keep"]
 	f.setVar(web.ID, "UI_VAR", "ui", false)
 	_, err := f.doms.Create(f.admin, web.ID, "ui.example.com", 0, domains.RuleInput{})
 	require.NoError(t, err)
-	_, err = f.svcs.AddVolume(f.admin, web.ID, "ui-vol", "/ui")
+	_, err = f.svcs.AddVolume(f.admin, web.ID, "ui-vol", "/ui", "")
 	require.NoError(t, err)
 	_, err = f.tsk.Service.CreateTask(f.admin, web.ID, tasks.TaskInput{Name: "ui-task", Schedule: "*/15 * * * *", Timezone: "UTC", Command: []string{"echo", "ui"}})
 	require.NoError(t, err)
@@ -3006,4 +3007,78 @@ func TestApplyGitPollCreatesTheServiceAndChecksItAtOnce(t *testing.T) {
 	require.EqualValues(t, 5, p.IntervalMinutes)
 	require.True(t, p.Deploy, "deploy is on by default")
 	require.Equal(t, configsync.StatusNoop, f.mustApply(applyGitPollFile("poll = \"5m\"\n")).Status)
+}
+
+func (f *applyFixture) volumeOwners(id uuid.UUID) map[string]string {
+	f.t.Helper()
+	rows, err := f.q.ListServiceVolumes(context.Background(), id)
+	require.NoError(f.t, err)
+	out := map[string]string{}
+	for _, r := range rows {
+		out[r.Name] = r.Owner
+	}
+	return out
+}
+
+func TestApplyVolumeOwner(t *testing.T) {
+	f := newApplyFixture(t)
+	plain := applyWebFile(8080, "\n[services.web.volumes]\ndist = \"/dist\"\n")
+	withOwner := applyWebFile(8080, "\n[services.web.volumes]\ndist = { path = \"/dist\", owner = \"10001:10001\" }\n")
+
+	// The string form creates a volume without an owner.
+	f.mustApply(plain)
+	web := f.svcRow(f.staging, "web")
+	require.Equal(t, map[string]string{"dist": ""}, f.volumeOwners(web.ID))
+	require.Equal(t, configsync.StatusNoop, f.mustApply(plain).Status)
+
+	// Adding the owner is a staged change of the volume.
+	pl := f.plan("staging", withOwner)
+	require.True(t, pl.Valid, applyJSON(pl.Diagnostics))
+	var vol *configsync.PlanChange
+	for _, c := range applyPlanService(t, pl, "web").Changes {
+		if c.Field == "volumes.dist" {
+			vol = &c
+		}
+	}
+	require.NotNil(t, vol, "the plan shows the owner change: %s", applyJSON(applyPlanService(t, pl, "web").Changes))
+	require.Equal(t, configsync.OpSet, vol.Op)
+	require.Equal(t, configsync.AppliesStaged, vol.Applies)
+	require.Equal(t, "/dist", vol.From)
+	require.Equal(t, "/dist · owner 10001:10001", vol.To)
+	require.Contains(t, pl.Summary.RequiresDeploy, "web")
+
+	before := f.row(web.ID)
+	res := f.mustApply(withOwner, applyWithPlanID(pl.PlanID))
+	require.Equal(t, configsync.StatusStaged, res.Status, applyJSON(res.Steps))
+	require.Equal(t, configsync.StepApplied, applyStepStatus(res, "volumes:web"))
+	require.Equal(t, map[string]string{"dist": "10001:10001"}, f.volumeOwners(web.ID))
+	require.Equal(t, before.Generation+1, f.row(web.ID).Generation, "the volume change is staged for the next deploy")
+	require.Equal(t, configsync.StatusNoop, f.mustApply(withOwner).Status)
+
+	// A fresh export writes the table form and plans to no changes.
+	ex, err := f.cfg.Export(f.admin, f.project.ID, "staging", "", false, false)
+	require.NoError(t, err)
+	require.Contains(t, ex.File, `dist = { path = "/dist", owner = "10001:10001" }`)
+	require.Equal(t, configsync.StatusNoop, f.mustApply(ex.File).Status, "the export plans to no changes")
+
+	// Writing the string form again clears the owner.
+	f.mustApply(plain)
+	require.Equal(t, map[string]string{"dist": ""}, f.volumeOwners(web.ID))
+	ex, err = f.cfg.Export(f.admin, f.project.ID, "staging", "", false, false)
+	require.NoError(t, err)
+	require.Contains(t, ex.File, `dist = "/dist"`, "the string form is exported when there is no owner")
+	require.NotContains(t, ex.File, "owner =")
+	require.Equal(t, configsync.StatusNoop, f.mustApply(ex.File).Status)
+
+	// A new volume with an owner is created with it.
+	f.mustApply(applyWebFile(8080, "\n[services.web.volumes]\ndist = \"/dist\"\ncache = { path = \"/cache\", owner = \"1000\" }\n"))
+	require.Equal(t, map[string]string{"dist": "", "cache": "1000"}, f.volumeOwners(web.ID))
+}
+
+func TestApplyRefusesABadVolumeOwner(t *testing.T) {
+	f := newApplyFixture(t)
+	file := applyWebFile(8080, "\n[services.web.volumes]\ndist = { path = \"/dist\", owner = \"app:app\" }\n")
+	pl := f.plan("staging", file)
+	require.False(t, pl.Valid)
+	require.Contains(t, applyJSON(pl.Diagnostics), "services.web.volumes.dist.owner")
 }

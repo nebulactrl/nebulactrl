@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/nebulactrl/nebulactrl/internal/db"
@@ -99,4 +100,51 @@ func TestDeployMountsTheRestoredDockerVolume(t *testing.T) {
 	pending, err := f.deps.PendingChanges(f.ctx, web.ID)
 	require.NoError(t, err)
 	require.Empty(t, pending)
+}
+
+// A volume owner is a staged change: the pending change shows it, the deploy
+// payload carries it to the agent, and discarding it restores the release's
+// owner.
+func TestVolumeOwnerIsStagedDeployedAndDiscardable(t *testing.T) {
+	f := newRouteFixture(t)
+	bg := context.Background()
+	web := f.web("web")
+	f.withVolume(web)
+
+	_, err := f.svcs.UpdateVolume(f.ctx, mustVolumeID(t, f, web.ID), "10001:10001")
+	require.NoError(t, err)
+	pending, err := f.deps.PendingChanges(f.ctx, web.ID)
+	require.NoError(t, err)
+	require.Len(t, pending, 1)
+	require.Equal(t, services.FieldChange{Field: "volumes.data", From: "/data", To: "/data · owner 10001:10001"}, pending[0])
+
+	// Discarding brings the release's (empty) owner back.
+	_, err = f.deps.DiscardPendingChange(f.ctx, web.ID, "volumes.data")
+	require.NoError(t, err)
+	vols, err := f.q.ListServiceVolumes(bg, web.ID)
+	require.NoError(t, err)
+	require.Len(t, vols, 1)
+	require.Empty(t, vols[0].Owner)
+	pending, err = f.deps.PendingChanges(f.ctx, web.ID)
+	require.NoError(t, err)
+	require.Empty(t, pending)
+
+	// A deploy with an owner sends it to the agent.
+	_, err = f.svcs.UpdateVolume(f.ctx, vols[0].ID, "10001:10001")
+	require.NoError(t, err)
+	v, err := f.deps.Deploy(f.ctx, web.ID, "", "")
+	require.NoError(t, err)
+	require.NoError(t, f.deps.runDeploy(context.Background(), v.ID))
+	cmd := f.lastCommand(agentprotocol.KindDeploy)
+	var p agentprotocol.DeployPayload
+	require.NoError(t, json.Unmarshal(cmd.Payload, &p))
+	require.Equal(t, []agentprotocol.VolumeMount{{Name: agentprotocol.VolumeName(web.ID.String(), "data"), MountPath: "/data", Owner: "10001:10001"}}, p.Volumes)
+}
+
+func mustVolumeID(t *testing.T, f *routeFixture, serviceID uuid.UUID) uuid.UUID {
+	t.Helper()
+	vols, err := f.q.ListServiceVolumes(context.Background(), serviceID)
+	require.NoError(t, err)
+	require.Len(t, vols, 1)
+	return vols[0].ID
 }

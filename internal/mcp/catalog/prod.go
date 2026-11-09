@@ -338,5 +338,6 @@ var prodExempt = map[string]ProdExemption{
 	"updateProject":                   ExemptNoRuntime,
 	"updateRoute":                     ExemptStaged,
 	"updateService":                   ExemptStaged,
+	"updateVolume":                    ExemptStaged,
 	"validateVariable":                ExemptProbe,
 }

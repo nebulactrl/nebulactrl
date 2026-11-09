@@ -266,6 +266,7 @@ export type ApiRouteKey =
 	| `PATCH /tasks/${string}`
 	| `PATCH /teams/${string}`
 	| `PATCH /teams/${string}/members/${string}`
+	| `PATCH /volumes/${string}`
 	| `POST /admin/instance-services/check`
 	| `POST /approvals/${string}/approve`
 	| `POST /approvals/${string}/decline`

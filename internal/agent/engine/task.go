@@ -146,7 +146,7 @@ func (e *Engine) runOneShot(ctx context.Context, r oneShot) oneShotOutcome {
 			spec.Entrypoint, spec.Cmd = r.Argv[:1], r.Argv[1:]
 		} else {
 			spec.Cmd = r.Service.Cmd
-			mounts, err := ensureVolumeMounts(ctx, eng, r.ServiceID, r.Service.Volumes)
+			mounts, err := ensureVolumeMounts(ctx, eng, r.ServiceID, r.Service.Volumes, nil)
 			if err != nil {
 				out.Err = err
 				return out

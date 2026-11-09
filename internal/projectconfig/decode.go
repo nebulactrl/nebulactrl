@@ -52,7 +52,10 @@ func infoOf(t reflect.Type) *structInfo {
 	return si
 }
 
-var variableType = reflect.TypeOf(Variable{})
+var (
+	variableType  = reflect.TypeOf(Variable{})
+	volumeDefType = reflect.TypeOf(VolumeDef{})
+)
 
 func (d *decoder) fail(code string, p []string, msg string) *Diagnostic {
 	d.errs++
@@ -118,6 +121,12 @@ func (d *decoder) into(v reflect.Value, node any, p []string) {
 	if t == variableType {
 		if vr, ok := d.variable(node, p); ok {
 			v.Set(reflect.ValueOf(vr))
+		}
+		return
+	}
+	if t == volumeDefType {
+		if vd, ok := d.volumeDef(node, p); ok {
+			v.Set(reflect.ValueOf(vd))
 		}
 		return
 	}
@@ -270,6 +279,11 @@ func (d *decoder) unknownKey(table []string, key string, kp []string) {
 		g.Hint = "delete the line"
 		return
 	}
+	if key == "funnel" && len(table) > 0 && table[len(table)-1] == "tailnet" {
+		g := d.fail(CodeUnknownKey, kp, `unknown key "funnel": Funnel publishes the service on the public internet and is not a file key`)
+		g.Hint = "delete the line; turn Funnel on or off in the dashboard (Service → Settings → Tailnet → Advanced), where it needs a typed confirmation. A file apply never changes it"
+		return
+	}
 	g := d.fail(CodeUnknownKey, kp, fmt.Sprintf("unknown key %q", key))
 	if sug := Suggest(logical, key); len(sug) > 0 {
 		g.Suggestions = sug
@@ -346,6 +360,51 @@ func (d *decoder) variable(node any, p []string) (Variable, bool) {
 			g.Hint = `variable values are always strings: write "` + fmt.Sprint(node) + `"`
 		}
 		return Variable{}, false
+	}
+}
+
+// volumeDef decodes a volume entry: the mount path as a string, or a table
+// { path, owner }.
+func (d *decoder) volumeDef(node any, p []string) (VolumeDef, bool) {
+	switch n := node.(type) {
+	case string:
+		return VolumeDef{Path: n}, true
+	case map[string]any:
+		var out VolumeDef
+		ok := true
+		for _, k := range d.sortedKeys(n, p) {
+			kp := append(append([]string(nil), p...), k)
+			switch k {
+			case "path", "owner":
+				s, isS := n[k].(string)
+				if !isS {
+					g := d.wrongType(kp, "a string", n[k])
+					if k == "owner" {
+						if _, isI := n[k].(int64); isI {
+							g.Hint = `write the owner as a string: owner = "` + fmt.Sprint(n[k]) + `"`
+						}
+					}
+					ok = false
+					continue
+				}
+				if k == "path" {
+					out.Path = s
+				} else {
+					out.Owner = s
+				}
+			default:
+				d.unknownKey(p, k, kp)
+				ok = false
+			}
+		}
+		if _, has := n["path"]; !has {
+			d.fail(CodeMissingRequired, p, "a volume table needs `path`").Hint = `write name = { path = "/mount/path", owner = "10001:10001" }`
+			ok = false
+		}
+		return out, ok
+	default:
+		d.wrongType(p, "a string or a table", node)
+		return VolumeDef{}, false
 	}
 }
 

@@ -172,7 +172,10 @@ func (t *emitTable) remove(k string) {
 	}
 }
 
-var emitVariableType = reflect.TypeOf(Variable{})
+var (
+	emitVariableType  = reflect.TypeOf(Variable{})
+	emitVolumeDefType = reflect.TypeOf(VolumeDef{})
+)
 
 // toTree converts a model value (a struct or a pointer to one: File, Service,
 // Secrets, ...) into its generic tree. Values of the tree are string, int64,
@@ -213,6 +216,9 @@ func encodeNode(rv reflect.Value) (any, bool) {
 	case reflect.Struct:
 		if rv.Type() == emitVariableType {
 			return encodeVariable(rv.Interface().(Variable)), true
+		}
+		if rv.Type() == emitVolumeDefType {
+			return encodeVolumeDef(rv.Interface().(VolumeDef)), true
 		}
 		t := newEmitTable()
 		rt := rv.Type()
@@ -278,6 +284,19 @@ func encodeNode(rv reflect.Value) (any, bool) {
 		return rv.Float(), true
 	}
 	return nil, false
+}
+
+// encodeVolumeDef writes the mount path as a string, and the inline table
+// `{ path, owner }` only when the volume has an owner.
+func encodeVolumeDef(v VolumeDef) any {
+	if v.Owner == "" {
+		return v.Path
+	}
+	t := newEmitTable()
+	t.inline = true
+	t.set("path", v.Path)
+	t.set("owner", v.Owner)
+	return t
 }
 
 // encodeVariable writes the string form for a plain runtime variable and the

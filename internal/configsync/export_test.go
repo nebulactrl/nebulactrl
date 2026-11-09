@@ -199,10 +199,14 @@ var exExamples = map[string]exampleValue{
 	"config.route.openToInternet":     {value: true},
 	"config.route.proxyProtocol":      {value: 2},
 
-	"config.stack.compose":             {value: "services:\n  web:\n    image: nginx:2\n"},
-	"config.stack.waitSeconds":         {value: 120},
-	"config.stack.resources.web":       {value: projectconfig.StackResourceValue{Component: "web", MemoryMB: 128, CPUs: 0.5}},
-	"config.files":                     {value: []projectconfig.FileMount{{Path: "/etc/app/app.conf", Mode: "0600", Content: "x = 1\n"}}},
+	"config.stack.compose":       {value: "services:\n  web:\n    image: nginx:2\n"},
+	"config.stack.waitSeconds":   {value: 120},
+	"config.stack.resources.web": {value: projectconfig.StackResourceValue{Component: "web", MemoryMB: 128, CPUs: 0.5}},
+	"config.files":               {value: []projectconfig.FileMount{{Path: "/etc/app/app.conf", Mode: "0600", Content: "x = 1\n"}}},
+	"config.tailnet": {value: projectconfig.TailnetValue{
+		Enabled: true, Hostname: "web-admin", ExtraTags: []string{"tag:admin"}, Web: true, HidePublic: true,
+		TCP: []projectconfig.TailnetPortValue{{Listen: 2222, Target: 22}, {Listen: 8443, Target: 8641, TLS: true}},
+	}},
 	"config.docker.capAdd":             {value: []string{"NET_BIND_SERVICE"}},
 	"config.docker.capDrop":            {value: []string{"ALL"}},
 	"config.docker.noNewPrivileges":    {value: true},
@@ -305,7 +309,7 @@ func TestExportCoversEveryConfigField(t *testing.T) {
 		"Healthcheck": true, "StopGraceSeconds": true, "MemoryMB": true, "CPUs": true, "ImageRetention": true, "Files": true,
 		"OneShot": true, "Route": true, "Database": true, "PreDeployCommand": true, "PreDeployTimeoutSeconds": true,
 		"PostDeployCommand": true, "PostDeployTimeoutSeconds": true, "BlockEgress": true, "Docker": true, "Stack": true,
-		"Tailnet":     true, // not representable: listed as such
+		"Tailnet":     true, // exported as [tailnet] without Funnel, which is listed as not representable
 		"ProcessName": true, "Singleton": true, "Processes": true, "RestartPolicy": true, "RestartMaxRetries": true, "Cron": true,
 	}
 	rt := reflect.TypeOf(services.Config{})
@@ -839,7 +843,7 @@ func TestExportNeverWritesCredentials(t *testing.T) {
 }
 
 func TestExportNotRepresentable(t *testing.T) {
-	web := exImageSvc("web", services.Config{Image: "nginx:1", Port: 80, Tailnet: &tailnetcfg.TailnetConfig{Enabled: true, Web: true}})
+	web := exImageSvc("web", services.Config{Image: "nginx:1", Port: 80, Tailnet: &tailnetcfg.TailnetConfig{Enabled: true, Web: true, Funnel: true}})
 	dbs := exSvc("db", services.KindDatabase, services.SourceImage, services.Config{Database: &engines.Spec{Engine: "postgres", Replica: &engines.ReplicaSpec{}}})
 	rt := exSvc("tcp", services.KindRoute, services.SourceExternal, services.Config{Route: &services.RouteConfig{
 		Protocol: "tcp", Upstreams: []services.RouteUpstream{{Address: "10.0.0.1:5432"}}, PublicDatabase: true, OpenToInternet: true,
@@ -847,10 +851,10 @@ func TestExportNotRepresentable(t *testing.T) {
 	}})
 	rt.Row.ServerID = new(exID(1))
 	text, v := exExport(t, exLiveEnv(exTestRefs(), web, dbs, rt), false)
-	require.Equal(t, []string{"tailnet"}, v.NotRepresentable["web"])
+	require.Equal(t, []string{"tailnet.funnel (set it in the dashboard)"}, v.NotRepresentable["web"])
 	require.Equal(t, []string{"database.replica"}, v.NotRepresentable["db"])
 	require.Equal(t, []string{"route.publicDatabase"}, v.NotRepresentable["tcp"])
-	require.Contains(t, text, "# not representable in schema 1: tailnet\n")
+	require.Contains(t, text, "# not representable in schema 1: tailnet.funnel (set it in the dashboard)\n")
 	require.Contains(t, text, "# not representable in schema 1: route.publicDatabase\n")
 	require.Len(t, v.Warnings, 3)
 	for _, d := range v.Warnings {

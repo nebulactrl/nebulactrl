@@ -70,8 +70,12 @@ void main(){
 
 	float hz = 0.0;
 	if (r >= 1.0) {
-		float w = fbm(pu * 1.6 + vec2(uT * 0.02, 0.0));
-		hz = smoothstep(0.42, 0.95, fbm(pu * 2.2 + w * 1.6 - vec2(0.0, uT * 0.015)));
+		/* Static: a drifting haze crosses the dither thresholds cell by cell, and
+		   where it is faint (far from the orb) nearly every cell sits on a
+		   threshold, so the drift reads as dots flashing on and off. The planet's
+		   spin and the stars carry the motion. */
+		float w = fbm(pu * 1.6);
+		hz = smoothstep(0.42, 0.95, fbm(pu * 2.2 + w * 1.6));
 		hz *= mix(0.35, 1.0, 1.0 - smoothstep(0.7, 2.5, r));
 	}
 	float f = hz * 0.55;

@@ -521,19 +521,19 @@ func (x *exporter) variables(lvs map[string]liveVar, skip func(key string) bool,
 
 // exCaps are the sections a service kind takes (the kind matrix).
 type exCaps struct {
-	runtime, tuning, docker, files, vars, domains, backups, networks, processes bool
+	runtime, tuning, docker, tailnet, files, vars, domains, backups, networks, processes bool
 }
 
 func exCapsOf(kind string) exCaps {
 	switch kind {
 	case projectconfig.KindDatabase:
-		return exCaps{tuning: true, docker: true, vars: true, backups: true, networks: true}
+		return exCaps{tuning: true, docker: true, tailnet: true, vars: true, backups: true, networks: true}
 	case projectconfig.KindRoute:
 		return exCaps{domains: true}
 	case projectconfig.KindStack:
 		return exCaps{vars: true, domains: true, networks: true}
 	}
-	return exCaps{runtime: true, tuning: true, docker: true, files: true, vars: true, domains: true, networks: true, processes: true}
+	return exCaps{runtime: true, tuning: true, docker: true, tailnet: true, files: true, vars: true, domains: true, networks: true, processes: true}
 }
 
 // exService builds the definition of one live service.
@@ -603,8 +603,8 @@ func (x *exporter) service(slug string, ls *liveService, serverName, rootServer 
 	case projectconfig.KindStack:
 		s.stack()
 	}
-	if s.cfg.Tailnet != nil {
-		x.notRepresentable(slug, "tailnet")
+	if s.caps.tailnet {
+		s.tailnet()
 	}
 	if s.caps.docker {
 		s.dockerOptions()
@@ -1191,6 +1191,46 @@ func exDocker(o *agentprotocol.DockerOptions, owned func(jsonName string) bool) 
 	return d
 }
 
+// tailnet writes the [tailnet] table of a service that is on a tailnet. Funnel is left out: it
+// publishes the service on the internet and is only set in the dashboard. A service the file
+// switched off keeps its table, as enabled = false, so the file still owns the setting.
+func (s *exService) tailnet() {
+	v := projectconfig.TailnetValueOf(s.cfg.Tailnet)
+	if !v.Enabled {
+		if s.owned("config.tailnet") {
+			s.def.Tailnet = &projectconfig.Tailnet{Enabled: new(false)}
+		}
+		return
+	}
+	if s.cfg.Tailnet.Funnel {
+		s.x.notRepresentable(s.slug, "tailnet.funnel (set it in the dashboard)")
+	}
+	t := &projectconfig.Tailnet{Enabled: new(true)}
+	if v.Hostname != "" {
+		t.Hostname = new(v.Hostname)
+	}
+	if len(v.ExtraTags) > 0 {
+		t.ExtraTags = exStrings(v.ExtraTags)
+	}
+	if v.Web || s.x.defaults {
+		t.Web = new(v.Web)
+	}
+	for _, p := range v.TCP {
+		e := projectconfig.TailnetPort{Listen: new(p.Listen)}
+		if p.Target != p.Listen {
+			e.Target = new(p.Target)
+		}
+		if p.TLS {
+			e.TLS = new(true)
+		}
+		t.TCP = append(t.TCP, e)
+	}
+	if v.HidePublic || s.x.defaults {
+		t.HidePublic = new(v.HidePublic)
+	}
+	s.def.Tailnet = t
+}
+
 func (s *exService) files() {
 	cfg := s.cfg
 	if len(cfg.Files) == 0 && !s.owned("config.files") {
@@ -1219,9 +1259,9 @@ func (s *exService) volumes() {
 	if len(s.ls.Volumes) == 0 {
 		return
 	}
-	m := make(map[string]string, len(s.ls.Volumes))
+	m := make(map[string]projectconfig.VolumeDef, len(s.ls.Volumes))
 	for _, v := range s.ls.Volumes {
-		m[v.Name] = v.MountPath
+		m[v.Name] = projectconfig.VolumeDef{Path: v.MountPath, Owner: v.Owner}
 	}
 	s.def.Volumes = m
 }

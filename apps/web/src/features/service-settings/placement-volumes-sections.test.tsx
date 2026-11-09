@@ -404,6 +404,7 @@ interface VolumeRow {
 	mountPath: string;
 	dockerName: string;
 	restoreLabel?: string;
+	owner?: string;
 }
 
 function volume(over: Partial<VolumeRow> = {}): VolumeRow {
@@ -524,6 +525,43 @@ describe("VolumesSection", () => {
 		expect(list).toHaveTextContent("/var/lib/data");
 		expect(screen.getByLabelText("Volume name")).toHaveValue("");
 		expect(screen.getByLabelText("Mount path")).toHaveValue("");
+		expect(api.unmatched).toEqual([]);
+	});
+
+	test("sends the optional owner and shows it on the volume", async () => {
+		const user = userEvent.setup();
+		let items: VolumeRow[] = [];
+		const api = stubApi({
+			"GET /services/:serviceId/volumes": () => Response.json({ items }),
+			"GET /services/:serviceId/retired-volumes": { body: { items: [] } },
+			"POST /services/:serviceId/volumes": () => {
+				items = [
+					volume({ name: "dist", mountPath: "/dist", owner: "10001:10001" }),
+				];
+				return Response.json(items[0], { status: 201 });
+			},
+		});
+		await renderWithProviders(<VolumesSection service={service} />);
+		await screen.findByText(/No volumes/);
+
+		await user.type(screen.getByLabelText("Volume name"), "dist");
+		await user.type(screen.getByLabelText("Mount path"), "/dist");
+		await user.type(screen.getByLabelText("Owner (uid:gid)"), " 10001:10001 ");
+		await user.click(screen.getByRole("button", { name: "Add" }));
+
+		const post = await waitFor(() => {
+			const found = api.calls.find((c) => c.method === "POST");
+			expect(found).toBeDefined();
+			return found;
+		});
+		expect(post?.body).toEqual({
+			name: "dist",
+			mountPath: "/dist",
+			owner: "10001:10001",
+		});
+		const list = await screen.findByRole("list", { name: "Volumes" });
+		expect(list).toHaveTextContent("owner 10001:10001");
+		expect(screen.getByLabelText("Owner (uid:gid)")).toHaveValue("");
 		expect(api.unmatched).toEqual([]);
 	});
 

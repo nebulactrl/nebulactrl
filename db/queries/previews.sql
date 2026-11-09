@@ -93,8 +93,8 @@ SELECT id, slug FROM services WHERE environment_id = $1 AND deleted_at IS NULL O
 UPDATE services SET slug = $2 WHERE id = $1;
 
 -- name: CloneServiceVolumes :exec
-INSERT INTO volumes (service_id, name, mount_path)
-SELECT sqlc.arg(new_service_id)::uuid, name, mount_path FROM volumes WHERE service_id = sqlc.arg(old_service_id)::uuid
+INSERT INTO volumes (service_id, name, mount_path, owner)
+SELECT sqlc.arg(new_service_id)::uuid, name, mount_path, owner FROM volumes WHERE service_id = sqlc.arg(old_service_id)::uuid
 ON CONFLICT (service_id, name) DO NOTHING;
 
 -- name: ListEnvironmentSharedVariablesRaw :many

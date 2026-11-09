@@ -606,6 +606,74 @@ describe("replacing a token", () => {
 	});
 });
 
+describe("renaming a connection", () => {
+	const gh = connection({ id: "g2", name: "GitHub 2" });
+
+	async function openDialog() {
+		const api = stubApi({
+			...list(gh),
+			"PATCH /git/connections/:id": {
+				body: connection({ id: "g2", name: "Open Heroes" }),
+			},
+		});
+		await renderWithProviders(<GitConnectionsSection />);
+		await screen.findByRole("article", { name: "GitHub 2" });
+		const user = userEvent.setup();
+		await user.click(
+			within(card("GitHub 2")).getByRole("button", { name: "Rename" }),
+		);
+		const dialog = await screen.findByRole("dialog", {
+			name: /Rename GitHub 2/,
+		});
+		return { api, user, dialog };
+	}
+
+	test("starts from the current name and PATCHes the trimmed new one", async () => {
+		const { api, user, dialog } = await openDialog();
+		const input = within(dialog).getByLabelText("Name");
+		const submit = within(dialog).getByRole("button", { name: "Rename" });
+		expect(input).toHaveValue("GitHub 2");
+		expect(submit).toBeDisabled();
+		await user.clear(input);
+		expect(submit).toBeDisabled();
+		await user.type(input, "  Open Heroes ");
+		await user.click(submit);
+		expect(
+			await screen.findByText("Renamed to Open Heroes"),
+		).toBeInTheDocument();
+		const patch = api.calls.find((c) => c.method === "PATCH");
+		expect(patch?.path).toBe("/git/connections/g2");
+		expect(patch?.body).toEqual({ name: "Open Heroes" });
+		await waitFor(() =>
+			expect(
+				screen.queryByRole("dialog", { name: /Rename/ }),
+			).not.toBeInTheDocument(),
+		);
+	});
+
+	test("a rejected name is shown in the dialog, which stays open", async () => {
+		stubApi({
+			...list(gh),
+			"PATCH /git/connections/:id": problem(422, {
+				title: "x",
+				detail: "name must be 1-80 characters",
+			}),
+		});
+		await renderWithProviders(<GitConnectionsSection />);
+		await screen.findByRole("article", { name: "GitHub 2" });
+		const user = userEvent.setup();
+		await user.click(
+			within(card("GitHub 2")).getByRole("button", { name: "Rename" }),
+		);
+		const dialog = await screen.findByRole("dialog", { name: /Rename/ });
+		await user.type(within(dialog).getByLabelText("Name"), "x");
+		await user.click(within(dialog).getByRole("button", { name: "Rename" }));
+		expect(
+			await within(dialog).findByText("name must be 1-80 characters"),
+		).toBeInTheDocument();
+	});
+});
+
 describe("Bitbucket webhook setup", () => {
 	const bb = connection({
 		id: "b1",

@@ -787,6 +787,7 @@ export interface ApiSchemas {
 	"UpdateServicesInputBody": T.UpdateServicesInputBody;
 	"UpdateSettingsInputBody": T.UpdateSettingsInputBody;
 	"UpdateView": T.UpdateView;
+	"UpdateVolumeInputBody": T.UpdateVolumeInputBody;
 	"UpdateWildcardInputBody": T.UpdateWildcardInputBody;
 	"UpdatingView": T.UpdatingView;
 	"UpgradeInputBody": T.UpgradeInputBody;

@@ -13,8 +13,10 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
+	"github.com/nebulactrl/nebulactrl/internal/auth"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard"
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 )
@@ -82,6 +84,9 @@ type planned struct {
 	needsRole  bool // a shared project-layer write needs owner or admin
 	privileged bool
 	hasWork    bool
+	// guarded: the caller must get a person's approval for production changes
+	// (prodguard.Guarded), so the plan's Guard can say "required".
+	guarded bool
 }
 
 // diag appends a diagnostic.
@@ -283,6 +288,9 @@ func (s *Service) plan(ctx context.Context, q *db.Queries, projectID uuid.UUID, 
 		return nil, err
 	}
 	p := &planned{env: env, project: proj, req: r, src: r.Input.Source, scopes: scopeSet{}, bytes: len(r.Input.File), fileSHA: sha256Hex([]byte(r.Input.File))}
+	if pr, ok := auth.PrincipalFrom(ctx); ok {
+		p.guarded = prodguard.Guarded(pr)
+	}
 	if p.src.Kind == "" {
 		p.src.Kind = SourceInline
 	}

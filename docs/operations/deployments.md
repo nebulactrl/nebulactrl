@@ -92,6 +92,25 @@ Changing configuration, variables, domains or volumes does **not** redeploy. It 
 
 Secret variable values are never returned by any read endpoint, appear in logs only as `••••••`, and travel to the agent inside the command frame at send time, never in stored payloads.
 
+## Volumes and their owner
+
+A service volume is a named Docker volume mounted at a path in the container (**Settings → Volumes**, `POST /services/{id}/volumes`, `[services.<slug>.volumes]` in nebula.toml). Adding or removing one is staged like any setting. Detaching a volume never deletes its data.
+
+**Owner.** Docker creates a new volume's root directory as `root:root` with mode 0755. When the mount path exists in the image, Docker copies that directory's owner and mode into the new, empty volume, so an app that runs as a non-root user can write to it. When the path does **not** exist in the image, nothing is copied and a non-root process gets "permission denied". That is what the optional **owner** is for: `uid` or `uid:gid`, numbers only (0-2147483647). Names such as `app:app` are refused with `422 invalid_config`, because the agent sets the owner in a helper container that does not know the image's `/etc/passwd`.
+
+```toml
+[services.web.volumes]
+uploads = "/app/uploads"                               # no owner: as Docker creates it
+dist    = { path = "/dist", owner = "10001:10001" }    # the image runs as uid 10001 and has no /dist
+```
+
+- With `uid:gid` the owner and the group of the volume root are set. With `uid` alone only the owner is set and the group is left as it is.
+- Before it creates the container, the agent reads the owner of the volume root and, when it differs from the wanted one, runs `chown` on **the root directory only**. It is never recursive: files already in the volume keep their owners. A volume that already has the right owner is left alone, so the owner is applied on creation and again whenever you change it.
+- The check and the `chown` run in a short-lived helper container with no network, a read-only root filesystem and `CAP_CHOWN` as its only capability. It uses the same pinned image as [volume backups](backups.md#what-runs-on-the-server) (pulled on first use) and is removed right after.
+- If the owner cannot be set, the deployment fails before the app container starts, and the message names the volume, its mount path and the owner.
+- Changing the owner is a staged change (`volumes.<name>`: `/dist` becomes `/dist · owner 10001:10001`); *Discard* restores the release's owner. In the API, `PATCH /volumes/{volumeId}` with `{"owner": "…"}` changes it and an empty string clears it. In the web app the owner can be set when the volume is added.
+- When the path **does** exist in the image you normally do not need an owner. If you set one anyway, Docker's copy of the image's ownership into a brand-new volume happens at the first start and can replace it; the next deploy then sets your owner again.
+
 ## Rollback
 
 *Roll back to this release* (deployment row, API `POST /deployments/{id}/rollback`, CLI `nebulactrl deployments rollback`) creates a **new deployment** from the old release's source and configuration snapshot. It is deployed with the normal strategy and checks.

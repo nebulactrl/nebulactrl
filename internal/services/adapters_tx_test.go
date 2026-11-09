@@ -323,7 +323,7 @@ func TestAddVolumeTxAndDeleteVolumeTx(t *testing.T) {
 
 	// Rolled back: nothing remains.
 	require.NoError(t, f.inTx(false, func(tx pgx.Tx) error {
-		v, err := f.svcs.AddVolumeTx(f.ctx, tx, f.scope(tx, svc.ID), "uploads", "/app/uploads")
+		v, err := f.svcs.AddVolumeTx(f.ctx, tx, f.scope(tx, svc.ID), "uploads", "/app/uploads", "")
 		require.NoError(t, err)
 		require.Equal(t, "uploads", v.Name)
 		return nil
@@ -336,7 +336,7 @@ func TestAddVolumeTxAndDeleteVolumeTx(t *testing.T) {
 	var view services.VolumeView
 	require.NoError(t, f.inTx(true, func(tx pgx.Tx) error {
 		var err error
-		view, err = f.svcs.AddVolumeTx(f.ctx, tx, f.scope(tx, svc.ID), " uploads ", "/app/uploads/")
+		view, err = f.svcs.AddVolumeTx(f.ctx, tx, f.scope(tx, svc.ID), " uploads ", "/app/uploads/", "")
 		return err
 	}))
 	require.Equal(t, "uploads", view.Name)
@@ -346,7 +346,7 @@ func TestAddVolumeTxAndDeleteVolumeTx(t *testing.T) {
 	require.Equal(t, 1, f.audits("volume.create", view.ID.String()))
 
 	// Same validation as AddVolume.
-	direct, err := f.svcs.AddVolume(f.ctx, svc.ID, "cache", "/app/cache")
+	direct, err := f.svcs.AddVolume(f.ctx, svc.ID, "cache", "/app/cache", "")
 	require.NoError(t, err)
 	require.Equal(t, "/app/cache", direct.MountPath)
 	for _, c := range []struct{ name, mount, code string }{
@@ -357,10 +357,10 @@ func TestAddVolumeTxAndDeleteVolumeTx(t *testing.T) {
 		{"fine", "/", "invalid_mount_path"},
 		{"fine", "/a:b", "invalid_mount_path"},
 	} {
-		_, wantErr := f.svcs.AddVolume(f.ctx, svc.ID, c.name, c.mount)
+		_, wantErr := f.svcs.AddVolume(f.ctx, svc.ID, c.name, c.mount, "")
 		requireCode(t, wantErr, c.code)
 		err := f.inTx(false, func(tx pgx.Tx) error {
-			_, err := f.svcs.AddVolumeTx(f.ctx, tx, f.scope(tx, svc.ID), c.name, c.mount)
+			_, err := f.svcs.AddVolumeTx(f.ctx, tx, f.scope(tx, svc.ID), c.name, c.mount, "")
 			return err
 		})
 		requireCode(t, err, c.code)
@@ -371,7 +371,7 @@ func TestAddVolumeTxAndDeleteVolumeTx(t *testing.T) {
 	_, err = f.pool.Exec(context.Background(), "UPDATE services SET kind = 'route', source_type = 'external' WHERE id = $1", route.ID)
 	require.NoError(t, err)
 	err = f.inTx(false, func(tx pgx.Tx) error {
-		_, err := f.svcs.AddVolumeTx(f.ctx, tx, f.scope(tx, route.ID), "data", "/data")
+		_, err := f.svcs.AddVolumeTx(f.ctx, tx, f.scope(tx, route.ID), "data", "/data", "")
 		return err
 	})
 	requireCode(t, err, "not_applicable")

@@ -143,6 +143,96 @@ function ReplaceTokenDialog({
 	);
 }
 
+/** The longest connection name the API takes (updateGitConnection `name`). */
+const NAME_MAX = 80;
+
+function RenameDialog({
+	connection,
+	onClose,
+}: {
+	connection: ConnectionView | null;
+	onClose(): void;
+}) {
+	const queryClient = useQueryClient();
+	const [name, setName] = useState("");
+	const [error, setError] = useState<string | null>(null);
+	useEffect(() => {
+		if (connection) {
+			setName(connection.name);
+			setError(null);
+		}
+	}, [connection]);
+	const trimmed = name.trim();
+	const unchanged = trimmed === connection?.name;
+	const save = useMutation({
+		mutationFn: async () => {
+			if (!connection) return;
+			await updateGitConnection({
+				path: { connectionId: connection.id },
+				body: { name: trimmed },
+			});
+		},
+		onSuccess: async () => {
+			toast.success(`Renamed to ${trimmed}`);
+			await invalidateGit(queryClient);
+			onClose();
+		},
+		onError: (e) => setError(errorMessage(e)),
+	});
+	const submit = (event: FormEvent) => {
+		event.preventDefault();
+		if (trimmed === "" || unchanged || save.isPending) return;
+		setError(null);
+		save.mutate();
+	};
+	return (
+		<Dialog
+			open={connection !== null}
+			onOpenChange={(open) => !open && onClose()}
+		>
+			<DialogContent size="sm">
+				<form onSubmit={submit} className="contents">
+					<DialogHeader>
+						<DialogTitle>Rename {connection?.name}</DialogTitle>
+						<DialogDescription>
+							The name is how this connection shows up when you pick a
+							repository. Services keep deploying from it.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogBody>
+						<Field>
+							<FieldLabel htmlFor="rename-connection">Name</FieldLabel>
+							<Input
+								id="rename-connection"
+								autoComplete="off"
+								autoFocus
+								maxLength={NAME_MAX}
+								value={name}
+								onChange={(e) => setName(e.target.value)}
+								onFocus={(e) => e.currentTarget.select()}
+							/>
+							<FieldError>{error ?? undefined}</FieldError>
+						</Field>
+					</DialogBody>
+					<DialogFooter>
+						<Button type="button" variant="secondary" onClick={onClose}>
+							Cancel
+						</Button>
+						<Button
+							type="submit"
+							variant="primary"
+							disabled={trimmed === "" || unchanged || save.isPending}
+						>
+							{save.isPending ? <Spinner /> : null}
+							Rename
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 function WebhookDialog({
 	connection,
 	onClose,
@@ -212,6 +302,7 @@ export function GitConnectionsSection() {
 	const [logOf, setLogOf] = useState<ConnectionView | null>(null);
 	const [hookOf, setHookOf] = useState<ConnectionView | null>(null);
 	const [tokenOf, setTokenOf] = useState<ConnectionView | null>(null);
+	const [renameOf, setRenameOf] = useState<ConnectionView | null>(null);
 	const [testingId, setTestingId] = useState<string | null>(null);
 
 	useFlowResult(() => void invalidateGit(queryClient));
@@ -352,6 +443,7 @@ export function GitConnectionsSection() {
 								onRefresh={() => refresh.mutate(c)}
 								onWebhook={() => setHookOf(c)}
 								onToken={() => setTokenOf(c)}
+								onRename={() => setRenameOf(c)}
 								onRemove={() =>
 									void confirm({
 										title: `Remove ${c.name}?`,
@@ -379,6 +471,7 @@ export function GitConnectionsSection() {
 				connection={tokenOf}
 				onClose={() => setTokenOf(null)}
 			/>
+			<RenameDialog connection={renameOf} onClose={() => setRenameOf(null)} />
 		</div>
 	);
 }

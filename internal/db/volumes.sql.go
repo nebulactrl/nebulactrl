@@ -33,7 +33,7 @@ func (q *Queries) DeleteVolume(ctx context.Context, id uuid.UUID) (int64, error)
 }
 
 const getVolumeByID = `-- name: GetVolumeByID :one
-SELECT id, service_id, name, mount_path, created_at, docker_name, restore_label FROM volumes WHERE id = $1
+SELECT id, service_id, name, mount_path, created_at, docker_name, restore_label, owner FROM volumes WHERE id = $1
 `
 
 func (q *Queries) GetVolumeByID(ctx context.Context, id uuid.UUID) (Volume, error) {
@@ -47,22 +47,29 @@ func (q *Queries) GetVolumeByID(ctx context.Context, id uuid.UUID) (Volume, erro
 		&i.CreatedAt,
 		&i.DockerName,
 		&i.RestoreLabel,
+		&i.Owner,
 	)
 	return i, err
 }
 
 const insertVolume = `-- name: InsertVolume :one
-INSERT INTO volumes (service_id, name, mount_path) VALUES ($1, $2, $3) RETURNING id, service_id, name, mount_path, created_at, docker_name, restore_label
+INSERT INTO volumes (service_id, name, mount_path, owner) VALUES ($1, $2, $3, $4) RETURNING id, service_id, name, mount_path, created_at, docker_name, restore_label, owner
 `
 
 type InsertVolumeParams struct {
 	ServiceID uuid.UUID `json:"serviceId"`
 	Name      string    `json:"name"`
 	MountPath string    `json:"mountPath"`
+	Owner     string    `json:"owner"`
 }
 
 func (q *Queries) InsertVolume(ctx context.Context, arg InsertVolumeParams) (Volume, error) {
-	row := q.db.QueryRow(ctx, insertVolume, arg.ServiceID, arg.Name, arg.MountPath)
+	row := q.db.QueryRow(ctx, insertVolume,
+		arg.ServiceID,
+		arg.Name,
+		arg.MountPath,
+		arg.Owner,
+	)
 	var i Volume
 	err := row.Scan(
 		&i.ID,
@@ -72,12 +79,13 @@ func (q *Queries) InsertVolume(ctx context.Context, arg InsertVolumeParams) (Vol
 		&i.CreatedAt,
 		&i.DockerName,
 		&i.RestoreLabel,
+		&i.Owner,
 	)
 	return i, err
 }
 
 const listServiceVolumes = `-- name: ListServiceVolumes :many
-SELECT id, service_id, name, mount_path, created_at, docker_name, restore_label FROM volumes WHERE service_id = $1 ORDER BY created_at, id
+SELECT id, service_id, name, mount_path, created_at, docker_name, restore_label, owner FROM volumes WHERE service_id = $1 ORDER BY created_at, id
 `
 
 func (q *Queries) ListServiceVolumes(ctx context.Context, serviceID uuid.UUID) ([]Volume, error) {
@@ -97,6 +105,7 @@ func (q *Queries) ListServiceVolumes(ctx context.Context, serviceID uuid.UUID) (
 			&i.CreatedAt,
 			&i.DockerName,
 			&i.RestoreLabel,
+			&i.Owner,
 		); err != nil {
 			return nil, err
 		}
@@ -106,6 +115,22 @@ func (q *Queries) ListServiceVolumes(ctx context.Context, serviceID uuid.UUID) (
 		return nil, err
 	}
 	return items, nil
+}
+
+const setServiceVolumeOwner = `-- name: SetServiceVolumeOwner :exec
+UPDATE volumes SET owner = $3 WHERE service_id = $1 AND name = $2
+`
+
+type SetServiceVolumeOwnerParams struct {
+	ServiceID uuid.UUID `json:"serviceId"`
+	Name      string    `json:"name"`
+	Owner     string    `json:"owner"`
+}
+
+// Sets who owns the volume root ("", "uid" or "uid:gid").
+func (q *Queries) SetServiceVolumeOwner(ctx context.Context, arg SetServiceVolumeOwnerParams) error {
+	_, err := q.db.Exec(ctx, setServiceVolumeOwner, arg.ServiceID, arg.Name, arg.Owner)
+	return err
 }
 
 const setVolumeDockerName = `-- name: SetVolumeDockerName :exec

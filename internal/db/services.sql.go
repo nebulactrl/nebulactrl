@@ -774,7 +774,7 @@ func (q *Queries) ListServiceSlugsLike(ctx context.Context, arg ListServiceSlugs
 }
 
 const listVolumesForServices = `-- name: ListVolumesForServices :many
-SELECT id, service_id, name, mount_path, created_at, docker_name, restore_label FROM volumes WHERE service_id = ANY($1::uuid[]) ORDER BY created_at, id
+SELECT id, service_id, name, mount_path, created_at, docker_name, restore_label, owner FROM volumes WHERE service_id = ANY($1::uuid[]) ORDER BY created_at, id
 `
 
 func (q *Queries) ListVolumesForServices(ctx context.Context, serviceIds []uuid.UUID) ([]Volume, error) {
@@ -794,6 +794,7 @@ func (q *Queries) ListVolumesForServices(ctx context.Context, serviceIds []uuid.
 			&i.CreatedAt,
 			&i.DockerName,
 			&i.RestoreLabel,
+			&i.Owner,
 		); err != nil {
 			return nil, err
 		}

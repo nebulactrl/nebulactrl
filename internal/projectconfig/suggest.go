@@ -283,6 +283,8 @@ var keyAliases = map[string]keyAlias{
 	"readonly":   {"docker.read_only_rootfs", aliasService},
 	"shmsize":    {"docker.shm_size_mb", aliasService},
 
+	"tailscale": {"tailnet", aliasService},
+
 	"version":       {"schema", aliasRoot},
 	"schemaversion": {"schema", aliasRoot},
 }

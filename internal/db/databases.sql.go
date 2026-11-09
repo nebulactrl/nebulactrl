@@ -218,7 +218,7 @@ func (q *Queries) GetPendingDatabaseUpgrade(ctx context.Context, serviceID uuid.
 }
 
 const getServiceVolumeByName = `-- name: GetServiceVolumeByName :one
-SELECT id, service_id, name, mount_path, created_at, docker_name, restore_label FROM volumes WHERE service_id = $1 AND name = $2
+SELECT id, service_id, name, mount_path, created_at, docker_name, restore_label, owner FROM volumes WHERE service_id = $1 AND name = $2
 `
 
 type GetServiceVolumeByNameParams struct {
@@ -237,6 +237,7 @@ func (q *Queries) GetServiceVolumeByName(ctx context.Context, arg GetServiceVolu
 		&i.CreatedAt,
 		&i.DockerName,
 		&i.RestoreLabel,
+		&i.Owner,
 	)
 	return i, err
 }

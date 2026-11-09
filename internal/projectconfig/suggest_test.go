@@ -78,7 +78,7 @@ func TestValidKeys(t *testing.T) {
 		{"variables table is keyed by name", []string{"variables"}, nil},
 		{"domains table is keyed by host", []string{"services", "web", "domains"}, nil},
 		{"ulimits table is keyed by name", []string{"services", "web", "docker", "ulimits"}, nil},
-		{"string map entry", []string{"services", "web", "volumes", "data"}, nil},
+		{"volume entry is a path or a table", []string{"services", "web", "volumes", "data"}, []string{"owner", "path"}},
 		{"string map entry under docker", []string{"services", "web", "docker", "labels", "team"}, nil},
 		{"array of strings", []string{"services", "web", "docker", "dns"}, nil},
 		{"scalar field", []string{"services", "web", "image"}, nil},

@@ -2065,6 +2065,7 @@ type Volume struct {
 	CreatedAt    time.Time `json:"createdAt"`
 	DockerName   string    `json:"dockerName"`
 	RestoreLabel string    `json:"restoreLabel"`
+	Owner        string    `json:"owner"`
 }
 
 type VolumeBackup struct {

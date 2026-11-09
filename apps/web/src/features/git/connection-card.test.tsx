@@ -17,6 +17,7 @@ function setup(
 		onRefresh: mock(),
 		onWebhook: mock(),
 		onToken: mock(),
+		onRename: mock(),
 		onRemove: mock(),
 		onFinishGitHub: mock(),
 	};
@@ -93,6 +94,7 @@ describe("ConnectionCard actions", () => {
 			"Test",
 			"Deliveries",
 			"Add repositories",
+			"Rename",
 			"Remove",
 		]);
 	});
@@ -113,6 +115,7 @@ describe("ConnectionCard actions", () => {
 				"Install the App",
 				"I installed it",
 				"Deliveries",
+				"Rename",
 				"Remove",
 			]);
 			const user = userEvent.setup();
@@ -141,7 +144,7 @@ describe("ConnectionCard actions", () => {
 				installationId: 0,
 			},
 		});
-		expect(names()).toEqual(["Finish setup", "Deliveries", "Remove"]);
+		expect(names()).toEqual(["Finish setup", "Deliveries", "Rename", "Remove"]);
 		expect(
 			screen.queryByRole("button", { name: "Install the App" }),
 		).not.toBeInTheDocument();
@@ -171,7 +174,13 @@ describe("ConnectionCard actions", () => {
 
 	test("unfinished OAuth connection offers Authorize; Reauthorize once active", async () => {
 		const h = setup({ authType: "oauth", provider: "gitlab", status: "error" });
-		expect(names()).toEqual(["Authorize", "Test", "Deliveries", "Remove"]);
+		expect(names()).toEqual([
+			"Authorize",
+			"Test",
+			"Deliveries",
+			"Rename",
+			"Remove",
+		]);
 		await userEvent
 			.setup()
 			.click(screen.getByRole("button", { name: "Authorize" }));
@@ -184,7 +193,13 @@ describe("ConnectionCard actions", () => {
 			provider: "gitlab",
 			status: "active",
 		});
-		expect(names()).toEqual(["Test", "Deliveries", "Reauthorize", "Remove"]);
+		expect(names()).toEqual([
+			"Test",
+			"Deliveries",
+			"Reauthorize",
+			"Rename",
+			"Remove",
+		]);
 		await userEvent
 			.setup()
 			.click(screen.getByRole("button", { name: "Reauthorize" }));
@@ -193,7 +208,13 @@ describe("ConnectionCard actions", () => {
 
 	test("token connection can replace its token", async () => {
 		const h = setup({ authType: "token", provider: "gitea" });
-		expect(names()).toEqual(["Test", "Deliveries", "Replace token", "Remove"]);
+		expect(names()).toEqual([
+			"Test",
+			"Deliveries",
+			"Replace token",
+			"Rename",
+			"Remove",
+		]);
 		await userEvent
 			.setup()
 			.click(screen.getByRole("button", { name: "Replace token" }));
@@ -211,6 +232,7 @@ describe("ConnectionCard actions", () => {
 			"Deliveries",
 			"Webhook setup",
 			"Replace token",
+			"Rename",
 			"Remove",
 		]);
 		await userEvent

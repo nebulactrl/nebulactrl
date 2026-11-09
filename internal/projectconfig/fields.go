@@ -166,6 +166,7 @@ func buildCatalog() []FieldSpec {
 	for _, df := range dockerFields {
 		add(fs("config.docker."+df.json, "docker."+df.key, "Docker."+strings.ToUpper(df.json[:1])+df.json[1:], AppliesStaged, df.typ, append(append([]string(nil), rtKinds...), KindDatabase)))
 	}
+	add(fs("config.tailnet", "tailnet", "Tailnet", AppliesStaged, "TailnetValue", append(append([]string(nil), rtKinds...), KindDatabase)))
 
 	v := fs("variables.*", "variables.*", "variables.VariableInput", AppliesStaged, "Variable", nil)
 	v.Collection = true
@@ -439,6 +440,7 @@ func (c *svcCtx) assembleFields() {
 	c.assembleBuild()
 	c.assembleSource()
 	c.assembleDocker()
+	c.assembleTailnet()
 	c.assembleCollections()
 }
 
@@ -689,6 +691,13 @@ func (c *svcCtx) assembleDocker() {
 	}
 }
 
+// assembleTailnet adds config.tailnet: the whole [tailnet] table is one field.
+func (c *svcCtx) assembleTailnet() {
+	if t := c.def.Tailnet; t != nil {
+		c.addField("config.tailnet", rp("tailnet"), tailnetValue(t), AppliesStaged)
+	}
+}
+
 func normTimezone(tz *string) string {
 	if tz == nil {
 		return "UTC"
@@ -750,7 +759,7 @@ func (c *svcCtx) assembleCollections() {
 		}
 	}
 	for _, name := range sortedKeys(d.Volumes) {
-		c.addField("volumes."+name, rp("volumes", name), Volume{Name: name, MountPath: d.Volumes[name]}, st)
+		c.addField("volumes."+name, rp("volumes", name), Volume{Name: name, MountPath: d.Volumes[name].Path, Owner: d.Volumes[name].Owner}, st)
 	}
 	if s := d.Scale; s != nil {
 		if s.Replicas != nil {

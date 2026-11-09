@@ -671,7 +671,7 @@ func (d *deploy) createAndStartAll(ctx context.Context, env []string, resumed []
 	if err := d.ensureNetworks(ctx); err != nil {
 		return "", err
 	}
-	mounts, err := ensureVolumeMounts(ctx, eng, p.ServiceID, p.Volumes)
+	mounts, err := ensureVolumeMounts(ctx, eng, p.ServiceID, p.Volumes, func(line string) { d.logf("%s", line) })
 	if err != nil {
 		d.event(agentprotocol.StepCreate, agentprotocol.StepFailed, err.Error())
 		return "", err
@@ -729,15 +729,20 @@ func (d *deploy) createAndStartAll(ctx context.Context, env []string, resumed []
 	return "", nil
 }
 
-// ensureVolumeMounts creates (when missing) the service's named volumes and
-// returns their container mounts.
-func ensureVolumeMounts(ctx context.Context, eng docker.Engine, serviceID string, volumes []agentprotocol.VolumeMount) ([]docker.VolumeMount, error) {
+// ensureVolumeMounts creates (when missing) the service's named volumes, sets
+// the owner of the root of those that have one (ensureVolumeOwner) and returns
+// their container mounts. A volume that cannot be prepared fails the call with
+// an error naming it. logf (may be nil) receives one line per owner change.
+func ensureVolumeMounts(ctx context.Context, eng docker.Engine, serviceID string, volumes []agentprotocol.VolumeMount, logf func(string)) ([]docker.VolumeMount, error) {
 	mounts := make([]docker.VolumeMount, 0, len(volumes))
 	for _, v := range volumes {
 		if err := eng.EnsureVolume(ctx, v.Name, map[string]string{
 			agentprotocol.LabelManaged: "true", agentprotocol.LabelService: serviceID,
 		}); err != nil {
 			return nil, fmt.Errorf("ensure volume %s: %w", v.Name, err)
+		}
+		if err := ensureVolumeOwner(ctx, eng, v, logf); err != nil {
+			return nil, fmt.Errorf("set the owner of volume %s (mounted at %s) to %s: %w", v.Name, v.MountPath, v.Owner, err)
 		}
 		mounts = append(mounts, docker.VolumeMount{Volume: v.Name, Target: v.MountPath})
 	}
