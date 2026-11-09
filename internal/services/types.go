@@ -88,6 +88,8 @@ type SnapshotVolume struct {
 	MountPath    string `json:"mountPath"`
 	DockerName   string `json:"dockerName,omitempty"`
 	RestoreLabel string `json:"restoreLabel,omitempty"`
+	// Owner is the owner of the volume root the release asked for ("" = none).
+	Owner string `json:"owner,omitempty"`
 }
 
 // EffectiveDockerName is the Docker volume the release mounted for this volume.

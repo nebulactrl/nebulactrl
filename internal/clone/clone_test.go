@@ -131,7 +131,7 @@ func newFixture(t *testing.T) *fixture {
 	require.NoError(t, err)
 	f.setVar(f.web.ID, "API_URL", "http://${{api.NEBULA_PRIVATE_HOST}}:${{api.PORT}}", false)
 
-	_, err = q.InsertVolume(bg, db.InsertVolumeParams{ServiceID: f.api.ID, Name: "uploads", MountPath: "/uploads"})
+	_, err = q.InsertVolume(bg, db.InsertVolumeParams{ServiceID: f.api.ID, Name: "uploads", MountPath: "/uploads", Owner: "10001:10001"})
 	require.NoError(t, err)
 	_, err = q.InsertLink(bg, db.InsertLinkParams{EnvironmentID: prod.ID, FromServiceID: f.api.ID, ToServiceID: f.postgres.ID})
 	require.NoError(t, err)
@@ -289,6 +289,7 @@ func TestCloneServiceSameEnvironment(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, vols, 1)
 	require.Equal(t, "/uploads", vols[0].MountPath)
+	require.Equal(t, "10001:10001", vols[0].Owner, "the volume owner is part of the definition that is copied")
 	srcVols, err := f.q.ListServiceVolumes(context.Background(), f.api.ID)
 	require.NoError(t, err)
 	require.NotEqual(t, services.DockerVolumeName(srcVols[0]), services.DockerVolumeName(vols[0]))

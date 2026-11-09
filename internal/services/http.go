@@ -213,6 +213,14 @@ type createVolumeInput struct {
 	Body struct {
 		Name      string `json:"name" minLength:"1" maxLength:"63"`
 		MountPath string `json:"mountPath" minLength:"2" maxLength:"512"`
+		Owner     string `json:"owner,omitempty" maxLength:"21" doc:"Numeric owner of the volume's root directory: \"uid\" or \"uid:gid\" (0-2147483647). Set it when the image runs as a non-root user and mounts the volume at a path the image does not contain: Docker creates such a volume root as root:root, so the app could not write to it. The agent chowns the root only, never recursively. Empty leaves it as Docker created it." example:"10001:10001"`
+	}
+}
+
+type updateVolumeInput struct {
+	ID   uuid.UUID `path:"volumeId"`
+	Body struct {
+		Owner string `json:"owner" maxLength:"21" doc:"Numeric owner of the volume's root directory, \"uid\" or \"uid:gid\" (0-2147483647). Empty clears it." example:"10001:10001"`
 	}
 }
 
@@ -444,7 +452,19 @@ func Register(h huma.API, svc *Service) {
 		Summary: "Attach a named volume (staged until deployed)", DefaultStatus: http.StatusCreated,
 		Errors: errs(nf, http.StatusConflict, uc),
 	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *createVolumeInput) (*volumeOutput, error) {
-		v, err := svc.AddVolume(ctx, in.ID, in.Body.Name, in.Body.MountPath)
+		v, err := svc.AddVolume(ctx, in.ID, in.Body.Name, in.Body.MountPath, in.Body.Owner)
+		if err != nil {
+			return nil, err
+		}
+		return &volumeOutput{Body: v}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "updateVolume", Method: http.MethodPatch, Path: "/volumes/{volumeId}", Tags: []string{"volumes"},
+		Summary: "Change the owner of a volume's root directory (staged until deployed)",
+		Errors:  errs(nf, uc),
+	}, policy.ScopeProjectsWrite), func(ctx context.Context, in *updateVolumeInput) (*volumeOutput, error) {
+		v, err := svc.UpdateVolume(ctx, in.ID, in.Body.Owner)
 		if err != nil {
 			return nil, err
 		}

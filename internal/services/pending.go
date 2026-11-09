@@ -291,10 +291,10 @@ func DiffRelease(ctx context.Context, q *db.Queries, box *secretbox.Box, rel db.
 		curVol[v.Name] = true
 		old, ok := oldVol[v.Name]
 		if !ok {
-			out = append(out, FieldChange{Field: "volumes." + v.Name, From: "", To: v.MountPath})
+			out = append(out, FieldChange{Field: "volumes." + v.Name, From: "", To: VolumeSummary(v.MountPath, v.Owner)})
 			continue
 		}
-		to := v.MountPath
+		to := VolumeSummary(v.MountPath, v.Owner)
 		swapped := old.EffectiveDockerName(v.ServiceID) != DockerVolumeName(v)
 		if swapped {
 			label := v.RestoreLabel
@@ -303,13 +303,13 @@ func DiffRelease(ctx context.Context, q *db.Queries, box *secretbox.Box, rel db.
 			}
 			to += " · " + label
 		}
-		if old.MountPath != v.MountPath || swapped {
-			out = append(out, FieldChange{Field: "volumes." + v.Name, From: old.MountPath, To: to})
+		if old.MountPath != v.MountPath || old.Owner != v.Owner || swapped {
+			out = append(out, FieldChange{Field: "volumes." + v.Name, From: VolumeSummary(old.MountPath, old.Owner), To: to})
 		}
 	}
 	for _, v := range snap.Volumes {
 		if !curVol[v.Name] {
-			out = append(out, FieldChange{Field: "volumes." + v.Name, From: v.MountPath, To: ""})
+			out = append(out, FieldChange{Field: "volumes." + v.Name, From: VolumeSummary(v.MountPath, v.Owner), To: ""})
 		}
 	}
 	oldNets := map[uuid.UUID]SnapshotNetwork{}
@@ -364,4 +364,13 @@ func CountChanges(changes []FieldChange) PendingChangeCounts {
 		}
 	}
 	return c
+}
+
+// VolumeSummary is how a pending change shows a volume: its mount path, and
+// the owner of its root when it has one.
+func VolumeSummary(mountPath, owner string) string {
+	if owner == "" {
+		return mountPath
+	}
+	return mountPath + " · owner " + owner
 }

@@ -47,6 +47,11 @@ const (
 	LabelHelper = "nebulactrl.helper"
 	// HelperBackup is the value of LabelHelper on backup helper containers.
 	HelperBackup = "backup"
+	// HelperVolumeOwner is the value of LabelHelper on the helper that chowns
+	// the root of a volume with an owner; VolumeOwnerHelperPrefix names it:
+	// nebulactrl-own-<docker volume name>.
+	HelperVolumeOwner       = "volume-owner"
+	VolumeOwnerHelperPrefix = "nebulactrl-own-"
 	// LabelBackupID carries the backup (or restore) id on a helper.
 	LabelBackupID = "nebulactrl.backup"
 	// LabelBackupService carries the service id on a helper.

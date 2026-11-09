@@ -464,6 +464,13 @@ func TestSchemaRules(t *testing.T) {
 		{"volumes", svc(`{"image":"x","volumes":{"uploads":"/app/uploads"}}`), true},
 		{"volume relative mount", svc(`{"image":"x","volumes":{"uploads":"app/uploads"}}`), false},
 		{"volume bad name", svc(`{"image":"x","volumes":{"Up Loads":"/app/uploads"}}`), false},
+		{"volume table with owner", svc(`{"image":"x","volumes":{"dist":{"path":"/dist","owner":"10001:10001"}}}`), true},
+		{"volume table uid only", svc(`{"image":"x","volumes":{"dist":{"path":"/dist","owner":"10001"}}}`), true},
+		{"volume table without owner", svc(`{"image":"x","volumes":{"dist":{"path":"/dist"}}}`), true},
+		{"volume table without path", svc(`{"image":"x","volumes":{"dist":{"owner":"10001"}}}`), false},
+		{"volume owner is a name", svc(`{"image":"x","volumes":{"dist":{"path":"/dist","owner":"app"}}}`), false},
+		{"volume owner is a number", svc(`{"image":"x","volumes":{"dist":{"path":"/dist","owner":10001}}}`), false},
+		{"volume table unknown key", svc(`{"image":"x","volumes":{"dist":{"path":"/dist","group":"1"}}}`), false},
 
 		{"health check http", svc(`{"image":"x","health_check":{"type":"http","path":"/healthz","interval_seconds":5}}`), true},
 		{"health check exec", svc(`{"image":"x","health_check":{"type":"exec","command":["CMD","true"]}}`), true},

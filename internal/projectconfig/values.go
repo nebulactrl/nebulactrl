@@ -122,6 +122,8 @@ type FieldValue struct {
 type Volume struct {
 	Name      string `json:"name"`
 	MountPath string `json:"mountPath"`
+	// Owner is "" (none), "uid" or "uid:gid".
+	Owner string `json:"owner,omitempty"`
 }
 
 // FileMount is one entry of config.files (the whole set is one field).

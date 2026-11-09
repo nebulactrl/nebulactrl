@@ -2,7 +2,7 @@
 SELECT * FROM volumes WHERE service_id = $1 ORDER BY created_at, id;
 
 -- name: InsertVolume :one
-INSERT INTO volumes (service_id, name, mount_path) VALUES ($1, $2, $3) RETURNING *;
+INSERT INTO volumes (service_id, name, mount_path, owner) VALUES ($1, $2, $3, $4) RETURNING *;
 
 -- name: GetVolumeByID :one
 SELECT * FROM volumes WHERE id = $1;
@@ -12,6 +12,10 @@ DELETE FROM volumes WHERE id = $1;
 
 -- name: DeleteServiceVolumes :exec
 DELETE FROM volumes WHERE service_id = $1;
+
+-- name: SetServiceVolumeOwner :exec
+-- Sets who owns the volume root ("", "uid" or "uid:gid").
+UPDATE volumes SET owner = $3 WHERE service_id = $1 AND name = $2;
 
 -- name: SetVolumeDockerName :exec
 -- Points a volume row at another Docker volume (a staged restore swap); an

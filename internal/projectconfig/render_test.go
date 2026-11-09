@@ -741,7 +741,7 @@ func rtKitchenSink() *Resolved {
 		},
 		"cache": {
 			Image:   new("redis:7"),
-			Volumes: map[string]string{"data": "/data"},
+			Volumes: map[string]VolumeDef{"data": {Path: "/data"}},
 		},
 		"api": {
 			Git: &Git{

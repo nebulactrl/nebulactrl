@@ -858,7 +858,7 @@ func (c *composites) planVolumes(ctx context.Context, pl *stagePlan, v *StageVol
 		}
 		pl.touched = append(pl.touched, "volumes."+name)
 		adds = append(adds, stageOp{step: "volumes.add:" + name, run: func(ctx context.Context) (string, error) {
-			_, err := c.Services.AddVolume(ctx, pl.sc.Service.ID, name, mount)
+			_, err := c.Services.AddVolume(ctx, pl.sc.Service.ID, name, mount, "")
 			return "mounted at " + mount, err
 		}})
 	}

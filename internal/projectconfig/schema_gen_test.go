@@ -40,6 +40,7 @@ var schemaTypeDefs = map[reflect.Type]string{
 	reflect.TypeFor[Environment]():   "environment",
 	reflect.TypeFor[Secrets]():       "secrets",
 	reflect.TypeFor[Variable]():      "variableEntry",
+	reflect.TypeFor[VolumeDef]():     "volumeEntry",
 	reflect.TypeFor[Service]():       "serviceBody",
 	reflect.TypeFor[Git]():           "git",
 	reflect.TypeFor[Build]():         "build",
@@ -77,6 +78,7 @@ var schemaTypeDefs = map[reflect.Type]string{
 var schemaRequired = map[reflect.Type][]string{
 	reflect.TypeFor[File]():      {"schema"},
 	reflect.TypeFor[Variable]():  {"value"},
+	reflect.TypeFor[VolumeDef](): {"path"},
 	reflect.TypeFor[Secrets]():   {"keys"},
 	reflect.TypeFor[Git]():       {"branch"},
 	reflect.TypeFor[Hook]():      {"command"},
@@ -163,9 +165,12 @@ var schemaMapExtras = map[string]map[string]any{
 		"propertyNames": schemaRef("domainKey"),
 	},
 	"Service.volumes": {
-		"maxProperties":        MaxVolumesPerService,
-		"propertyNames":        map[string]any{"pattern": "^[a-z0-9][a-z0-9_.-]{0,62}$"},
-		"additionalProperties": map[string]any{"type": "string", "pattern": "^/.+"},
+		"maxProperties": MaxVolumesPerService,
+		"propertyNames": map[string]any{"pattern": "^[a-z0-9][a-z0-9_.-]{0,62}$"},
+		"additionalProperties": map[string]any{"oneOf": []any{
+			map[string]any{"type": "string", "pattern": "^/.+"},
+			schemaRef("volumeEntry"),
+		}},
 	},
 	"Service.files": {
 		"maxProperties": MaxFilesPerService,

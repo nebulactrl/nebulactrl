@@ -14,8 +14,8 @@ import (
 )
 
 const cloneServiceVolumes = `-- name: CloneServiceVolumes :exec
-INSERT INTO volumes (service_id, name, mount_path)
-SELECT $1::uuid, name, mount_path FROM volumes WHERE service_id = $2::uuid
+INSERT INTO volumes (service_id, name, mount_path, owner)
+SELECT $1::uuid, name, mount_path, owner FROM volumes WHERE service_id = $2::uuid
 ON CONFLICT (service_id, name) DO NOTHING
 `
 

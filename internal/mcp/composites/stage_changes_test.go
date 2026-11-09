@@ -115,7 +115,7 @@ func TestStageChangesDeleteAndRemove(t *testing.T) {
 	f := newFx(t)
 	sv := f.service(svcOpts{env: f.staging, slug: "web"})
 	chgPut(f, sv.ID, "OLD", "x", false)
-	_, err := f.deps.Services.AddVolume(f.ctx(f.admin), sv.ID, "cache", "/cache")
+	_, err := f.deps.Services.AddVolume(f.ctx(f.admin), sv.ID, "cache", "/cache", "")
 	require.NoError(t, err)
 	_, err = f.deps.Domains.Create(f.ctx(f.admin), sv.ID, "old.example.org", 0, domains.RuleInput{})
 	require.NoError(t, err)

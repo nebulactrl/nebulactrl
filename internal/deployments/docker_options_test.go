@@ -101,7 +101,7 @@ func TestReadOnlyRootfsWithFilesBlocksThePlan(t *testing.T) {
 	require.NoError(t, err)
 	cur, err := f.svcs.Get(f.ctx, v.ID)
 	require.NoError(t, err)
-	_, err = f.svcs.AddVolume(f.ctx, v.ID, "data", "/data")
+	_, err = f.svcs.AddVolume(f.ctx, v.ID, "data", "/data", "")
 	require.NoError(t, err)
 	cfg := cur.Config
 	cfg.Files = []services.FileMount{{Path: "/etc/app.conf", Content: "x"}}

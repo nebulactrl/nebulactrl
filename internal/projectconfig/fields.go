@@ -750,7 +750,7 @@ func (c *svcCtx) assembleCollections() {
 		}
 	}
 	for _, name := range sortedKeys(d.Volumes) {
-		c.addField("volumes."+name, rp("volumes", name), Volume{Name: name, MountPath: d.Volumes[name]}, st)
+		c.addField("volumes."+name, rp("volumes", name), Volume{Name: name, MountPath: d.Volumes[name].Path, Owner: d.Volumes[name].Owner}, st)
 	}
 	if s := d.Scale; s != nil {
 		if s.Replicas != nil {

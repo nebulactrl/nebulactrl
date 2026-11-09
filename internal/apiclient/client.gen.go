@@ -11483,6 +11483,11 @@ type CreateVolumeBackupInputBody = map[string]interface{}
 type CreateVolumeInputBody struct {
 	MountPath string `json:"mountPath"`
 	Name      string `json:"name"`
+
+	// Owner Numeric owner of the volume's root directory: "uid" or "uid:gid" (0-2147483647). Set it when the image runs as a non-root user and mounts the volume at a path the image does not contain: Docker creates such a volume root as root:root, so the app could not write to it. The agent chowns the root only, never recursively. Empty leaves it as Docker created it.
+	//
+	// Examples: 10001:10001
+	Owner *string `json:"owner,omitempty"`
 }
 
 // CreateWildcardInputBody defines model for CreateWildcardInputBody.
@@ -19650,6 +19655,14 @@ type UpdateView struct {
 	Updating *UpdatingView `json:"updating,omitempty"`
 }
 
+// UpdateVolumeInputBody defines model for UpdateVolumeInputBody.
+type UpdateVolumeInputBody struct {
+	// Owner Numeric owner of the volume's root directory, "uid" or "uid:gid" (0-2147483647). Empty clears it.
+	//
+	// Examples: 10001:10001
+	Owner string `json:"owner"`
+}
+
 // UpdateWildcardInputBody defines model for UpdateWildcardInputBody.
 type UpdateWildcardInputBody struct {
 	CoverGenerated *bool `json:"coverGenerated,omitempty"`
@@ -20325,10 +20338,13 @@ type VolumeRestoreViewStatus string
 
 // VolumeView defines model for VolumeView.
 type VolumeView struct {
-	DockerName   string  `json:"dockerName"`
-	Id           string  `json:"id"`
-	MountPath    string  `json:"mountPath"`
-	Name         string  `json:"name"`
+	DockerName string `json:"dockerName"`
+	Id         string `json:"id"`
+	MountPath  string `json:"mountPath"`
+	Name       string `json:"name"`
+
+	// Owner Numeric owner of the volume's root directory, "uid" or "uid:gid". Empty leaves the directory as Docker created it.
+	Owner        *string `json:"owner,omitempty"`
 	RestoreLabel *string `json:"restoreLabel,omitempty"`
 }
 
@@ -22136,6 +22152,9 @@ type LockVolumeBackupJSONRequestBody = LockVolumeBackupInputBody
 
 // RestoreVolumeBackupJSONRequestBody defines body for RestoreVolumeBackup for application/json ContentType.
 type RestoreVolumeBackupJSONRequestBody = RestoreVolumeBackupInputBody
+
+// UpdateVolumeJSONRequestBody defines body for UpdateVolume for application/json ContentType.
+type UpdateVolumeJSONRequestBody = UpdateVolumeInputBody
 
 // RequestEditorFn is the function signature for the RequestEditor callback function
 type RequestEditorFn func(ctx context.Context, req *http.Request) error
@@ -27407,6 +27426,20 @@ type ClientInterface interface {
 	//
 	// Corresponds with DELETE /volumes/{volumeId} (the `DeleteVolume` operationId).
 	DeleteVolume(ctx context.Context, volumeId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateVolumeWithBody Change the owner of a volume's root directory (staged until deployed)
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PATCH /volumes/{volumeId} (the `UpdateVolume` operationId).
+	UpdateVolumeWithBody(ctx context.Context, volumeId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateVolume Change the owner of a volume's root directory (staged until deployed)
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PATCH /volumes/{volumeId} (the `UpdateVolume` operationId).
+	UpdateVolume(ctx context.Context, volumeId string, body UpdateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 // GetInstanceServices Built-in services: health, default quota and every team's slice
@@ -39346,6 +39379,40 @@ func (c *Client) RestoreVolumeBackup(ctx context.Context, backupId string, param
 // Corresponds with DELETE /volumes/{volumeId} (the `DeleteVolume` operationId).
 func (c *Client) DeleteVolume(ctx context.Context, volumeId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewDeleteVolumeRequest(c.Server, volumeId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateVolumeWithBody Change the owner of a volume's root directory (staged until deployed)
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PATCH /volumes/{volumeId} (the `UpdateVolume` operationId).
+func (c *Client) UpdateVolumeWithBody(ctx context.Context, volumeId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateVolumeRequestWithBody(c.Server, volumeId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateVolume Change the owner of a volume's root directory (staged until deployed)
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PATCH /volumes/{volumeId} (the `UpdateVolume` operationId).
+func (c *Client) UpdateVolume(ctx context.Context, volumeId string, body UpdateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateVolumeRequest(c.Server, volumeId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -61610,6 +61677,53 @@ func NewDeleteVolumeRequest(server string, volumeId string) (*http.Request, erro
 	return req, nil
 }
 
+// NewUpdateVolumeRequest calls the generic UpdateVolume builder with application/json body
+func NewUpdateVolumeRequest(server string, volumeId string, body UpdateVolumeJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateVolumeRequestWithBody(server, volumeId, "application/json", bodyReader)
+}
+
+// NewUpdateVolumeRequestWithBody constructs an http.Request for the UpdateVolume method, with any body, and a specified content type
+func NewUpdateVolumeRequestWithBody(server string, volumeId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "volumeId", volumeId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/volumes/%s", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPatch, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -67444,6 +67558,20 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with DELETE /volumes/{volumeId} (the `DeleteVolume` operationId).
 	DeleteVolumeWithResponse(ctx context.Context, volumeId string, reqEditors ...RequestEditorFn) (*DeleteVolumeResponse, error)
+
+	// UpdateVolumeWithBodyWithResponse Change the owner of a volume's root directory (staged until deployed)
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /volumes/{volumeId} (the `UpdateVolume` operationId).
+	UpdateVolumeWithBodyWithResponse(ctx context.Context, volumeId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateVolumeResponse, error)
+
+	// UpdateVolumeWithResponse Change the owner of a volume's root directory (staged until deployed)
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PATCH /volumes/{volumeId} (the `UpdateVolume` operationId).
+	UpdateVolumeWithResponse(ctx context.Context, volumeId string, body UpdateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateVolumeResponse, error)
 }
 
 type GetInstanceServicesResponse struct {
@@ -107774,6 +107902,89 @@ func (r DeleteVolumeResponse) ContentType() string {
 	return ""
 }
 
+type UpdateVolumeResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *VolumeView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateVolumeResponse) GetJSON200() *VolumeView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r UpdateVolumeResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r UpdateVolumeResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r UpdateVolumeResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r UpdateVolumeResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r UpdateVolumeResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r UpdateVolumeResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateVolumeResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateVolumeResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateVolumeResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateVolumeResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 // GetInstanceServicesWithResponse Built-in services: health, default quota and every team's slice
 //
 // Instance administrator only (403 `instance_admin_required`). S3 holds NebulaCtrl's own data (backups), the registry the teams' images, Loki their central logs. Each team has a slice of each; slices of deleted teams stay until `purgeAt`. No key, bucket or address is returned.
@@ -117613,6 +117824,32 @@ func (c *ClientWithResponses) DeleteVolumeWithResponse(ctx context.Context, volu
 		return nil, err
 	}
 	return ParseDeleteVolumeResponse(rsp)
+}
+
+// UpdateVolumeWithBodyWithResponse Change the owner of a volume's root directory (staged until deployed)
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /volumes/{volumeId} (the `UpdateVolume` operationId).
+func (c *ClientWithResponses) UpdateVolumeWithBodyWithResponse(ctx context.Context, volumeId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateVolumeResponse, error) {
+	rsp, err := c.UpdateVolumeWithBody(ctx, volumeId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateVolumeResponse(rsp)
+}
+
+// UpdateVolumeWithResponse Change the owner of a volume's root directory (staged until deployed)
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PATCH /volumes/{volumeId} (the `UpdateVolume` operationId).
+func (c *ClientWithResponses) UpdateVolumeWithResponse(ctx context.Context, volumeId string, body UpdateVolumeJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateVolumeResponse, error) {
+	rsp, err := c.UpdateVolume(ctx, volumeId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateVolumeResponse(rsp)
 }
 
 // ParseGetInstanceServicesResponse parses an HTTP response from a GetInstanceServicesWithResponse call
@@ -150920,6 +151157,74 @@ func ParseDeleteVolumeResponse(rsp *http.Response) (*DeleteVolumeResponse, error
 	switch {
 	case rsp.StatusCode == 204:
 		break // No content-type
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUpdateVolumeResponse parses an HTTP response from a UpdateVolumeWithResponse call
+func ParseUpdateVolumeResponse(rsp *http.Response) (*UpdateVolumeResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateVolumeResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest VolumeView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
 		var dest Error

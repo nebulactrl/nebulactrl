@@ -634,13 +634,20 @@ func (a *applier) applyVolumes(sp *svcPlan) error {
 			}
 		}
 		if exists {
+			owner, err := services.NormalizeVolumeOwner(v.Owner)
+			if err != nil {
+				return a.fail(step, err)
+			}
 			if err := a.q.SetServiceVolumeMount(a.ctx, db.SetServiceVolumeMountParams{ServiceID: sc.Service.ID, Name: v.Name, Name_2: v.Name, MountPath: v.MountPath}); err != nil {
+				return a.fail(step, err)
+			}
+			if err := a.q.SetServiceVolumeOwner(a.ctx, db.SetServiceVolumeOwnerParams{ServiceID: sc.Service.ID, Name: v.Name, Owner: owner}); err != nil {
 				return a.fail(step, err)
 			}
 			if _, err := a.q.BumpServiceGeneration(a.ctx, sc.Service.ID); err != nil {
 				return a.fail(step, err)
 			}
-		} else if _, err := a.s.Services.AddVolumeTx(a.ctx, a.tx, sc, v.Name, v.MountPath); err != nil {
+		} else if _, err := a.s.Services.AddVolumeTx(a.ctx, a.tx, sc, v.Name, v.MountPath, v.Owner); err != nil {
 			return a.fail(step, err)
 		}
 		a.changed[slug] = true

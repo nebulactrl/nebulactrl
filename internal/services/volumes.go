@@ -30,6 +30,10 @@ type VolumeView struct {
 	// RestoreLabel says why the row points at a restored Docker volume
 	// ("restored from Jan 12, 03:30"); empty for a regular volume.
 	RestoreLabel string `json:"restoreLabel,omitempty"`
+	// Owner is who owns the volume's root directory: "" (as Docker created it),
+	// "uid" or "uid:gid". The agent chowns the root, never recursively, when
+	// it differs.
+	Owner string `json:"owner,omitempty" doc:"Numeric owner of the volume's root directory, \"uid\" or \"uid:gid\". Empty leaves the directory as Docker created it."`
 }
 
 // DockerVolumeName is the Docker volume behind a volume row: the restored
@@ -42,7 +46,7 @@ func DockerVolumeName(v db.Volume) string {
 }
 
 func toVolumeView(v db.Volume) VolumeView {
-	return VolumeView{ID: v.ID, Name: v.Name, MountPath: v.MountPath, DockerName: DockerVolumeName(v), RestoreLabel: v.RestoreLabel}
+	return VolumeView{ID: v.ID, Name: v.Name, MountPath: v.MountPath, DockerName: DockerVolumeName(v), RestoreLabel: v.RestoreLabel, Owner: v.Owner}
 }
 
 var volumeNameRe = regexp.MustCompile(`^[a-z0-9][a-z0-9_.-]{0,62}$`)
@@ -63,8 +67,21 @@ func (s *Service) ListVolumes(ctx context.Context, serviceID uuid.UUID) ([]Volum
 	return out, nil
 }
 
-// AddVolume attaches a named volume. The change is staged until the next deploy.
-func (s *Service) AddVolume(ctx context.Context, serviceID uuid.UUID, name, mountPath string) (VolumeView, error) {
+// NormalizeVolumeOwner validates a volume owner ("" = none, "uid" or
+// "uid:gid", numeric, each 0-2147483647) and returns its canonical form. A bad
+// value is a 422 invalid_config.
+func NormalizeVolumeOwner(owner string) (string, error) {
+	owner = strings.TrimSpace(owner)
+	out, err := agentprotocol.NormalizeVolumeOwner(owner)
+	if err != nil {
+		return "", apierr.Unprocessable("invalid_config", err.Error())
+	}
+	return out, nil
+}
+
+// AddVolume attaches a named volume. The change is staged until the next
+// deploy. owner is "" or "uid" / "uid:gid" (see NormalizeVolumeOwner).
+func (s *Service) AddVolume(ctx context.Context, serviceID uuid.UUID, name, mountPath, owner string) (VolumeView, error) {
 	sc, err := LoadScope(ctx, s.q, policy.ScopeProjectsWrite, serviceID)
 	if err != nil {
 		return VolumeView{}, err
@@ -72,7 +89,7 @@ func (s *Service) AddVolume(ctx context.Context, serviceID uuid.UUID, name, moun
 	var view VolumeView
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		var err error
-		view, err = s.AddVolumeTx(ctx, tx, sc, name, mountPath)
+		view, err = s.AddVolumeTx(ctx, tx, sc, name, mountPath, owner)
 		return err
 	})
 	if err != nil {
@@ -89,7 +106,7 @@ func (s *Service) AddVolume(ctx context.Context, serviceID uuid.UUID, name, moun
 // the service's generation moves and volume.create is audited. sc is the
 // service's scope, loaded through the same transaction with projects:write.
 // It publishes no event.
-func (s *Service) AddVolumeTx(ctx context.Context, tx pgx.Tx, sc Scope, name, mountPath string) (VolumeView, error) {
+func (s *Service) AddVolumeTx(ctx context.Context, tx pgx.Tx, sc Scope, name, mountPath, owner string) (VolumeView, error) {
 	if err := RequireContainer(sc, "volumes"); err != nil {
 		return VolumeView{}, err
 	}
@@ -103,6 +120,10 @@ func (s *Service) AddVolumeTx(ctx context.Context, tx pgx.Tx, sc Scope, name, mo
 	mountPath = path.Clean(strings.TrimSpace(mountPath))
 	if !strings.HasPrefix(mountPath, "/") || mountPath == "/" || strings.Contains(mountPath, ":") {
 		return VolumeView{}, apierr.Unprocessable("invalid_mount_path", "mountPath must be an absolute path other than /")
+	}
+	owner, err := NormalizeVolumeOwner(owner)
+	if err != nil {
+		return VolumeView{}, err
 	}
 	serviceID := sc.Service.ID
 	q := db.New(tx)
@@ -118,7 +139,7 @@ func (s *Service) AddVolumeTx(ctx context.Context, tx pgx.Tx, sc Scope, name, mo
 			return VolumeView{}, apierr.Conflict("mount_path_in_use", "another volume is already mounted at that path")
 		}
 	}
-	vol, err := q.InsertVolume(ctx, db.InsertVolumeParams{ServiceID: serviceID, Name: name, MountPath: mountPath})
+	vol, err := q.InsertVolume(ctx, db.InsertVolumeParams{ServiceID: serviceID, Name: name, MountPath: mountPath, Owner: owner})
 	if IsUniqueViolation(err) {
 		return VolumeView{}, apierr.Conflict("volume_exists", "a volume with that name already exists")
 	}
@@ -130,10 +151,83 @@ func (s *Service) AddVolumeTx(ctx context.Context, tx pgx.Tx, sc Scope, name, mo
 	}
 	if err := audit.Record(ctx, tx, audit.Entry{
 		Action: "volume.create", ResourceType: "volume", ResourceID: vol.ID.String(), ProjectID: &sc.ProjectID,
-		Metadata: map[string]any{"service": sc.Service.Slug, "name": name, "mountPath": mountPath},
+		Metadata: map[string]any{"service": sc.Service.Slug, "name": name, "mountPath": mountPath, "owner": owner},
 	}); err != nil {
 		return VolumeView{}, err
 	}
+	return toVolumeView(vol), nil
+}
+
+// UpdateVolume changes the owner of a volume (staged until the next deploy):
+// "" clears it. The mount path and name are not editable; detach the volume
+// and attach it again to move it.
+func (s *Service) UpdateVolume(ctx context.Context, volumeID uuid.UUID, owner string) (VolumeView, error) {
+	if err := policy.Require(ctx, policy.ScopeProjectsWrite, nil); err != nil {
+		return VolumeView{}, err
+	}
+	vol, err := s.q.GetVolumeByID(ctx, volumeID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return VolumeView{}, apierr.NotFound("volume")
+	}
+	if err != nil {
+		return VolumeView{}, fmt.Errorf("get volume: %w", err)
+	}
+	sc, err := LoadScope(ctx, s.q, policy.ScopeProjectsWrite, vol.ServiceID)
+	if err != nil {
+		return VolumeView{}, err
+	}
+	var view VolumeView
+	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
+		var err error
+		view, err = s.SetVolumeOwnerTx(ctx, tx, sc, vol.Name, owner)
+		return err
+	})
+	if err != nil {
+		if _, ok := apierr.As(err); ok {
+			return VolumeView{}, err
+		}
+		return VolumeView{}, fmt.Errorf("update volume: %w", err)
+	}
+	PublishService(s.bus, EventServiceUpdated, sc)
+	return view, nil
+}
+
+// SetVolumeOwnerTx sets the owner of the volume called name inside the
+// caller's transaction: same validation as AddVolumeTx, the service's
+// generation moves and volume.update is audited. An unknown name is a 404; an
+// unchanged owner writes nothing. It publishes no event.
+func (s *Service) SetVolumeOwnerTx(ctx context.Context, tx pgx.Tx, sc Scope, name, owner string) (VolumeView, error) {
+	if err := RequireContainer(sc, "volumes"); err != nil {
+		return VolumeView{}, err
+	}
+	owner, err := NormalizeVolumeOwner(owner)
+	if err != nil {
+		return VolumeView{}, err
+	}
+	q := db.New(tx)
+	vol, err := q.GetServiceVolumeByName(ctx, db.GetServiceVolumeByNameParams{ServiceID: sc.Service.ID, Name: name})
+	if errors.Is(err, pgx.ErrNoRows) {
+		return VolumeView{}, apierr.NotFound("volume")
+	}
+	if err != nil {
+		return VolumeView{}, fmt.Errorf("get volume: %w", err)
+	}
+	if vol.Owner == owner {
+		return toVolumeView(vol), nil
+	}
+	if err := q.SetServiceVolumeOwner(ctx, db.SetServiceVolumeOwnerParams{ServiceID: sc.Service.ID, Name: name, Owner: owner}); err != nil {
+		return VolumeView{}, fmt.Errorf("set volume owner: %w", err)
+	}
+	if _, err := q.BumpServiceGeneration(ctx, sc.Service.ID); err != nil {
+		return VolumeView{}, fmt.Errorf("bump generation: %w", err)
+	}
+	if err := audit.Record(ctx, tx, audit.Entry{
+		Action: "volume.update", ResourceType: "volume", ResourceID: vol.ID.String(), ProjectID: &sc.ProjectID,
+		Metadata: map[string]any{"service": sc.Service.Slug, "name": name, "owner": owner, "previousOwner": vol.Owner},
+	}); err != nil {
+		return VolumeView{}, err
+	}
+	vol.Owner = owner
 	return toVolumeView(vol), nil
 }
 

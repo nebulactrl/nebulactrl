@@ -112,7 +112,7 @@ func TestStackCreateStagesAndRestrictedByServerFlag(t *testing.T) {
 	require.Equal(t, "invalid_compose", codeOf(t, err))
 
 	// Not applicable features answer 422 not_applicable.
-	_, err = f.svcs.AddVolume(f.ctx, st.ID, "data", "/data")
+	_, err = f.svcs.AddVolume(f.ctx, st.ID, "data", "/data", "")
 	require.Equal(t, "not_applicable", codeOf(t, err))
 }
 

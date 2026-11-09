@@ -56,7 +56,7 @@ func TestStageSourceChangeImageToGitKeepsTheServiceAndClearsImageCredentials(t *
 	cur, err = f.svcs.Update(f.ctx, svc.ID, cur.Generation, services.UpdateInput{RegistryAuth: &services.RegistryAuth{Username: "u", Password: "p"}})
 	require.NoError(t, err)
 	require.True(t, cur.RegistryAuthSet)
-	_, err = f.svcs.AddVolume(f.ctx, svc.ID, "data", "/data")
+	_, err = f.svcs.AddVolume(f.ctx, svc.ID, "data", "/data", "")
 	require.NoError(t, err)
 	cur, err = f.svcs.Get(f.ctx, svc.ID)
 	require.NoError(t, err)

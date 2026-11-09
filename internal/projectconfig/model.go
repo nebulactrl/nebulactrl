@@ -87,6 +87,14 @@ type Variable struct {
 	Public          bool   `toml:"public" json:"public,omitempty" doc:"Asserts that a literal value is not a credential, which silences the literal_secret check for this variable. It is not stored." example:"false" default:"false"`
 }
 
+// VolumeDef is one volume entry: the mount path as a plain string, or a table
+// that also sets the owner of the volume's root directory. An entry is a leaf
+// for merging.
+type VolumeDef struct {
+	Path  string `toml:"path" json:"path" doc:"Absolute path the volume is mounted at in the container." example:"/dist" minLength:"2" maxLength:"512" pattern:"^/.+"`
+	Owner string `toml:"owner" json:"owner,omitempty" doc:"Numeric owner of the volume's root directory, \"uid\" or \"uid:gid\" (0-2147483647). Set it when the image runs as a non-root user and mounts the volume at a path the image does not contain: Docker creates such a volume root as root:root, so the app could not write to it. The agent chowns the root only, never recursively. Absent leaves the directory as Docker created it." example:"10001:10001" pattern:"^[0-9]{1,10}(:[0-9]{1,10})?$"`
+}
+
 // Service is a [services.<slug>] table, and also the body of an
 // [environments.<env>.services.<slug>] override (where Unset is allowed and
 // the source key is optional). Field order is the order Render writes keys:
@@ -127,13 +135,13 @@ type Service struct {
 	Uptime      *Uptime      `toml:"uptime" json:"uptime,omitempty" doc:"Uptime monitor settings. Applied immediately."`
 	Secrets     *Secrets     `toml:"secrets" json:"secrets,omitempty" doc:"Names of secret variables of this service. Values are never written in the file."`
 
-	Variables map[string]Variable `toml:"variables" json:"variables,omitempty" doc:"Variables of the service, keyed by name. A value is a string using the variable macro grammar, or a table with metadata."`
-	Domains   map[string]*Domain  `toml:"domains" json:"domains,omitempty" doc:"Domains of the service, keyed by hostname or hostname/path-prefix." example:"\"shop.acme.com\""`
-	Volumes   map[string]string   `toml:"volumes" json:"volumes,omitempty" doc:"Persistent volumes: name = absolute mount path. Detaching a volume never deletes its data." example:"uploads = \"/app/uploads\""`
-	Files     map[string]*Files   `toml:"files" json:"files,omitempty" doc:"Config files written into the container before it starts, keyed by absolute path." example:"\"/etc/app/app.conf\""`
-	Tasks     map[string]*Task    `toml:"tasks" json:"tasks,omitempty" doc:"Cron tasks that run in the service's image, keyed by task name. Applied immediately." example:"digest"`
-	Processes map[string]*Process `toml:"processes" json:"processes,omitempty" doc:"Additional processes that run from the same image, variables, volumes and release as the service, keyed by process name. The service's own port and command are its default process. A process is owned as a whole: a key you leave out takes its default. Processes deploy together; scale is applied immediately." example:"worker"`
-	Backups   map[string]*Backup  `toml:"backups" json:"backups,omitempty" doc:"Backup schedules of a database, keyed by a stable key. Applied immediately." example:"nightly"`
+	Variables map[string]Variable  `toml:"variables" json:"variables,omitempty" doc:"Variables of the service, keyed by name. A value is a string using the variable macro grammar, or a table with metadata."`
+	Domains   map[string]*Domain   `toml:"domains" json:"domains,omitempty" doc:"Domains of the service, keyed by hostname or hostname/path-prefix." example:"\"shop.acme.com\""`
+	Volumes   map[string]VolumeDef `toml:"volumes" json:"volumes,omitempty" doc:"Persistent volumes, keyed by name. A value is the absolute mount path, or a table { path, owner } when the volume root needs an owner. Detaching a volume never deletes its data." example:"uploads = \"/app/uploads\""`
+	Files     map[string]*Files    `toml:"files" json:"files,omitempty" doc:"Config files written into the container before it starts, keyed by absolute path." example:"\"/etc/app/app.conf\""`
+	Tasks     map[string]*Task     `toml:"tasks" json:"tasks,omitempty" doc:"Cron tasks that run in the service's image, keyed by task name. Applied immediately." example:"digest"`
+	Processes map[string]*Process  `toml:"processes" json:"processes,omitempty" doc:"Additional processes that run from the same image, variables, volumes and release as the service, keyed by process name. The service's own port and command are its default process. A process is owned as a whole: a key you leave out takes its default. Processes deploy together; scale is applied immediately." example:"worker"`
+	Backups   map[string]*Backup   `toml:"backups" json:"backups,omitempty" doc:"Backup schedules of a database, keyed by a stable key. Applied immediately." example:"nightly"`
 }
 
 // Git is the [services.<slug>.git] table.

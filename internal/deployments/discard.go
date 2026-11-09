@@ -448,7 +448,7 @@ func (s *Service) discardVolume(ctx context.Context, q *db.Queries, svc db.Servi
 				return apierr.Conflict("mount_path_in_use", "another volume is already mounted at "+snapVol.MountPath+"; discard or remove it first")
 			}
 		}
-		vol, err := q.InsertVolume(ctx, db.InsertVolumeParams{ServiceID: svc.ID, Name: name, MountPath: snapVol.MountPath})
+		vol, err := q.InsertVolume(ctx, db.InsertVolumeParams{ServiceID: svc.ID, Name: name, MountPath: snapVol.MountPath, Owner: snapVol.Owner})
 		if err != nil {
 			return err
 		}

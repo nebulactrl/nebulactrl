@@ -2712,10 +2712,17 @@
         },
         "volumes": {
           "additionalProperties": {
-            "pattern": "^/.+",
-            "type": "string"
+            "oneOf": [
+              {
+                "pattern": "^/.+",
+                "type": "string"
+              },
+              {
+                "$ref": "#/$defs/volumeEntry"
+              }
+            ]
           },
-          "description": "Persistent volumes: name = absolute mount path. Detaching a volume never deletes its data.",
+          "description": "Persistent volumes, keyed by name. A value is the absolute mount path, or a table { path, owner } when the volume root needs an owner. Detaching a volume never deletes its data.",
           "examples": [
             "uploads = \"/app/uploads\""
           ],
@@ -3179,6 +3186,33 @@
       "propertyNames": {
         "$ref": "#/$defs/varName"
       },
+      "type": "object"
+    },
+    "volumeEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "owner": {
+          "description": "Numeric owner of the volume's root directory, \"uid\" or \"uid:gid\" (0-2147483647). Set it when the image runs as a non-root user and mounts the volume at a path the image does not contain: Docker creates such a volume root as root:root, so the app could not write to it. The agent chowns the root only, never recursively. Absent leaves the directory as Docker created it.",
+          "examples": [
+            "10001:10001"
+          ],
+          "pattern": "^[0-9]{1,10}(:[0-9]{1,10})?$",
+          "type": "string"
+        },
+        "path": {
+          "description": "Absolute path the volume is mounted at in the container.",
+          "examples": [
+            "/dist"
+          ],
+          "maxLength": 512,
+          "minLength": 2,
+          "pattern": "^/.+",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path"
+      ],
       "type": "object"
     }
   },

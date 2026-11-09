@@ -354,7 +354,7 @@ func (c *svcCtx) checkDocker() {
 			files = append(files, p)
 		}
 		for _, m := range c.def.Volumes {
-			mounts = append(mounts, m)
+			mounts = append(mounts, m.Path)
 		}
 		sort.Strings(files)
 		sort.Strings(mounts)
@@ -376,7 +376,7 @@ func (c *svcCtx) checkVolumes() {
 	}
 	mounts := map[string]string{}
 	for _, name := range sortedKeys(vols) {
-		mp := vols[name]
+		mp := vols[name].Path
 		if !volumeNameRe.MatchString(name) {
 			c.err(CodeInvalidValue, rp("volumes", name), "volume name %q must match [a-z0-9][a-z0-9_.-]* (at most 63 characters)", name)
 		}
@@ -390,6 +390,12 @@ func (c *svcCtx) checkVolumes() {
 				c.err(CodeInvalidValue, rp("volumes", name), "volumes %q and %q are mounted at the same path %s", other, name, mp)
 			}
 			mounts[mp] = name
+		}
+		if owner := vols[name].Owner; owner != "" {
+			if _, err := agentprotocol.ParseVolumeOwner(owner); err != nil {
+				c.err(CodeInvalidValue, rp("volumes", name, "owner"), "volume %q: %s", name, err).
+					withHint(`write "uid" or "uid:gid" with numbers, for example owner = "10001:10001"`)
+			}
 		}
 	}
 }

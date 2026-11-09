@@ -154,7 +154,7 @@ A process is owned as a whole: a key you leave out takes its default. `domains."
 
 ### `volumes`, `files`, `scale`, `uptime`, `tasks`, `docker`
 
-- `volumes`: `name = "/mount/path"`; names match `^[a-z0-9][a-z0-9_.-]{0,62}$`, paths are absolute. Staged. Detaching never deletes data. A service with volumes cannot have `scale.replicas` above 1.
+- `volumes`: `name = "/mount/path"`, or the table form `name = { path = "/mount/path", owner = "10001:10001" }`; names match `^[a-z0-9][a-z0-9_.-]{0,62}$`, paths are absolute. The string form means no owner. `owner` is `"uid"` or `"uid:gid"`, numbers only (0-2147483647): the agent sets the owner of the volume's root directory (not recursively), for an image that runs as a non-root user and mounts a path the image does not contain ([volumes and their owner](../operations/deployments.md#volumes-and-their-owner)). Export writes the table form only for a volume that has an owner. An environment override replaces a volume entry as a unit. Staged. Detaching never deletes data. A service with volumes cannot have `scale.replicas` above 1.
 - `files."/path"`: `mode` (octal string, `0644`) and exactly one of `content` or `source` (an attachment). At most 16 files, 64 KiB each, 256 KiB in all. The whole set is one unit.
 - `scale` (immediate): `replicas` (1-10), `autoscaling.enabled`, `autoscaling.min`, `autoscaling.max`, `autoscaling.target_cpu_percent` (20-95).
 - `uptime` (immediate, admin scope): `enabled`, `alerts`, `failure_threshold` (3, 1-20), `recovery_threshold` (2, 1-20), `reminder_minutes` (0, 0-1440).
@@ -171,7 +171,7 @@ For service `S` in environment `E` the resolved definition is `merge(services.S,
 
 1. Tables merge by key, recursively.
 2. Scalars and arrays replace the lower value as a whole. An override restates a full list.
-3. Leaves replace as a unit: a variable entry, `domains.<host>.options`, `files.<path>`, a `route.upstreams` item, `resources.<component>`. A process is not a leaf: `processes.<name>` merges key by key like `tasks.<name>`.
+3. Leaves replace as a unit: a variable entry, a volume entry, `domains.<host>.options`, `files.<path>`, a `route.upstreams` item, `resources.<component>`. A process is not a leaf: `processes.<name>` merges key by key like `tasks.<name>`.
 4. `unset` (environment blocks only) removes TOML key paths after the merge, for example `["variables.FEATURE_X", 'domains."shop.acme.com"', "tasks.digest", "processes.clock", "scale"]`. A removed key is not owned in that environment; nothing live is deleted.
 5. `only_in` filters services before merging. A service defined only in an environment block must be complete.
 6. Error positions refer to the line that supplied the winning value.

@@ -1219,9 +1219,9 @@ func (s *exService) volumes() {
 	if len(s.ls.Volumes) == 0 {
 		return
 	}
-	m := make(map[string]string, len(s.ls.Volumes))
+	m := make(map[string]projectconfig.VolumeDef, len(s.ls.Volumes))
 	for _, v := range s.ls.Volumes {
-		m[v.Name] = v.MountPath
+		m[v.Name] = projectconfig.VolumeDef{Path: v.MountPath, Owner: v.Owner}
 	}
 	s.def.Volumes = m
 }

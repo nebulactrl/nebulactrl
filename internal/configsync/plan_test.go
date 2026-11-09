@@ -951,7 +951,7 @@ func planCheckCases(f *planFixture) []struct {
 	_, err := f.doms.Create(f.ctx, other.ID, "taken.example.com", 0, domains.RuleInput{})
 	require.NoError(f.t, err)
 	store := f.image(f.staging, "store", 8080)
-	_, err = f.svcs.AddVolume(f.ctx, store.ID, "data", "/data")
+	_, err = f.svcs.AddVolume(f.ctx, store.ID, "data", "/data", "")
 	require.NoError(f.t, err)
 	f.database(f.staging)
 	f.route(f.staging, "printer", "192.168.1.20:631")
@@ -1728,7 +1728,7 @@ func newPlanReleaseFixture(t *testing.T) (*planFixture, services.ServiceView) {
 	}
 	f.task(web.ID, "digest", "0 7 * * *", "echo", "a")
 	f.task(web.ID, "ui-task", "0 6 * * *", "echo", "ui")
-	_, err := f.svcs.AddVolume(f.ctx, web.ID, "data", "/data")
+	_, err := f.svcs.AddVolume(f.ctx, web.ID, "data", "/data", "")
 	require.NoError(t, err)
 	f.markApplied(f.staging, planWebHead("8080")+planReleaseV1Tail)
 	return f, web
@@ -1810,7 +1810,7 @@ func TestPlanDB_UnmanagedMembersAreCountedNeverListed(t *testing.T) {
 	_, err := f.doms.Create(f.ctx, web.ID, "extra.example.com", 0, domains.RuleInput{})
 	require.NoError(t, err)
 	f.task(web.ID, "ui-task", "0 6 * * *", "echo", "ui")
-	_, err = f.svcs.AddVolume(f.ctx, web.ID, "data", "/data")
+	_, err = f.svcs.AddVolume(f.ctx, web.ID, "data", "/data", "")
 	require.NoError(t, err)
 
 	p := f.plan(f.staging, planWebHead("8080")+"\n[services.web.variables]\nLOG_LEVEL = \"info\"\n")
@@ -2127,7 +2127,7 @@ func TestPlanDB_ReplicasNeedStatelessServices(t *testing.T) {
 	web := f.image(f.staging, "web", 8080)
 	file := planWebHead("8080") + "\n[services.web.scale]\nreplicas = 2\n"
 	require.True(t, f.plan(f.staging, file).Valid)
-	_, err := f.svcs.AddVolume(f.ctx, web.ID, "data", "/data")
+	_, err := f.svcs.AddVolume(f.ctx, web.ID, "data", "/data", "")
 	require.NoError(t, err)
 	p := f.plan(f.staging, file)
 	require.False(t, p.Valid)
@@ -2699,7 +2699,7 @@ func TestPlanDB_ReplicasOfAProcessNeedStatelessServices(t *testing.T) {
 	file := planWebHead("8080") + planProcess("worker", planWorkerTable, "\n[services.web.processes.worker.scale]\nreplicas = 2\n")
 	require.True(t, f.plan(f.staging, file).Valid)
 
-	_, err := f.svcs.AddVolume(f.ctx, web.ID, "data", "/data")
+	_, err := f.svcs.AddVolume(f.ctx, web.ID, "data", "/data", "")
 	require.NoError(t, err)
 	p := f.plan(f.staging, file)
 	require.False(t, p.Valid)
