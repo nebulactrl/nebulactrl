@@ -53,21 +53,24 @@ export function ConnectCard({ server }: { server: ServerView }) {
 	const expired = useEnrollmentExpired(enrollment);
 	return (
 		<div className="surface-raised flex flex-col gap-4 rounded-card p-4">
-			<p className="type-body max-w-[68ch] text-ink-2">
-				{server.name} is waiting for its agent. Run the install command on the
-				host (it needs Docker and a root shell); this page switches to the
-				server's details as soon as the agent connects.
-			</p>
+			<div className="flex max-w-[68ch] flex-col gap-4 text-pretty">
+				<p className="type-body text-ink-2">
+					{server.name} is waiting for its agent. Run the install command on the
+					host (it needs Docker and a root shell); this page switches to the
+					server's details as soon as the agent connects.
+				</p>
+				{enrollment && !expired ? null : (
+					<p className="text-ink-3 text-xs">
+						{enrollment
+							? "The last install command has expired. "
+							: "An install command is shown once, when it is made, and the control plane keeps only a fingerprint of it. "}
+						Make a new one to connect this host.
+					</p>
+				)}
+			</div>
 			{enrollment && !expired ? (
 				<InstallCommandField enrollment={enrollment} />
-			) : (
-				<p className="text-ink-3 text-xs">
-					{enrollment
-						? "The last install command has expired. "
-						: "An install command is shown once, when it is made, and the control plane keeps only a fingerprint of it. "}
-					Make a new one to connect this host.
-				</p>
-			)}
+			) : null}
 			{issue.isError ? (
 				<Alert variant="destructive">
 					<AlertDescription>{errorMessage(issue.error)}</AlertDescription>
