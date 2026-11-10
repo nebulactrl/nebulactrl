@@ -23,7 +23,11 @@ const (
 	CloseUnsupportedVersion = 4400 // unknown major protocol version
 	CloseRevoked            = 4401 // agent identity revoked
 	CloseAuthFailed         = 4403 // handshake signature or nonce rejected
-	CloseReplaced           = 4409 // a newer connection for the same server replaced this one
+	// CloseUnknownAgent: the control plane does not know the agent ID (another
+	// control plane enrolled it, or this one lost its database). An agent
+	// configured with an enrollment token re-enrolls on it.
+	CloseUnknownAgent = 4404
+	CloseReplaced     = 4409 // a newer connection for the same server replaced this one
 )
 
 // NonceMaxAge bounds how old a challenge may be when the agent answers it.
@@ -228,6 +232,10 @@ type Facts struct {
 	// AgentUpgrade is the agent's memory of its last self-upgrade (nil when it
 	// never upgraded itself); see UpgradeReport.
 	AgentUpgrade *UpgradeReport `json:"agentUpgrade,omitempty"`
+	// ManagedServices are the sorted, distinct LabelService values of the
+	// managed containers on the host, running or not (CapAdoption). A newly
+	// added server that reports some is held for adoption.
+	ManagedServices []string `json:"managedServices,omitempty"`
 }
 
 // EnrollRequest is POSTed to /agent/v1/enroll.
@@ -554,6 +562,12 @@ type Reconcile struct {
 	// Secrets holds the send-time secrets of the routes and proxy config
 	// (SecretAuthPrefix / SecretCertPrefix keys). Reconcile is never persisted.
 	Secrets map[string]string `json:"secrets,omitempty"`
+	// KeepUnknown: the server is held for adoption: leave every managed
+	// container and live route of a service that is not in this frame alone.
+	KeepUnknown bool `json:"keepUnknown,omitempty"`
+	// Unmanaged are service IDs left running unmanaged: never swept, live
+	// routes kept.
+	Unmanaged []string `json:"unmanaged,omitempty"`
 }
 
 // HealthcheckSpec mirrors services.Healthcheck for the agent.

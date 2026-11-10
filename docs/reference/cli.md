@@ -115,6 +115,7 @@ Exit codes: `0` success, `1` failure, `2` wrong flags or arguments.
 | [`nebulactrl projects ls`](#nebulactrl-projects-ls) | List projects |
 | [`nebulactrl projects update`](#nebulactrl-projects-update) | Rename a project or set where its services are built |
 | [`nebulactrl servers`](#nebulactrl-servers) | Manage Docker hosts |
+| [`nebulactrl servers adopt`](#nebulactrl-servers-adopt) | Review and adopt the workloads an earlier NebulaCtrl left running on a server |
 | [`nebulactrl servers enroll-token`](#nebulactrl-servers-enroll-token) | Create a one-time agent enrollment token |
 | [`nebulactrl servers ls`](#nebulactrl-servers-ls) | List servers |
 | [`nebulactrl servers revoke`](#nebulactrl-servers-revoke) | Revoke a server's agent identity |
@@ -1483,6 +1484,47 @@ Manage Docker hosts.
 ```
 nebulactrl servers
 ```
+
+### nebulactrl servers adopt
+
+Review and adopt the workloads an earlier NebulaCtrl left running on a server.
+
+```
+nebulactrl servers adopt <server> [flags]
+```
+
+A server added to this instance that already runs NebulaCtrl workloads (its control plane was lost or reinstalled, or it comes
+from another instance) is held: nothing on it is removed or rerouted until its workloads are reviewed. This command reads them
+from the host and rebuilds the projects, environments, services, volumes, variables and domains with the IDs found on the
+containers, so nothing is recreated or restarted. Services you --leave keep running unmanaged and are never removed; services
+you --remove are removed once the review is applied (their volumes stay on the host). Variables are listed by key; values are
+never printed.
+
+<env> is an environment ID found on the containers or its first 8 characters; <svc> is a service slug, ID or its first 8
+characters, as listed by --plan.
+
+Examples:
+
+```sh
+nebulactrl servers adopt web-1 --plan
+  nebulactrl servers adopt web-1 --leave postgres --name app=Website --project 1a2b3c4d=Shop
+```
+
+Options:
+
+| Flag | Type | Default | Description |
+|---|---|---|---|
+| `--env-name` | stringArray |  | <env>=<name>: name of the rebuilt environment (repeatable) |
+| `--leave` | stringArray |  | <svc>: keep the service running unmanaged (repeatable) |
+| `--name` | stringArray |  | <svc>=<name>: name of the adopted service (repeatable) |
+| `--not-production` | stringArray |  | <env>: mark the rebuilt environment as not production (repeatable) |
+| `--not-secret` | stringArray |  | <svc>.<KEY>: store the variable in plain text (repeatable) |
+| `--plan` | bool |  | show what would be adopted and change nothing (exit 1 when something blocks the adoption) |
+| `--production` | stringArray |  | <env>: mark the rebuilt environment as production (repeatable) |
+| `--project` | stringArray |  | <env>=<project name\|id>: adopt the environment into an existing project, or into a new project of that name (repeatable) |
+| `--remove` | stringArray |  | <svc>: remove the service's containers once the review is applied; volumes stay (repeatable) |
+| `--secret` | stringArray |  | <svc>.<KEY>: store the variable as a secret (repeatable) |
+| `--skip-domain` | stringArray |  | <svc>/<host>: do not adopt this domain (repeatable) |
 
 ### nebulactrl servers enroll-token
 

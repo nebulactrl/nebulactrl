@@ -38,7 +38,7 @@ func (q *Queries) CountWorkspaceMemberships(ctx context.Context, workspaceID uui
 const createControlPlaneServer = `-- name: CreateControlPlaneServer :one
 INSERT INTO servers (workspace_id, name, public_ip, acme_email, is_control_plane)
 VALUES ($1, $2, $3, $4, true)
-RETURNING id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at
+RETURNING id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at, adoption_state
 `
 
 type CreateControlPlaneServerParams struct {
@@ -112,6 +112,7 @@ func (q *Queries) CreateControlPlaneServer(ctx context.Context, arg CreateContro
 		&i.RemovalState,
 		&i.RemovalError,
 		&i.RemovalStartedAt,
+		&i.AdoptionState,
 	)
 	return i, err
 }
@@ -128,7 +129,7 @@ func (q *Queries) EnrollmentTokenExists(ctx context.Context, tokenHash []byte) (
 }
 
 const getControlPlaneServer = `-- name: GetControlPlaneServer :one
-SELECT id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at FROM servers WHERE is_control_plane AND status <> 'revoked' LIMIT 1
+SELECT id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at, adoption_state FROM servers WHERE is_control_plane AND status <> 'revoked' LIMIT 1
 `
 
 // The server the installer put the control plane on (at most one, not revoked).
@@ -191,6 +192,7 @@ func (q *Queries) GetControlPlaneServer(ctx context.Context) (Server, error) {
 		&i.RemovalState,
 		&i.RemovalError,
 		&i.RemovalStartedAt,
+		&i.AdoptionState,
 	)
 	return i, err
 }
@@ -219,7 +221,7 @@ const setServerAcceptWorkloads = `-- name: SetServerAcceptWorkloads :one
 UPDATE servers
 SET accept_workloads = $1::boolean
 WHERE id = $2 AND workspace_id = $3
-RETURNING id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at
+RETURNING id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at, adoption_state
 `
 
 type SetServerAcceptWorkloadsParams struct {
@@ -287,6 +289,7 @@ func (q *Queries) SetServerAcceptWorkloads(ctx context.Context, arg SetServerAcc
 		&i.RemovalState,
 		&i.RemovalError,
 		&i.RemovalStartedAt,
+		&i.AdoptionState,
 	)
 	return i, err
 }

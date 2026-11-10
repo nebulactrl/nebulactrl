@@ -273,7 +273,7 @@ func (q *Queries) ListServiceNamesByIDs(ctx context.Context, ids []uuid.UUID) ([
 }
 
 const lockServerForProxy = `-- name: LockServerForProxy :one
-SELECT id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at FROM servers WHERE id = $1 AND workspace_id = $2 FOR UPDATE
+SELECT id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at, adoption_state FROM servers WHERE id = $1 AND workspace_id = $2 FOR UPDATE
 `
 
 type LockServerForProxyParams struct {
@@ -341,6 +341,7 @@ func (q *Queries) LockServerForProxy(ctx context.Context, arg LockServerForProxy
 		&i.RemovalState,
 		&i.RemovalError,
 		&i.RemovalStartedAt,
+		&i.AdoptionState,
 	)
 	return i, err
 }

@@ -228,6 +228,9 @@ func (in *inputs) blocking() []PlanBlocking {
 		out = append(out, PlanBlocking{Code: "no_server", Message: "Assign the service to a server before deploying."})
 	case in.server.Status == "revoked":
 		out = append(out, PlanBlocking{Code: "server_revoked", Message: "server revoked: " + in.server.Name + " was revoked; assign the service to another server."})
+	case in.server.AdoptionState == services.AdoptionStateHeld:
+		e := services.ServerAdoptionPendingError()
+		out = append(out, PlanBlocking{Code: e.Code, Message: e.Message})
 	}
 	if err := in.cfg.Validate(in.sc.Service.SourceType); err != nil {
 		out = append(out, PlanBlocking{Code: "invalid_config", Message: strings.TrimPrefix(err.Error(), services.ErrInvalidConfig.Error()+": ")})
@@ -263,6 +266,9 @@ func (in *inputs) blocking() []PlanBlocking {
 func blockingError(b []PlanBlocking) error {
 	if len(b) == 0 {
 		return nil
+	}
+	if b[0].Code == "server_adoption_pending" {
+		return services.ServerAdoptionPendingError()
 	}
 	e := apierr.Unprocessable(b[0].Code, b[0].Message)
 	if len(b[0].Violations) > 0 {

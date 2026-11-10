@@ -70,14 +70,15 @@ Revoke when a host is retired, lost, or suspected compromised. A compromised age
 
 ## Remove a server
 
-**Servers → server → Remove server…** (also on every card of the servers list) or `DELETE /api/v1/servers/{serverId}?confirm=<name>&mode=clean|forget` (scope `servers:write` and `admin`; operation `removeServer`; denied to MCP agents). You type the server's name. Revoke keeps the server row; removal deletes it.
+**Servers → server → Remove server…** (also on every card of the servers list) or `DELETE /api/v1/servers/{serverId}?confirm=<name>&mode=clean|forget|release` (scope `servers:write` and `admin`; operation `removeServer`; denied to MCP agents). You type the server's name. Revoke keeps the server row; removal deletes it.
 
 | Mode | What happens |
 |---|---|
 | `clean` (default) | The agent stops and removes every container, network and volume NebulaCtrl manages on the host (found by their `nebulactrl.*` labels, plus the proxy and its sibling containers and the `nc-vol-*` volumes; **volume data is deleted**), reports the result, and then deletes itself: its identity, systemd unit, environment file, binary and state directory, as `install-agent.sh --uninstall --purge` does. Docker, images and every container, network and volume that is not NebulaCtrl's stay, and so do **local backups**: the default backup directory (`/var/lib/nebulactrl-agent/backups`) is moved to `/var/lib/nebulactrl-backups` (into a timestamped subdirectory when that exists already) and a `--backup-dir` outside the state directory is left where it is; the agent logs where they went. The server row is deleted after the agent reported success. It runs in the background: the API answers 202 and the server shows **Removing…**; if the agent cannot finish, the server stays with `removal.state` `failed` and the reason, and removing again retries. |
 | `forget` | The agent is revoked and the server deleted at once, **without touching the host**: containers keep running and the agent's files stay. The dialog shows the commands to clean the host by hand. An **offline** server is always forgotten, whatever mode was asked for (`mode` in the answer says which). |
+| `release` | **Release to another NebulaCtrl**: like `forget`, and the services placed on the server are deleted here too, without a command to the host, so another instance can [adopt](../installing/servers.md#adding-a-host-that-already-runs-nebulactrl-workloads) the running containers. |
 
-Both are refused while services are placed on the server (409 `server_has_services`; `details.projects` lists the projects, the hidden platform project included) and for the server the control plane itself runs on (409 `server_is_control_plane`; uninstall NebulaCtrl from that host instead). `clean` needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission` otherwise: upgrade the agent, or forget the server). The audit log records `server.removed` with the mode and the counts the agent removed. Deleting a [team](teams.md#delete-a-team) removes its servers the same way.
+`clean` and `forget` are refused while services are placed on the server (409 `server_has_services`; `details.projects` lists the projects, the hidden platform project included). Every mode is refused for the server the control plane itself runs on (409 `server_is_control_plane`; uninstall NebulaCtrl from that host instead) and `release` while a deployment of one of its services runs (409 `deployment_in_progress`). `clean` needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission` otherwise: upgrade the agent, or forget the server). The audit log records `server.removed` with the mode and the counts the agent removed (`release` adds `hostUntouched: true` and the number of services deleted). Deleting a [team](teams.md#delete-a-team) removes its servers the same way.
 
 ## Agent versions
 
@@ -90,6 +91,8 @@ Each server card shows when its agent is behind the control plane. Agents upgrad
 3. Run the new install command on the host.
 
 The new server gets a new ID. Services are placed on a specific server, so move them by changing **Placement** in each service's settings and deploying; this creates a new deployment on the target, and **volumes are not migrated**. To empty a whole server in one operation, see [Draining servers](draining-servers.md).
+
+Re-running the install command with a new `--url` and `--token` without `--purge` also works: the agent keeps its proxy routes, enrolls with the new control plane when that one does not know its identity, and the workloads it finds are [held for adoption](../installing/servers.md#adding-a-host-that-already-runs-nebulactrl-workloads) instead of being removed.
 
 If an agent was merely moved to new hardware, copy `/var/lib/nebulactrl-agent/agent.db` (mode 0600) to the same path before starting it and it keeps its identity.
 

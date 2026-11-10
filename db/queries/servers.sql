@@ -8,13 +8,15 @@ SELECT * FROM servers WHERE id = $1;
 
 -- name: GetServerScoped :one
 SELECT s.*,
-       (SELECT count(*) FROM services sv WHERE sv.server_id = s.id AND sv.deleted_at IS NULL)::int AS service_count
+       (SELECT count(*) FROM services sv WHERE sv.server_id = s.id AND sv.deleted_at IS NULL)::int AS service_count,
+       (SELECT count(*) FROM server_unmanaged_services u WHERE u.server_id = s.id)::int AS unmanaged_count
 FROM servers s
 WHERE s.id = $1 AND s.workspace_id = $2;
 
 -- name: ListServersPage :many
 SELECT s.*,
-       (SELECT count(*) FROM services sv WHERE sv.server_id = s.id AND sv.deleted_at IS NULL)::int AS service_count
+       (SELECT count(*) FROM services sv WHERE sv.server_id = s.id AND sv.deleted_at IS NULL)::int AS service_count,
+       (SELECT count(*) FROM server_unmanaged_services u WHERE u.server_id = s.id)::int AS unmanaged_count
 FROM servers s
 WHERE s.workspace_id = $1
   AND (sqlc.narg(cursor_created_at)::timestamptz IS NULL
@@ -126,6 +128,19 @@ WHERE s.server_id = $1 AND s.deleted_at IS NULL
 GROUP BY p.id, p.name, p.slug, p.system
 ORDER BY p.system, p.name, p.id;
 
+-- name: ListServerLiveServiceIDs :many
+-- Live services placed on the server, newest first: a replica goes before its primary.
+SELECT id FROM services
+WHERE server_id = $1 AND deleted_at IS NULL
+ORDER BY created_at DESC, id;
+
+-- name: CountServerActiveDeployments :one
+-- Deployments in progress for the live services placed on the server.
+SELECT count(*)::int FROM deployments d
+JOIN services s ON s.id = d.service_id
+WHERE s.server_id = $1 AND s.deleted_at IS NULL
+  AND d.status IN ('created','queued','preparing','building','releasing','verifying');
+
 -- name: SetServerRemoval :one
 -- The state of a server's removal job. started_at is set when a removal starts
 -- and kept while it fails.
@@ -141,3 +156,14 @@ DELETE FROM servers WHERE id = $1 AND workspace_id = $2;
 
 -- name: ListTeamServers :many
 SELECT * FROM servers WHERE workspace_id = $1 ORDER BY created_at, id;
+
+-- name: SetServerAdoptionHeld :execrows
+-- Holds a server for adoption (its first hello found managed containers this
+-- instance does not know). Only from the normal state.
+UPDATE servers SET adoption_state = 'held' WHERE id = $1 AND adoption_state = '';
+
+-- name: ClearServerAdoption :exec
+UPDATE servers SET adoption_state = '' WHERE id = $1;
+
+-- name: LockServer :one
+SELECT * FROM servers WHERE id = $1 AND workspace_id = $2 FOR UPDATE;

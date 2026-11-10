@@ -360,6 +360,8 @@ export type ApiRouteKey =
 	| `POST /registries/${string}/check`
 	| `POST /secret-managers`
 	| `POST /secret-managers/${string}/test`
+	| `POST /servers/${string}/adoption`
+	| `POST /servers/${string}/adoption/plan`
 	| `POST /servers/${string}/agent-upgrade`
 	| `POST /servers/${string}/certificates`
 	| `POST /servers/${string}/cleanup/runs`

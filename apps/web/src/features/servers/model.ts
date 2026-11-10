@@ -40,6 +40,8 @@ export interface ServerView extends Server {
 	removal?: ServerWire["removal"];
 	/** The GeoIP database as the agent last reported it; absent while it is offline or geolocation is off. */
 	geoStatus?: ServerWire["geoStatus"];
+	/** Set while the host's workloads from an earlier NebulaCtrl are held for review, or some were left unmanaged. */
+	adoption?: ServerWire["adoption"];
 }
 
 /** Disk use in percent from the latest heartbeat; null before the first. */
@@ -97,6 +99,7 @@ export function toServerView(wire: ServerWire): ServerView {
 		canDecommission: wire.canDecommission,
 		removal: wire.removal,
 		geoStatus: wire.geoStatus,
+		adoption: wire.adoption,
 	};
 }
 

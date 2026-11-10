@@ -11,43 +11,8 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
-// specLabel is the non-secret runtime spec stored on every managed container
-// (agentprotocol.LabelSpec). It lets the agent add replicas on its own, when a
-// reconcile frame says more are wanted than run, without the deploy command.
-type specLabel struct {
-	Slug             string                        `json:"slug"`
-	Port             int                           `json:"port,omitempty"`
-	Healthcheck      agentprotocol.HealthcheckSpec `json:"healthcheck"`
-	StopGraceSeconds int                           `json:"stopGraceSeconds,omitempty"`
-	// RestartPolicy and RestartMaxRetries are the service's restart policy
-	// (replicas keep it).
-	RestartPolicy     string `json:"restartPolicy,omitempty"`
-	RestartMaxRetries int    `json:"restartMaxRetries,omitempty"`
-	MemoryMB          int    `json:"memoryMb,omitempty"`
-	// Docker holds the allow-listed container options (replicas keep them).
-	Docker *agentprotocol.DockerOptions `json:"docker,omitempty"`
-	// DockerPolicy is the server policy the options were validated against.
-	DockerPolicy *agentprotocol.DockerPolicy `json:"dockerPolicy,omitempty"`
-	CPUs         float64                     `json:"cpus,omitempty"`
-	// MeshAlias is the exposed-service alias (nc-svc-<id8>): a replica added
-	// later carries it too.
-	MeshAlias string `json:"meshAlias,omitempty"`
-	// Network membership (see netplan.go): a replica added later must join the
-	// same networks as its siblings.
-	BlockEgress         bool                                    `json:"blockEgress,omitempty"`
-	EnvHasEgressBlocked bool                                    `json:"envHasEgressBlocked,omitempty"`
-	SharedNetworks      []agentprotocol.SharedNetworkAttachment `json:"sharedNetworks,omitempty"`
-	// Process names the process of a multi-process deployment this container
-	// runs ("" for a single-process service). The projected fields above
-	// (Port, Healthcheck, StopGraceSeconds, MemoryMB, CPUs) are then the
-	// process' own, so the label rebuilds that process alone.
-	Process        string `json:"process,omitempty"`
-	ProcessDefault bool   `json:"processDefault,omitempty"`
-	Singleton      bool   `json:"singleton,omitempty"`
-}
-
 func specLabelOf(p agentprotocol.DeployPayload) string {
-	sl := specLabel{
+	sl := agentprotocol.SpecLabel{
 		Slug: p.ServiceSlug, Port: p.Port, Healthcheck: p.Healthcheck,
 		StopGraceSeconds: p.StopGraceSeconds, MemoryMB: p.MemoryMB, CPUs: p.CPUs, Docker: p.Docker.Normalized(), DockerPolicy: p.DockerPolicy,
 		RestartPolicy: p.RestartPolicy, RestartMaxRetries: p.RestartMaxRetries,
@@ -68,8 +33,8 @@ func specLabelOf(p agentprotocol.DeployPayload) string {
 // its labels and spec label. ok is false for containers without a usable spec
 // label.
 func payloadFromContainer(c docker.ContainerInfo) (agentprotocol.DeployPayload, bool) {
-	var sl specLabel
-	if err := json.Unmarshal([]byte(c.Labels[agentprotocol.LabelSpec]), &sl); err != nil || sl.Slug == "" {
+	sl, ok := agentprotocol.ParseSpecLabel(c.Labels[agentprotocol.LabelSpec])
+	if !ok {
 		return agentprotocol.DeployPayload{}, false
 	}
 	p := agentprotocol.DeployPayload{

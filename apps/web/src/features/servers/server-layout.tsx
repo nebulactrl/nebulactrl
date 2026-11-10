@@ -11,6 +11,7 @@ import { Button } from "#/components/ui/button";
 import { Skeleton, SkeletonReveal } from "#/components/ui/skeleton";
 import { DrainChip } from "#/features/fleet/drain-chip";
 import { DrainSheet } from "#/features/fleet/drain-sheet";
+import { AdoptionHost } from "#/features/server-adoption/adoption-host";
 import { pagesFor } from "#/features/settings/nav-model";
 import { isRole } from "#/features/teams/roles";
 import { HostShellSheet } from "#/features/terminal";
@@ -117,6 +118,7 @@ export function ServerLayout({
 					onOpenChange={(open) => onDrainOpenChange?.(open)}
 				/>
 				<HostShellSheet />
+				<AdoptionHost />
 			</ServerProvider>
 		);
 	}

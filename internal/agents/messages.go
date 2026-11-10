@@ -45,7 +45,17 @@ func (h *Hub) onHello(ctx context.Context, c *agentConn, hello agentprotocol.Hel
 		h.processResult(ctx, c, res)
 	}
 
-	if rh := h.resultHandler(); rh != nil {
+	// A server added to this instance that already runs NebulaCtrl workloads is
+	// held before the desired state is computed, so the first frame already says
+	// to leave them alone.
+	holdErr := h.holdForAdoption(ctx, c.serverID, before, hello.Facts)
+	if holdErr != nil {
+		// Fail closed: the agent sweeps unknown containers only after a reconcile
+		// frame, and a frame without the hold would tell it to. Send none.
+		c.log.ErrorContext(ctx, "adoption hold not recorded; no desired state sent", "err", holdErr)
+	}
+
+	if rh := h.resultHandler(); rh != nil && holdErr == nil {
 		rec, err := rh.DesiredState(ctx, c.serverID)
 		if err != nil {
 			c.log.ErrorContext(ctx, "compute desired state", "err", err)

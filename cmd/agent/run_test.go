@@ -60,6 +60,11 @@ type fakeControlPlane struct {
 	enrolled []agentprotocol.EnrollRequest
 	pub      ed25519.PublicKey
 	status   int // enroll response status (0 = 200)
+	// knownAgent, when set, is the only agent ID this control plane knows: any
+	// other one is closed with 4404 (unknown agent), the way a control plane
+	// that lost its database or never enrolled the agent answers.
+	knownAgent string
+	unknown    chan struct{} // one entry per agent turned away
 
 	hellos chan agentprotocol.Hello
 	// script runs after the handshake; it gets the live socket.
@@ -68,7 +73,7 @@ type fakeControlPlane struct {
 
 func newFakeControlPlane(t *testing.T) *fakeControlPlane {
 	t.Helper()
-	cp := &fakeControlPlane{hellos: make(chan agentprotocol.Hello, 8)}
+	cp := &fakeControlPlane{hellos: make(chan agentprotocol.Hello, 8), unknown: make(chan struct{}, 8)}
 	mux := http.NewServeMux()
 	mux.HandleFunc("/agent/v1/enroll", cp.enroll)
 	mux.HandleFunc("/agent/v1/connect", cp.connect)
@@ -113,6 +118,14 @@ func (cp *fakeControlPlane) connect(w http.ResponseWriter, r *http.Request) {
 	f, _ := agentprotocol.Decode(data)
 	var auth agentprotocol.Auth
 	_ = f.Into(&auth)
+	cp.mu.Lock()
+	known := cp.knownAgent
+	cp.mu.Unlock()
+	if known != "" && auth.AgentID != known {
+		_ = ws.Close(websocket.StatusCode(agentprotocol.CloseUnknownAgent), "unknown agent")
+		cp.unknown <- struct{}{}
+		return
+	}
 	cp.mu.Lock()
 	pub := cp.pub
 	cp.mu.Unlock()
@@ -339,4 +352,105 @@ func TestRunFailsWhenTheStateDirCannotBeOpened(t *testing.T) {
 	o.StateDir = "/dev/null/state"
 	err := waitFor(t, runAsync(context.Background(), o))
 	require.ErrorContains(t, err, "create state dir")
+}
+
+// storeGhostIdentity writes the identity of a control plane that no longer
+// knows it, plus the state a running proxy keeps: a route table, its number
+// and the admin secret. Re-enrolling must change the identity and nothing else.
+func storeGhostIdentity(t *testing.T, dir string) []agentprotocol.Route {
+	t.Helper()
+	_, priv, err := ed25519.GenerateKey(nil)
+	require.NoError(t, err)
+	routes := []agentprotocol.Route{{ServiceID: "svc-1", Hosts: []string{"old.example.com"}, Upstreams: []string{"nc-old-abcdef12-0:80"}}}
+	st := openState(t, dir)
+	require.NoError(t, st.PutIdentity(store.Identity{AgentID: "ghost", ServerID: "ghost-server", PrivateKey: priv}))
+	require.NoError(t, st.SaveRoutes(routes))
+	require.NoError(t, st.SaveTableSeq(7))
+	require.NoError(t, st.SaveProxyAdminSecret("admin-secret"))
+	require.NoError(t, st.Close())
+	return routes
+}
+
+func TestRunReenrollsWithTheTokenWhenTheControlPlaneDoesNotKnowTheIdentity(t *testing.T) {
+	clearAgentEnv(t)
+	useFakeDocker(t)
+	cp := newFakeControlPlane(t)
+	cp.knownAgent = "agent-1"
+	o := runOptions(t, cp, "new-token")
+	routes := storeGhostIdentity(t, o.StateDir)
+
+	err := waitFor(t, runAsync(context.Background(), o))
+	require.ErrorIs(t, err, errUpgradeRestart, "the process restarts to use the new identity")
+	<-cp.unknown
+
+	cp.mu.Lock()
+	require.Len(t, cp.enrolled, 1)
+	assert.Equal(t, "new-token", cp.enrolled[0].Token)
+	cp.mu.Unlock()
+
+	st := openState(t, o.StateDir)
+	id, ok, err := st.Identity()
+	require.NoError(t, err)
+	require.True(t, ok)
+	assert.Equal(t, "agent-1", id.AgentID, "the identity the control plane did not know was replaced")
+	assert.Equal(t, "server-1", id.ServerID)
+	assert.False(t, id.Revoked)
+	got, err := st.LoadRoutes()
+	require.NoError(t, err)
+	assert.Equal(t, routes, got, "the route table survives: the proxy keeps serving")
+	seq, err := st.LoadTableSeq()
+	require.NoError(t, err)
+	assert.EqualValues(t, 7, seq)
+	secret, err := st.LoadProxyAdminSecret()
+	require.NoError(t, err)
+	assert.Equal(t, "admin-secret", secret)
+}
+
+func TestRunKeepsAnUnknownIdentityWithoutATokenOrWhenTheTokenIsRejected(t *testing.T) {
+	for name, tc := range map[string]struct {
+		token  string
+		status int
+	}{
+		"no token":       {token: ""},
+		"rejected token": {token: "used-token", status: http.StatusUnauthorized},
+	} {
+		t.Run(name, func(t *testing.T) {
+			clearAgentEnv(t)
+			useFakeDocker(t)
+			cp := newFakeControlPlane(t)
+			cp.knownAgent, cp.status = "agent-1", tc.status
+			o := runOptions(t, cp, tc.token)
+			storeGhostIdentity(t, o.StateDir)
+
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			res := runAsync(ctx, o)
+			waitFor(t, cp.unknown)
+			if tc.token != "" {
+				require.Eventually(t, func() bool {
+					cp.mu.Lock()
+					defer cp.mu.Unlock()
+					return len(cp.enrolled) == 1
+				}, 10*time.Second, 5*time.Millisecond, "the token is tried once")
+			}
+			select {
+			case err := <-res:
+				t.Fatalf("run ended with %v; the agent keeps retrying with its identity", err)
+			default:
+			}
+			cancel()
+			require.NoError(t, waitFor(t, res))
+
+			id, ok, err := openState(t, o.StateDir).Identity()
+			require.NoError(t, err)
+			require.True(t, ok)
+			assert.Equal(t, "ghost", id.AgentID, "the current identity is kept")
+			assert.False(t, id.Revoked)
+			if tc.token == "" {
+				cp.mu.Lock()
+				defer cp.mu.Unlock()
+				assert.Empty(t, cp.enrolled)
+			}
+		})
+	}
 }

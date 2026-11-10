@@ -190,7 +190,7 @@ If you start the control plane yourself (a manual Compose install) and set no `N
 - A step failed: fix the cause and run again. A power loss or a killed run leaves nothing a re-run does not repair.
 - `.env` lost but the database volume remains: restore `.env` from your backup (the installer will not invent a key), or [uninstall with `--purge`](uninstall.md) and restore the database from a backup.
 - **Locked out** (lost password or lost 2FA of the only Owner): `cd /opt/nebulactrl && docker compose exec nebulactrl nebulactrl-server reset-password you@example.com` prints a one-time reset link (30 minutes); `reset-2fa you@example.com` removes the authenticator app, passkeys and recovery codes after you type the email. Both run on the host against the database, end the account's sessions and are audited as system actions. If setup was never completed there is no account to reset: use the setup URL instead. See [Troubleshooting → Locked out](../operations/troubleshooting.md#locked-out).
-- The host's agent identity from an earlier installation is moved aside (`/var/lib/nebulactrl-agent.old-<time>`) when a fresh control plane is installed over it.
+- The host's agent identity from an earlier installation is kept when a fresh control plane is installed over it. The new control plane does not know it, so the agent enrolls again with the installer's token (the proxy and its routes keep serving), and the workloads that were already on the host are held for review instead of being removed: open Servers, the host's server, Review workloads.
 
 ## Tested
 

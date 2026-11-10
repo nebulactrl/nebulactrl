@@ -114,6 +114,164 @@ export type AdminProvidersOutputBody = {
     items: Array<ProviderBody> | null;
 };
 
+export type AdoptedService = {
+    envSlug: string;
+    environmentId: string;
+    id: string;
+    name: string;
+    projectId: string;
+    projectSlug: string;
+    slug: string;
+};
+
+export type AdoptionApplyRequest = {
+    choices?: AdoptionChoices;
+};
+
+export type AdoptionChoices = {
+    /**
+     * Keyed by the environment ID found on the containers
+     */
+    environments?: {
+        [key: string]: AdoptionEnvironmentChoice;
+    };
+    /**
+     * Keyed by the service ID found on the containers
+     */
+    services?: {
+        [key: string]: AdoptionServiceChoice;
+    };
+};
+
+export type AdoptionContainer = {
+    leftover?: boolean;
+    name: string;
+    state: string;
+};
+
+export type AdoptionDatabase = {
+    databaseName?: string;
+    engine: string;
+    flavor?: string;
+    username?: string;
+    version: string;
+};
+
+export type AdoptionDomain = {
+    host: string;
+    include: boolean;
+    note?: string;
+    pathPrefix?: string;
+    targetPort?: number;
+};
+
+export type AdoptionEnvironment = {
+    action: 'create' | 'existing' | 'none';
+    /**
+     * The environment ID found on the containers; the rebuilt environment keeps it
+     */
+    id: string;
+    name: string;
+    production: boolean;
+    projectAction: 'create' | 'existing' | 'none';
+    projectId?: string;
+    projectName: string;
+    projectSlug?: string;
+    services: Array<AdoptionService> | null;
+    slug: string;
+};
+
+export type AdoptionEnvironmentChoice = {
+    name?: string;
+    production?: boolean;
+    projectId?: string;
+    projectName?: string;
+};
+
+export type AdoptionPlan = {
+    blockers: Array<string> | null;
+    environments: Array<AdoptionEnvironment> | null;
+    /**
+     * True while the server is held for adoption: nothing on it is changed until the review is applied
+     */
+    held: boolean;
+    serverId: string;
+    totals: AdoptionTotals;
+    warnings: Array<string> | null;
+};
+
+export type AdoptionPlanRequest = {
+    choices?: AdoptionChoices;
+};
+
+export type AdoptionProject = {
+    id: string;
+    name: string;
+    slug: string;
+};
+
+export type AdoptionResult = {
+    left: number;
+    projects: Array<AdoptionProject> | null;
+    reattached: number;
+    removed: number;
+    services: Array<AdoptedService> | null;
+    warnings: Array<string> | null;
+};
+
+export type AdoptionService = {
+    action: 'adopt' | 'reattach' | 'leave' | 'remove';
+    adoptable: boolean;
+    containers: Array<AdoptionContainer> | null;
+    database?: AdoptionDatabase;
+    deploymentId?: string;
+    domains: Array<AdoptionDomain> | null;
+    env: Array<AdoptionVariable> | null;
+    /**
+     * The service ID found on the containers; the rebuilt service keeps it
+     */
+    id: string;
+    image?: string;
+    kind: 'app' | 'worker' | 'database' | 'stack' | 'route';
+    name: string;
+    notes: Array<string> | null;
+    processes: Array<string> | null;
+    reason?: string;
+    releaseId?: string;
+    replicas: number;
+    slug: string;
+    sourceType: string;
+    volumes: Array<AdoptionVolume> | null;
+};
+
+export type AdoptionServiceChoice = {
+    action?: 'adopt' | 'leave' | 'remove';
+    name?: string;
+    secret?: {
+        [key: string]: boolean;
+    };
+    skipHosts?: Array<string> | null;
+};
+
+export type AdoptionTotals = {
+    adopt: number;
+    containers: number;
+    leave: number;
+    remove: number;
+};
+
+export type AdoptionVariable = {
+    key: string;
+    secret: boolean;
+    secretReason?: string;
+};
+
+export type AdoptionVolume = {
+    dockerName?: string;
+    mountPath: string;
+    name: string;
+};
+
 export type ApplyConfigRequest = {
     /**
      * Deploy the services this apply touched that now have staged changes (needs deployments:write; not available to principals that need production approval)
@@ -3347,7 +3505,7 @@ export type DeploymentView = {
     status: string;
     statusMessage: string;
     strategy: 'rolling' | 'recreate' | 'route_only';
-    trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook';
+    trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook' | 'adopt';
     waitingFor: WaitingFor | null;
 };
 
@@ -3786,7 +3944,7 @@ export type EnvDeploymentView = {
     status: string;
     statusMessage: string;
     strategy: 'rolling' | 'recreate' | 'route_only';
-    trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook';
+    trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook' | 'adopt';
     waitingFor: WaitingFor | null;
 };
 
@@ -4086,6 +4244,7 @@ export type Facts = {
     };
     hostTailscale?: HostTailscale;
     kernel: string;
+    managedServices?: Array<string> | null;
     memTotal: number;
     os: string;
     port443Free: boolean;
@@ -7841,7 +8000,7 @@ export type RollbackView = {
     status: string;
     statusMessage: string;
     strategy: 'rolling' | 'recreate' | 'route_only';
-    trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook';
+    trigger: 'manual' | 'redeploy' | 'rollback' | 'staged' | 'reconcile' | 'drain' | 'git_push' | 'preview' | 'cron' | 'deploy_hook' | 'adopt';
     waitingFor: WaitingFor | null;
 };
 
@@ -8333,6 +8492,7 @@ export type Server = {
      */
     acceptWorkloads: boolean;
     acmeEmail: string | null;
+    adoption?: ServerAdoption;
     agentVersion: string | null;
     baseDomain: string | null;
     /**
@@ -8431,6 +8591,21 @@ export type Server = {
      * An instance admin made this server unrestricted: stacks and services on it may use privileged mode, host networking, devices, GPUs, a runtime, the host PID namespace, unconfined seccomp or AppArmor, NET_ADMIN, SYS_ADMIN, the Docker socket and host bind mounts
      */
     unrestricted: boolean;
+};
+
+export type ServerAdoption = {
+    /**
+     * Services of an earlier NebulaCtrl found on the host while held
+     */
+    found: number;
+    /**
+     * held: nothing on the host is changed until the workloads are reviewed; empty once reviewed
+     */
+    state: 'held' | '';
+    /**
+     * Services left running on the host without being managed
+     */
+    unmanaged: number;
 };
 
 export type ServerCertificate = {
@@ -8605,7 +8780,7 @@ export type ServerRemoval = {
     /**
      * What the removal does. An offline server is always forgotten: its host cannot be reached
      */
-    mode: 'clean' | 'forget';
+    mode: 'clean' | 'forget' | 'release';
     /**
      * The server is gone. False while the agent empties the host: the server shows its removal state until the row is deleted
      */
@@ -24190,9 +24365,9 @@ export type RemoveServerData = {
          */
         confirm?: string;
         /**
-         * clean empties the host through the agent first; forget leaves the host as it is
+         * clean empties the host through the agent first; forget leaves the host as it is; release also deletes the services placed on the server without touching the host, for another NebulaCtrl to adopt
          */
-        mode?: 'clean' | 'forget';
+        mode?: 'clean' | 'forget' | 'release';
     };
     url: '/servers/{serverId}';
 };
@@ -24336,6 +24511,126 @@ export type UpdateServerResponses = {
 };
 
 export type UpdateServerResponse = UpdateServerResponses[keyof UpdateServerResponses];
+
+export type AdoptServerData = {
+    body: AdoptionApplyRequest;
+    headers?: {
+        /**
+         * Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
+         */
+        'Idempotency-Key'?: string;
+    };
+    path: {
+        serverId: string;
+    };
+    query?: never;
+    url: '/servers/{serverId}/adoption';
+};
+
+export type AdoptServerErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Conflict
+     */
+    409: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Service Unavailable
+     */
+    503: Error;
+    /**
+     * Gateway Timeout
+     */
+    504: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type AdoptServerError = AdoptServerErrors[keyof AdoptServerErrors];
+
+export type AdoptServerResponses = {
+    /**
+     * Created
+     */
+    201: AdoptionResult;
+};
+
+export type AdoptServerResponse = AdoptServerResponses[keyof AdoptServerResponses];
+
+export type PlanServerAdoptionData = {
+    body: AdoptionPlanRequest;
+    path: {
+        serverId: string;
+    };
+    query?: never;
+    url: '/servers/{serverId}/adoption/plan';
+};
+
+export type PlanServerAdoptionErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Service Unavailable
+     */
+    503: Error;
+    /**
+     * Gateway Timeout
+     */
+    504: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type PlanServerAdoptionError = PlanServerAdoptionErrors[keyof PlanServerAdoptionErrors];
+
+export type PlanServerAdoptionResponses = {
+    /**
+     * OK
+     */
+    200: AdoptionPlan;
+};
+
+export type PlanServerAdoptionResponse = PlanServerAdoptionResponses[keyof PlanServerAdoptionResponses];
 
 export type UpgradeServerAgentData = {
     body: ServerInputBody;

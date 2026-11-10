@@ -23,7 +23,8 @@ import { useRemoveServer } from "./remove-server";
  */
 export function ServerCardMenu({ server }: { server: ServerView }) {
 	const navigate = useNavigate();
-	const { hidden, removing, canClean, ask } = useRemoveServer(server);
+	const { hidden, removing, canClean, canRelease, ask } =
+		useRemoveServer(server);
 	if (hidden) return null;
 	return (
 		<DropdownMenu>
@@ -71,6 +72,16 @@ export function ServerCardMenu({ server }: { server: ServerView }) {
 					>
 						<Trash2Icon aria-hidden />
 						Remove without cleaning…
+					</DropdownMenuItem>
+				) : null}
+				{canRelease && !removing ? (
+					<DropdownMenuItem
+						render={<button type="button" />}
+						variant="destructive"
+						onClick={() => ask("release")}
+					>
+						<Trash2Icon aria-hidden />
+						Release to another NebulaCtrl…
 					</DropdownMenuItem>
 				) : null}
 			</DropdownMenuContent>

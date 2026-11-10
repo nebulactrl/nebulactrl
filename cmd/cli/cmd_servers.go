@@ -10,7 +10,8 @@ import (
 
 func newServersCmd(c *cli) *cobra.Command {
 	return group("servers", "Manage Docker hosts",
-		newServersLsCmd(c), newServersEnrollCmd(c), newServersUpdateCmd(c), newServersUnrestrictedCmd(c), newServersRevokeCmd(c))
+		newServersLsCmd(c), newServersEnrollCmd(c), newServersUpdateCmd(c), newServersUnrestrictedCmd(c), newServersRevokeCmd(c),
+		newServersAdoptCmd(c))
 }
 
 func newServersLsCmd(c *cli) *cobra.Command {

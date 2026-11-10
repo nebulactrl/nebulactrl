@@ -482,6 +482,63 @@ func TestServerCloseWith4400EndsRun(t *testing.T) {
 	require.ErrorIs(t, recv(t, res), ErrUnsupportedVersion)
 }
 
+func TestUnknownAgentCloseReenrollsThroughTheHook(t *testing.T) {
+	c, _, srv := newHarness(t)
+	srv.script = func(_ context.Context, ws *websocket.Conn, _ agentprotocol.Hello) {
+		_ = ws.Close(websocket.StatusCode(agentprotocol.CloseUnknownAgent), "unknown agent")
+	}
+	var calls atomic.Int32
+	c.cfg.OnUnknownAgent = func(context.Context) bool { calls.Add(1); return true }
+	_, res := runClient(t, c)
+	require.ErrorIs(t, recv(t, res), ErrReenrolled)
+	require.EqualValues(t, 1, calls.Load())
+}
+
+func TestUnknownAgentCloseBeforeHelloReenrollsToo(t *testing.T) {
+	// The control plane closes right after the auth frame, before reading hello.
+	c := rawClient(t, func(ctx context.Context, ws *websocket.Conn) {
+		ch := agentprotocol.Challenge{Nonce: make([]byte, 32), ServerTime: time.Now().UnixNano()}
+		b, _ := agentprotocol.Encode(agentprotocol.TypeChallenge, "", ch)
+		_ = ws.Write(ctx, websocket.MessageText, b)
+		_, _, _ = ws.Read(ctx)
+		_ = ws.Close(websocket.StatusCode(agentprotocol.CloseUnknownAgent), "unknown agent")
+	})
+	c.cfg.OnUnknownAgent = func(context.Context) bool { return true }
+	_, res := runClient(t, c)
+	require.ErrorIs(t, recv(t, res), ErrReenrolled)
+}
+
+func TestUnknownAgentCloseKeepsReconnectingWithoutAHookOrWhenItDeclines(t *testing.T) {
+	for name, hook := range map[string]func(context.Context) bool{
+		"no hook":  nil,
+		"declines": func(context.Context) bool { return false },
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, _, srv := newHarness(t)
+			backoff := newFakeBackoff(c)
+			var conns atomic.Int32
+			srv.script = func(_ context.Context, ws *websocket.Conn, _ agentprotocol.Hello) {
+				conns.Add(1)
+				_ = ws.Close(websocket.StatusCode(agentprotocol.CloseUnknownAgent), "unknown agent")
+			}
+			c.cfg.OnUnknownAgent = hook
+			_, res := runClient(t, c)
+
+			for range 2 {
+				delay, elapse := backoff.next(t)
+				require.GreaterOrEqual(t, delay, minBackoff)
+				elapse()
+			}
+			require.Eventually(t, func() bool { return conns.Load() >= 2 }, 5*time.Second, time.Millisecond, "it connects again after the backoff")
+			select {
+			case err := <-res:
+				t.Fatalf("Run returned %v; an unknown agent keeps retrying", err)
+			default:
+			}
+		})
+	}
+}
+
 // rawClient dials a handler that scripts the server side of the handshake.
 func rawClient(t *testing.T, h func(ctx context.Context, ws *websocket.Conn)) *Client {
 	t.Helper()

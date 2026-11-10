@@ -133,6 +133,44 @@ func TestDeletingAServiceTellsTheWiredHooks(t *testing.T) {
 	require.Equal(t, []uuid.UUID{sv.ID}, h.tailnet, "the tailnet node of the service is dropped")
 }
 
+// Releasing a service (the server it runs on goes to another NebulaCtrl) deletes
+// only this instance's rows: nothing the running workload depends on outside the
+// database is touched, and no command reaches the host.
+func TestReleaseTxTouchesNoExternalSystem(t *testing.T) {
+	f := newOpsFixture(t)
+	h := &recHooks{}
+	f.svcs.SetDNSHook(h)
+	f.svcs.SetTailnetHook(h)
+	f.svcs.SetDatabaseGuard(h)
+	f.svcs.SetMeshLinker(meshHook{h})
+	sv := f.deployed(f.prod.ID, "web", services.Config{Image: "traefik/whoami:latest", Port: 80})
+
+	var after func(context.Context)
+	require.NoError(t, db.InTx(f.ctx, f.pool, func(tx pgx.Tx) error {
+		var err error
+		after, err = f.svcs.ReleaseTx(f.ctx, tx, sv.ID)
+		return err
+	}))
+	after(f.ctx)
+
+	require.NotNil(t, f.deletedAt(sv.ID), "the service is soft-deleted")
+	require.Equal(t, []uuid.UUID{sv.ID}, h.guarded, "the database guard still applies")
+	require.Empty(t, h.dns, "the DNS records of the hostnames are not collected")
+	require.Empty(t, h.tailnet, "no tailnet device is retired")
+	require.NotContains(t, strings.Join(h.edges, ","), "service-deleted", "no mesh grant is revoked")
+	require.Empty(t, f.disp.commands(agentprotocol.KindRemoveService), "no command reaches the host")
+
+	// The guard still vetoes a release.
+	other := f.deployed(f.prod.ID, "api", services.Config{Image: "traefik/whoami:latest", Port: 80})
+	h.veto = apierr.Conflict("replicas_exist", "this database has read replicas: remove them first")
+	err := db.InTx(f.ctx, f.pool, func(tx pgx.Tx) error {
+		_, err := f.svcs.ReleaseTx(f.ctx, tx, other.ID)
+		return err
+	})
+	require.Error(t, err)
+	require.Nil(t, f.deletedAt(other.ID))
+}
+
 func TestGitSourceHooksRunInOrderAndOnlyWhenTheSourceChanges(t *testing.T) {
 	f := newOpsFixture(t)
 	h := &recHooks{}
@@ -245,6 +283,27 @@ func TestServicesAreNotPlacedOnServersThatCannotTakeThem(t *testing.T) {
 	require.Equal(t, "server_unavailable", f.code(rec))
 
 	require.Equal(t, http.StatusUnprocessableEntity, create(uuid.New()).Code, "an unknown server")
+}
+
+// A server held for adoption runs workloads this instance does not know yet:
+// nothing is placed on it until the person reviews them.
+func TestServicesAreNotPlacedOnAServerHeldForAdoption(t *testing.T) {
+	f := newOpsFixture(t)
+	_, err := f.pool.Exec(context.Background(), "UPDATE servers SET adoption_state = 'held' WHERE id = $1", f.server.ID)
+	require.NoError(t, err)
+	rec := f.do(f.ctx, http.MethodPost, "/environments/"+f.prod.ID.String()+"/services", map[string]any{
+		"name": "app-held", "sourceType": "image", "serverId": f.server.ID, "config": map[string]any{"image": "a:1", "port": 80},
+	})
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	require.Equal(t, "server_adoption_pending", f.code(rec))
+	require.Contains(t, rec.Body.String(), "Review workloads")
+
+	_, err = f.pool.Exec(context.Background(), "UPDATE servers SET adoption_state = '' WHERE id = $1", f.server.ID)
+	require.NoError(t, err)
+	rec = f.do(f.ctx, http.MethodPost, "/environments/"+f.prod.ID.String()+"/services", map[string]any{
+		"name": "app-held", "sourceType": "image", "serverId": f.server.ID, "config": map[string]any{"image": "a:1", "port": 80},
+	})
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 }
 
 // ---- stacks ----

@@ -193,7 +193,9 @@ export function deploymentMessage(
 	};
 }
 
-export const TRIGGER_LABEL: Record<Deployment["trigger"], string> = {
+// `adopt` is a deployment recorded when a running host was adopted; listing it
+// beside the generated triggers keeps this complete whichever side knows it.
+export const TRIGGER_LABEL: Record<Deployment["trigger"] | "adopt", string> = {
 	manual: "Deploy",
 	redeploy: "Redeploy",
 	rollback: "Rollback",
@@ -204,6 +206,7 @@ export const TRIGGER_LABEL: Record<Deployment["trigger"], string> = {
 	preview: "Pull-request preview",
 	cron: "Scheduled task",
 	deploy_hook: "Via deploy hook",
+	adopt: "Adopted",
 };
 
 /**

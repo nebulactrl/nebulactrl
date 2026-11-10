@@ -24,6 +24,7 @@ import {
 import { Input } from "#/components/ui/input";
 import { Spinner } from "#/components/ui/spinner";
 import { StatusIcon } from "#/components/ui/status-icon";
+import { openAdoption } from "#/features/server-adoption/store";
 import { formatBytes } from "#/lib/format";
 import { cacheEnrollment } from "./enrollment";
 import { InstallCommandField } from "./install-command";
@@ -73,6 +74,11 @@ function Connect({
 			query.state.data?.status === "online" ? false : CONNECT_POLL_MS,
 	});
 	const connected = server.data?.status === "online";
+	const held = connected && server.data?.adoption?.state === "held";
+	const review = () => {
+		onClose();
+		openAdoption(enrollment.server.id);
+	};
 	return (
 		<>
 			<DialogBody>
@@ -90,6 +96,17 @@ function Connect({
 								</span>
 							</div>
 						</div>
+						{held ? (
+							<p
+								role="note"
+								className="surface-well m-0 rounded-card px-4 py-3 text-ink-2 text-xs leading-[1.5]"
+							>
+								This host runs {server.data.adoption?.found ?? 0}{" "}
+								{server.data.adoption?.found === 1 ? "service" : "services"}{" "}
+								from an earlier NebulaCtrl. Nothing on it is changed until you
+								review them.
+							</p>
+						) : null}
 						<Facts server={server.data} />
 					</div>
 				) : (
@@ -108,9 +125,14 @@ function Connect({
 				<Button variant={connected ? "secondary" : "ghost"} onClick={onClose}>
 					{connected ? "Done" : "Close"}
 				</Button>
+				{held ? (
+					<Button variant="primary" onClick={review}>
+						Review workloads
+					</Button>
+				) : null}
 				{connected ? (
 					<Button
-						variant="primary"
+						variant={held ? "secondary" : "primary"}
 						nativeButton={false}
 						render={
 							<Link

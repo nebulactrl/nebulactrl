@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"github.com/nebulactrl/nebulactrl/internal/adoption"
 	"github.com/nebulactrl/nebulactrl/internal/agents"
 	"github.com/nebulactrl/nebulactrl/internal/analytics"
 	"github.com/nebulactrl/nebulactrl/internal/audit"
@@ -215,6 +216,7 @@ func wire(c *Core) Modules {
 	// Service domain.
 	serviceSvc := services.NewService(c.Pool, c.Bus, c.Box, hub, c.Logger)
 	serviceSvc.SetExtSecrets(extSecrets)
+	serverSvc.SetServiceReleaser(serviceSvc) // "release" removal: the server's services are deleted without touching the host
 	variableSvc := variables.NewService(c.Pool, c.Bus, c.Box)
 	domainSvc := domains.NewService(c.Pool, c.Bus, c.Jobs, c.Box)
 	routeSvc := proxyroutes.NewService(c.Pool, c.Bus, c.Jobs, hub, serviceSvc, c.Logger)
@@ -318,6 +320,12 @@ func wire(c *Core) Modules {
 	coolifySvc := coolify.NewService(coolify.Deps{
 		Pool: c.Pool, Bus: c.Bus, Jobs: c.Jobs, Services: serviceSvc, Databases: databaseSvc, Deploy: deploymentSvc, Git: gitSvc,
 		Box: c.Box, Logger: c.Logger,
+	})
+
+	// Server adoption: a host that already runs NebulaCtrl workloads (a lost or
+	// reinstalled control plane, or a move from another instance) becomes services.
+	adoptionSvc := adoption.NewService(adoption.Deps{
+		Pool: c.Pool, Bus: c.Bus, Hub: hub, Domains: domainSvc, Box: c.Box, Logger: c.Logger,
 	})
 
 	// Database backups: destinations, schedules, retention, restores.
@@ -563,6 +571,7 @@ func wire(c *Core) Modules {
 		func(h huma.API) { templates.Register(h, templateSvc) },
 		func(h huma.API) { composeimport.Register(h, composeSvc) },
 		func(h huma.API) { coolify.Register(h, coolifySvc) },
+		func(h huma.API) { adoption.Register(h, adoptionSvc) },
 		func(h huma.API) { scaling.Register(h, scalingSvc) },
 		func(h huma.API) { combine.Register(h, combineSvc) },
 		func(h huma.API) { maintenance.Register(h, maintenanceSvc) },

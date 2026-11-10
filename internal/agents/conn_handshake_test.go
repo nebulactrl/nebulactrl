@@ -93,8 +93,8 @@ func TestHandshakeClosesTheSocketOnEveryBadAuthAnswer(t *testing.T) {
 		{"another protocol major", `{"v":99,"type":"auth"}`, agentprotocol.CloseUnsupportedVersion, "unsupported protocol version"},
 		{"a hello where the auth belongs", `{"v":1,"type":"hello"}`, agentprotocol.CloseAuthFailed, "expected auth"},
 		{"an auth body of the wrong shape", `{"v":1,"type":"auth","agentId":42}`, agentprotocol.CloseAuthFailed, "expected auth"},
-		{"an agent id that is no uuid", `{"v":1,"type":"auth","agentId":"nope","signature":"AAAA"}`, agentprotocol.CloseAuthFailed, "unknown agent"},
-		{"an agent that never enrolled", `{"v":1,"type":"auth","agentId":"` + uuid.NewString() + `","signature":"AAAA"}`, agentprotocol.CloseAuthFailed, "unknown agent"},
+		{"an agent id that is no uuid", `{"v":1,"type":"auth","agentId":"nope","signature":"AAAA"}`, agentprotocol.CloseUnknownAgent, "unknown agent"},
+		{"an agent that never enrolled", `{"v":1,"type":"auth","agentId":"` + uuid.NewString() + `","signature":"AAAA"}`, agentprotocol.CloseUnknownAgent, "unknown agent"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

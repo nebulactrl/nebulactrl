@@ -22,12 +22,17 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/events"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
+	"github.com/nebulactrl/nebulactrl/internal/prodguard"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
 // removalStaleGrace is how much longer than the decommission timeout a removal
 // may stay "removing" before it counts as lost (see Remove).
 const removalStaleGrace = 15 * time.Minute
+
+// guardRemoveServer is the operation name production approvals of a release
+// removal are bound to (the catalog's operation id).
+const guardRemoveServer = "removeServer"
 
 // Modes of Remove server.
 const (
@@ -37,6 +42,10 @@ const (
 	// ModeForget revokes the agent and deletes the server without touching the
 	// host: its containers keep running and its files stay.
 	ModeForget = "forget"
+	// ModeRelease deletes the server and, with it, every service placed on it,
+	// without touching the host: the containers keep running for another
+	// NebulaCtrl that adopts the server.
+	ModeRelease = "release"
 )
 
 // Removal states of a server (servers.removal_state).
@@ -94,6 +103,8 @@ type removalDeps struct {
 	agent Agent
 	jm    *jobs.Manager
 	ts    TailnetDevices
+	// services releases the services of a server in ModeRelease.
+	services ServiceReleaser
 	// enqueue queues the removal job inside tx (default: the job manager).
 	enqueue func(ctx context.Context, tx pgx.Tx, args RemoveServerArgs) error
 }
@@ -108,6 +119,17 @@ func (s *Service) SetJobs(jm *jobs.Manager) { s.removal.jm = jm }
 // tailnet device of a removed server.
 func (s *Service) SetTailnetDevices(t TailnetDevices) { s.removal.ts = t }
 
+// ServiceReleaser soft-deletes a service inside tx without contacting its host.
+// *services.Service implements it (ReleaseTx); the servers package cannot
+// import services. The returned function runs once the transaction committed.
+type ServiceReleaser interface {
+	ReleaseTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) (afterCommit func(context.Context), err error)
+}
+
+// SetServiceReleaser installs what releases the services of a server in
+// ModeRelease.
+func (s *Service) SetServiceReleaser(r ServiceReleaser) { s.removal.services = r }
+
 // SetRemovalQueue replaces how removal jobs are queued (tests).
 func (s *Service) SetRemovalQueue(fn func(ctx context.Context, tx pgx.Tx, args RemoveServerArgs) error) {
 	s.removal.enqueue = fn
@@ -117,13 +139,13 @@ func (s *Service) SetRemovalQueue(fn func(ctx context.Context, tx pgx.Tx, args R
 type RemoveInput struct {
 	// Confirm is the server's name.
 	Confirm string
-	// Mode is ModeClean (the default) or ModeForget.
+	// Mode is ModeClean (the default), ModeForget or ModeRelease.
 	Mode string
 }
 
 // ServerRemoval is what Remove server answers.
 type ServerRemoval struct {
-	Mode    string `json:"mode" enum:"clean,forget" doc:"What the removal does. An offline server is always forgotten: its host cannot be reached"`
+	Mode    string `json:"mode" enum:"clean,forget,release" doc:"What the removal does. An offline server is always forgotten: its host cannot be reached"`
 	Removed bool   `json:"removed" doc:"The server is gone. False while the agent empties the host: the server shows its removal state until the row is deleted"`
 	// HostUntouched is true when the removal did not touch the host.
 	HostUntouched bool    `json:"hostUntouched" doc:"The host keeps its containers, networks, volumes and the agent's files: clean them up yourself"`
@@ -164,9 +186,14 @@ func hasServicesError(ps []BlockingProject) error {
 // ModeForget, and any server whose agent is offline, revokes the agent and
 // deletes the row at once without touching the host.
 //
-// Both are refused while services are placed on the server (409
-// server_has_services, listing the projects), and for the server the control
-// plane itself runs on (409 server_is_control_plane).
+// ModeRelease deletes the server and soft-deletes every service placed on it
+// without contacting the host: its containers keep running for the NebulaCtrl
+// that adopts it. It is refused while a deployment is in progress on the server
+// (409 deployment_in_progress).
+//
+// Clean and forget are refused while services are placed on the server (409
+// server_has_services, listing the projects); every mode is refused for the
+// server the control plane itself runs on (409 server_is_control_plane).
 func (s *Service) Remove(ctx context.Context, id uuid.UUID, in RemoveInput) (ServerRemoval, error) {
 	cur, err := s.load(ctx, s.q, policy.ScopeServersWrite, id)
 	if err != nil {
@@ -182,8 +209,8 @@ func (s *Service) Remove(ctx context.Context, id uuid.UUID, in RemoveInput) (Ser
 	if mode == "" {
 		mode = ModeClean
 	}
-	if mode != ModeClean && mode != ModeForget {
-		return ServerRemoval{}, apierr.Unprocessable("invalid_mode", "mode is clean or forget")
+	if mode != ModeClean && mode != ModeForget && mode != ModeRelease {
+		return ServerRemoval{}, apierr.Unprocessable("invalid_mode", "mode is clean, forget or release")
 	}
 	if in.Confirm != cur.Name {
 		return ServerRemoval{}, apierr.Unprocessable("confirmation_mismatch", "type the server's name to remove it").
@@ -194,6 +221,32 @@ func (s *Service) Remove(ctx context.Context, id uuid.UUID, in RemoveInput) (Ser
 	if cur.RemovalState == RemovalRemoving && mode == ModeClean &&
 		(cur.RemovalStartedAt == nil || s.now().Sub(*cur.RemovalStartedAt) < DecommissionTimeout+removalStaleGrace) {
 		return ServerRemoval{}, apierr.Conflict("removal_in_progress", "this server is already being removed")
+	}
+	// Release is the one mode that removes a server with services: it deletes them.
+	if mode == ModeRelease {
+		active, err := s.q.CountServerActiveDeployments(ctx, &id)
+		if err != nil {
+			return ServerRemoval{}, fmt.Errorf("count active deployments: %w", err)
+		}
+		if active > 0 {
+			return ServerRemoval{}, apierr.Conflict("deployment_in_progress", "a deployment is in progress on this server; wait for it to finish or cancel it")
+		}
+		// Deleting the production services of a server is as irreversible as
+		// revoking it: ask the guard before anything changes.
+		if cur.Status != "revoked" {
+			if err := prodguard.CheckServer(ctx, s.pool, cur.WorkspaceID, cur.ID, guardRemoveServer,
+				"Release "+cur.Name+" and delete its production services without touching the host", true,
+				[]string{
+					"The server's agent is cut off for good and every service placed on it is deleted from this instance, with its domains and settings.",
+					"The containers and volumes keep running on the host, but nothing here manages them any more.",
+				}, ModeRelease); err != nil {
+				return ServerRemoval{}, err
+			}
+		}
+		if err := s.removeRow(ctx, cur, removeOpts{release: true}); err != nil {
+			return ServerRemoval{}, err
+		}
+		return ServerRemoval{Mode: ModeRelease, Removed: true, HostUntouched: true}, nil
 	}
 	blocking, err := s.blockingProjects(ctx, s.q, id)
 	if err != nil {
@@ -406,6 +459,22 @@ func (s *Service) decommission(ctx context.Context, id uuid.UUID) (agentprotocol
 // first (res, when set, receives its report); the agent identity is revoked and
 // the row deleted afterwards. The caller has checked authorization and guards.
 func (s *Service) removeNow(ctx context.Context, cur db.GetServerScopedRow, clean bool, res *agentprotocol.DecommissionResult) error {
+	return s.removeRow(ctx, cur, removeOpts{clean: clean, res: res})
+}
+
+// removeOpts tunes removeRow.
+type removeOpts struct {
+	// clean has the agent empty the host first (res, when set, receives its report).
+	clean bool
+	res   *agentprotocol.DecommissionResult
+	// release deletes the services placed on the server in the revoke's
+	// transaction, without contacting the host (never combined with clean).
+	release bool
+}
+
+// removeRow is removeNow with options.
+func (s *Service) removeRow(ctx context.Context, cur db.GetServerScopedRow, o removeOpts) error {
+	clean, res, release := o.clean, o.res, o.release
 	if clean {
 		r, err := s.decommission(ctx, cur.ID)
 		if err != nil {
@@ -416,9 +485,39 @@ func (s *Service) removeNow(ctx context.Context, cur db.GetServerScopedRow, clea
 		}
 	}
 	// The revoke hooks forget the mesh nodes, tunnels and databases of the
-	// server while its row still exists.
-	if err := s.revokeRow(ctx, cur); err != nil {
+	// server while its row still exists. With release the services are deleted in
+	// the revoke's own transaction: a veto (a database that still has replicas, a
+	// deployment that started meanwhile) rolls the revoke back, so a refused
+	// release leaves the agent and every service as they were.
+	var inTx func(tx pgx.Tx) error
+	var afterCommit []func(context.Context)
+	released := 0
+	if release {
+		if s.removal.services == nil {
+			return errors.New("no service releaser to release the services of the server")
+		}
+		inTx = func(tx pgx.Tx) error {
+			afterCommit, released = nil, 0
+			ids, err := db.New(tx).ListServerLiveServiceIDs(ctx, &cur.ID)
+			if err != nil {
+				return fmt.Errorf("list services on server: %w", err)
+			}
+			for _, id := range ids {
+				after, err := s.removal.services.ReleaseTx(ctx, tx, id)
+				if err != nil {
+					return err
+				}
+				afterCommit = append(afterCommit, after)
+			}
+			released = len(ids)
+			return nil
+		}
+	}
+	if err := s.revokeRow(ctx, cur, inTx); err != nil {
 		return err
+	}
+	for _, fn := range afterCommit {
+		fn(context.WithoutCancel(ctx))
 	}
 	err := db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
 		q := db.New(tx)
@@ -431,6 +530,10 @@ func (s *Service) removeNow(ctx context.Context, cur db.GetServerScopedRow, clea
 			return err
 		}
 		meta := map[string]any{"name": cur.Name, "mode": ModeForget, "hostUntouched": !clean}
+		if release {
+			meta["mode"] = ModeRelease
+			meta["services"] = released
+		}
 		if clean {
 			meta["mode"] = ModeClean
 			if res != nil {

@@ -1,7 +1,8 @@
 import { describe, expect, spyOn, test } from "bun:test";
-import { renderHook, screen, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { PrincipalBody, Server as ServerWire } from "#/api/gen/types.gen";
+import { closeAdoption, openAdoption } from "#/features/server-adoption/store";
 import { stubApi } from "#/test/api";
 import { make, problem } from "#/test/factories";
 import { renderWithProviders } from "#/test/render";
@@ -382,5 +383,27 @@ describe("server context", () => {
 		} finally {
 			quiet.mockRestore();
 		}
+	});
+});
+
+describe("ServerLayout: adoption review", () => {
+	test("hosts the review the overview's callout opens", async () => {
+		const api = stubApi({
+			...ME("owner"),
+			...SERVER(),
+			"GET /projects": { body: { items: [] } },
+			"POST /servers/:serverId/adoption/plan": () =>
+				new Promise<Response>(() => {}),
+		});
+		await renderLayout();
+		await screen.findByTestId("tab-server");
+		act(() => openAdoption("srv_1"));
+		expect(
+			await screen.findByText("Review workloads on edge-1"),
+		).toBeInTheDocument();
+		expect(
+			api.calls.some((c) => c.path === "/servers/srv_1/adoption/plan"),
+		).toBe(true);
+		act(() => closeAdoption());
 	});
 });

@@ -1288,11 +1288,12 @@ step_image() {
 step_start() {
 	NC_STEP="starting the control plane"
 	nc_log "Starting the control plane"
-	# A fresh install on a host that still has an agent identity of an older one.
+	# A fresh install on a host that still has an agent identity of an older one: the identity and
+	# the agent's state (proxy routes, admin secret) stay. The new control plane answers it with
+	# "unknown agent", the agent re-enrolls with the local enrollment token (step_agent), and the
+	# workloads already on the host are held for review instead of being swept.
 	if [ "${FRESH:-0}" = 1 ] && [ -s "$AGENT_STATE_DIR/agent.db" ]; then
-		nc_warn "an agent identity from an earlier installation exists in $AGENT_STATE_DIR; moving it aside so this host enrolls with the new control plane"
-		systemctl stop nebulactrl-agent >/dev/null 2>&1 || true
-		mv "$AGENT_STATE_DIR" "$AGENT_STATE_DIR.old-$(date +%s)"
+		nc_warn "an agent identity from an earlier installation exists in $AGENT_STATE_DIR; the agent re-enrolls with the new control plane and its running workloads are held for review"
 	fi
 	local healthy=0 why=''
 	if dc up -d --remove-orphans --wait --wait-timeout 240 >/dev/null 2>&1; then
@@ -1361,6 +1362,15 @@ proxy_on_ports() {
 	case "$cur" in *" $PROXY_HTTPS_PORT "*) ;; *) return 1 ;; esac
 }
 
+# local_agent_online: the control plane lists its host's server (the one the local enrollment
+# token creates) as online. The API needs a session that does not exist yet on a fresh install,
+# so this asks the database, like the backup seeding below.
+local_agent_online() {
+	local out
+	out=$(PGPASSWORD=$(env_get POSTGRES_PASSWORD) dc exec -T -e PGPASSWORD postgres psql -U nebulactrl -d nebulactrl -tA -v ON_ERROR_STOP=1 -c "SELECT 1 FROM servers WHERE is_control_plane AND status = 'online'" 2>/dev/null) || return 1
+	[ "$out" = 1 ]
+}
+
 step_agent() {
 	NC_STEP="installing the local agent"
 	step_on "$NO_LOCAL_SERVER" || { nc_info "local server skipped (--no-local-server)"; return 0; }
@@ -1373,7 +1383,11 @@ step_agent() {
 	[ "$PROXY_HTTP_PORT" = 80 ] || args+=(--proxy-http-port "$PROXY_HTTP_PORT")
 	[ "$PROXY_HTTPS_PORT" = 443 ] || args+=(--proxy-https-port "$PROXY_HTTPS_PORT")
 	[ "$PROXY_ADMIN_PORT" = 9000 ] || args+=(--proxy-admin-port "$PROXY_ADMIN_PORT")
-	if [ -s "$AGENT_STATE_DIR/agent.db" ]; then
+	# A kept identity of an earlier installation (fresh install over it) cannot enroll with this
+	# control plane: it gets "unknown agent" and re-enrolls with the token passed here.
+	local kept_identity=0
+	if [ "${FRESH:-0}" = 1 ] && [ -s "$AGENT_STATE_DIR/agent.db" ]; then kept_identity=1; fi
+	if [ -s "$AGENT_STATE_DIR/agent.db" ] && [ "$kept_identity" = 0 ]; then
 		:  # already enrolled: this upgrades the binary and keeps the identity
 	else
 		args+=(--defer-enroll)
@@ -1393,12 +1407,27 @@ step_agent() {
 	systemctl daemon-reload
 	nc_ok "agent installed ($AGENT_BIN)"
 	local i
-	nc_info "waiting for the agent to enroll ..."
-	for i in $(seq 1 60); do
-		[ -s "$AGENT_STATE_DIR/agent.db" ] && systemctl is-active --quiet nebulactrl-agent && break
-		sleep 2
-	done
-	if [ -s "$AGENT_STATE_DIR/agent.db" ]; then nc_ok "enrolled as the first server"; else nc_warn "the agent has not enrolled yet; check: journalctl -u nebulactrl-agent"; fi
+	if [ "$kept_identity" = 1 ]; then
+		# The identity exists already, so agent.db says nothing: wait until the control plane sees
+		# its host's agent online (the re-enrolled one).
+		nc_info "waiting for the agent to re-enroll ..."
+		for i in $(seq 1 60); do
+			local_agent_online && break
+			sleep 2
+		done
+		if local_agent_online; then
+			nc_ok "enrolled as the first server"
+		else
+			nc_warn "the agent re-enrolls in the background; check: journalctl -u nebulactrl-agent"
+		fi
+	else
+		nc_info "waiting for the agent to enroll ..."
+		for i in $(seq 1 60); do
+			[ -s "$AGENT_STATE_DIR/agent.db" ] && systemctl is-active --quiet nebulactrl-agent && break
+			sleep 2
+		done
+		if [ -s "$AGENT_STATE_DIR/agent.db" ]; then nc_ok "enrolled as the first server"; else nc_warn "the agent has not enrolled yet; check: journalctl -u nebulactrl-agent"; fi
+	fi
 	if [ "$MODE" = domain ] || [ "$PROXY_MOVING" = 1 ]; then
 		nc_info "waiting for the proxy (ports $PROXY_HTTP_PORT/$PROXY_HTTPS_PORT) ..."
 		for i in $(seq 1 60); do

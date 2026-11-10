@@ -9,6 +9,7 @@ import { Kbd } from "#/components/ui/kbd";
 import { Segmented } from "#/components/ui/segmented";
 import { Skeleton } from "#/components/ui/skeleton";
 import { FleetView } from "#/features/fleet/fleet-view";
+import { AdoptionHost } from "#/features/server-adoption/adoption-host";
 import { useDocumentTitle } from "#/lib/hooks/use-document-title";
 import { AgentUpgradeBar } from "./agent-upgrade/agent-upgrade";
 import { EnrollDialog } from "./enroll-dialog";
@@ -133,6 +134,7 @@ export function ServersPage({
 			{view === "servers" ? <AgentUpgradeBar /> : null}
 			{body}
 			<EnrollDialog open={enrollOpen} onOpenChange={onEnrollOpenChange} />
+			<AdoptionHost />
 		</PageFrame>
 	);
 }

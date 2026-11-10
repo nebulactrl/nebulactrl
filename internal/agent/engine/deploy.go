@@ -607,8 +607,7 @@ func (d *deploy) buildImage(ctx context.Context) error {
 // ownGrace is the stop grace a container was started with (its spec label);
 // a container without one gets the fallback, in seconds.
 func ownGrace(c docker.ContainerInfo, fallback int) time.Duration {
-	var sl specLabel
-	if err := json.Unmarshal([]byte(c.Labels[agentprotocol.LabelSpec]), &sl); err == nil && sl.StopGraceSeconds > 0 {
+	if sl, _ := agentprotocol.ParseSpecLabel(c.Labels[agentprotocol.LabelSpec]); sl.StopGraceSeconds > 0 {
 		return graceOf(sl.StopGraceSeconds)
 	}
 	return graceOf(fallback)

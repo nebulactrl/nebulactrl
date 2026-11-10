@@ -6,6 +6,7 @@ import type { ServerView } from "../model";
 import { PlacedServices } from "../placed-services";
 import { useServer } from "../server-context";
 import { ServerSection } from "../server-section";
+import { AdoptionCard } from "./adoption-card";
 import { ConnectCard } from "./connect-card";
 import { FactsStrip } from "./facts-strip";
 import { TrafficSummary } from "./traffic-summary";
@@ -93,6 +94,7 @@ export function OverviewTab() {
 					<ConnectCard server={server} />
 				</ServerSection>
 			) : null}
+			<AdoptionCard server={server} />
 			<Warnings server={server} />
 			<FactsStrip server={server} />
 			{pending ? null : (

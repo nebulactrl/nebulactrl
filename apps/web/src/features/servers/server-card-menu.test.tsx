@@ -258,3 +258,27 @@ describe("ServerCardMenu", () => {
 		expect(screen.getByLabelText("location")).toHaveTextContent("/servers");
 	});
 });
+
+describe("ServerCardMenu: release", () => {
+	test("offers the release for a server that has connected, and names it in the dialog", async () => {
+		const { user } = await openMenu(wireServer({ status: "online" }));
+		await user.click(
+			await screen.findByRole("menuitem", {
+				name: "Release to another NebulaCtrl…",
+			}),
+		);
+		expect(
+			await screen.findByText("Release hetzner-01 to another NebulaCtrl?"),
+		).toBeInTheDocument();
+	});
+
+	test("a server that never connected has no release", async () => {
+		await openMenu(wireServer({ status: "pending", canDecommission: false }));
+		await screen.findByRole("menuitem", { name: "Remove server…" });
+		expect(
+			screen.queryByRole("menuitem", {
+				name: "Release to another NebulaCtrl…",
+			}),
+		).not.toBeInTheDocument();
+	});
+});

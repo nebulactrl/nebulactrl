@@ -24,7 +24,7 @@ type serverOutput struct{ Body Server }
 type removeServerInput struct {
 	ID      uuid.UUID `path:"serverId"`
 	Confirm string    `query:"confirm" doc:"The server's name"`
-	Mode    string    `query:"mode" enum:"clean,forget" default:"clean" doc:"clean empties the host through the agent first; forget leaves the host as it is"`
+	Mode    string    `query:"mode" enum:"clean,forget,release" default:"clean" doc:"clean empties the host through the agent first; forget leaves the host as it is; release also deletes the services placed on the server without touching the host, for another NebulaCtrl to adopt"`
 }
 
 type removeServerOutput struct {
@@ -194,8 +194,10 @@ func Register(h huma.API, svc *Service) {
 			"as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers " +
 			"202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). " +
 			"`mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers " +
-			"keep running and the agent's files stay (`hostUntouched`). Both need `confirm=<the server's name>` and are refused while services are " +
-			"placed on the server (409 `server_has_services`, `details.projects` lists them) and for the server the control plane runs on " +
+			"keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server " +
+			"(soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress " +
+			"(409 `deployment_in_progress`). Clean and forget need `confirm=<the server's name>` and are refused while services are " +
+			"placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on " +
 			"(409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). " +
 			"Audited as `server.removed`. Admin scope; denied to MCP agents.",
 		Errors: []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound, http.StatusConflict, http.StatusUnprocessableEntity},

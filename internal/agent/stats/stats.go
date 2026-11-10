@@ -176,6 +176,8 @@ func (c *Collector) Facts(ctx context.Context) agentprotocol.Facts {
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapProcesses)
 	// Every agent has the request store, which request-log queries read.
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapRequestLogs)
+	// Reports managed services in the hello, honours the adoption hold and answers workload_inventory.
+	f.Capabilities = append(f.Capabilities, agentprotocol.CapAdoption)
 	if c.opt.EndpointStatus != nil { // a localproxy manager is wired: this agent can carry instance tunnels
 		f.Capabilities = append(f.Capabilities, agentprotocol.CapInstanceTunnel)
 	}

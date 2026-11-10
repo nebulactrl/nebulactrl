@@ -34,6 +34,7 @@ func (e *Engine) Reconcile(ctx context.Context, desired agentprotocol.Reconcile)
 	if e.cfg.BuildOnly {
 		return nil // a build server hosts nothing to reconcile, sweep or route
 	}
+	e.applyAdoption(desired)
 	if desired.ACMEEmail != "" {
 		e.cfg.Proxy.SetACMEEmail(desired.ACMEEmail)
 	}
@@ -106,7 +107,7 @@ func (e *Engine) Reconcile(ctx context.Context, desired agentprotocol.Reconcile)
 	// until its command records it, and an e.local entry carries no routes when
 	// the deploy routed nothing at the time: the live routes of every service
 	// mid-command or deployed here win, as for a sync_routes table.
-	table = e.keepLiveRoutes(table, cur)
+	table = e.keepLiveRoutes(table, cur, effective)
 	sort.SliceStable(table, func(i, j int) bool { return table[i].ServiceID < table[j].ServiceID })
 	table = e.dropDeadUpstreams(ctx, table)
 	// A table whose basic-auth secrets are missing, or whose configuration
@@ -504,12 +505,15 @@ func (e *Engine) sweepOrphans(ctx context.Context) error {
 	for _, c := range cs {
 		// Infrastructure containers carry the managed label but no service
 		// label; the sweep must never touch the proxy or the tailnet node.
-		if c.Name == agentprotocol.ProxyContainer || c.Name == agentprotocol.TailscaleContainer || c.Name == agentprotocol.PagesContainer || c.Name == agentprotocol.PagesContainerAlt {
+		if isInfraContainer(c.Name) {
 			continue
 		}
 		sid := c.Labels[agentprotocol.LabelService]
 		if sid == "" || e.isInflight(sid) {
 			continue
+		}
+		if e.preserved(sid, desired) {
+			continue // held for adoption, or left running unmanaged
 		}
 		// A stack's containers are compose's: those of a desired stack stay
 		// whatever their deployment label says.
@@ -576,6 +580,11 @@ func (e *Engine) Run(ctx context.Context) {
 	}
 	loop(ReplPollTick, 10*time.Second, e.pollReplication)
 	loop(NetworkSweepInterval, NetworkSweepInterval, func(c context.Context) {
+		// Until a frame arrived, this process does not know whether the server
+		// is held for adoption or runs services unmanaged.
+		if !e.frameSeen.Load() {
+			return
+		}
 		if err := e.sweepNetworks(c); err != nil {
 			e.log.Warn("network sweep failed", "err", err)
 		}

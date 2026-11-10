@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -220,8 +219,7 @@ func processOf(c docker.ContainerInfo) (name string, isDefault bool) {
 	if name == "" {
 		return "", true
 	}
-	var sl specLabel
-	_ = json.Unmarshal([]byte(c.Labels[agentprotocol.LabelSpec]), &sl)
+	sl, _ := agentprotocol.ParseSpecLabel(c.Labels[agentprotocol.LabelSpec])
 	return name, sl.ProcessDefault
 }
 
@@ -870,8 +868,7 @@ func (d *deploy) stopOrphans(ctx context.Context, led *processLedger) {
 		if !c.Running && !c.Restarting {
 			continue
 		}
-		var sl specLabel
-		_ = json.Unmarshal([]byte(c.Labels[agentprotocol.LabelSpec]), &sl)
+		sl, _ := agentprotocol.ParseSpecLabel(c.Labels[agentprotocol.LabelSpec])
 		if sl.Singleton || len(d.p.Volumes) > 0 {
 			serving = append(serving, c)
 		}

@@ -208,6 +208,14 @@ type Engine struct {
 	// decom is set while a decommission runs and after it succeeded: nothing
 	// is deployed, reconciled or recreated on a host that is being emptied.
 	decom atomic.Bool
+
+	// Adoption (see agentprotocol.Reconcile.KeepUnknown/Unmanaged): keepUnknown
+	// is set while the control plane holds this server for adoption, unmanaged
+	// (guarded by mu) lists the services left running unmanaged, and frameSeen
+	// is set once a reconcile frame told this process which of the two applies.
+	keepUnknown atomic.Bool
+	unmanaged   map[string]bool
+	frameSeen   atomic.Bool
 }
 
 // desiredEntry is what the agent believes should be running for a service.
@@ -420,6 +428,8 @@ func (e *Engine) HandleCommand(ctx context.Context, cmd agentprotocol.Command) a
 		return e.handleRemove(ctx, cmd)
 	case agentprotocol.KindSyncRoutes:
 		return e.handleSyncRoutes(ctx, cmd)
+	case agentprotocol.KindWorkloadInventory:
+		return e.handleWorkloadInventory(ctx, cmd)
 	case agentprotocol.KindProxyConfigure:
 		return e.handleProxyConfigure(ctx, cmd)
 	case agentprotocol.KindLogsSubscribe:

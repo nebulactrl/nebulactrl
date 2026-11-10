@@ -21,13 +21,17 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
-// Sentinel errors returned by Client.Run; both are fatal and map to a non-zero exit.
+// Sentinel errors returned by Client.Run; all are fatal. ErrRevoked and
+// ErrUnsupportedVersion map to a non-zero exit, ErrReenrolled to a restart.
 var (
 	// ErrRevoked: the control plane closed the socket with 4401.
 	ErrRevoked = errors.New("agent revoked; re-enroll")
 	// ErrUnsupportedVersion: the control plane closed with 4400, or sent a frame
 	// with a different major protocol version.
 	ErrUnsupportedVersion = errors.New("protocol version not supported by control plane (close 4400)")
+	// ErrReenrolled: the control plane did not know this agent's identity and
+	// Config.OnUnknownAgent enrolled a new one; the process restarts to use it.
+	ErrReenrolled = errors.New("re-enrolled with a new identity; restarting")
 )
 
 const (
@@ -59,6 +63,13 @@ type Config struct {
 	// ReconnectAfter waits out the delay before a reconnect attempt (default
 	// time.After; tests shorten or control it).
 	ReconnectAfter func(delay time.Duration) <-chan time.Time
+	// OnUnknownAgent is called when the control plane closes with
+	// agentprotocol.CloseUnknownAgent: it does not know this agent's identity
+	// (a lost or reinstalled control plane, or another instance's identity).
+	// It reports whether it replaced the identity (re-enrolled); Run then
+	// returns ErrReenrolled so the caller restarts with the new one. Nil, or a
+	// false answer, keeps reconnecting with the backoff.
+	OnUnknownAgent func(ctx context.Context) bool
 }
 
 // Client maintains the agent's connection to the control plane. It implements Sender.
@@ -171,6 +182,10 @@ func (c *Client) Run(ctx context.Context) error {
 			return ErrRevoked
 		case websocket.CloseStatus(err) == agentprotocol.CloseUnsupportedVersion, errors.Is(err, ErrUnsupportedVersion):
 			return ErrUnsupportedVersion
+		case websocket.CloseStatus(err) == agentprotocol.CloseUnknownAgent:
+			if c.cfg.OnUnknownAgent != nil && c.cfg.OnUnknownAgent(ctx) {
+				return ErrReenrolled
+			}
 		}
 		if time.Since(started) >= stableAfter {
 			backoff = minBackoff
