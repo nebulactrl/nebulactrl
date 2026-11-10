@@ -16,8 +16,10 @@ import (
 )
 
 // TailscaleImage is the pinned tailscale image of the managed tailnet node
-// (v1.104.2, multi-arch index digest).
-const TailscaleImage = "tailscale/tailscale:v1.104.2@sha256:b11583ad2e93e4671128538c88cf11f460444a5d7e449311dd1933a400ab849d"
+// (v1.104.4, multi-arch index digest). v1.104.4 carries the fixes for
+// TS-2026-014 to TS-2026-017 (Tailscale SSH socket forwarding and session
+// memory, Serve Unix backends, Serve HTTP/2 capability headers).
+const TailscaleImage = "tailscale/tailscale:v1.104.4@sha256:ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c"
 
 const (
 	// LabelTailnetSpec fingerprints the tailscale container's configuration

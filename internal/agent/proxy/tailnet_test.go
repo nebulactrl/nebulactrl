@@ -39,7 +39,7 @@ func statusExec(js string) func(string, []string) (string, int, error) {
 func TestTailscaleContainerSpecExactly(t *testing.T) {
 	spec := tailscaleSpec(agentprotocol.TailnetSpec{Mode: agentprotocol.TailnetManaged, Hostname: "nebula-a"}, "px-id", "")
 	require.Equal(t, "nebulactrl-tailscale", spec.Name)
-	require.Equal(t, "tailscale/tailscale:v1.104.2@sha256:b11583ad2e93e4671128538c88cf11f460444a5d7e449311dd1933a400ab849d", spec.Image)
+	require.Equal(t, "tailscale/tailscale:v1.104.4@sha256:ed6480b33c6eb67c9cbd203ed42b9fb57e361986725b6856def71b7a3d9e276c", spec.Image)
 	require.Equal(t, "container:nebulactrl-traefik", spec.NetworkMode, "shares Traefik's network namespace")
 	require.Empty(t, spec.Networks, "no network of its own")
 	require.Empty(t, spec.Ports, "publishes nothing")

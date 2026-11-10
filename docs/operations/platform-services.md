@@ -14,7 +14,7 @@ NebulaCtrl runs a few services for you so that backups, build images and logs wo
 | **Backup storage** (S3) | NebulaCtrl's own data: your teams' backups. A project that needs S3 runs its own as a project service. | [SeaweedFS](https://github.com/seaweedfs/seaweedfs) 4.51, Apache-2.0 | a bucket and a key that can only touch it |
 | **Image registry** | the images built for each team (see [build servers](build-servers.md)) | [CNCF Distribution](https://github.com/distribution/distribution) `registry:3.1.2`, Apache-2.0 | a repository prefix |
 | **Central logs** | 7 days of the logs a team chooses to send ([logs](logs.md#central-logs)) | [Loki](https://github.com/grafana/loki) 3.7.9, **AGPL-3.0** | a log tenant |
-| **Headscale** | a team's own tailnet control server ([below](#private-network-headscale)) | [Headscale](https://github.com/juanfont/headscale) v0.29.6, BSD-3-Clause | one per team, set up by the team |
+| **Headscale** | a team's own tailnet control server ([below](#private-network-headscale)) | [Headscale](https://github.com/juanfont/headscale) v0.29.7, BSD-3-Clause | one per team, set up by the team |
 
 The first three are **instance services**: one of each runs for the whole installation, **managed by the instance admin only**. Each team gets an isolated **slice** of them. Teams can be real tenants who do not trust each other, so a team cannot create, move or delete the services, cannot see another team's slice, and never sees a key. Headscale is different: a team is its own tailnet, so it stays a per-team service that Owners and Admins set up.
 
