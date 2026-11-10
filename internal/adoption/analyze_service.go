@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -213,7 +214,7 @@ func (a *analyzer) service(g *group, ch AdoptionServiceChoice) *AdoptionService 
 	}
 
 	// Source and configuration.
-	ref := imageRef(repC)
+	ref, ambiguous := imageRef(repC, repSpec.Image)
 	if ref == "" {
 		return fail("the image of the containers is unknown")
 	}
@@ -290,12 +291,13 @@ func (a *analyzer) service(g *group, ch AdoptionServiceChoice) *AdoptionService 
 	rec.cfg = cfg
 	ps.Image = cfg.Image
 	rec.imageRef = cfg.Image
-	rec.source = services.ReleaseSource{Type: services.SourceImage, Image: cfg.Image, ImageID: repC.ImageID, Digest: repC.ImageID}
-	if len(repC.ImageRepoDigests) > 0 {
-		rec.source.Digest = repC.ImageRepoDigests[0]
-	}
+	rec.source = services.ReleaseSource{Type: services.SourceImage, Image: cfg.Image, ImageID: repC.ImageID, Digest: imageDigest(ref, repC)}
 	if strings.HasPrefix(ref, agentprotocol.BuildImagePrefix) {
 		note("Built from git by an earlier NebulaCtrl: connect the repository under Source before the next deploy; until then restarts and rollbacks reuse the image on this host.")
+	}
+	if ambiguous {
+		note("The image has several tags (%s) and the containers do not say which one was deployed; %s was taken: check the image under Source before the next deploy.",
+			strings.Join(sortedCopy(repC.ImageRepoTags), ", "), ref)
 	}
 
 	a.volumes(ps, g, chosen, note)
@@ -335,17 +337,40 @@ func (a *analyzer) existing(ps *AdoptionService, depID, envID uuid.UUID) *Adopti
 
 func containerName(c agentprotocol.InventoryContainer) string { return strings.TrimPrefix(c.Name, "/") }
 
-// imageRef is the reference the service's image config is rebuilt from: its
-// first tag, else its first digest, else what the container was created with.
-func imageRef(c agentprotocol.InventoryContainer) string {
+// imageRef is the reference the service's image config is rebuilt from. The
+// containers run the image by ID, so it is the reference their spec label
+// records (agents that record it) when the image still carries it; else the
+// image's only tag. ambiguous reports a pick among several tags (an image keeps
+// the tags of every registry address it was pushed to). Without tags it is the
+// first digest, else what the container was created with.
+func imageRef(c agentprotocol.InventoryContainer, recorded string) (ref string, ambiguous bool) {
+	if recorded != "" && (slices.Contains(c.ImageRepoTags, recorded) || slices.Contains(c.ImageRepoDigests, recorded)) {
+		return recorded, false
+	}
 	if tags := sortedCopy(c.ImageRepoTags); len(tags) > 0 {
-		return tags[0]
+		return tags[0], len(tags) > 1
 	}
 	if len(c.ImageRepoDigests) > 0 {
-		return c.ImageRepoDigests[0]
+		return c.ImageRepoDigests[0], false
 	}
 	if c.Image != "" {
-		return c.Image
+		return c.Image, false
+	}
+	return c.ImageID, false
+}
+
+// imageDigest is the digest a rollback pins: the image's digest in the
+// repository of ref, else the image ID (a digest of another repository would
+// name another registry).
+func imageDigest(ref string, c agentprotocol.InventoryContainer) string {
+	if strings.Contains(ref, "@") {
+		return ref
+	}
+	repo, _ := engines.RepoTag(ref)
+	for _, d := range c.ImageRepoDigests {
+		if r, _ := engines.RepoTag(d); r == repo {
+			return d
+		}
 	}
 	return c.ImageID
 }

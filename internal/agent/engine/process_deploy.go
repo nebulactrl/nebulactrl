@@ -106,7 +106,7 @@ func (d *deploy) forProcess(spec agentprotocol.ProcessSpec) *deploy {
 	return &deploy{
 		e: d.e, cmd: d.cmd, p: projectProcess(d.p, spec), red: d.red, dlog: d.dlog, log: d.log, dbg: d.dbg, ctl: d.ctl,
 		silent: d.silent, live: d.live, scaledAt: d.scaledAt, cloneEnv: d.cloneEnv,
-		imageID: d.imageID, imageDigest: d.imageDigest, buildInfo: d.buildInfo,
+		imageID: d.imageID, imageDigest: d.imageDigest, inheritImage: d.inheritImage, buildInfo: d.buildInfo,
 		parent: d,
 	}
 }

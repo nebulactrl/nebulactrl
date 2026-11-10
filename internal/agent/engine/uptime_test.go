@@ -86,7 +86,7 @@ func seedReplica(r *rig, svc, name string, hc agentprotocol.HealthcheckSpec, por
 	p.ServiceID, p.Healthcheck, p.Port = svc, hc, port
 	r.dk.mu.Lock()
 	defer r.dk.mu.Unlock()
-	c.Labels[agentprotocol.LabelSpec] = specLabelOf(p)
+	c.Labels[agentprotocol.LabelSpec] = specLabelOf(p, "")
 	c.Labels[agentprotocol.LabelEnvironment] = envID
 	c.Networks = map[string]docker.ContainerNetwork{netEnv: {IP: "127.0.0.1"}}
 	return c
@@ -556,7 +556,7 @@ func TestUptimeCycleJoinsEveryNetworkItProbesThrough(t *testing.T) {
 	p := basePayload()
 	p.ServiceID, p.Healthcheck, p.Port, p.BlockEgress = svc2, httpCheck, ok, true
 	edit(r, blocked, func(c *docker.ContainerInfo) {
-		c.Labels[agentprotocol.LabelSpec] = specLabelOf(p)
+		c.Labels[agentprotocol.LabelSpec] = specLabelOf(p, "")
 		c.Networks = map[string]docker.ContainerNetwork{netInt: {IP: "127.0.0.1"}}
 	})
 	want(r, svcID, upName(0))

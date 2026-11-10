@@ -557,7 +557,7 @@ func labelProcess(r *rig, name string, spec agentprotocol.ProcessSpec) {
 	defer r.dk.mu.Unlock()
 	c := r.dk.find(name)
 	c.Labels[agentprotocol.LabelProcess] = spec.Name
-	c.Labels[agentprotocol.LabelSpec] = specLabelOf(p)
+	c.Labels[agentprotocol.LabelSpec] = specLabelOf(p, "")
 }
 
 func TestRenamedSingletonIsStoppedBeforeItsReplacementStarts(t *testing.T) {

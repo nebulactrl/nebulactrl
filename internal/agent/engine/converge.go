@@ -11,12 +11,15 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
-func specLabelOf(p agentprotocol.DeployPayload) string {
+// specLabelOf is the spec label of a replica of p; image is the reference the
+// deployment ran (see deploy.imageLabel), "" when unknown.
+func specLabelOf(p agentprotocol.DeployPayload, image string) string {
 	sl := agentprotocol.SpecLabel{
 		Slug: p.ServiceSlug, Port: p.Port, Healthcheck: p.Healthcheck,
 		StopGraceSeconds: p.StopGraceSeconds, MemoryMB: p.MemoryMB, CPUs: p.CPUs, Docker: p.Docker.Normalized(), DockerPolicy: p.DockerPolicy,
 		RestartPolicy: p.RestartPolicy, RestartMaxRetries: p.RestartMaxRetries,
 		BlockEgress: p.BlockEgress, EnvHasEgressBlocked: p.EnvHasEgressBlocked, SharedNetworks: p.SharedNetworks, MeshAlias: p.MeshAlias,
+		Image: image,
 	}
 	if len(p.Processes) == 1 {
 		pr := p.Processes[0]

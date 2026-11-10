@@ -61,7 +61,10 @@ type deploy struct {
 
 	imageID     string
 	imageDigest string
-	warning     string
+	// inheritImage is the image reference of the running replicas a scale
+	// copies (their spec label), recorded on the replicas it adds.
+	inheritImage string
+	warning      string
 	// buildInfo describes the build of a git source (nil otherwise).
 	buildInfo *agentprotocol.BuildInfo
 	// tailnet is the outcome of the tailnet step (nil without a tailnet spec).
@@ -776,7 +779,7 @@ func (d *deploy) spec(i int, env []string, mounts []docker.VolumeMount) docker.C
 	}
 	d.applyTemplateFeatures(&spec)
 	applyDockerOptions(&spec, p.Docker, p.ServiceSlug, d.replicaIdx(i), d.replicaCount())
-	if lbl := specLabelOf(p); lbl != "" {
+	if lbl := specLabelOf(p, d.imageLabel()); lbl != "" {
 		spec.Labels[agentprotocol.LabelSpec] = lbl
 	}
 	if p.MemoryMB > 0 {
@@ -786,6 +789,22 @@ func (d *deploy) spec(i int, env []string, mounts []docker.VolumeMount) docker.C
 		spec.NanoCPUs = int64(p.CPUs * 1e9)
 	}
 	return spec
+}
+
+// imageLabel is the image reference recorded in the spec label
+// (SpecLabel.Image): what the deployment ran, so a control plane adopting the
+// container picks this one among the image's tags. "" when unknown (a git
+// rollback that reuses an older build).
+func (d *deploy) imageLabel() string {
+	switch {
+	case d.inheritImage != "":
+		return d.inheritImage
+	case d.p.Image != nil:
+		return d.p.Image.Ref
+	case d.p.Git != nil && d.p.Git.ExistingImageID == "":
+		return build.ImageTag(d.p.ServiceSlug, d.p.DeploymentID)
+	}
+	return ""
 }
 
 func (d *deploy) stepErr(step, what string, err error) error {

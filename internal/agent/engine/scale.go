@@ -166,6 +166,9 @@ func (d *deploy) scaleUp(ctx context.Context, st *deployState, live, stale []slo
 	}
 
 	d.imageID = live[0].info.ImageID
+	if sl, _ := agentprotocol.ParseSpecLabel(live[0].info.Labels[agentprotocol.LabelSpec]); sl.Image != "" {
+		d.inheritImage = sl.Image
+	}
 	d.names, d.index, d.ids = newNames, newIdx, make([]string, len(newNames))
 	d.log.Info("scaling up", "from", len(live), "to", target, "new", newNames)
 

@@ -3,6 +3,8 @@ package adoption
 import (
 	"encoding/json"
 	"errors"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -46,6 +48,7 @@ type ctr struct {
 	procDefault        bool
 	labels             map[string]string
 	name               string
+	specImage          string
 }
 
 func (o ctr) build(t *testing.T) agentprotocol.InventoryContainer {
@@ -53,7 +56,7 @@ func (o ctr) build(t *testing.T) agentprotocol.InventoryContainer {
 	spec := agentprotocol.SpecLabel{
 		Slug: o.slug, Port: o.port, StopGraceSeconds: 30,
 		Healthcheck: agentprotocol.HealthcheckSpec{Type: "http", Path: "/", Port: o.port, IntervalSeconds: 2, TimeoutSeconds: 3, DeadlineSeconds: 120, SuccessThreshold: 2},
-		Process:     o.process, ProcessDefault: o.procDefault,
+		Process:     o.process, ProcessDefault: o.procDefault, Image: o.specImage,
 	}
 	if o.port == 0 {
 		spec.Healthcheck = agentprotocol.HealthcheckSpec{Type: "none", IntervalSeconds: 2, TimeoutSeconds: 3, DeadlineSeconds: 120, SuccessThreshold: 2}
@@ -285,6 +288,36 @@ func TestAnalyzeBuiltImageNote(t *testing.T) {
 	s := findService(t, p, webID)
 	require.Equal(t, "adopt", s.Action)
 	require.Contains(t, s.Notes[0], "Built from git by an earlier NebulaCtrl")
+}
+
+// An image keeps the tag of every registry address it was pushed to: the
+// reference the containers' spec label records wins, and the pinned digest is
+// the one of that repository. Without a record the pick is said in a note.
+func TestAnalyzeImageRefAmongSeveralTags(t *testing.T) {
+	const stale, current = "127.0.0.1:49452/app:dev", "127.0.0.1:61443/app:dev"
+	base := ctr{svc: webID, env: envA, dep: depA, slug: "web", image: "sha256:web", port: 80, running: true,
+		tags: []string{current, stale}, digests: []string{"127.0.0.1:49452/app@sha256:aaa", "127.0.0.1:61443/app@sha256:bbb"}}
+
+	recorded := base
+	recorded.specImage = current
+	p := Analyze(agentprotocol.WorkloadInventory{Containers: []agentprotocol.InventoryContainer{recorded.build(t)}}, newContext(), AdoptionChoices{})
+	s := findService(t, p, webID)
+	require.Equal(t, current, s.Image)
+	require.Equal(t, "127.0.0.1:61443/app@sha256:bbb", s.rec.source.Digest)
+	for _, n := range s.Notes {
+		require.NotContains(t, n, "several tags")
+	}
+
+	p = Analyze(agentprotocol.WorkloadInventory{Containers: []agentprotocol.InventoryContainer{base.build(t)}}, newContext(), AdoptionChoices{})
+	s = findService(t, p, webID)
+	require.Equal(t, stale, s.Image, "without a record the first tag is taken")
+	require.Equal(t, "127.0.0.1:49452/app@sha256:aaa", s.rec.source.Digest, "the digest of the taken tag's repository")
+	require.True(t, slices.ContainsFunc(s.Notes, func(n string) bool { return strings.Contains(n, "several tags") }), "notes: %v", s.Notes)
+
+	gone := base
+	gone.specImage = "registry.example.com/app:old" // no longer a tag of the image
+	p = Analyze(agentprotocol.WorkloadInventory{Containers: []agentprotocol.InventoryContainer{gone.build(t)}}, newContext(), AdoptionChoices{})
+	require.Equal(t, stale, findService(t, p, webID).Image)
 }
 
 func TestAnalyzeStackIsLeft(t *testing.T) {

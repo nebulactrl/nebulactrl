@@ -36,6 +36,12 @@ type SpecLabel struct {
 	Process        string `json:"process,omitempty"`
 	ProcessDefault bool   `json:"processDefault,omitempty"`
 	Singleton      bool   `json:"singleton,omitempty"`
+	// Image is the reference the deployment ran (a tag, repo@digest, or the
+	// nc-build/ tag of a git build). The container itself is created from the
+	// image ID, and an image can carry several tags (an old registry address,
+	// another project's tag): a control plane that adopts the container takes
+	// this one. Empty on containers of older agents.
+	Image string `json:"image,omitempty"`
 }
 
 // ParseSpecLabel decodes a LabelSpec value. ok is false when it is not valid
