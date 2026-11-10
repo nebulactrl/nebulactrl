@@ -238,6 +238,35 @@ func TestPollDeployOffOnlyShowsTheCommit(t *testing.T) {
 	require.Equal(t, pollHead, v.HeadSha)
 }
 
+func TestPollNewHeadRunsThePushHookOnce(t *testing.T) {
+	// Without a webhook the poll is the only thing that sees a new commit, so it
+	// must let the project file be read at it, deploy on or off.
+	r := newPollRig(t)
+	conn := r.giteaConnection()
+	r.giteaRepo("main")
+	r.link(r.id, conn.Connection.ID, gitproviders.LinkInput{})
+	var seen []gitproviders.PushEvent
+	r.svc.SetPushHook(hookFunc(func(_ context.Context, ev gitproviders.PushEvent) { seen = append(seen, ev) }))
+	r.put(5, false)
+	r.dep.setHead(pollHead, "main", nil)
+
+	r.sweep(0)
+	require.Len(t, seen, 1)
+	require.Equal(t, conn.Connection.ID, seen[0].ConnectionID)
+	require.Equal(t, "acme/shop", seen[0].RepoFullName)
+	require.Equal(t, "main", seen[0].Branch)
+	require.Equal(t, pollHead, seen[0].CommitSHA)
+	require.False(t, seen[0].PathsComplete, "a poll knows no changed files, so the file is always read")
+
+	r.sweep(6 * time.Minute)
+	require.Len(t, seen, 1, "an unchanged head is not checked again")
+
+	r.dep.setHead(pollNewer, "main", nil)
+	r.sweep(6 * time.Minute)
+	require.Len(t, seen, 2)
+	require.Equal(t, pollNewer, seen[1].CommitSHA)
+}
+
 func TestPollResolverErrorKeepsTheErrorAndKeepsChecking(t *testing.T) {
 	r := newPollRig(t)
 	r.put(5, false)
