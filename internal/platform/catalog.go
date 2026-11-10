@@ -45,7 +45,7 @@ const (
 // docs/operations/platform-services.md says how to bump them; the catalog test
 // refuses an unpinned image.
 const (
-	ImageHeadscale = "headscale/headscale:v0.29.6@sha256:cabe84f0699913dbca9320f0883dca7565dd08df3c5be29edfabbebeff763966"
+	ImageHeadscale = "headscale/headscale:v0.29.7@sha256:11f81665e842809db9fe3006a38c56a66e968baa5abd4bac498e86445572b970"
 )
 
 // PlatformKindInfo describes a kind for the catalog the API returns.
