@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -122,6 +123,30 @@ type AgentOptions struct {
 	// DecommissionTune scopes the agent's decommission to the test's own
 	// resources (the harness shares the daemon with the developer's containers).
 	DecommissionTune func(*decommission.Config)
+	// ScopeEnv limits the engine's view of the daemon to the containers of one
+	// environment (by label) and makes the agent report the services of its
+	// managed containers in the hello (Facts.ManagedServices), as the production
+	// agent does. A test that shortens OrphanMinAge needs it: the daemon also runs
+	// the developer's own NebulaCtrl workloads.
+	ScopeEnv string
+}
+
+// envScopedDocker is the daemon as a ScopeEnv agent sees it: only the
+// containers of one environment.
+type envScopedDocker struct {
+	docker.Engine
+	env string
+}
+
+func (d envScopedDocker) ContainerList(ctx context.Context, f docker.ListFilter) ([]docker.ContainerInfo, error) {
+	all, err := d.Engine.ContainerList(ctx, f)
+	var out []docker.ContainerInfo
+	for _, c := range all {
+		if c.Labels[agentprotocol.LabelEnvironment] == d.env {
+			out = append(out, c)
+		}
+	}
+	return out, err
 }
 
 // Agent is the production agent wiring (cmd/agent run) in-process.
@@ -129,9 +154,14 @@ type Agent struct {
 	opt    AgentOptions
 	cancel context.CancelFunc
 	done   chan struct{}
+	err    error // what Run ended with; read after Done is closed
 
 	Identity store.Identity
 }
+
+// Err is the error the agent's connection ended with (conn.ErrReenrolled,
+// conn.ErrRevoked, context.Canceled after Stop). Valid once Done is closed.
+func (a *Agent) Err() error { return a.err }
 
 // StartAgent enrolls (when the state dir holds no identity) and starts the
 // agent. It returns once the agent's goroutines are running.
@@ -190,7 +220,23 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 		HTTPPort: proxyPorts.HTTP, HTTPSPort: proxyPorts.HTTPS, ProxyStatus: px.Status,
 		ComposeVersion: composeRunner.Version, MeshStatus: meshMgr.Status,
 	})
-	facts := collector.Facts(ctx)
+	// The daemon the engine sees. ScopeEnv narrows it to one environment's
+	// containers and makes the agent report its managed services in the hello, as
+	// cmd/agent always does: the harness shares the daemon with the developer's
+	// own NebulaCtrl workloads, which a test that shortens the orphan sweep
+	// (adoption) must neither sweep nor be held for.
+	dk := wrapPull(eng)
+	if opt.ScopeEnv != "" {
+		dk = envScopedDocker{Engine: dk, env: opt.ScopeEnv}
+	}
+	factsOf := func(ctx context.Context) agentprotocol.Facts {
+		f := collector.Facts(ctx)
+		if opt.ScopeEnv != "" {
+			f.ManagedServices = engine.ManagedServiceIDs(ctx, dk)
+		}
+		return f
+	}
+	facts := factsOf(ctx)
 
 	identity, ok, err := st.Identity()
 	if err != nil {
@@ -210,9 +256,25 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	rctx, cancel := context.WithCancel(ctx)
 	a.cancel = cancel
 
+	// The configured token replaces the identity of an agent the control plane
+	// does not know, once per process (cmd/agent's OnUnknownAgent).
+	var reenrollTried atomic.Bool
 	client := conn.New(conn.Config{
 		URL: eps.Connect, Identity: identity, Store: st, Version: "itest",
-		Facts: collector.Facts, Heartbeat: collector.Heartbeat, Logger: log,
+		Facts: factsOf, Heartbeat: collector.Heartbeat, Logger: log,
+		OnUnknownAgent: func(ctx context.Context) bool {
+			if opt.Token == "" || !reenrollTried.CompareAndSwap(false, true) {
+				return false
+			}
+			host, _ := os.Hostname()
+			id, err := conn.Enroll(ctx, st, eps.Enroll, opt.Token, host, factsOf(ctx), nil)
+			if err != nil {
+				log.Warn("re-enrollment with the configured token failed; keeping the current identity", "err", err)
+				return false
+			}
+			log.Info("re-enrolled with a control plane that did not know this agent", "server_id", id.ServerID)
+			return true
+		},
 	})
 	logHistory, err := loghistory.New(eng, opt.StateDir, client, log)
 	if err != nil {
@@ -227,7 +289,7 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	uptimeCollector := agentuptime.NewCollector(agentuptime.Config{Buffer: st, Sender: client, Logger: log, Interval: uptimeEvery})
 	deployer, err := engine.New(engine.Config{
 		Logs:   logHistory,
-		Docker: wrapPull(eng), Proxy: faultProxy{Manager: px, fault: opt.Fault},
+		Docker: dk, Proxy: faultProxy{Manager: px, fault: opt.Fault},
 		Builder: &build.Builder{StateDir: opt.StateDir}, Sender: client, Logger: log,
 		Uptime: uptimeCollector, UptimeInterval: uptimeEvery,
 		OrphanMinAge:     opt.OrphanMinAge,
@@ -257,6 +319,7 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	go func() {
 		defer close(a.done)
 		err := client.Run(rctx)
+		a.err = err
 		if errors.Is(err, conn.ErrRevoked) {
 			identity.Revoked = true
 			_ = st.PutIdentity(identity)

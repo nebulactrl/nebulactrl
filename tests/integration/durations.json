@@ -3,6 +3,7 @@
   "defaultSeconds": 30,
   "parallelFactor": 0.1,
   "tests": {
+    "TestAdoptServerKeepsRunningContainers": {"seconds":48.6},
     "TestBadImage": {"seconds":49.6,"parallel":true},
     "TestBuildServerFlow": {"seconds":268.1,"parallel":true},
     "TestCancelDuringBuildKeepsTheOldReleaseServing": {"seconds":332,"parallel":true},
