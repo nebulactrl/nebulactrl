@@ -124,7 +124,7 @@ Workflow rules, enforced by `make lint-workflows` (the `workflows` check runs th
 - top-level `permissions: contents: read`; a job asks for more only for what it does (`contents: write` to tag or upload release assets, `packages: write` to push the image, `id-token: write` and `attestations: write` to attest a build);
 - `actions/checkout` uses `persist-credentials: false` unless the job pushes with the checkout's credentials (only the release `version` job does);
 - only standard GitHub-hosted runners (`ubuntu-24.04`, `ubuntu-24.04-arm`), no self-hosted or third-party labels;
-- every action is pinned to a full commit SHA with its tag as a trailing comment (`uses: actions/checkout@<sha> # v7.0.1`; Dependabot proposes the updates monthly), and the repository only allows GitHub-owned actions plus `oven-sh/setup-bun`, `docker/setup-buildx-action`, `docker/login-action`, `docker/build-push-action` and `ossf/scorecard-action`;
+- every action is pinned to a full commit SHA with its tag as a trailing comment (`uses: actions/checkout@<sha> # v7.0.1`; Dependabot proposes the updates daily, one grouped pull request per ecosystem, for releases at least 7 days old), and the repository only allows GitHub-owned actions plus `oven-sh/setup-bun`, `docker/setup-buildx-action`, `docker/login-action`, `docker/build-push-action` and `ossf/scorecard-action`;
 - every job has `timeout-minutes`, so a hang cannot run for hours;
 - the release workflow restores no cache in the jobs that hold secrets or publish (`site`, the image builds), so a cache entry written by another run cannot reach a release; `ci`, `full` and `docs` keep theirs;
 - the base images of the `Dockerfile` are pinned as `tag@sha256:<digest>`; Dependabot bumps the tag and the digest together;

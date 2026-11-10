@@ -40,8 +40,8 @@ func goldenConfigNoFile(t *testing.T, routes []agentprotocol.Route, opts Options
 // each with the variables its form sends. The goldens pin the static
 // configuration the proxy container runs with: the resolver flags
 // (static_dns01_<code>.golden.txt) and its environment
-// (static_dns01_<code>.env.golden.txt). Variable names are lego v5.5.2's
-// (agentprotocol.LegoVersion, Traefik v3.7.16).
+// (static_dns01_<code>.env.golden.txt). Variable names are lego v5.6.0's
+// (agentprotocol.LegoVersion, Traefik v3.7.17).
 func dnsCases() map[string]agentprotocol.DNSResolver {
 	return map[string]agentprotocol.DNSResolver{
 		"cloudflare":   dnsResolver("cloudflare", map[string]string{"CF_DNS_API_TOKEN": "cf-secret-token"}, nil),

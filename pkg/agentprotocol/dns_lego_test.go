@@ -11,7 +11,7 @@ import (
 
 // The curated forms and the lego catalog must agree: a variable the form sends
 // that lego does not read would silently do nothing. The names in
-// wantCuratedEnv are copied from lego v5.5.2 (Traefik v3.7.16 go.mod):
+// wantCuratedEnv are copied from lego v5.6.0 (Traefik v3.7.17 go.mod):
 // providers/dns/<code>/<code>.toml [Configuration], which the docs at
 // https://go-acme.github.io/lego/dns/<code>/ render.
 var wantCuratedEnv = map[string][]string{
@@ -107,7 +107,7 @@ func TestLegoCatalogShape(t *testing.T) {
 			require.False(t, strings.HasPrefix(e.Name, "TRAEFIK_"), "%s: %s would configure Traefik itself", p.Code, e.Name)
 		}
 	}
-	require.Equal(t, "v5.5.2", LegoVersion)
+	require.Equal(t, "v5.6.0", LegoVersion)
 }
 
 func TestGenericSpecForAnyLegoProvider(t *testing.T) {

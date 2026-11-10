@@ -5,12 +5,12 @@ package agentprotocol
 // LegoCatalogTraefik is the Traefik release whose lego the catalog below was
 // generated for. It must equal the tag of the pinned proxy image
 // (TestCatalogMatchesPinnedTraefik).
-const LegoCatalogTraefik = "v3.7.16"
+const LegoCatalogTraefik = "v3.7.17"
 
 // LegoVersion is the github.com/go-acme/lego/v5 version that Traefik
 // LegoCatalogTraefik vendors (its go.mod). Environment variable names are those
 // of providers/dns/<code>/<code>.toml at this tag.
-const LegoVersion = "v5.5.2"
+const LegoVersion = "v5.6.0"
 
 // legoCatalog lists every DNS provider of LegoVersion that can run inside the
 // proxy container, sorted by code. Credentials come first in each Env list,
@@ -262,6 +262,15 @@ var legoCatalog = []legoProvider{
 		{Name: "CLOUDNS_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 60)", Optional: true},
 		{Name: "CLOUDNS_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
+	{Code: "cloudpress", Name: "CloudPress", URL: "https://cloudpress.com/", Env: []legoEnv{
+		{Name: "CLOUDPRESS_API_KEY", Desc: "API key", Optional: false},
+		{Name: "CLOUDPRESS_BASE_URL", Desc: "API URL", Optional: false},
+		{Name: "CLOUDPRESS_PACCOUNT_ID", Desc: "Account ID", Optional: true},
+		{Name: "CLOUDPRESS_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 10)", Optional: true},
+		{Name: "CLOUDPRESS_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 300)", Optional: true},
+		{Name: "CLOUDPRESS_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
+		{Name: "CLOUDPRESS_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
+	}},
 	{Code: "cloudru", Name: "Cloud.ru", URL: "https://cloud.ru", Env: []legoEnv{
 		{Name: "CLOUDRU_SERVICE_INSTANCE_ID", Desc: "Service Instance ID (parentId)", Optional: false},
 		{Name: "CLOUDRU_KEY_ID", Desc: "Key ID (login)", Optional: false},
@@ -335,7 +344,8 @@ var legoCatalog = []legoProvider{
 		{Name: "CPANEL_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "curanet", Name: "Curanet", URL: "https://curanet.dk/", Env: []legoEnv{
-		{Name: "CURANET_API_KEY", Desc: "API key", Optional: false},
+		{Name: "CURANET_CLIENT_ID", Desc: "Client ID", Optional: false},
+		{Name: "CURANET_CLIENT_SECRET", Desc: "Client secret", Optional: false},
 		{Name: "CURANET_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 2)", Optional: true},
 		{Name: "CURANET_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 60)", Optional: true},
 		{Name: "CURANET_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
@@ -349,7 +359,8 @@ var legoCatalog = []legoProvider{
 		{Name: "CZECHIA_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "dandomain", Name: "DanDomain", URL: "https://dandomain.dk/", Env: []legoEnv{
-		{Name: "DANDOMAIN_API_KEY", Desc: "API key", Optional: false},
+		{Name: "DANDOMAIN_CLIENT_ID", Desc: "Client ID", Optional: false},
+		{Name: "DANDOMAIN_CLIENT_SECRET", Desc: "Client secret", Optional: false},
 		{Name: "DANDOMAIN_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 2)", Optional: true},
 		{Name: "DANDOMAIN_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 60)", Optional: true},
 		{Name: "DANDOMAIN_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
@@ -753,13 +764,20 @@ var legoCatalog = []legoProvider{
 		{Name: "GNAME_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
 		{Name: "GNAME_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
-	{Code: "godaddy", Name: "Go Daddy", URL: "https://godaddy.com", Env: []legoEnv{
+	{Code: "godaddy", Name: "Go Daddy (DEPRECATED)", URL: "https://godaddy.com", Env: []legoEnv{
 		{Name: "GODADDY_API_KEY", Desc: "API key", Optional: false},
 		{Name: "GODADDY_API_SECRET", Desc: "API secret", Optional: false},
 		{Name: "GODADDY_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 2)", Optional: true},
 		{Name: "GODADDY_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 120)", Optional: true},
 		{Name: "GODADDY_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 600)", Optional: true},
 		{Name: "GODADDY_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
+	}},
+	{Code: "godaddyv3", Name: "Go Daddy (v3)", URL: "https://godaddy.com", Env: []legoEnv{
+		{Name: "GODADDYV3_PERSONAL_ACCESS_TOKEN", Desc: "Personal Access Token (PAT)", Optional: false},
+		{Name: "GODADDYV3_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 2)", Optional: true},
+		{Name: "GODADDYV3_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 120)", Optional: true},
+		{Name: "GODADDYV3_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 600)", Optional: true},
+		{Name: "GODADDYV3_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "gravity", Name: "Gravity", URL: "https://gravity.beryju.io/", Env: []legoEnv{
 		{Name: "GRAVITY_SERVER_URL", Desc: "URL of the server", Optional: false},
@@ -1182,13 +1200,19 @@ var legoCatalog = []legoProvider{
 		{Name: "NEODIGIT_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
 		{Name: "NEODIGIT_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
-	{Code: "netcup", Name: "Netcup", URL: "https://www.netcup.eu/", Env: []legoEnv{
+	{Code: "netcup", Name: "Netcup (Legacy API)", URL: "https://www.netcup.eu/", Env: []legoEnv{
 		{Name: "NETCUP_CUSTOMER_NUMBER", Desc: "Customer number", Optional: false},
 		{Name: "NETCUP_API_KEY", Desc: "API key", Optional: false},
 		{Name: "NETCUP_API_PASSWORD", Desc: "API password", Optional: false},
 		{Name: "NETCUP_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 30)", Optional: true},
 		{Name: "NETCUP_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 900)", Optional: true},
 		{Name: "NETCUP_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 10)", Optional: true},
+	}},
+	{Code: "netcupv1", Name: "Netcup v1", URL: "https://www.netcup.eu/", Env: []legoEnv{
+		{Name: "NETCUPV1_API_KEY", Desc: "API key", Optional: false},
+		{Name: "NETCUPV1_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 30)", Optional: true},
+		{Name: "NETCUPV1_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 900)", Optional: true},
+		{Name: "NETCUPV1_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "netlify", Name: "Netlify", URL: "https://www.netlify.com", Env: []legoEnv{
 		{Name: "NETLIFY_TOKEN", Desc: "Token", Optional: false},
@@ -1261,6 +1285,14 @@ var legoCatalog = []legoProvider{
 		{Name: "NODION_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 120)", Optional: true},
 		{Name: "NODION_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
 		{Name: "NODION_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
+	}},
+	{Code: "nordname", Name: "NordName", URL: "https://nordname.com/", Env: []legoEnv{
+		{Name: "NORDNAME_API_KEY", Desc: "API key", Optional: false},
+		{Name: "NORDNAME_CUSTOMER_UUID", Desc: "UUID of the customer to access.", Optional: true},
+		{Name: "NORDNAME_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 10)", Optional: true},
+		{Name: "NORDNAME_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 300)", Optional: true},
+		{Name: "NORDNAME_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 3600)", Optional: true},
+		{Name: "NORDNAME_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "ns1", Name: "NS1", URL: "https://ns1.com", Env: []legoEnv{
 		{Name: "NS1_API_KEY", Desc: "API key", Optional: false},
@@ -1396,6 +1428,12 @@ var legoCatalog = []legoProvider{
 		{Name: "POWERADMIN_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
 		{Name: "POWERADMIN_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
+	{Code: "primedns", Name: "PrimeDNS", URL: "https://primedns.net/", Env: []legoEnv{
+		{Name: "PRIMEDNS_API_KEY", Desc: "API key", Optional: false},
+		{Name: "PRIMEDNS_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 2)", Optional: true},
+		{Name: "PRIMEDNS_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 180)", Optional: true},
+		{Name: "PRIMEDNS_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
+	}},
 	{Code: "rackspace", Name: "Rackspace", URL: "https://www.rackspace.com/", Env: []legoEnv{
 		{Name: "RACKSPACE_USER", Desc: "API user", Optional: false},
 		{Name: "RACKSPACE_API_KEY", Desc: "API key", Optional: false},
@@ -1491,7 +1529,8 @@ var legoCatalog = []legoProvider{
 		{Name: "SCW_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "scannet", Name: "ScanNet", URL: "https://www.scannet.dk/", Env: []legoEnv{
-		{Name: "SCANNET_API_KEY", Desc: "API key", Optional: false},
+		{Name: "SCANNET_CLIENT_ID", Desc: "Client ID", Optional: false},
+		{Name: "SCANNET_CLIENT_SECRET", Desc: "Client secret", Optional: false},
 		{Name: "SCANNET_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 2)", Optional: true},
 		{Name: "SCANNET_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 60)", Optional: true},
 		{Name: "SCANNET_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
@@ -1518,7 +1557,7 @@ var legoCatalog = []legoProvider{
 		{Name: "SELECTELV2_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 60)", Optional: true},
 		{Name: "SELECTELV2_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
-	{Code: "selfhostde", Name: "SelfHost.(de|eu)", URL: "https://www.selfhost.de", Env: []legoEnv{
+	{Code: "selfhostde", Name: "SelfHost.(de|eu) (DEPRECATED)", URL: "https://www.selfhost.de", Env: []legoEnv{
 		{Name: "SELFHOSTDE_USERNAME", Desc: "Username", Optional: false},
 		{Name: "SELFHOSTDE_PASSWORD", Desc: "Password", Optional: false},
 		{Name: "SELFHOSTDE_RECORDS_MAPPING", Desc: "Record IDs mapping with domains (ex: example.com:123:456,example.org:789,foo.example.com:147)", Optional: false},
@@ -1526,6 +1565,14 @@ var legoCatalog = []legoProvider{
 		{Name: "SELFHOSTDE_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 240)", Optional: true},
 		{Name: "SELFHOSTDE_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
 		{Name: "SELFHOSTDE_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
+	}},
+	{Code: "selfhostdev2", Name: "SelfHost.(de|eu)", URL: "https://www.selfhost.de", Env: []legoEnv{
+		{Name: "SELFHOSTDEV2_API_KEYS", Desc: "API keys mapping with domains (ex: example.com:xx.yy,example.org:ww.zz).", Optional: false},
+		{Name: "SELFHOSTDEV2_RECORDS_MAPPING", Desc: "Record IDs mapping with domains (ex: example.com:123:456,example.org:789,foo.example.com:147).", Optional: false},
+		{Name: "SELFHOSTDEV2_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 30)", Optional: true},
+		{Name: "SELFHOSTDEV2_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 240)", Optional: true},
+		{Name: "SELFHOSTDEV2_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},
+		{Name: "SELFHOSTDEV2_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "servercow", Name: "Servercow", URL: "https://servercow.de/", Env: []legoEnv{
 		{Name: "SERVERCOW_USERNAME", Desc: "API username", Optional: false},
@@ -1544,7 +1591,6 @@ var legoCatalog = []legoProvider{
 		{Name: "SHELLRENT_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "simply", Name: "Simply.com", URL: "https://www.simply.com/en/domains/", Env: []legoEnv{
-		{Name: "SIMPLY_ACCOUNT_NAME", Desc: "Account name", Optional: false},
 		{Name: "SIMPLY_API_KEY", Desc: "API key", Optional: false},
 		{Name: "SIMPLY_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 10)", Optional: true},
 		{Name: "SIMPLY_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 300)", Optional: true},
@@ -1751,7 +1797,8 @@ var legoCatalog = []legoProvider{
 		{Name: "VULTR_HTTP_TIMEOUT", Desc: "API request timeout in seconds (Default: 30)", Optional: true},
 	}},
 	{Code: "wannafind", Name: "Wannafind", URL: "https://www.wannafind.dk/", Env: []legoEnv{
-		{Name: "WANNAFIND_API_KEY", Desc: "API key", Optional: false},
+		{Name: "WANNAFIND_CLIENT_ID", Desc: "Client ID", Optional: false},
+		{Name: "WANNAFIND_CLIENT_SECRET", Desc: "Client secret", Optional: false},
 		{Name: "WANNAFIND_POLLING_INTERVAL", Desc: "Time between DNS propagation check in seconds (Default: 2)", Optional: true},
 		{Name: "WANNAFIND_PROPAGATION_TIMEOUT", Desc: "Maximum waiting time for DNS propagation in seconds (Default: 60)", Optional: true},
 		{Name: "WANNAFIND_TTL", Desc: "The TTL of the TXT record used for the DNS challenge in seconds (Default: 120)", Optional: true},

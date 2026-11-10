@@ -2,7 +2,7 @@
 // providers of the lego release that the pinned Traefik vendors, with the
 // environment variables each one reads.
 //
-//	go run ./tools/dnscatalog -traefik v3.7.16 -o pkg/agentprotocol/dns_lego_catalog.go
+//	go run ./tools/dnscatalog -traefik v3.7.17 -o pkg/agentprotocol/dns_lego_catalog.go
 //
 // It reads Traefik's go.mod at the tag for the github.com/go-acme/lego/v5
 // version, downloads that lego tag from GitHub and parses
@@ -55,7 +55,7 @@ type provider struct {
 }
 
 func main() {
-	traefik := flag.String("traefik", "", "Traefik tag whose lego version is catalogued, e.g. v3.7.16")
+	traefik := flag.String("traefik", "", "Traefik tag whose lego version is catalogued, e.g. v3.7.17")
 	out := flag.String("o", "", "output file (default stdout)")
 	flag.Parse()
 	if *traefik == "" {

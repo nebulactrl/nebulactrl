@@ -4,7 +4,7 @@
 // wording comes from. Pages behind a login redirect to the sign-in and back,
 // which is what "checked" means for them. Variable names are not here: they
 // come from the control plane's provider catalog (pkg/agentprotocol), checked
-// against lego v5.5.2, the release Traefik v3.7.16 vendors
+// against lego v5.6.0, the release Traefik v3.7.17 vendors
 // (https://go-acme.github.io/lego/dns/<code>/).
 //
 // Pure: no DOM, no network.

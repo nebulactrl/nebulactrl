@@ -30,18 +30,18 @@ A resolver needs the server's **ACME email**. The environment is process-wide, s
 there is **one credential per provider per server**; for two accounts of one
 provider delegate `_acme-challenge` with a CNAME (Traefik documents this).
 
-## Variables (verified against go-acme/lego v5.5.2, vendored by Traefik v3.7.16)
+## Variables (verified against go-acme/lego v5.6.0, vendored by Traefik v3.7.17)
 
-Where the names come from. Traefik v3.7.16's `go.mod` requires `github.com/go-acme/lego/v5 v5.5.2`
+Where the names come from. Traefik v3.7.17's `go.mod` requires `github.com/go-acme/lego/v5 v5.6.0`
 and its ACME provider calls `dns.NewDNSChallengeProviderByName` (`pkg/provider/acme/provider.go`).
 Lego reads each provider's credentials from the process environment, with the names in
-`providers/dns/<code>/<code>.toml` at tag `v5.5.2`; the lego documentation renders that file at
+`providers/dns/<code>/<code>.toml` at tag `v5.6.0`; the lego documentation renders that file at
 `https://go-acme.github.io/lego/dns/<code>/`. The catalog in
 `pkg/agentprotocol/dns_lego_catalog.go` is generated from those files by `tools/dnscatalog`, and
 `TestCatalogMatchesPinnedTraefik` fails when `proxy.TraefikImage` moves without regenerating it:
 
 ```sh
-go run ./tools/dnscatalog -traefik v3.7.16 -o pkg/agentprotocol/dns_lego_catalog.go
+go run ./tools/dnscatalog -traefik v3.7.17 -o pkg/agentprotocol/dns_lego_catalog.go
 ```
 
 Providers with a form (`R` = required; `OneOf` = set every variable of one method):

@@ -1,6 +1,6 @@
 version: 2
 
-# Monthly and grouped, so updates arrive as at most one pull request per ecosystem.
+# Daily and grouped, so updates arrive as at most one pull request per ecosystem.
 # The workflows pin actions to commit SHAs; dependabot rewrites the SHA and the
 # trailing version comment together. The Dockerfile base images are pinned as
 # tag@digest and bumped the same way. The cooldown keeps a release that was
@@ -10,7 +10,7 @@ updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
-      interval: monthly
+      interval: daily
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -22,7 +22,7 @@ updates:
   - package-ecosystem: gomod
     directory: /
     schedule:
-      interval: monthly
+      interval: daily
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -34,7 +34,7 @@ updates:
   - package-ecosystem: bun
     directory: /
     schedule:
-      interval: monthly
+      interval: daily
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -50,7 +50,7 @@ updates:
       - /deploy/agent
       - /tests/fixtures/git-server
     schedule:
-      interval: monthly
+      interval: daily
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
@@ -65,7 +65,7 @@ updates:
       - /deploy/install
       - /deploy/dev
     schedule:
-      interval: monthly
+      interval: daily
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5

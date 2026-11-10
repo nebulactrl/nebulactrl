@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -589,17 +590,24 @@ func TestListFailureReportsAndContinues(t *testing.T) {
 func TestPinnedInfrastructureImagesAreRegistered(t *testing.T) {
 	pinned := agentprotocol.PinnedImages()
 	require.NotEmpty(t, pinned)
-	var traefik, buildkit bool
+	var buildkit bool
+	var traefikRef string
 	for _, p := range pinned {
-		traefik = traefik || len(p) > 7 && p[:7] == "traefik"
+		if strings.HasPrefix(p, "traefik") {
+			traefikRef = p
+		}
 		buildkit = buildkit || len(p) > 12 && p[:12] == "moby/buildki"
 	}
-	require.True(t, traefik, "Traefik is pinned")
+	require.NotEmpty(t, traefikRef, "Traefik is pinned")
 	require.True(t, buildkit, "BuildKit is pinned")
 
-	// And they are honoured without any help from the control plane.
+	// And they are honoured without any help from the control plane: the image
+	// as Docker lists it (its tag, and the index digest it was pulled by).
+	tagged, digest, ok := strings.Cut(traefikRef, "@")
+	require.True(t, ok, "Traefik is pinned by digest: %s", traefikRef)
+	repo, _, _ := strings.Cut(tagged, ":")
 	f := newFake()
-	f.addImage("sha256:traefik", []string{"traefik:v3.7.16"}, []string{"traefik@sha256:c8a121e4bb1347e8fd52657fab12f2cb70b68f8a018895e2068f92c9e519b9c2"}, 300*day, 200*mb)
+	f.addImage("sha256:traefik", []string{tagged}, []string{repo + "@" + digest}, 300*day, 200*mb)
 	_, err := runner(f).Run(context.Background(), payload())
 	require.NoError(t, err)
 	require.True(t, f.hasImage("sha256:traefik"))
