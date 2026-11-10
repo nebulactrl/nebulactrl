@@ -25,15 +25,30 @@ func (h *Hub) onHello(ctx context.Context, c *agentConn, hello agentprotocol.Hel
 	if s, err := h.q.GetServerByID(ctx, c.serverID); err == nil {
 		before = &s
 	}
-	_, err := h.q.UpdateServerHello(ctx, db.UpdateServerHelloParams{
-		ID: c.serverID, AgentVersion: &ver, ProtocolVersion: &pv, Facts: facts,
+	// A server added to this instance that already runs NebulaCtrl workloads is
+	// held by the same statement that records its first hello, so the first frame
+	// already says to leave them alone.
+	holdIfNew := wantsAdoptionHold(hello.Facts)
+	row, err := h.q.UpdateServerHello(ctx, db.UpdateServerHelloParams{
+		ID: c.serverID, AgentVersion: &ver, ProtocolVersion: &pv, Facts: facts, HoldIfNew: holdIfNew,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		c.closeWith(agentprotocol.CloseRevoked, "agent revoked")
 		return
 	}
+	// Fail closed: the agent sweeps unknown containers only after a reconcile
+	// frame, and a frame without the hold would tell it to. When the hello (and
+	// with it a hold it may need) was not recorded, send none: the server stays
+	// pending and its next hello tries again.
+	sendDesired := true
 	if err != nil {
 		c.log.ErrorContext(ctx, "persist hello", "err", err)
+		if holdIfNew {
+			sendDesired = false
+			c.log.ErrorContext(ctx, "adoption hold not recorded; no desired state sent")
+		}
+	} else if row.AdoptionState == "held" && (before == nil || before.AdoptionState != "held") {
+		c.log.InfoContext(ctx, "server held for adoption", "services", len(hello.Facts.ManagedServices))
 	}
 	h.publishServer(c.serverID)
 	if err == nil && before != nil {
@@ -45,17 +60,7 @@ func (h *Hub) onHello(ctx context.Context, c *agentConn, hello agentprotocol.Hel
 		h.processResult(ctx, c, res)
 	}
 
-	// A server added to this instance that already runs NebulaCtrl workloads is
-	// held before the desired state is computed, so the first frame already says
-	// to leave them alone.
-	holdErr := h.holdForAdoption(ctx, c.serverID, before, hello.Facts)
-	if holdErr != nil {
-		// Fail closed: the agent sweeps unknown containers only after a reconcile
-		// frame, and a frame without the hold would tell it to. Send none.
-		c.log.ErrorContext(ctx, "adoption hold not recorded; no desired state sent", "err", holdErr)
-	}
-
-	if rh := h.resultHandler(); rh != nil && holdErr == nil {
+	if rh := h.resultHandler(); rh != nil && sendDesired {
 		rec, err := rh.DesiredState(ctx, c.serverID)
 		if err != nil {
 			c.log.ErrorContext(ctx, "compute desired state", "err", err)

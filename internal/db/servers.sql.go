@@ -1193,27 +1193,34 @@ func (q *Queries) UpdateServerEnrolled(ctx context.Context, arg UpdateServerEnro
 const updateServerHello = `-- name: UpdateServerHello :one
 UPDATE servers
 SET status           = 'online',
-    agent_version    = $2,
-    protocol_version = $3,
-    facts            = $4,
-    last_seen_at     = now()
-WHERE id = $1 AND status <> 'revoked'
+    agent_version    = $1,
+    protocol_version = $2,
+    facts            = $3,
+    last_seen_at     = now(),
+    adoption_state   = CASE WHEN status = 'pending' AND $4::boolean THEN 'held' ELSE adoption_state END
+WHERE id = $5 AND status <> 'revoked'
 RETURNING id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at, adoption_state
 `
 
 type UpdateServerHelloParams struct {
-	ID              uuid.UUID       `json:"id"`
 	AgentVersion    *string         `json:"agentVersion"`
 	ProtocolVersion *int32          `json:"protocolVersion"`
 	Facts           json.RawMessage `json:"facts"`
+	HoldIfNew       bool            `json:"holdIfNew"`
+	ID              uuid.UUID       `json:"id"`
 }
 
+// hold_if_new holds the server for adoption in the same statement when this is
+// its first hello (status still pending: the CASE reads the row as it was), so
+// a hello is never recorded without the hold it needs: a failed update leaves
+// the server pending and the next hello tries again.
 func (q *Queries) UpdateServerHello(ctx context.Context, arg UpdateServerHelloParams) (Server, error) {
 	row := q.db.QueryRow(ctx, updateServerHello,
-		arg.ID,
 		arg.AgentVersion,
 		arg.ProtocolVersion,
 		arg.Facts,
+		arg.HoldIfNew,
+		arg.ID,
 	)
 	var i Server
 	err := row.Scan(

@@ -50,13 +50,18 @@ WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- name: UpdateServerHello :one
+-- hold_if_new holds the server for adoption in the same statement when this is
+-- its first hello (status still pending: the CASE reads the row as it was), so
+-- a hello is never recorded without the hold it needs: a failed update leaves
+-- the server pending and the next hello tries again.
 UPDATE servers
 SET status           = 'online',
-    agent_version    = $2,
-    protocol_version = $3,
-    facts            = $4,
-    last_seen_at     = now()
-WHERE id = $1 AND status <> 'revoked'
+    agent_version    = sqlc.narg(agent_version),
+    protocol_version = sqlc.narg(protocol_version),
+    facts            = sqlc.arg(facts),
+    last_seen_at     = now(),
+    adoption_state   = CASE WHEN status = 'pending' AND sqlc.arg(hold_if_new)::boolean THEN 'held' ELSE adoption_state END
+WHERE id = sqlc.arg(id) AND status <> 'revoked'
 RETURNING *;
 
 -- name: RecordServerHeartbeat :one
@@ -156,11 +161,6 @@ DELETE FROM servers WHERE id = $1 AND workspace_id = $2;
 
 -- name: ListTeamServers :many
 SELECT * FROM servers WHERE workspace_id = $1 ORDER BY created_at, id;
-
--- name: SetServerAdoptionHeld :execrows
--- Holds a server for adoption (its first hello found managed containers this
--- instance does not know). Only from the normal state.
-UPDATE servers SET adoption_state = 'held' WHERE id = $1 AND adoption_state = '';
 
 -- name: ClearServerAdoption :exec
 UPDATE servers SET adoption_state = '' WHERE id = $1;

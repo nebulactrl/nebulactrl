@@ -144,7 +144,8 @@ func TestAdoptionFrameCarriesUnmanagedAndHoldEnd(t *testing.T) {
 
 // When the hold cannot be recorded the hello gets no desired state at all: the
 // agent sweeps unknown containers only after a reconcile frame, and a frame
-// without KeepUnknown would tell it to.
+// without KeepUnknown would tell it to. The server stays pending, so the next
+// hello holds it.
 func TestAdoptionHoldThatCannotBeRecordedSendsNoDesiredState(t *testing.T) {
 	h := newHarness(t)
 	useRealDesiredState(h)
@@ -172,4 +173,13 @@ CREATE TRIGGER refuse_adoption_hold BEFORE UPDATE OF adoption_state ON servers
 		require.NotEqual(t, agentprotocol.TypeReconcile, f.Type, "no desired state while the hold is unrecorded")
 	}
 	require.Empty(t, h.adoptionState(e.serverID))
+	var status string
+	require.NoError(t, h.pool.QueryRow(h.ctx, "SELECT status FROM servers WHERE id = $1", e.serverID).Scan(&status))
+	require.Equal(t, "pending", status, "a hello recorded without its hold would never hold again")
+
+	_, err = h.pool.Exec(h.ctx, "DROP TRIGGER refuse_adoption_hold ON servers")
+	require.NoError(t, err)
+	b := h.dialWithFacts(e, false, adoptionFacts([]string{agentprotocol.CapAdoption}, uuid.NewString()))
+	require.True(t, h.reconcileFrame(b).KeepUnknown, "the next hello holds")
+	require.Equal(t, "held", h.adoptionState(e.serverID))
 }
