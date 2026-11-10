@@ -52,7 +52,9 @@ function Banner({ environment }: { environment: Environment }) {
 			<Alert
 				variant={banner.kind === "invalid" ? "destructive" : "warning"}
 				aria-label="nebula.toml"
-				className="pointer-events-auto max-w-[620px] sm:pr-3 sm:has-data-[slot=alert-action]:pr-3"
+				// Floating over the canvas: the callout's wash is translucent, so
+				// it needs a surface under it or the nodes show through.
+				className="surface-raised pointer-events-auto max-w-[620px] sm:pr-3 sm:has-data-[slot=alert-action]:pr-3"
 			>
 				<AlertTitle>{banner.title}</AlertTitle>
 				<AlertDescription>
