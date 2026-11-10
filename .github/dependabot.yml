@@ -26,6 +26,12 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    # pgxstore has no release tags (go.mod pins a pseudo-version). Dependabot
+    # takes the repository's tags (v1.4.1, …) for it, cannot resolve them, and
+    # the failure drops the whole grouped update. Bump it by hand with
+    # `go get github.com/alexedwards/scs/pgxstore@master`.
+    ignore:
+      - dependency-name: github.com/alexedwards/scs/pgxstore
     groups:
       go-modules:
         patterns:
