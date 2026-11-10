@@ -91,7 +91,7 @@ services:
   # fresh random security.toml, so the volume servers accept writes only with a token the master
   # signed (a client that can reach port 8080 cannot store or overwrite data directly).
   seaweedfs:
-    image: chrislusf/seaweedfs:4.51@sha256:f7a49e3f3972ebed5be2ed4befa4a0c68eb7bdddba6e692d42729ceb545134b8
+    image: chrislusf/seaweedfs:4.52@sha256:57877e32bb90073b37dc109b438ba66e84fd5ed9ced5f5c04f56444ef243ce59
     restart: unless-stopped
     environment:
       NEBULACTRL_S3_ADMIN_KEY: ${NEBULACTRL_S3_ADMIN_KEY:?set NEBULACTRL_S3_ADMIN_KEY in .env}
