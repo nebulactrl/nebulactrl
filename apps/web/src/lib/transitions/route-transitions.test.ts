@@ -346,6 +346,31 @@ describe("a page transition", () => {
 		expect(scopes).toEqual(["page"]);
 		expect(document.documentElement.dataset.vtScope).toBe("root");
 	});
+
+	test("a page that arrives with a dialog open shows at once instead of lifting over it", async () => {
+		fullMotion();
+		page();
+		navigateTo("/servers", "/p/p1");
+		await router.startViewTransition(async () => {
+			const dialog = document.createElement("div");
+			dialog.setAttribute("data-slot", "dialog-content");
+			dialog.setAttribute("data-open", "");
+			document.body.append(dialog);
+		});
+		expect(started).toEqual([{ skipped: true }]);
+	});
+
+	test("a dialog still closing from the leaving page does not stop the lift", async () => {
+		fullMotion();
+		page();
+		const closing = document.createElement("div");
+		closing.setAttribute("data-slot", "dialog-content");
+		closing.setAttribute("data-closed", "");
+		document.body.append(closing);
+		navigateTo("/servers", "/p/p1");
+		await router.startViewTransition(async () => {});
+		expect(started).toEqual([{ skipped: false }]);
+	});
 });
 
 describe("reduced motion", () => {
