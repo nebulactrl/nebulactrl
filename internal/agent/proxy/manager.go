@@ -30,10 +30,12 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
-// TraefikImage is the pinned Traefik v3 image (v3.7.16, multi-arch index
+// TraefikImage is the pinned Traefik v3 image (v3.7.17, multi-arch index
 // digest). v3.6.17 / v3.7.1 and later carry the fix for GHSA-96qj-4jj5-wcjc
-// (rest@internal exposure).
-const TraefikImage = "traefik:v3.7.16@sha256:c8a121e4bb1347e8fd52657fab12f2cb70b68f8a018895e2068f92c9e519b9c2"
+// (rest@internal exposure); v3.7.17 the fix for GHSA-xv5x-242w-7hf7 (an
+// unauthenticated NTLM/Negotiate header leaks a backend transport per
+// connection, exhausting memory and file descriptors).
+const TraefikImage = "traefik:v3.7.17@sha256:f4bb143d1135a579b630ed491e17ec50f6f7c9c6a30585ff3d385471d2a86f5a"
 
 // LabelSpec carries the fingerprint of the container's static configuration.
 const LabelSpec = "nebulactrl.proxy.spec"
