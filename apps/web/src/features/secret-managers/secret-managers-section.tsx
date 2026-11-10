@@ -174,14 +174,14 @@ function TestState({ manager }: { manager: SecretManager }) {
 	const last = manager.lastTest;
 	if (last.ok === null) {
 		return (
-			<span className="flex items-center gap-2 text-ink-3 text-xs">
+			<span className="flex items-center gap-2 whitespace-nowrap text-ink-3 text-xs">
 				<StatusIcon kind="pending" label="" /> Not tested
 			</span>
 		);
 	}
 	return (
 		<span className="flex flex-col gap-0.5">
-			<span className="flex items-center gap-2 text-ink-2 text-xs">
+			<span className="flex items-center gap-2 whitespace-nowrap text-ink-2 text-xs">
 				<StatusIcon kind={last.ok ? "healthy" : "failed"} label="" />
 				{last.ok ? "Works" : "Failed"}
 				{last.at ? (
@@ -290,15 +290,20 @@ export function SecretManagersSection() {
 											{whereOf(m)}
 										</TableCell>
 										<TableCell label="Reference">
-											<span className="flex items-center gap-1">
+											<span className="flex min-w-0 items-center gap-1">
 												<code className="type-mono max-w-[260px] truncate text-ink-3 text-xs">
 													{m.example}
 												</code>
-												<CopyButton value={m.example} label="Copy example" />
+												<CopyButton
+													value={m.example}
+													label="Copy example"
+													variant="ghost"
+													size="icon-xs"
+												/>
 											</span>
 										</TableCell>
 										<TableCell label="Available to">
-											<span className="text-ink-2 text-xs">
+											<span className="whitespace-nowrap text-ink-2 text-xs">
 												{scopeSummary(m)}
 											</span>
 										</TableCell>
