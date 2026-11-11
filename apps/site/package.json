@@ -20,7 +20,7 @@
 		"@nebulactrl/docs": "workspace:*",
 		"@nebulactrl/tokens": "workspace:*",
 		"@phosphor-icons/react": "2.1.10",
-		"motion": "^14.9.0",
+		"motion": "^14.9.1",
 		"react": "19.3.1",
 		"react-dom": "19.3.1"
 	},
