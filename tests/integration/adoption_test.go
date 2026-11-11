@@ -211,7 +211,7 @@ func TestAdoptServerKeepsRunningContainers(t *testing.T) {
 	// hello does not hold again; the stored hold keeps the frame's KeepUnknown).
 	sentinel2 := reconcileSentinel(t, app, a.EnvID, "two")
 	restarted.Stop()
-	restarted = agentOn(b.URL(), b.EnrollTok)
+	agentOn(b.URL(), b.EnrollTok) // stopped at cleanup
 	b.WaitServer(b.ServerID, 60*time.Second)
 	require.True(t, eventually(60*time.Second, 500*time.Millisecond, sentinel2), "no reconcile after the second restart")
 	require.Equal(t, "held", b.adoptionState())
