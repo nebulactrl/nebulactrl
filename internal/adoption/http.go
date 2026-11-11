@@ -30,8 +30,9 @@ func Register(h huma.API, svc *Service) {
 		Summary: "Review the workloads of a server",
 		Description: "Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, " +
 			"environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. " +
-			"`choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.",
-		Errors: errs,
+			"`choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. " +
+			"Needs servers:write, projects:write and an unrestricted token.",
+		Errors: append(errs, http.StatusConflict),
 	}, policy.ScopeServersWrite, policy.ScopeProjectsWrite), func(ctx context.Context, in *planInput) (*struct{ Body AdoptionPlan }, error) {
 		p, err := svc.Plan(ctx, in.ID, in.Body)
 		if err != nil {

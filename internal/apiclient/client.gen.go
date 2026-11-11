@@ -25367,7 +25367,7 @@ type ClientInterface interface {
 
 	// RemoveServer Remove a server
 	//
-	// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Clean and forget need `confirm=<the server's name>` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
+	// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
 	//
 	// Corresponds with DELETE /servers/{serverId} (the `RemoveServer` operationId).
 	RemoveServer(ctx context.Context, serverId string, params *RemoveServerParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -25411,7 +25411,7 @@ type ClientInterface interface {
 
 	// PlanServerAdoptionWithBody Review the workloads of a server
 	//
-	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.
+	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
 	//
 	// Takes any type of body and a specified content type.
 	//
@@ -25420,7 +25420,7 @@ type ClientInterface interface {
 
 	// PlanServerAdoption Review the workloads of a server
 	//
-	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.
+	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -34255,7 +34255,7 @@ func (c *Client) CreateEnrollmentToken(ctx context.Context, params *CreateEnroll
 
 // RemoveServer Remove a server
 //
-// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Clean and forget need `confirm=<the server's name>` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
+// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
 //
 // Corresponds with DELETE /servers/{serverId} (the `RemoveServer` operationId).
 func (c *Client) RemoveServer(ctx context.Context, serverId string, params *RemoveServerParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -34359,7 +34359,7 @@ func (c *Client) AdoptServer(ctx context.Context, serverId string, params *Adopt
 
 // PlanServerAdoptionWithBody Review the workloads of a server
 //
-// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.
+// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
 //
 // Takes any type of body and a specified content type.
 //
@@ -34378,7 +34378,7 @@ func (c *Client) PlanServerAdoptionWithBody(ctx context.Context, serverId string
 
 // PlanServerAdoption Review the workloads of a server
 //
-// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.
+// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
 //
 // Takes a body of the `application/json` content type.
 //
@@ -65450,7 +65450,7 @@ type ClientWithResponsesInterface interface {
 
 	// RemoveServerWithResponse Remove a server
 	//
-	// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Clean and forget need `confirm=<the server's name>` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
+	// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -65498,7 +65498,7 @@ type ClientWithResponsesInterface interface {
 
 	// PlanServerAdoptionWithBodyWithResponse Review the workloads of a server
 	//
-	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.
+	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -65507,7 +65507,7 @@ type ClientWithResponsesInterface interface {
 
 	// PlanServerAdoptionWithResponse Review the workloads of a server
 	//
-	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.
+	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -89802,6 +89802,8 @@ type PlanServerAdoptionResponse struct {
 	ApplicationproblemJSON403 *Error
 	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
 	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
 	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
 	ApplicationproblemJSON422 *Error
 	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
@@ -89832,6 +89834,11 @@ func (r PlanServerAdoptionResponse) GetApplicationproblemJSON403() *Error {
 // GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
 func (r PlanServerAdoptionResponse) GetApplicationproblemJSON404() *Error {
 	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
 }
 
 // GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
@@ -114088,7 +114095,7 @@ func (c *ClientWithResponses) CreateEnrollmentTokenWithResponse(ctx context.Cont
 
 // RemoveServerWithResponse Remove a server
 //
-// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Clean and forget need `confirm=<the server's name>` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
+// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -114172,7 +114179,7 @@ func (c *ClientWithResponses) AdoptServerWithResponse(ctx context.Context, serve
 
 // PlanServerAdoptionWithBodyWithResponse Review the workloads of a server
 //
-// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.
+// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -114187,7 +114194,7 @@ func (c *ClientWithResponses) PlanServerAdoptionWithBodyWithResponse(ctx context
 
 // PlanServerAdoptionWithResponse Review the workloads of a server
 //
-// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. Needs servers:write and an unrestricted token.
+// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -136546,6 +136553,13 @@ func ParsePlanServerAdoptionResponse(rsp *http.Response) (*PlanServerAdoptionRes
 			return nil, err
 		}
 		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error

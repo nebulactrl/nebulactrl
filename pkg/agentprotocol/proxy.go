@@ -166,10 +166,11 @@ type DomainRule struct {
 	// unless a WildcardCert covers them.
 	DNSResolver string `json:"dnsResolver,omitempty"`
 	// Tunnel marks a domain whose DNS record is the server's Cloudflare Tunnel
-	// CNAME: its traffic arrives over the tunnel as plain HTTP on the web
-	// entrypoint, so it is served there without the HTTPS redirect and never
-	// gets an HTTP-01 certificate (Cloudflare terminates the public TLS). A
-	// DNS-01 resolver or wildcard certificate still applies.
+	// CNAME: its traffic arrives over the tunnel as plain HTTP on the tunnel
+	// entrypoint (:81, never published), so it is served only there, without
+	// the HTTPS redirect, and never gets an HTTP-01 certificate (Cloudflare
+	// terminates the public TLS). A DNS-01 resolver or wildcard certificate
+	// still applies.
 	Tunnel bool `json:"tunnel,omitempty"`
 	// OriginLocked locks the domain to Cloudflare (Route.OriginLock): its
 	// routers get the Cloudflare peer allow list first in the chain, and the

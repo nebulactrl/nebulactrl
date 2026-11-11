@@ -348,9 +348,12 @@ func ServerNotAcceptingError(name string) *apierr.Error {
 	return apierr.Unprocessable("server_not_accepting_workloads", fmt.Sprintf("%s does not accept workloads; turn on \"Accept workloads\" in its settings to schedule services there", name))
 }
 
+// CodeServerAdoptionPending is the error code of ServerAdoptionPendingError.
+const CodeServerAdoptionPending = "server_adoption_pending"
+
 // ServerAdoptionPendingError is the 409 returned when placing or deploying a
 // service on a server held for adoption: it runs workloads of an earlier
 // NebulaCtrl that must be reviewed first.
 func ServerAdoptionPendingError() *apierr.Error {
-	return apierr.Conflict("server_adoption_pending", "This server runs workloads from an earlier NebulaCtrl. Review the adoption first (Servers → server → Review workloads).")
+	return apierr.Conflict(CodeServerAdoptionPending, "This server runs workloads from an earlier NebulaCtrl. Review the adoption first (Servers → server → Review workloads).")
 }

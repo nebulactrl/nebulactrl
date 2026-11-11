@@ -267,7 +267,7 @@ func blockingError(b []PlanBlocking) error {
 	if len(b) == 0 {
 		return nil
 	}
-	if b[0].Code == "server_adoption_pending" {
+	if b[0].Code == services.CodeServerAdoptionPending {
 		return services.ServerAdoptionPendingError()
 	}
 	e := apierr.Unprocessable(b[0].Code, b[0].Message)

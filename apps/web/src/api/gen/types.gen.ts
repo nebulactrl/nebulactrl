@@ -24600,6 +24600,10 @@ export type PlanServerAdoptionErrors = {
      */
     404: Error;
     /**
+     * Conflict
+     */
+    409: Error;
+    /**
      * Unprocessable Entity
      */
     422: Error;

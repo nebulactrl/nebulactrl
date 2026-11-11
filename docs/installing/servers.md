@@ -74,13 +74,15 @@ See [operations: servers](../operations/servers.md). Short version: **Servers �
 
 A host can keep running NebulaCtrl workloads after its control plane was lost or reinstalled, or while you move it from another NebulaCtrl instance. Add it like any server: create an enrollment token and run the install command with the new `--url` and `--token`. An agent that still holds the identity of another control plane gets "unknown agent" from this one and enrolls again with the configured token (`journalctl -u nebulactrl-agent` shows "re-enrolled with a control plane that did not know this agent"); the proxy and its routes keep serving.
 
-When the first connection of the new server reports containers labelled `nebulactrl.managed=true`, the server is **held for adoption**: nothing on the host is removed or rerouted, and no service can be placed on it. **Servers → server → Review workloads** (or `nebulactrl servers adopt <server> --plan`) lists every service found, grouped by environment, with its containers, volumes, domains and variable names. For each service choose:
+When the first connection of the new server reports containers labelled `nebulactrl.managed=true`, the server is **held for adoption**: nothing on the host is removed or rerouted, and no service can be placed on it. The agent connects only once Docker answers, so a daemon that is not up yet never makes a host with workloads look empty. **Servers → server → Review workloads** (or `nebulactrl servers adopt <server> --plan`) lists every service found, grouped by environment, with its containers, volumes, domains and variable names. For each service choose:
 
 | Action | Effect |
 |---|---|
 | **Adopt** | Rebuilds the project, environment, service, volumes, variables, domains and a succeeded deployment with the IDs from the container labels. The running containers become the current deployment: nothing is recreated or restarted. |
 | **Leave running** | The service keeps running unmanaged: never swept, its routes keep serving. The server overview shows "N workloads run here unmanaged" with a Review button. |
 | **Remove** | The containers are removed once the adoption is applied; volumes stay on the host. |
+
+A service this instance already has (its last deployment ran on a server that is now revoked or gone, for example after a restore of this instance's database) is marked **already here** instead: applying points the service and its current deployment at this server, and nothing is recreated.
 
 Not adopted (left running unmanaged): Compose stacks (import the compose file again with `nebulactrl import compose --as-stack`), database standby replicas, route services, cron services, shared-network attachments, tailnet sidecars and mesh aliases. Domains with access rules (basic auth, IP rules, origin lock, client certificates) or a custom certificate are left out so they never become public: add them again with their rules. Variables are stored as secrets when their name or value looks like a credential; review the secret switches before you apply.
 

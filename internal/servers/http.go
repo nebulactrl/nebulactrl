@@ -196,7 +196,7 @@ func Register(h huma.API, svc *Service) {
 			"`mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers " +
 			"keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server " +
 			"(soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress " +
-			"(409 `deployment_in_progress`). Clean and forget need `confirm=<the server's name>` and are refused while services are " +
+			"(409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are " +
 			"placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on " +
 			"(409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). " +
 			"Audited as `server.removed`. Admin scope; denied to MCP agents.",

@@ -182,7 +182,7 @@ func (s *Service) inventory(ctx context.Context, srv db.Server) (agentprotocol.W
 func (s *Service) loadContext(ctx context.Context, srv db.Server, inv agentprotocol.WorkloadInventory) (Context, error) {
 	ws := policy.WorkspaceID(ctx)
 	cx := Context{
-		Server: ContextServer{ID: srv.ID, Name: srv.Name, Held: srv.AdoptionState == "held", Unrestricted: srv.Unrestricted,
+		Server: ContextServer{ID: srv.ID, Name: srv.Name, Held: srv.AdoptionState == services.AdoptionStateHeld, Unrestricted: srv.Unrestricted,
 			Current: map[uuid.UUID]bool{}, Unmanaged: map[uuid.UUID]bool{}},
 		Environments: map[uuid.UUID]ContextEnv{}, Services: map[uuid.UUID]ContextService{}, Domains: map[string]bool{},
 	}
@@ -425,7 +425,7 @@ func (ap *applier) run(tx pgx.Tx) error {
 	}
 	return audit.Record(ctx, tx, audit.Entry{
 		Action: "server.adopt", ResourceType: "server", ResourceID: ap.srv.ID.String(),
-		Metadata: map[string]any{"services": len(ap.svcs), "left": ap.left, "removed": ap.removed, "reattached": ap.reattached, "projects": len(ap.projects)},
+		Metadata: map[string]any{"services": len(ap.svcs) - ap.reattached, "left": ap.left, "removed": ap.removed, "reattached": ap.reattached, "projects": len(ap.projects)},
 	})
 }
 
