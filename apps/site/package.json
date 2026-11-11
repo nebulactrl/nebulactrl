@@ -20,12 +20,12 @@
 		"@nebulactrl/docs": "workspace:*",
 		"@nebulactrl/tokens": "workspace:*",
 		"@phosphor-icons/react": "2.1.10",
-		"motion": "^14.9.0",
+		"motion": "^14.9.1",
 		"react": "19.3.1",
 		"react-dom": "19.3.1"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "2.6.4",
+		"@biomejs/biome": "2.6.5",
 		"@tailwindcss/vite": "4.3.4",
 		"@types/bun": "1.4.4",
 		"@types/react": "19.3.0",
