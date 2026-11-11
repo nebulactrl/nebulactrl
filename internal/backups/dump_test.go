@@ -276,7 +276,6 @@ func TestDumpRestoreToNewDatabaseStreamsTheFileToTheAgent(t *testing.T) {
 	require.Contains(t, done.Log, "restored")
 	require.Contains(t, done.Log, "upload complete")
 	require.NotNil(t, done.FinishedAt)
-	require.NotEmpty(t, f.events())
 	f.lastEvent(NotifyRestoreSucceeded)
 
 	// The request addressed the NEW database with its own password.
