@@ -110,6 +110,12 @@ func TestRemoveReleaseDeletesTheServicesWithoutTouchingTheHost(t *testing.T) {
 	web := f.deployed(t, "web")
 	worker := f.deployed(t, "worker")
 	f.addService(t, "app", true) // already deleted: not counted
+	// web has a domain whose DNS record NebulaCtrl tracks.
+	_, err := f.pool.Exec(context.Background(), "INSERT INTO domains (service_id, hostname, target_port, cf_zone_id) VALUES ($1, 'web.example.com', 80, 'z1')", web)
+	require.NoError(t, err)
+	_, err = f.pool.Exec(context.Background(), `INSERT INTO cloudflare_records (zone_id, record_id, workspace_id, owner_kind, owner_id, hostname, type, content, proxied)
+		SELECT cf_zone_id, 'r1', $2, 'domain', id, hostname, 'A', '203.0.113.7', true FROM domains WHERE service_id = $1`, web, f.ws)
+	require.NoError(t, err)
 
 	feed := f.bus.Subscribe(context.Background())
 
@@ -132,6 +138,12 @@ func TestRemoveReleaseDeletesTheServicesWithoutTouchingTheHost(t *testing.T) {
 		require.NoError(t, f.pool.QueryRow(context.Background(), "SELECT deleted_at IS NOT NULL FROM services WHERE id = $1", id).Scan(&deleted))
 		require.True(t, deleted, "the service is soft-deleted")
 	}
+
+	// The record stays at Cloudflare for the instance that adopts the host: it is
+	// no longer tracked, so no later collection of orphan records deletes it.
+	var tracked int
+	require.NoError(t, f.pool.QueryRow(context.Background(), "SELECT count(*) FROM cloudflare_records WHERE record_id = 'r1'").Scan(&tracked))
+	require.Zero(t, tracked)
 
 	rows := f.audit(t, servers.ActionRemoved)
 	require.Len(t, rows, 1)
@@ -249,6 +261,15 @@ func TestRemoveReleaseAsksTheProductionGuard(t *testing.T) {
 	var deleted bool
 	require.NoError(t, f.pool.QueryRow(context.Background(), "SELECT deleted_at IS NOT NULL FROM services WHERE id = $1", web).Scan(&deleted))
 	require.False(t, deleted)
+
+	// A revoked server still hosts its production services, and releasing
+	// deletes them: the guard is asked for it too.
+	_, err = f.pool.Exec(context.Background(), "UPDATE servers SET status = 'revoked' WHERE id = $1", f.server.ID)
+	require.NoError(t, err)
+	_, err = f.svc.Remove(guarded, f.server.ID, servers.RemoveInput{Confirm: "edge", Mode: servers.ModeRelease})
+	requireAPIError(t, err, http.StatusServiceUnavailable, "approval_unavailable")
+	require.NoError(t, f.pool.QueryRow(context.Background(), "SELECT deleted_at IS NOT NULL FROM services WHERE id = $1", web).Scan(&deleted))
+	require.False(t, deleted, "a refused release of a revoked server deletes nothing")
 
 	// A principal the guard does not apply to (a person) releases without an approval.
 	_, err = f.svc.Remove(f.admin, f.server.ID, servers.RemoveInput{Confirm: "edge", Mode: servers.ModeRelease})

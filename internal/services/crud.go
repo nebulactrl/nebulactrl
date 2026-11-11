@@ -649,6 +649,13 @@ func (s *Service) deleteTx(ctx context.Context, tx pgx.Tx, sc Scope, spec delete
 			return err
 		}
 	}
+	if hostUntouched {
+		// The domains go, their DNS records stay: untracked, so no later
+		// collection deletes them at Cloudflare.
+		if err := q.ForgetCloudflareRecordsOfService(ctx, id); err != nil {
+			return fmt.Errorf("forget dns records: %w", err)
+		}
+	}
 	if err := q.DeleteServiceDomains(ctx, id); err != nil {
 		return err
 	}

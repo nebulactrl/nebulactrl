@@ -62,6 +62,14 @@ DELETE FROM cloudflare_records WHERE zone_id = $1 AND record_id = $2;
 -- name: DeleteCloudflareRecordsOfWorkspace :exec
 DELETE FROM cloudflare_records WHERE workspace_id = $1;
 
+-- name: ForgetCloudflareRecordsOfService :exec
+-- Stops tracking the DNS records of a service's domains without touching them at
+-- Cloudflare: a released service keeps its records for the instance that adopts
+-- its containers, and an untracked record is never collected.
+DELETE FROM cloudflare_records r
+USING domains d
+WHERE d.service_id = $1 AND r.owner_kind = 'domain' AND r.owner_id = d.id;
+
 -- name: ListOrphanCloudflareRecords :many
 -- Tracked records whose hostname no live domain or status page of the workspace uses any more.
 SELECT r.* FROM cloudflare_records r

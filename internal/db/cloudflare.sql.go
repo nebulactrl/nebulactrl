@@ -61,6 +61,20 @@ func (q *Queries) DeleteCloudflareRecordsOfWorkspace(ctx context.Context, worksp
 	return err
 }
 
+const forgetCloudflareRecordsOfService = `-- name: ForgetCloudflareRecordsOfService :exec
+DELETE FROM cloudflare_records r
+USING domains d
+WHERE d.service_id = $1 AND r.owner_kind = 'domain' AND r.owner_id = d.id
+`
+
+// Stops tracking the DNS records of a service's domains without touching them at
+// Cloudflare: a released service keeps its records for the instance that adopts
+// its containers, and an untracked record is never collected.
+func (q *Queries) ForgetCloudflareRecordsOfService(ctx context.Context, serviceID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, forgetCloudflareRecordsOfService, serviceID)
+	return err
+}
+
 const getCloudflareConnection = `-- name: GetCloudflareConnection :one
 SELECT workspace_id, token_enc, account_id, account_name, status, status_message, token_expires_at, verified_at, zones, zones_synced_at, created_at, updated_at FROM cloudflare_connections WHERE workspace_id = $1
 `

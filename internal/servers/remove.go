@@ -232,16 +232,15 @@ func (s *Service) Remove(ctx context.Context, id uuid.UUID, in RemoveInput) (Ser
 			return ServerRemoval{}, apierr.Conflict("deployment_in_progress", "a deployment is in progress on this server; wait for it to finish or cancel it")
 		}
 		// Deleting the production services of a server is as irreversible as
-		// revoking it: ask the guard before anything changes.
-		if cur.Status != "revoked" {
-			if err := prodguard.CheckServer(ctx, s.pool, cur.WorkspaceID, cur.ID, guardRemoveServer,
-				"Release "+cur.Name+" and delete its production services without touching the host", true,
-				[]string{
-					"The server's agent is cut off for good and every service placed on it is deleted from this instance, with its domains and settings.",
-					"The containers and volumes keep running on the host, but nothing here manages them any more.",
-				}, ModeRelease); err != nil {
-				return ServerRemoval{}, err
-			}
+		// revoking it: ask the guard before anything changes. A revoked server
+		// still has its services, so it is asked for one too.
+		if err := prodguard.CheckServer(ctx, s.pool, cur.WorkspaceID, cur.ID, guardRemoveServer,
+			"Release "+cur.Name+" and delete its production services without touching the host", true,
+			[]string{
+				"The server's agent is cut off for good and every service placed on it is deleted from this instance, with its domains and settings.",
+				"The containers and volumes keep running on the host, but nothing here manages them any more.",
+			}, ModeRelease); err != nil {
+			return ServerRemoval{}, err
 		}
 		if err := s.removeRow(ctx, cur, removeOpts{release: true}); err != nil {
 			return ServerRemoval{}, err
