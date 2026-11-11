@@ -20,6 +20,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/auth"
 	"github.com/nebulactrl/nebulactrl/internal/db"
+	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/events"
 	"github.com/nebulactrl/nebulactrl/internal/integrations/cloudflare"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
@@ -135,24 +136,48 @@ func (f *fakeAPI) count(prefix string) int {
 // service of its last rule.
 func (f *fakeAPI) ingressHosts(t *testing.T) (hosts []string, last string) {
 	t.Helper()
+	rules := f.ingress(t)
+	for _, r := range rules {
+		if r.Hostname != "" {
+			hosts = append(hosts, r.Hostname)
+		}
+	}
+	return hosts, rules[len(rules)-1].Service
+}
+
+// ingressUpstream returns the one service every hostname of the last pushed
+// configuration goes to.
+func (f *fakeAPI) ingressUpstream(t *testing.T) string {
+	t.Helper()
+	services := map[string]bool{}
+	for _, r := range f.ingress(t) {
+		if r.Hostname != "" {
+			services[r.Service] = true
+		}
+	}
+	require.Len(t, services, 1, "every hostname goes to the same upstream")
+	for s := range services {
+		return s
+	}
+	return ""
+}
+
+type ingressRule struct {
+	Hostname string `json:"hostname"`
+	Service  string `json:"service"`
+}
+
+func (f *fakeAPI) ingress(t *testing.T) []ingressRule {
+	t.Helper()
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	var cfg struct {
 		Config struct {
-			Ingress []struct {
-				Hostname string `json:"hostname"`
-				Service  string `json:"service"`
-			} `json:"ingress"`
+			Ingress []ingressRule `json:"ingress"`
 		} `json:"config"`
 	}
 	require.NoError(t, json.Unmarshal(f.config, &cfg))
-	for _, r := range cfg.Config.Ingress {
-		if r.Hostname != "" {
-			hosts = append(hosts, r.Hostname)
-			require.Equal(t, "http://nebulactrl-traefik:80", r.Service)
-		}
-	}
-	return hosts, cfg.Config.Ingress[len(cfg.Config.Ingress)-1].Service
+	return cfg.Config.Ingress
 }
 
 // fakeCF is the team connection: a real client against the fake API.
@@ -456,18 +481,29 @@ func TestFirstConnectionActivatesTheTunnel(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, tunnelID+".cfargotunnel.com", cname)
 
-	// Routes: the managed domain is flagged as tunnelled, the other is not.
+	// Routes: the table is re-sent, but no domain is tunnelled until the DNS sync
+	// has pointed its record at the tunnel (that sync pushes the table again).
 	routes := f.disp.of(agentprotocol.KindSyncRoutes)
 	require.Len(t, routes, 1)
 	var pl agentprotocol.SyncRoutesPayload
 	require.NoError(t, json.Unmarshal(routes[0].Payload, &pl))
-	flags := map[string]bool{}
-	for _, rt := range pl.Routes {
-		for _, d := range rt.Domains {
-			flags[d.Host] = d.Tunnel
+	tunnelled := func(rts []agentprotocol.Route) map[string]bool {
+		flags := map[string]bool{}
+		for _, rt := range rts {
+			for _, d := range rt.Domains {
+				flags[d.Host] = d.Tunnel
+			}
 		}
+		return flags
 	}
-	require.Equal(t, map[string]bool{"app.example.com": true, "api.example.com": false}, flags)
+	require.Equal(t, map[string]bool{"app.example.com": false, "api.example.com": false}, tunnelled(pl.Routes))
+	_, err = f.pool.Exec(bg, `INSERT INTO cloudflare_records (zone_id, record_id, workspace_id, owner_kind, owner_id, hostname, type, content, proxied)
+		SELECT cf_zone_id, 'r1', $2, 'domain', id, hostname, 'CNAME', $3, true FROM domains WHERE hostname = $1`,
+		"app.example.com", f.server.WorkspaceID, tunnelID+".cfargotunnel.com")
+	require.NoError(t, err)
+	table, err := domains.ServerRoutes(bg, f.q, f.server.ID, uuid.Nil)
+	require.NoError(t, err)
+	require.Equal(t, map[string]bool{"app.example.com": true, "api.example.com": false}, tunnelled(table), "only the managed domain whose CNAME points at the tunnel")
 
 	// A later online report does not activate again.
 	f.activate()
@@ -688,6 +724,30 @@ func TestIngressFollowsTheServersHostnames(t *testing.T) {
 	require.Equal(t, []string{"new.example.com", "other.example.com"}, hosts)
 }
 
+// An agent from before the tunnel entrypoint serves tunnelled domains on its
+// web entrypoint, so its tunnel keeps pointing there; once the updated agent
+// reports the capability, the sweep re-points the rules at the tunnel
+// entrypoint.
+func TestIngressMovesToTheTunnelEntrypointWhenTheAgentHasIt(t *testing.T) {
+	f := newFixture(t)
+	setCaps := func(caps ...string) {
+		facts, _ := json.Marshal(agentprotocol.Facts{OS: "linux", Capabilities: caps})
+		_, err := f.pool.Exec(bg, "UPDATE servers SET facts = $2 WHERE id = $1", f.server.ID, facts)
+		require.NoError(t, err)
+	}
+	setCaps(agentprotocol.CapTunnel)
+	f.deployed("web", "app.example.com", true)
+	f.enable()
+	require.Equal(t, agentprotocol.TunnelUpstreamWeb, f.api.ingressUpstream(t))
+
+	setCaps(agentprotocol.CapTunnel, agentprotocol.CapTunnelEntrypoint)
+	require.NoError(t, f.svc.Sweep(bg))
+	require.Equal(t, agentprotocol.TunnelUpstream, f.api.ingressUpstream(t))
+	v, err := f.svc.Get(f.admin, f.server.ID)
+	require.NoError(t, err)
+	require.Equal(t, agentprotocol.TunnelUpstream, v.Upstream)
+}
+
 func TestSweepResendsAMissingConnectorOnce(t *testing.T) {
 	f := newFixture(t)
 	f.enable()
@@ -764,7 +824,7 @@ func TestViewForAServerWithoutATunnel(t *testing.T) {
 	require.True(t, v.CloudflareConnected)
 	require.True(t, v.AccountReady)
 	require.True(t, v.AgentSupported)
-	require.Equal(t, "http://nebulactrl-traefik:80", v.Upstream)
+	require.Equal(t, agentprotocol.TunnelUpstream, v.Upstream, "no facts yet: a current agent")
 
 	f.cf.notConfigured = true
 	v, err = f.svc.Get(f.viewer, f.server.ID)

@@ -62,7 +62,9 @@ type acmeTarget struct {
 // route domain that uses a DNS-01 resolver (or is a wildcard host) and is not
 // already covered by a wildcard certificate. A domain that names a resolver the
 // proxy does not run yet is listed store-only, so the control plane can say
-// which certificate it is served with meanwhile.
+// which certificate it is served with meanwhile. A tunnelled domain has no
+// certificate at the origin (Cloudflare ends its TLS and the proxy serves it on
+// the plain-HTTP tunnel entrypoint only), so it is never listed.
 func acmeTargets(cfg agentprotocol.ProxyConfig, routes []agentprotocol.Route) []acmeTarget {
 	var out []acmeTarget
 	for _, w := range cfg.WildcardCerts {
@@ -76,7 +78,7 @@ func acmeTargets(cfg agentprotocol.ProxyConfig, routes []agentprotocol.Route) []
 			continue
 		}
 		for _, d := range r.Domains {
-			if d.TLSMode == agentprotocol.TLSNone || d.TLSMode == agentprotocol.TLSCustom || d.DNSResolver == "" {
+			if d.Tunnel || d.TLSMode == agentprotocol.TLSNone || d.TLSMode == agentprotocol.TLSCustom || d.DNSResolver == "" {
 				continue
 			}
 			if coveredByWildcard(cfg.WildcardCerts, d) {
@@ -84,9 +86,6 @@ func acmeTargets(cfg agentprotocol.ProxyConfig, routes []agentprotocol.Route) []
 			}
 			t := acmeTarget{kind: agentprotocol.AcmeKindDomain, id: d.ID, sni: agentprotocol.ProbeHost(d.Host), covered: d.Host, provider: d.DNSResolver}
 			if !cfg.HasDNSResolver(d.DNSResolver) {
-				if d.Tunnel {
-					continue // Cloudflare ends a tunnel name's TLS: no certificate at the origin
-				}
 				t.storeOnly = true
 			}
 			out = append(out, t)

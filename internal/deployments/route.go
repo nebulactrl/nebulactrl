@@ -40,7 +40,11 @@ func routePayload(ctx context.Context, q *db.Queries, sc services.Scope, depID u
 		if !rt.IsL4() {
 			rt.Maintenance = domains.MaintenanceOf(sc.Service)
 		}
-		routes = append(routes, rt)
+		own, err := domains.PrepareRoutes(ctx, q, srv.ID, []agentprotocol.Route{rt})
+		if err != nil {
+			return agentprotocol.SyncRoutesPayload{}, err
+		}
+		routes = append(routes, own...)
 	}
 	pc, err := proxyserver.BuildConfig(ctx, q, srv.ID)
 	if err != nil {

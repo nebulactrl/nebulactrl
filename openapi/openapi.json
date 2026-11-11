@@ -10837,7 +10837,8 @@
               "dns01",
               "acme",
               "custom",
-              "none"
+              "none",
+              "tunnel"
             ],
             "type": "string"
           },

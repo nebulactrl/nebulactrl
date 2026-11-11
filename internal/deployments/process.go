@@ -10,9 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/nebulactrl/nebulactrl/internal/db"
-	"github.com/nebulactrl/nebulactrl/internal/dns01"
 	"github.com/nebulactrl/nebulactrl/internal/domains"
-	"github.com/nebulactrl/nebulactrl/internal/integrations/cloudflare"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
@@ -91,9 +89,8 @@ func processDomains(cfg services.Config, p services.EffectiveProcess, doms []db.
 }
 
 // processRoutings builds the routing of every process that has domains, keyed by
-// process name, running each process' rules through the same passes a
-// single-process deploy applies to the service's (DNS-01 resolver, Cloudflare
-// origin lock, platform access).
+// process name, running each process' rules through the same passes the route
+// table applies (domains.PrepareDeployRules).
 func processRoutings(ctx context.Context, q *db.Queries, serverID, serviceID uuid.UUID, cfg services.Config, doms []db.Domain) (map[string]processRouting, error) {
 	renames, err := services.PendingProcessRenames(ctx, q, serviceID)
 	if err != nil {
@@ -105,18 +102,11 @@ func processRoutings(ctx context.Context, q *db.Queries, serverID, serviceID uui
 		if len(rows) == 0 {
 			continue
 		}
-		rules, hosts := domains.RulesAndHosts(rows)
-		if err := dns01.ApplyAutoToRules(ctx, q, serverID, rules); err != nil {
-			return nil, err
-		}
-		lock, err := cloudflare.ApplyOriginLockToRules(ctx, q, serverID, rules)
+		dr, err := domains.PrepareDeployRules(ctx, q, serverID, serviceID, rows)
 		if err != nil {
 			return nil, err
 		}
-		if err := domains.ApplyPlatformAccessToRules(ctx, q, serverID, serviceID, rules); err != nil {
-			return nil, err
-		}
-		out[p.Name] = processRouting{Hosts: hosts, Rules: rules, OriginLock: lock}
+		out[p.Name] = processRouting{Hosts: dr.Hosts, Rules: dr.Rules, OriginLock: dr.OriginLock}
 	}
 	return out, nil
 }

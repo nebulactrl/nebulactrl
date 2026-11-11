@@ -431,7 +431,7 @@ func TestContainerSpec(t *testing.T) {
 	require.Equal(t, "10m", spec.LogConfig.Config["max-size"])
 	require.Equal(t, "3", spec.LogConfig.Config["max-file"])
 
-	// Public ports, admin on loopback, probe never published.
+	// Public ports, admin on loopback, probe and tunnel entrypoints never published.
 	require.ElementsMatch(t, []docker.PortPublish{
 		{HostIP: "0.0.0.0", HostPort: 8880, ContainerPort: 80, Proto: "tcp"},
 		{HostIP: "0.0.0.0", HostPort: 8443, ContainerPort: 443, Proto: "tcp"},

@@ -3701,7 +3701,7 @@ export type DomainCert = {
      * DNS-01 provider, for sources wildcard and dns01
      */
     resolver: string;
-    source: 'wildcard' | 'dns01' | 'acme' | 'custom' | 'none';
+    source: 'wildcard' | 'dns01' | 'acme' | 'custom' | 'none' | 'tunnel';
     /**
      * Automatic DNS-01 is chosen but the server's proxy does not run the Cloudflare resolver yet: Deploy proxy applies it, and the name keeps its HTTP-01 certificate until then
      */

@@ -544,10 +544,11 @@ func (b *builder) addMiddleware(name string, m *dynMiddleware) {
 
 // pagesRoutes renders what the pages server adds to every config: its service,
 // the errors middleware that service routers use, and the low-priority
-// catch-all that answers hosts no router matches with the 404 page. The
-// catch-all is not on the probe entrypoint, so verification still sees an
-// unrouted host as 404. Its names never match a service router
-// (nc-<uuid>-…), so traffic analytics count it as unrouted.
+// catch-all that answers hosts no router matches with the 404 page (on the
+// public entrypoints and the tunnel entrypoint). The catch-all is not on the
+// probe entrypoint, so verification still sees an unrouted host as 404. Its
+// names never match a service router (nc-<uuid>-…), so traffic analytics count
+// it as unrouted.
 func (b *builder) pagesRoutes() {
 	b.cfg.HTTP.Services[pagesService] = &dynService{LoadBalancer: &dynLoadBalancer{
 		PassHostHeader: true,
@@ -565,6 +566,10 @@ func (b *builder) pagesRoutes() {
 	b.cfg.HTTP.Routers[notFoundRouter+"-https"] = &dynRouter{
 		EntryPoints: []string{EntryWebSecure}, Rule: rule, Service: pagesService,
 		Middlewares: []string{notFoundMiddleware}, TLS: &dynTLS{}, Priority: 1,
+	}
+	b.cfg.HTTP.Routers[notFoundRouter+"-tunnel"] = &dynRouter{
+		EntryPoints: []string{EntryTunnel}, Rule: rule, Service: pagesService,
+		Middlewares: []string{notFoundMiddleware}, Priority: 1,
 	}
 }
 
@@ -723,19 +728,6 @@ func domainRule(d agentprotocol.DomainRule) string {
 	return rule
 }
 
-// tlsForDomain is tlsFor for a domain rule. A tunnelled domain never uses the
-// HTTP-01 resolver: its public name resolves to Cloudflare, which terminates
-// the edge TLS, so the challenge could not reach this proxy. It keeps the
-// default certificate, a covering certificate or wildcard, or its DNS-01
-// resolver.
-func (b *builder) tlsForDomain(d agentprotocol.DomainRule) *dynTLS {
-	t := b.tlsFor(d.Host, d.TLSMode, d.DNSResolver, d.Generated)
-	if d.Tunnel && t.CertResolver == CertResolver {
-		return &dynTLS{}
-	}
-	return t
-}
-
 // domain renders the routers of one domain rule.
 func (b *builder) domain(t target, d agentprotocol.DomainRule) {
 	svc := t.service
@@ -750,27 +742,29 @@ func (b *builder) domain(t target, d agentprotocol.DomainRule) {
 
 	t.lock = b.lockFor(t, d)
 	chain, probeChain := b.chain(n, d, t.lock)
-	// A tunnelled domain arrives over the tunnel as plain HTTP on the web
-	// entrypoint (Cloudflare terminates the public TLS): redirecting it to
-	// HTTPS there would loop.
-	forceHTTPS := tlsOn && d.Options.ForceHTTPSOrDefault() && !d.Tunnel
 	servSvc, servMws := b.serving(t, chain)
-	if tlsOn {
-		b.cfg.HTTP.Routers[n+"-https"] = &dynRouter{
-			EntryPoints: []string{EntryWebSecure}, Rule: rule, Service: servSvc,
-			Middlewares: servMws, TLS: b.aopFor(t, d, b.tlsForDomain(d)),
-		}
-	}
-	if forceHTTPS {
-		b.needRedirect = true
-		b.cfg.HTTP.Routers[n+"-http"] = &dynRouter{
-			EntryPoints: []string{EntryWeb}, Rule: rule, Service: "noop@internal",
-			Middlewares: withLock(t.lock, redirectMiddleware),
+	if d.Tunnel {
+		// A tunnelled domain is served on the tunnel entrypoint only. cloudflared
+		// is its one client and sends plain HTTP (Cloudflare ends the public TLS,
+		// so no certificate and no HTTPS redirect, which would loop). A router on
+		// web or websecure would answer the name to anyone who reaches the
+		// server's public ports, around Cloudflare and its Access policies.
+		b.cfg.HTTP.Routers[n+"-tunnel"] = &dynRouter{
+			EntryPoints: []string{EntryTunnel}, Rule: rule, Service: servSvc, Middlewares: servMws,
 		}
 	} else {
-		b.cfg.HTTP.Routers[n+"-http"] = &dynRouter{
-			EntryPoints: []string{EntryWeb}, Rule: rule, Service: servSvc, Middlewares: servMws,
+		if tlsOn {
+			b.cfg.HTTP.Routers[n+"-https"] = &dynRouter{
+				EntryPoints: []string{EntryWebSecure}, Rule: rule, Service: servSvc,
+				Middlewares: servMws, TLS: b.aopFor(t, d, b.tlsFor(d.Host, d.TLSMode, d.DNSResolver, d.Generated)),
+			}
 		}
+		web := &dynRouter{EntryPoints: []string{EntryWeb}, Rule: rule, Service: servSvc, Middlewares: servMws}
+		if tlsOn && d.Options.ForceHTTPSOrDefault() {
+			b.needRedirect = true
+			web.Service, web.Middlewares = "noop@internal", withLock(t.lock, redirectMiddleware)
+		}
+		b.cfg.HTTP.Routers[n+"-http"] = web
 	}
 	b.cfg.HTTP.Routers[n+"-probe"] = &dynRouter{
 		EntryPoints: []string{EntryProbe}, Rule: rule, Service: svc,
@@ -797,10 +791,17 @@ func (b *builder) redirectDomain(n string, d agentprotocol.DomainRule, rule stri
 		Regex: `^https?://[^/]+(.*)$`, Replacement: repl,
 		Permanent: d.RedirectCode == 0 || d.RedirectCode == 301 || d.RedirectCode == 308,
 	}})
+	if d.Tunnel {
+		// Through the tunnel only, like a served tunnelled domain (see domain).
+		b.cfg.HTTP.Routers[n+"-redir"] = &dynRouter{
+			EntryPoints: []string{EntryTunnel}, Rule: rule, Service: "noop@internal", Middlewares: []string{mw},
+		}
+		return
+	}
 	if tlsOn {
 		b.cfg.HTTP.Routers[n+"-redir"] = &dynRouter{
 			EntryPoints: []string{EntryWebSecure}, Rule: rule, Service: "noop@internal",
-			Middlewares: []string{mw}, TLS: b.tlsForDomain(d),
+			Middlewares: []string{mw}, TLS: b.tlsFor(d.Host, d.TLSMode, d.DNSResolver, d.Generated),
 		}
 	}
 	b.cfg.HTTP.Routers[n+"-http"] = &dynRouter{

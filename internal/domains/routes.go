@@ -52,6 +52,31 @@ func RulesAndHosts(rows []db.Domain) (rules []agentprotocol.DomainRule, hosts []
 	return rules, hosts
 }
 
+// DeployRules are the domain rules of one service (or process) in a deploy
+// payload: the agent builds the deployed service's own route from them until
+// the next route push, so they get the same passes as the route table.
+type DeployRules struct {
+	Rules      []agentprotocol.DomainRule
+	Hosts      []string
+	OriginLock *agentprotocol.OriginLock
+}
+
+// PrepareDeployRules builds the deploy-payload rules of serviceID's domain rows
+// on serverID through PrepareRoutes.
+func PrepareDeployRules(ctx context.Context, q *db.Queries, serverID, serviceID uuid.UUID, rows []db.Domain) (DeployRules, error) {
+	rules, hosts := RulesAndHosts(rows)
+	if len(rules) == 0 {
+		return DeployRules{}, nil
+	}
+	routes, err := PrepareRoutes(ctx, q, serverID, []agentprotocol.Route{{
+		ServiceID: serviceID.String(), Hosts: hosts, RouteExt: agentprotocol.RouteExt{Domains: rules},
+	}})
+	if err != nil {
+		return DeployRules{}, err
+	}
+	return DeployRules{Rules: routes[0].Domains, Hosts: hosts, OriginLock: routes[0].OriginLock}, nil
+}
+
 // Target is a managed service's containers as referenced by route services:
 // the deployment whose container names an upstream resolves to.
 type Target struct {
@@ -101,15 +126,8 @@ func ServerTable(ctx context.Context, q *db.Queries, serverID uuid.UUID, exclude
 	return routes, seq, nil
 }
 
-// ServerRoutesWith is ServerRoutes with managed-upstream overrides. Domains
-// served through the server's active Cloudflare Tunnel are flagged Tunnel;
-// proxied domains that are locked to Cloudflare carry the origin lock
-// (DomainRule.OriginLocked, Route.OriginLock; see cloudflare.ApplyOriginLock).
-// Domains in a zone of the team's connected Cloudflare account get the
-// automatic DNS-01 resolver (DomainRule.DNSResolver cloudflare, dns01.ApplyAuto).
-// The domains of platform services are restricted last, to internal networks
-// and the workspace's servers (withPlatformAccess); an IP allow list on a
-// tunnelled domain admits nobody (withTunnelAccess).
+// ServerRoutesWith is ServerRoutes with managed-upstream overrides, prepared by
+// PrepareRoutes.
 func ServerRoutesWith(ctx context.Context, q *db.Queries, serverID uuid.UUID, exclude uuid.UUID, over Overrides) ([]agentprotocol.Route, error) {
 	routes, err := serverRoutesWith(ctx, q, serverID, exclude, over)
 	if err != nil {
@@ -121,7 +139,22 @@ func ServerRoutesWith(ctx context.Context, q *db.Queries, serverID uuid.UUID, ex
 	if routes, err = withStatusRoutes(ctx, q, serverID, routes); err != nil {
 		return nil, err
 	}
-	if routes, err = markTunnelled(ctx, q, serverID, routes); err != nil {
+	return PrepareRoutes(ctx, q, serverID, routes)
+}
+
+// PrepareRoutes runs the per-server passes every route sent to serverID's agent
+// needs, whether in the full table or in a deploy payload (a service's own
+// route must never differ from the table's). Domains served through the
+// server's active Cloudflare Tunnel are flagged Tunnel; domains in a zone of the
+// team's connected Cloudflare account get the automatic DNS-01 resolver
+// (dns01.ApplyAuto); proxied domains that are locked to Cloudflare carry the
+// origin lock (cloudflare.ApplyOriginLock). The domains of platform services
+// are restricted next, to internal networks and the workspace's servers
+// (withPlatformAccess), and last an IP allow list on a tunnelled domain admits
+// nobody (withTunnelAccess). Routes are modified in place.
+func PrepareRoutes(ctx context.Context, q *db.Queries, serverID uuid.UUID, routes []agentprotocol.Route) ([]agentprotocol.Route, error) {
+	routes, err := markTunnelled(ctx, q, serverID, routes)
+	if err != nil {
 		return nil, err
 	}
 	if err := dns01.ApplyAuto(ctx, q, serverID, routes); err != nil {
@@ -130,8 +163,7 @@ func ServerRoutesWith(ctx context.Context, q *db.Queries, serverID uuid.UUID, ex
 	if err := cloudflare.ApplyOriginLock(ctx, q, serverID, routes); err != nil {
 		return nil, err
 	}
-	routes, err = withPlatformAccess(ctx, q, serverID, routes)
-	if err != nil {
+	if routes, err = withPlatformAccess(ctx, q, serverID, routes); err != nil {
 		return nil, err
 	}
 	// Last: an IP allow list on a tunnelled domain cannot be enforced (the peer

@@ -80,9 +80,10 @@ const (
 )
 
 // serviceFromRouter extracts the service ID from a router name of the form
-// nc-<uuid>-https@rest or nc-<uuid>-d<id8>-https@rest. The redirect routers
-// (-http, -redir, with or without the per-domain part) report redirect=true.
-// Other names (api@internal, foreign routers, probe routers) yield ok=false.
+// nc-<uuid>-https@rest or nc-<uuid>-d<id8>-https@rest (-tunnel for a domain
+// served through a Cloudflare Tunnel). The redirect routers (-http, -redir,
+// with or without the per-domain part) report redirect=true. Other names
+// (api@internal, foreign routers, probe routers) yield ok=false.
 func serviceFromRouter(name string) (id string, redirect, ok bool) {
 	if at := strings.IndexByte(name, '@'); at >= 0 {
 		name = name[:at]
@@ -104,7 +105,7 @@ func serviceFromRouter(name string) (id string, redirect, ok bool) {
 		if !perDomain { // nc-<uuid>: the service name itself
 			return id, false, true
 		}
-	case "-https", "-https-local", "-tcp", "-udp":
+	case "-https", "-https-local", "-tunnel", "-tcp", "-udp":
 		return id, false, true
 	case "-http", "-http-local", "-redir":
 		return id, true, true

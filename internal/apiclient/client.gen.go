@@ -2640,6 +2640,7 @@ const (
 	DomainCertSourceCustom   DomainCertSource = "custom"
 	DomainCertSourceDns01    DomainCertSource = "dns01"
 	DomainCertSourceNone     DomainCertSource = "none"
+	DomainCertSourceTunnel   DomainCertSource = "tunnel"
 	DomainCertSourceWildcard DomainCertSource = "wildcard"
 )
 
@@ -2653,6 +2654,8 @@ func (e DomainCertSource) Valid() bool {
 	case DomainCertSourceDns01:
 		return true
 	case DomainCertSourceNone:
+		return true
+	case DomainCertSourceTunnel:
 		return true
 	case DomainCertSourceWildcard:
 		return true

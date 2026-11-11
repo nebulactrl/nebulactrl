@@ -175,6 +175,17 @@
         ],
         "tls": {},
         "priority": 1
+      },
+      "nc-pages-notfound-tunnel": {
+        "entryPoints": [
+          "tunnel"
+        ],
+        "rule": "PathPrefix(`/`)",
+        "service": "nc-pages",
+        "middlewares": [
+          "nc-pages-notfound"
+        ],
+        "priority": 1
       }
     },
     "services": {

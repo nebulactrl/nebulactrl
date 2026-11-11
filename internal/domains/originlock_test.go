@@ -147,12 +147,15 @@ func TestServerRoutesCarryTheCloudflareOriginLock(t *testing.T) {
 
 	// A server behind a Cloudflare Tunnel has no public origin: nothing is locked.
 	exec(`INSERT INTO server_tunnels (server_id, workspace_id, account_id, tunnel_id, tunnel_name, state, activated_at) VALUES ($1, $2, 'acc', 'tun', 'n', 'online', now())`, srv.ID, ws.ID)
+	exec(`INSERT INTO cloudflare_records (zone_id, record_id, workspace_id, owner_kind, owner_id, hostname, type, content, proxied)
+		SELECT cf_zone_id, 'tun-' || id::text, $1, 'domain', id, hostname, 'CNAME', 'tun.cfargotunnel.com', true FROM domains WHERE cf_zone_id <> ''`, ws.ID)
 	for host, r := range table() {
 		for _, d := range r.Domains {
 			require.False(t, d.OriginLocked, "%s is tunnelled", host)
 		}
 		require.Nil(t, r.OriginLock)
 	}
+	exec(`DELETE FROM cloudflare_records WHERE type = 'CNAME'`)
 	exec(`DELETE FROM server_tunnels`)
 
 	// The opt-out wins over everything else.

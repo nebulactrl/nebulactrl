@@ -837,11 +837,14 @@ const MaxReplicas = 100
 
 // Well-known infrastructure names on each host.
 const (
-	EdgeNetwork      = "nebulactrl-edge"
-	ProxyContainer   = "nebulactrl-traefik"
-	ProxyACMEVolume  = "nebulactrl-traefik-acme"
-	ProxyProbePort   = 8099
-	ProxyAdminPort   = 9000
+	EdgeNetwork     = "nebulactrl-edge"
+	ProxyContainer  = "nebulactrl-traefik"
+	ProxyACMEVolume = "nebulactrl-traefik-acme"
+	ProxyProbePort  = 8099
+	ProxyAdminPort  = 9000
+	// ProxyTunnelPort is below 1024 on purpose: a tcp/udp route can never listen
+	// there (ValidateListenPort), so no route table can collide with it.
+	ProxyTunnelPort  = 81
 	EnvNetworkPrefix = "nebulactrl-env-"
 	ContainerPrefix  = "nc-"
 	VolumePrefix     = "nc-vol-"

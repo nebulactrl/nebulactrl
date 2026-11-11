@@ -241,12 +241,12 @@ func TestServerRoutesRestrictPlatformServices(t *testing.T) {
 	require.Equal(t, []string{"198.18.0.0/15"}, got["closed.example.com"].Options.Access.AllowCIDRs)
 
 	// The deploy payload of the platform service carries the same rule.
-	rules := []agentprotocol.DomainRule{{Host: "hs.example.com"}}
-	require.NoError(t, ApplyPlatformAccessToRules(bg, q, alpha.ID, hs.ID, rules))
-	require.Equal(t, want, rules[0].Options.Access.AllowCIDRs)
-	plain := []agentprotocol.DomainRule{{Host: "app.example.com"}}
-	require.NoError(t, ApplyPlatformAccessToRules(bg, q, alpha.ID, web.ID, plain))
-	require.Nil(t, plain[0].Options.Access)
+	dr, err := PrepareDeployRules(bg, q, alpha.ID, hs.ID, []db.Domain{{ID: uuid.New(), Hostname: "hs.example.com"}})
+	require.NoError(t, err)
+	require.Equal(t, want, dr.Rules[0].Options.Access.AllowCIDRs)
+	dr, err = PrepareDeployRules(bg, q, alpha.ID, web.ID, []db.Domain{{ID: uuid.New(), Hostname: "app.example.com"}})
+	require.NoError(t, err)
+	require.Nil(t, dr.Rules[0].Options.Access)
 
 	// A new server joins the list, a revoked one leaves it.
 	gamma := server(ws.ID, "gamma", "203.0.113.55")

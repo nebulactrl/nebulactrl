@@ -38,6 +38,7 @@ func TestStaticFlagsRaiseTheReadTimeoutOnlyForLargeUploads(t *testing.T) {
 	long := StaticFlags(StaticOptions{PublicHTTPSPort: 443, LargeUploads: true})
 	require.Contains(t, long, "--entrypoints.websecure.transport.respondingtimeouts.readtimeout=30m")
 	require.Contains(t, long, "--entrypoints.web.transport.respondingtimeouts.readtimeout=30m")
+	require.Contains(t, long, "--entrypoints.tunnel.transport.respondingtimeouts.readtimeout=30m", "uploads through a Cloudflare Tunnel too")
 	require.Equal(t, "30m", LargeUploadReadTimeout)
 	joined := strings.Join(long, "\n")
 	require.NotContains(t, joined, "entrypoints.probe.transport", "the internal entrypoints are untouched")
@@ -45,7 +46,7 @@ func TestStaticFlagsRaiseTheReadTimeoutOnlyForLargeUploads(t *testing.T) {
 	require.NotContains(t, joined, "writetimeout", "writes (large pulls) are already unbounded by default")
 
 	// Everything else is the same set of flags.
-	require.Len(t, long, len(StaticFlags(StaticOptions{PublicHTTPSPort: 443}))+2)
+	require.Len(t, long, len(StaticFlags(StaticOptions{PublicHTTPSPort: 443}))+3)
 }
 
 // The flag is part of the container's spec fingerprint, so the first registry

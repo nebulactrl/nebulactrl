@@ -313,16 +313,6 @@ func ApplyAuto(ctx context.Context, q *db.Queries, serverID uuid.UUID, routes []
 	return applyAuto(ctx, q, serverID, rules)
 }
 
-// ApplyAutoToRules is ApplyAuto for the rules of one service in a deploy
-// payload.
-func ApplyAutoToRules(ctx context.Context, q *db.Queries, serverID uuid.UUID, rules []agentprotocol.DomainRule) error {
-	ptrs := make([]*agentprotocol.DomainRule, len(rules))
-	for i := range rules {
-		ptrs[i] = &rules[i]
-	}
-	return applyAuto(ctx, q, serverID, ptrs)
-}
-
 func applyAuto(ctx context.Context, q *db.Queries, serverID uuid.UUID, rules []*agentprotocol.DomainRule) error {
 	var ids []uuid.UUID
 	for _, r := range rules {

@@ -279,47 +279,6 @@ func tunnelledRules(ctx context.Context, q *db.Queries, serverID uuid.UUID, rule
 	return out, nil
 }
 
-// ApplyOriginLockToRules is ApplyOriginLock for the rules of one service in a
-// deploy payload (the agent builds that service's own route from them). It
-// returns the route data to carry next to them, nil when no rule is locked.
-// serverID is the server the service runs on (tunnelled domains are skipped).
-func ApplyOriginLockToRules(ctx context.Context, q *db.Queries, serverID uuid.UUID, rules []agentprotocol.DomainRule) (*agentprotocol.OriginLock, error) {
-	if len(rules) == 0 {
-		return nil, nil
-	}
-	ptrs := make([]*agentprotocol.DomainRule, len(rules))
-	for i := range rules {
-		ptrs[i] = &rules[i]
-	}
-	tunnelled, err := tunnelledRules(ctx, q, serverID, ptrs)
-	if err != nil {
-		return nil, err
-	}
-	lock, err := resolveLocks(ctx, q, ptrs, tunnelled)
-	if err != nil {
-		return nil, err
-	}
-	anyLocked, needCA := false, false
-	for i := range rules {
-		rules[i].OriginLocked = lock.locked[rules[i].Host]
-		rules[i].RequireClientCert = lock.cert[rules[i].Host]
-		anyLocked = anyLocked || rules[i].OriginLocked
-		needCA = needCA || rules[i].RequireClientCert
-	}
-	if !anyLocked {
-		return nil, nil
-	}
-	list, err := CurrentIPList(ctx, q)
-	if err != nil {
-		return nil, err
-	}
-	ol := &agentprotocol.OriginLock{CloudflareCIDRs: list.CIDRs()}
-	if needCA {
-		ol.ClientCAPEM = OriginPullCA()
-	}
-	return ol, nil
-}
-
 // ---- Authenticated Origin Pulls (zone setting tls_client_auth) ----
 
 // AOP states.

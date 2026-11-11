@@ -1,7 +1,7 @@
 // Package tunnel manages the Cloudflare Tunnel connector of an agent host: a
 // pinned cloudflare/cloudflared container on the edge network that forwards
-// every hostname of the tunnel's ingress config to the proxy
-// (http://nebulactrl-traefik:80). The tunnel itself lives at Cloudflare and is
+// every hostname of the tunnel's ingress config to the proxy's tunnel
+// entrypoint (agentprotocol.TunnelUpstream). The tunnel itself lives at Cloudflare and is
 // remotely managed: the control plane creates it, pushes its ingress rules and
 // hands the agent the connector token as a send-time secret. The token is
 // written to a file inside the container (never an environment variable or
