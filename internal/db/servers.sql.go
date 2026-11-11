@@ -934,20 +934,6 @@ func (q *Queries) RecordServerHeartbeat(ctx context.Context, arg RecordServerHea
 	return i, err
 }
 
-const setServerAdoptionHeld = `-- name: SetServerAdoptionHeld :execrows
-UPDATE servers SET adoption_state = 'held' WHERE id = $1 AND adoption_state = ''
-`
-
-// Holds a server for adoption (its first hello found managed containers this
-// instance does not know). Only from the normal state.
-func (q *Queries) SetServerAdoptionHeld(ctx context.Context, id uuid.UUID) (int64, error) {
-	result, err := q.db.Exec(ctx, setServerAdoptionHeld, id)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const setServerRemoval = `-- name: SetServerRemoval :one
 UPDATE servers
 SET removal_state      = $1::text,
