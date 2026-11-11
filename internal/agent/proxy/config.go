@@ -16,6 +16,7 @@ import (
 const (
 	EntryWeb       = "web"       // :80, plain HTTP (redirect + ACME HTTP-01)
 	EntryWebSecure = "websecure" // :443, TLS (tcp + http3/udp)
+	EntryTunnel    = "tunnel"    // :81, never published: the only entrypoint of tunnelled domains (cloudflared)
 	EntryProbe     = "probe"     // :8099, never published: post-deploy verification and liveness
 	EntryAdmin     = "ncadmin"   // :9000, basic-auth protected admin entrypoint (REST provider, API)
 )
@@ -139,8 +140,9 @@ type StaticOptions struct {
 	// L4Ports adds one tcp-<port> / udp-<port> entrypoint per entry (sorted by
 	// the caller; see L4Ports).
 	L4Ports []L4Port
-	// LargeUploads raises the incoming read timeout of the public entrypoints to
-	// LargeUploadReadTimeout (a route has RouteOptions.LargeUploads; see HasLargeUploads).
+	// LargeUploads raises the incoming read timeout of the serving entrypoints
+	// (web, websecure, tunnel) to LargeUploadReadTimeout (a route has
+	// RouteOptions.LargeUploads; see HasLargeUploads).
 	LargeUploads bool
 	// DNSResolvers adds one DNS-01 ACME resolver per provider (only with an
 	// ACMEEmail). Their credentials are the container's environment, not flags.
@@ -176,6 +178,7 @@ func StaticFlags(o StaticOptions) []string {
 		f = append(f,
 			"--entrypoints."+EntryWeb+".transport.respondingtimeouts.readtimeout="+LargeUploadReadTimeout,
 			"--entrypoints."+EntryWebSecure+".transport.respondingtimeouts.readtimeout="+LargeUploadReadTimeout,
+			"--entrypoints."+EntryTunnel+".transport.respondingtimeouts.readtimeout="+LargeUploadReadTimeout,
 		)
 	}
 	if len(o.TrustedProxyCIDRs) > 0 {
@@ -188,6 +191,12 @@ func StaticFlags(o StaticOptions) []string {
 		)
 	}
 	f = append(f,
+		// The tunnel entrypoint is reached by cloudflared over the edge network
+		// and is never published: it trusts no forwarded headers (the connector's
+		// address is private) and carries no ACME challenge.
+		"--entrypoints."+EntryTunnel+".address=:"+strconv.Itoa(agentprotocol.ProxyTunnelPort),
+		"--entrypoints."+EntryTunnel+".transport.lifecycle.gracetimeout="+GracePeriod,
+		"--entrypoints."+EntryTunnel+".http.aliasheadersstrategy=delete",
 		"--entrypoints."+EntryProbe+".address=:"+strconv.Itoa(agentprotocol.ProxyProbePort),
 		"--entrypoints."+EntryProbe+".http.aliasheadersstrategy=delete",
 		"--entrypoints."+EntryAdmin+".address=:"+strconv.Itoa(agentprotocol.ProxyAdminPort),

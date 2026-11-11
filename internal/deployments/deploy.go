@@ -456,6 +456,9 @@ func (s *Service) Rollback(ctx context.Context, targetDeploymentID uuid.UUID) (R
 	if srv.Status == "revoked" {
 		return RollbackView{}, apierr.Unprocessable("server_revoked", "server revoked: "+srv.Name+" was revoked; assign the service to another server.")
 	}
+	if srv.AdoptionState == services.AdoptionStateHeld {
+		return RollbackView{}, services.ServerAdoptionPendingError()
+	}
 	if b := processesNeedAgent(snap.Config, &srv); b != nil {
 		return RollbackView{}, blockingError([]PlanBlocking{*b})
 	}

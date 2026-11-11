@@ -166,7 +166,7 @@ func (c *Collector) Facts(ctx context.Context) agentprotocol.Facts {
 			c.setDockerVersion(info.ServerVersion)
 		}
 	}
-	f.Capabilities = []string{agentprotocol.CapProxyV2, agentprotocol.CapServiceTailnet, agentprotocol.CapDNS01, agentprotocol.CapDNS01Lego, agentprotocol.CapTunnel, agentprotocol.CapDockerCleanup}
+	f.Capabilities = []string{agentprotocol.CapProxyV2, agentprotocol.CapServiceTailnet, agentprotocol.CapDNS01, agentprotocol.CapDNS01Lego, agentprotocol.CapTunnel, agentprotocol.CapTunnelEntrypoint, agentprotocol.CapDockerCleanup}
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapHostHardening)
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapHostPatching)
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapCancelDeploy, agentprotocol.CapDecommission)
@@ -176,6 +176,8 @@ func (c *Collector) Facts(ctx context.Context) agentprotocol.Facts {
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapProcesses)
 	// Every agent has the request store, which request-log queries read.
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapRequestLogs)
+	// Reports managed services in the hello, honours the adoption hold and answers workload_inventory.
+	f.Capabilities = append(f.Capabilities, agentprotocol.CapAdoption)
 	if c.opt.EndpointStatus != nil { // a localproxy manager is wired: this agent can carry instance tunnels
 		f.Capabilities = append(f.Capabilities, agentprotocol.CapInstanceTunnel)
 	}

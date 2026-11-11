@@ -279,6 +279,9 @@ WHERE dm.id = ANY($1::uuid[])
   AND dm.cf_zone_id <> ''
   AND EXISTS (
       SELECT 1 FROM server_tunnels st
+      JOIN cloudflare_records r
+        ON r.zone_id = dm.cf_zone_id AND r.hostname = dm.hostname AND r.type = 'CNAME'
+       AND r.content = lower(st.tunnel_id) || '.cfargotunnel.com'
       WHERE st.server_id = $2::uuid AND st.activated_at IS NOT NULL AND st.state <> 'removing'
   )
 `
@@ -289,7 +292,9 @@ type ListTunnelledDomainIDsParams struct {
 }
 
 // Of the given domains, those served through the server's tunnel: the tunnel is
-// active and the domain's DNS record is one we manage in a connected zone.
+// active and NebulaCtrl has pointed the hostname at it (its tracked CNAME to
+// <tunnelId>.cfargotunnel.com in the domain's connected zone). A domain whose
+// record is not there yet, or is someone else's, stays on the public ports.
 func (q *Queries) ListTunnelledDomainIDs(ctx context.Context, arg ListTunnelledDomainIDsParams) ([]uuid.UUID, error) {
 	rows, err := q.db.Query(ctx, listTunnelledDomainIDs, arg.DomainIds, arg.ServerID)
 	if err != nil {

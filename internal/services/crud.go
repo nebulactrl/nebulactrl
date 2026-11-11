@@ -54,6 +54,9 @@ func (s *Service) checkServer(ctx context.Context, q *db.Queries, id uuid.UUID) 
 	if srv.DrainState == DrainStateDraining || srv.DrainState == DrainStateDrained {
 		return db.Server{}, ServerDrainingError(srv.Name)
 	}
+	if srv.AdoptionState == AdoptionStateHeld {
+		return db.Server{}, ServerAdoptionPendingError()
+	}
 	if !srv.AcceptWorkloads {
 		return db.Server{}, ServerNotAcceptingError(srv.Name)
 	}
@@ -511,7 +514,7 @@ func (s *Service) Delete(ctx context.Context, id uuid.UUID, in DeleteInput) erro
 		}
 	}
 	err = db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
-		return s.deleteTx(ctx, tx, sc, in.DeleteVolumes, in.RemoveKey, map[string]any{})
+		return s.deleteTx(ctx, tx, sc, deleteSpec{deleteVolumes: in.DeleteVolumes, removeKey: in.RemoveKey, extra: map[string]any{}})
 	})
 	if err != nil {
 		if _, ok := apierr.As(err); ok {
@@ -542,15 +545,49 @@ func (s *Service) DeleteInternalTx(ctx context.Context, tx pgx.Tx, id uuid.UUID,
 	if opts.ByCombine != uuid.Nil {
 		extra["combine"] = opts.ByCombine.String()
 	}
-	if err := s.deleteTx(ctx, tx, sc, opts.DeleteVolumes, "", extra); err != nil {
+	if err := s.deleteTx(ctx, tx, sc, deleteSpec{deleteVolumes: opts.DeleteVolumes, extra: extra}); err != nil {
 		return nil, err
 	}
 	return func(context.Context) { PublishService(s.bus, EventServiceDeleted, sc) }, nil
 }
 
-// deleteTx is the cascade of a service delete inside tx; extra is added to the
-// audit entry's metadata.
-func (s *Service) deleteTx(ctx context.Context, tx pgx.Tx, sc Scope, deleteVolumes bool, removeKey string, extra map[string]any) error {
+// ReleaseTx soft-deletes a service inside the caller's transaction without
+// touching anything outside this instance's database: no remove_service command
+// reaches the host, and neither the DNS owner (which would delete the hostnames'
+// records), the tailnet (which would delete the devices), the mesh nor the proxy
+// owner is told. The containers, volumes, DNS records and devices keep running
+// for whoever adopts them. It is the service half of releasing a server to
+// another NebulaCtrl. It skips the typed confirmation; the caller (Remove
+// server) has run the production guard for the whole server. The database guard
+// still applies: a primary with replicas is refused. It returns the function to
+// run once the transaction committed. The service is loaded without
+// authorization.
+func (s *Service) ReleaseTx(ctx context.Context, tx pgx.Tx, id uuid.UUID) (afterCommit func(context.Context), err error) {
+	sc, err := LoadScopeInternal(ctx, db.New(tx), id)
+	if err != nil {
+		return nil, err
+	}
+	spec := deleteSpec{extra: map[string]any{"reason": "server released", "hostUntouched": true}, hostUntouched: true}
+	if err := s.deleteTx(ctx, tx, sc, spec); err != nil {
+		return nil, err
+	}
+	return func(context.Context) { PublishService(s.bus, EventServiceDeleted, sc) }, nil
+}
+
+// deleteSpec tunes deleteTx.
+type deleteSpec struct {
+	deleteVolumes bool
+	removeKey     string
+	// extra is added to the audit entry's metadata.
+	extra map[string]any
+	// hostUntouched deletes only this instance's rows: no command reaches the
+	// host and no external system (DNS, tailnet, mesh, proxy) is told.
+	hostUntouched bool
+}
+
+// deleteTx is the cascade of a service delete inside tx.
+func (s *Service) deleteTx(ctx context.Context, tx pgx.Tx, sc Scope, spec deleteSpec) error {
+	deleteVolumes, removeKey, extra, hostUntouched := spec.deleteVolumes, spec.removeKey, spec.extra, spec.hostUntouched
 	id := sc.Service.ID
 	q := db.New(tx)
 	if s.dbGuard != nil {
@@ -569,7 +606,7 @@ func (s *Service) deleteTx(ctx context.Context, tx pgx.Tx, sc Scope, deleteVolum
 	if err != nil {
 		return err
 	}
-	if sc.Service.CurrentDeploymentID != nil && sc.Service.Kind != KindRoute {
+	if sc.Service.CurrentDeploymentID != nil && sc.Service.Kind != KindRoute && !hostUntouched {
 		deps, err := q.ListDeploymentsByIDs(ctx, []uuid.UUID{*sc.Service.CurrentDeploymentID})
 		if err != nil {
 			return err
@@ -607,20 +644,32 @@ func (s *Service) deleteTx(ctx context.Context, tx pgx.Tx, sc Scope, deleteVolum
 	if err := q.DeleteConfigSource(ctx, id); err != nil {
 		return err
 	}
-	if s.mesh != nil {
+	if s.mesh != nil && !hostUntouched {
 		if err := s.mesh.ServiceDeleted(ctx, tx, sc.EnvironmentID, id); err != nil {
 			return err
+		}
+	}
+	if hostUntouched {
+		// The domains go, their DNS records stay: untracked, so no later
+		// collection deletes them at Cloudflare.
+		if err := q.ForgetCloudflareRecordsOfService(ctx, id); err != nil {
+			return fmt.Errorf("forget dns records: %w", err)
 		}
 	}
 	if err := q.DeleteServiceDomains(ctx, id); err != nil {
 		return err
 	}
-	if s.dnsHook != nil {
+	if s.dnsHook != nil && !hostUntouched {
 		if err := s.dnsHook.DomainsRemoved(ctx, tx, sc.WorkspaceID); err != nil {
 			return err
 		}
 	}
-	if s.tailnetHook != nil {
+	if hostUntouched {
+		// The tailnet node row goes; the sidecar and the device are not retired.
+		if _, err := q.DeleteServiceTailnet(ctx, id); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("delete service tailnet: %w", err)
+		}
+	} else if s.tailnetHook != nil {
 		if err := s.tailnetHook.ServiceDeleted(ctx, tx, sc); err != nil {
 			return err
 		}
@@ -643,7 +692,7 @@ func (s *Service) deleteTx(ctx context.Context, tx pgx.Tx, sc Scope, deleteVolum
 		if err := q.DeleteRoutePort(ctx, id); err != nil {
 			return err
 		}
-		if s.routeHook != nil {
+		if s.routeHook != nil && !hostUntouched {
 			return s.routeHook.RouteDeleted(ctx, tx, sc)
 		}
 	}

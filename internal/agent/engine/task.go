@@ -285,6 +285,9 @@ func (e *Engine) removeTaskContainer(ctx context.Context, id string) {
 // ones older than OrphanMinAge and running ones long past their deadline (the
 // agent that started them is gone and no redelivered command adopted them).
 func (e *Engine) sweepTaskContainers(ctx context.Context) error {
+	if e.keepUnknown.Load() {
+		return nil // held for adoption: a task of the earlier control plane is not ours to remove
+	}
 	cs, err := e.cfg.Docker.ContainerList(ctx, docker.ListFilter{
 		All: true, Labels: map[string]string{agentprotocol.LabelManaged: "true", agentprotocol.LabelTaskRun: ""},
 	})

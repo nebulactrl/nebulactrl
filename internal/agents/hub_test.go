@@ -185,6 +185,12 @@ type agentConn struct {
 // dial performs the handshake. tamper signs a different nonce.
 func (h *harness) dial(e enrollment, tamper bool) *agentConn {
 	h.t.Helper()
+	return h.dialWithFacts(e, tamper, agentprotocol.Facts{OS: "linux"})
+}
+
+// dialWithFacts is dial with the facts the agent's hello reports.
+func (h *harness) dialWithFacts(e enrollment, tamper bool, facts agentprotocol.Facts) *agentConn {
+	h.t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	ws, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(h.srv.URL, "http")+"/agent/v1/connect", nil)
@@ -210,7 +216,7 @@ func (h *harness) dial(e enrollment, tamper bool) *agentConn {
 	ac.write(agentprotocol.TypeAuth, agentprotocol.Auth{AgentID: e.agentID.String(), Signature: sig})
 	// The server may already have closed the socket (rejected identity); the
 	// outcome is then observed through closeStatus.
-	data, err = agentprotocol.Encode(agentprotocol.TypeHello, "", agentprotocol.Hello{AgentVersion: "test", ProtocolVersion: agentprotocol.ProtocolVersion, Facts: agentprotocol.Facts{OS: "linux"}})
+	data, err = agentprotocol.Encode(agentprotocol.TypeHello, "", agentprotocol.Hello{AgentVersion: "test", ProtocolVersion: agentprotocol.ProtocolVersion, Facts: facts})
 	require.NoError(h.t, err)
 	_ = ws.Write(ctx, websocket.MessageText, data)
 	return ac

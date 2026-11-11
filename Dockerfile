@@ -44,7 +44,7 @@ WORKDIR /src/apps/web
 RUN VITE_APP_VERSION=${VERSION} VITE_SITE_URL=${SITE_URL} VITE_GITHUB_URL=${GITHUB_URL} bun run build
 
 # ---- 2. Go binaries ----------------------------------------------------------
-FROM golang:1.27@sha256:2920bb124f1a2e12a1d39f0cab756ae0068441ee1da7655dec7f5e374944095b AS build
+FROM golang:1.27@sha256:01aa404fa56b604b6f48e90c1d6e2c79fe5cd78f9592f78d80303fbe171cdcc0 AS build
 ARG VERSION=dev
 WORKDIR /src
 COPY go.mod go.sum ./

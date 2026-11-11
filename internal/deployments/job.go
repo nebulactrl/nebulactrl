@@ -16,9 +16,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/buildplacement"
 	"github.com/nebulactrl/nebulactrl/internal/db"
-	"github.com/nebulactrl/nebulactrl/internal/dns01"
 	"github.com/nebulactrl/nebulactrl/internal/domains"
-	"github.com/nebulactrl/nebulactrl/internal/integrations/cloudflare"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
 	"github.com/nebulactrl/nebulactrl/internal/networks"
 	"github.com/nebulactrl/nebulactrl/internal/proxyserver"
@@ -564,16 +562,11 @@ func (s *Service) prepare(ctx context.Context, dc depCtx, commitSHA, overrideIma
 	pl.TrafficAnalytics = &traffic
 	pl.Volumes = parts.Volumes
 	if cfg.Stack == nil && !cfg.HasProcesses() { // a stack's routes are StackSpec.Routes
-		pl.DomainRules, pl.Hosts = domains.RulesAndHosts(in.domains)
-		if err := dns01.ApplyAutoToRules(ctx, q, srv.ID, pl.DomainRules); err != nil {
+		dr, err := domains.PrepareDeployRules(ctx, q, srv.ID, sc.Service.ID, in.domains)
+		if err != nil {
 			return nil, err
 		}
-		if pl.OriginLock, err = cloudflare.ApplyOriginLockToRules(ctx, q, srv.ID, pl.DomainRules); err != nil {
-			return nil, err
-		}
-		if err := domains.ApplyPlatformAccessToRules(ctx, q, srv.ID, sc.Service.ID, pl.DomainRules); err != nil {
-			return nil, err
-		}
+		pl.DomainRules, pl.Hosts, pl.OriginLock = dr.Rules, dr.Hosts, dr.OriginLock
 	}
 	mem, err := networks.Resolve(ctx, q, sc.EnvironmentID, srv.ID, sc.Service.ID, cfg.BlockEgress, relNets)
 	if err != nil {

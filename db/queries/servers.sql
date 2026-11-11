@@ -8,13 +8,15 @@ SELECT * FROM servers WHERE id = $1;
 
 -- name: GetServerScoped :one
 SELECT s.*,
-       (SELECT count(*) FROM services sv WHERE sv.server_id = s.id AND sv.deleted_at IS NULL)::int AS service_count
+       (SELECT count(*) FROM services sv WHERE sv.server_id = s.id AND sv.deleted_at IS NULL)::int AS service_count,
+       (SELECT count(*) FROM server_unmanaged_services u WHERE u.server_id = s.id)::int AS unmanaged_count
 FROM servers s
 WHERE s.id = $1 AND s.workspace_id = $2;
 
 -- name: ListServersPage :many
 SELECT s.*,
-       (SELECT count(*) FROM services sv WHERE sv.server_id = s.id AND sv.deleted_at IS NULL)::int AS service_count
+       (SELECT count(*) FROM services sv WHERE sv.server_id = s.id AND sv.deleted_at IS NULL)::int AS service_count,
+       (SELECT count(*) FROM server_unmanaged_services u WHERE u.server_id = s.id)::int AS unmanaged_count
 FROM servers s
 WHERE s.workspace_id = $1
   AND (sqlc.narg(cursor_created_at)::timestamptz IS NULL
@@ -48,13 +50,18 @@ WHERE id = sqlc.arg(id)
 RETURNING *;
 
 -- name: UpdateServerHello :one
+-- hold_if_new holds the server for adoption in the same statement when this is
+-- its first hello (status still pending: the CASE reads the row as it was), so
+-- a hello is never recorded without the hold it needs: a failed update leaves
+-- the server pending and the next hello tries again.
 UPDATE servers
 SET status           = 'online',
-    agent_version    = $2,
-    protocol_version = $3,
-    facts            = $4,
-    last_seen_at     = now()
-WHERE id = $1 AND status <> 'revoked'
+    agent_version    = sqlc.narg(agent_version),
+    protocol_version = sqlc.narg(protocol_version),
+    facts            = sqlc.arg(facts),
+    last_seen_at     = now(),
+    adoption_state   = CASE WHEN status = 'pending' AND sqlc.arg(hold_if_new)::boolean THEN 'held' ELSE adoption_state END
+WHERE id = sqlc.arg(id) AND status <> 'revoked'
 RETURNING *;
 
 -- name: RecordServerHeartbeat :one
@@ -126,6 +133,19 @@ WHERE s.server_id = $1 AND s.deleted_at IS NULL
 GROUP BY p.id, p.name, p.slug, p.system
 ORDER BY p.system, p.name, p.id;
 
+-- name: ListServerLiveServiceIDs :many
+-- Live services placed on the server, newest first: a replica goes before its primary.
+SELECT id FROM services
+WHERE server_id = $1 AND deleted_at IS NULL
+ORDER BY created_at DESC, id;
+
+-- name: CountServerActiveDeployments :one
+-- Deployments in progress for the live services placed on the server.
+SELECT count(*)::int FROM deployments d
+JOIN services s ON s.id = d.service_id
+WHERE s.server_id = $1 AND s.deleted_at IS NULL
+  AND d.status IN ('created','queued','preparing','building','releasing','verifying');
+
 -- name: SetServerRemoval :one
 -- The state of a server's removal job. started_at is set when a removal starts
 -- and kept while it fails.
@@ -141,3 +161,9 @@ DELETE FROM servers WHERE id = $1 AND workspace_id = $2;
 
 -- name: ListTeamServers :many
 SELECT * FROM servers WHERE workspace_id = $1 ORDER BY created_at, id;
+
+-- name: ClearServerAdoption :exec
+UPDATE servers SET adoption_state = '' WHERE id = $1;
+
+-- name: LockServer :one
+SELECT * FROM servers WHERE id = $1 AND workspace_id = $2 FOR UPDATE;

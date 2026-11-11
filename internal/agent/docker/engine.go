@@ -268,8 +268,11 @@ type ImageInfo struct {
 	RepoDigests    []string
 	HasHealthcheck bool
 	Entrypoint     []string
-	Labels         map[string]string
-	Created        time.Time
+	// Env and Cmd are the image's own defaults (Config.Env, Config.Cmd).
+	Env     []string
+	Cmd     []string
+	Labels  map[string]string
+	Created time.Time
 	// LastTagged is when the image was last tagged, which a pull or a build
 	// does; zero for an untagged image. Cleanup ages an image by the later of
 	// Created and LastTagged, because a pulled image keeps its build date.

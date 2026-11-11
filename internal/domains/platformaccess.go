@@ -183,32 +183,6 @@ func withPlatformAccess(ctx context.Context, q *db.Queries, serverID uuid.UUID, 
 	return routes, nil
 }
 
-// ApplyPlatformAccessToRules restricts the domain rules of a deploy payload
-// when serviceID is a platform service (the agent builds the deployed
-// service's route from the payload until the next route push).
-func ApplyPlatformAccessToRules(ctx context.Context, q *db.Queries, serverID, serviceID uuid.UUID, rules []agentprotocol.DomainRule) error {
-	if len(rules) == 0 {
-		return nil
-	}
-	srv, err := q.GetServerByID(ctx, serverID)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("load server for platform access: %w", err)
-	}
-	platform, err := platformServiceIDs(ctx, q, srv.WorkspaceID)
-	if err != nil || !platform[serviceID] {
-		return err
-	}
-	allow, err := platformAllowList(ctx, q, srv.WorkspaceID)
-	if err != nil {
-		return err
-	}
-	restrictRules(rules, allow)
-	return nil
-}
-
 func restrictRules(rules []agentprotocol.DomainRule, allow []string) {
 	for j := range rules {
 		d := &rules[j]

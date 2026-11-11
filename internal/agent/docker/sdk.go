@@ -235,6 +235,8 @@ func (e *SDKEngine) ImageInspect(ctx context.Context, ref string) (ImageInfo, er
 	if res.Config != nil {
 		info.Labels = res.Config.Labels
 		info.Entrypoint = res.Config.Entrypoint
+		info.Env = res.Config.Env
+		info.Cmd = res.Config.Cmd
 		info.HasHealthcheck = res.Config.Healthcheck != nil && len(res.Config.Healthcheck.Test) > 0 &&
 			res.Config.Healthcheck.Test[0] != "NONE"
 	}

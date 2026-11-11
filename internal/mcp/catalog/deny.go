@@ -17,6 +17,7 @@ const (
 	whyApprovalAPI      = "A principal must never approve its own production operation: approvals are given by a person in the web UI."
 	whyCombine          = "Merges and deletes services; reviewed and confirmed by a person in the web UI or CLI."
 	whyDatabaseData     = "Returns or changes database rows; database contents never flow to an agent."
+	whyAdoption         = "Adopting a server takes over running workloads and reads their variable values on the host; a person reviews it."
 )
 
 // denyEntries are the operations never callable over MCP. Reasons come from
@@ -193,4 +194,8 @@ var denyEntries = map[string]Deny{
 	"listDatabaseTables":  {Reason: ReasonPersonOnly, Why: whyDatabaseData},
 	"browseDatabaseTable": {Reason: ReasonPersonOnly, Why: whyDatabaseData},
 	"queryDatabase":       {Reason: ReasonPersonOnly, Why: whyDatabaseData},
+
+	// ── server adoption (takes over running workloads, reads their variables) ──
+	"planServerAdoption": {Reason: ReasonPersonOnly, Why: whyAdoption},
+	"adoptServer":        {Reason: ReasonPersonOnly, Why: whyAdoption},
 }

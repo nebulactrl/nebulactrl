@@ -1,8 +1,9 @@
 import { describe, expect, mock, test } from "bun:test";
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { getInstanceUpgradeQueryKey } from "#/api/gen/@tanstack/react-query.gen";
 import type { Server as ServerWire } from "#/api/gen/types.gen";
+import { closeAdoption, openAdoption } from "#/features/server-adoption/store";
 import { stubApi } from "#/test/api";
 import { renderWithProviders, testQueryClient } from "#/test/render";
 import { toServerView } from "./model";
@@ -377,5 +378,27 @@ describe("ServersPage: fleet view", () => {
 		expect(
 			screen.getByRole("button", { name: "Add server" }),
 		).toBeInTheDocument();
+	});
+});
+
+describe("ServersPage: adoption review", () => {
+	test("hosts the review that a server card, or the enrol dialog, opens", async () => {
+		const api = stubApi({
+			"GET /servers": { body: { items: [wireServer()] } },
+			"GET /servers/:serverId": { body: wireServer() },
+			"GET /projects": { body: { items: [] } },
+			"POST /servers/:serverId/adoption/plan": () =>
+				new Promise<Response>(() => {}),
+		});
+		await renderPage();
+		await screen.findByText("hetzner-01");
+		act(() => openAdoption("srv-1"));
+		expect(
+			await screen.findByText("Review workloads on hetzner-01"),
+		).toBeInTheDocument();
+		expect(
+			api.calls.some((c) => c.path === "/servers/srv-1/adoption/plan"),
+		).toBe(true);
+		act(() => closeAdoption());
 	});
 });

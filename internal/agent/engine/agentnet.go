@@ -161,16 +161,25 @@ const NetworkSweepInterval = time.Minute
 // NetworkMinAge (60 s by default) is left alone: a deploy creates the network
 // a moment before its first container. The agent leaves networks it only
 // joined to probe first, and Traefik leaves them when its route table no
-// longer names them.
+// longer names them. Nothing is removed while the server is held for
+// adoption, nor a network of a service left running unmanaged (its stopped
+// containers keep it too).
 func (e *Engine) sweepNetworks(ctx context.Context) error {
 	e.leaveIdleNetworks(ctx)
+	if e.keepUnknown.Load() {
+		return nil
+	}
 	eng := e.cfg.Docker
 	nets, err := eng.NetworkList(ctx, "", map[string]string{agentprotocol.LabelManaged: "true"})
 	if err != nil {
 		return fmt.Errorf("sweep: list networks: %w", err)
 	}
+	kept, err := e.unmanagedNetworks(ctx)
+	if err != nil {
+		return err
+	}
 	for _, n := range nets {
-		if !isManagedNetwork(n.Name) || len(n.Containers) > 0 {
+		if !isManagedNetwork(n.Name) || len(n.Containers) > 0 || kept[n.Name] {
 			continue
 		}
 		if !n.Created.IsZero() && time.Since(n.Created) < e.cfg.NetworkMinAge {

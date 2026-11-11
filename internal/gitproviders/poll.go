@@ -121,6 +121,11 @@ func (s *Service) pollOne(ctx context.Context, p db.ServiceGitPoll) error {
 		// The error stays on the service (no notification: a remote that is down would repeat it every interval).
 		return fmt.Errorf("read the head: %w", herr)
 	}
+	if p.HeadSha == nil || *p.HeadSha != sha || p.HeadBranch == nil || *p.HeadBranch != branch {
+		if err := s.pollPushHook(ctx, p.ServiceID, sha, branch); err != nil {
+			return err
+		}
+	}
 	if !p.Deploy {
 		return nil
 	}
@@ -131,6 +136,24 @@ func (s *Service) pollOne(ctx context.Context, p db.ServiceGitPoll) error {
 	if note != "" {
 		s.log.Info("new commit found by checking", "service", sc.Service.Slug, "commit", shortSHA(sha), "note", note)
 	}
+	return nil
+}
+
+// pollPushHook runs the push hook for a commit found by checking, as a webhook
+// push does before it deploys: without a working webhook nothing else reads
+// the project file at the new commit, so the environment's nebula.toml status
+// (and its auto-apply) would stay at the last commit a push saw. The hook
+// matches environments by connection and repository, so only a linked service
+// runs it.
+func (s *Service) pollPushHook(ctx context.Context, serviceID uuid.UUID, sha, branch string) error {
+	sg, err := s.q.GetServiceGit(ctx, serviceID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("load git link: %w", err)
+	}
+	s.runPushHook(ctx, PushEvent{ConnectionID: sg.ConnectionID, RepoFullName: sg.RepoFullName, Branch: branch, CommitSHA: sha})
 	return nil
 }
 

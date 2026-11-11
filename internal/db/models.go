@@ -1195,6 +1195,7 @@ type Server struct {
 	RemovalState               string          `json:"removalState"`
 	RemovalError               string          `json:"removalError"`
 	RemovalStartedAt           *time.Time      `json:"removalStartedAt"`
+	AdoptionState              string          `json:"adoptionState"`
 }
 
 type ServerAgentUpgrade struct {
@@ -1412,6 +1413,12 @@ type ServerTunnel struct {
 	ObservedAt        *time.Time `json:"observedAt"`
 	CreatedAt         time.Time  `json:"createdAt"`
 	UpdatedAt         time.Time  `json:"updatedAt"`
+}
+
+type ServerUnmanagedService struct {
+	ServerID  uuid.UUID `json:"serverId"`
+	ServiceID uuid.UUID `json:"serviceId"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 type Service struct {

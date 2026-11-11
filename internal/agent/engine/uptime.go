@@ -3,7 +3,6 @@ package engine
 import (
 	"context"
 	"crypto/tls"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -256,8 +255,7 @@ func appReplicaProbe(name string, info docker.ContainerInfo) (uptimeReplica, str
 	case !info.Running:
 		return uptimeReplica{done: uptime.Replica{Error: fmt.Sprintf("not running: container %s is %s", name, info.State)}}, ""
 	}
-	var sl specLabel
-	_ = json.Unmarshal([]byte(info.Labels[agentprotocol.LabelSpec]), &sl) // a container without a spec label: running is the check
+	sl, _ := agentprotocol.ParseSpecLabel(info.Labels[agentprotocol.LabelSpec]) // a container without a spec label: running is the check
 	hc := sl.Healthcheck
 	switch hc.Type {
 	case health.TypeDocker, health.TypeExec:

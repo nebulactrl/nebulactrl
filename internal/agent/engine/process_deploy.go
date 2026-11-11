@@ -2,7 +2,6 @@ package engine
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"slices"
@@ -107,7 +106,7 @@ func (d *deploy) forProcess(spec agentprotocol.ProcessSpec) *deploy {
 	return &deploy{
 		e: d.e, cmd: d.cmd, p: projectProcess(d.p, spec), red: d.red, dlog: d.dlog, log: d.log, dbg: d.dbg, ctl: d.ctl,
 		silent: d.silent, live: d.live, scaledAt: d.scaledAt, cloneEnv: d.cloneEnv,
-		imageID: d.imageID, imageDigest: d.imageDigest, buildInfo: d.buildInfo,
+		imageID: d.imageID, imageDigest: d.imageDigest, inheritImage: d.inheritImage, buildInfo: d.buildInfo,
 		parent: d,
 	}
 }
@@ -220,8 +219,7 @@ func processOf(c docker.ContainerInfo) (name string, isDefault bool) {
 	if name == "" {
 		return "", true
 	}
-	var sl specLabel
-	_ = json.Unmarshal([]byte(c.Labels[agentprotocol.LabelSpec]), &sl)
+	sl, _ := agentprotocol.ParseSpecLabel(c.Labels[agentprotocol.LabelSpec])
 	return name, sl.ProcessDefault
 }
 
@@ -870,8 +868,7 @@ func (d *deploy) stopOrphans(ctx context.Context, led *processLedger) {
 		if !c.Running && !c.Restarting {
 			continue
 		}
-		var sl specLabel
-		_ = json.Unmarshal([]byte(c.Labels[agentprotocol.LabelSpec]), &sl)
+		sl, _ := agentprotocol.ParseSpecLabel(c.Labels[agentprotocol.LabelSpec])
 		if sl.Singleton || len(d.p.Volumes) > 0 {
 			serving = append(serving, c)
 		}

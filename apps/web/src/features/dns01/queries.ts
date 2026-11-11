@@ -94,7 +94,7 @@ export interface ServerDns01 {
 }
 
 export interface DomainCert {
-	source: "wildcard" | "dns01" | "acme" | "custom" | "none";
+	source: "wildcard" | "dns01" | "acme" | "custom" | "none" | "tunnel";
 	status: CertStatus | "unknown";
 	message: string;
 	resolver: string;
@@ -143,6 +143,8 @@ const SOURCE_TEXT: Record<DomainCert["source"], string> = {
 	acme: "Issued by Let's Encrypt (HTTP-01) on the first request",
 	custom: "Uploaded certificate",
 	none: "No TLS: plain HTTP only",
+	tunnel:
+		"Served through the Cloudflare Tunnel: Cloudflare terminates HTTPS, no certificate at the origin",
 };
 
 /** The certificate of a name in a connected Cloudflare zone, obtained through Cloudflare. */

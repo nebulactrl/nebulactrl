@@ -26,6 +26,26 @@ type proxyConfigurer interface {
 	LastApply() agentprotocol.ProxyConfigureResult
 }
 
+// proxyConfigReader is the part of proxy.Manager that reports the
+// configuration the next Apply uses (its upstream policy judges the table).
+type proxyConfigReader interface {
+	ProxyConfig() agentprotocol.ProxyConfig
+}
+
+// upstreamPolicy is the policy the next Apply judges route upstreams against; a
+// proxy that reports no configuration is held to the default one.
+func (e *Engine) upstreamPolicy() agentprotocol.UpstreamPolicy {
+	if pr, ok := e.cfg.Proxy.(proxyConfigReader); ok {
+		return pr.ProxyConfig().UpstreamPolicy
+	}
+	return agentprotocol.DefaultUpstreamPolicy()
+}
+
+// routeKey names a route within a table: one per protocol and service.
+func routeKey(r agentprotocol.Route) string {
+	return r.Protocol + ":" + r.ServiceID
+}
+
 // resolveRoutes fills the agent-side resolved fields (basic-auth users) of a
 // route table from the command's secrets. A domain whose secret is missing
 // fails the whole table: it is never applied with an unprotected domain.
@@ -61,8 +81,17 @@ func resolveRoutes(routes []agentprotocol.Route, secrets map[string]string) ([]a
 // control plane's. This is the rule Reconcile applies to its own frames ("local
 // state wins").
 //
+// A route of a preserved service (see preserved) is kept the same way even
+// when no deployment of this agent explains it: the server is held for
+// adoption, or the service runs unmanaged, and its sites must stay up. It
+// yields to the table when one of its hosts is already routed there, so
+// another instance's dashboard or system route never collides with this one.
+//
+// effective is the set of services the control plane's frame (or, for a
+// table pushed by command, the last frame) says this server runs.
+//
 // cur is the proxy's live table; the caller holds routeMu.
-func (e *Engine) keepLiveRoutes(table, cur []agentprotocol.Route) []agentprotocol.Route {
+func (e *Engine) keepLiveRoutes(table, cur []agentprotocol.Route, effective map[string]desiredEntry) []agentprotocol.Route {
 	if len(cur) == 0 {
 		return table
 	}
@@ -95,6 +124,7 @@ func (e *Engine) keepLiveRoutes(table, cur []agentprotocol.Route) []agentprotoco
 		r.Upstreams, r.Networks, r.HealthPath = slices.Clone(lr.Upstreams), slices.Clone(lr.Networks), lr.HealthPath
 		out[i] = r
 	}
+	added := map[string]bool{} // routes the loops below appended, by routeKey
 	for _, lr := range cur {
 		if sent[lr.ServiceID] || len(lr.Upstreams) == 0 || !managedUpstreams(lr.Upstreams) {
 			continue
@@ -109,6 +139,62 @@ func (e *Engine) keepLiveRoutes(table, cur []agentprotocol.Route) []agentprotoco
 		e.log.Info("route table keeps a live route it lacks: the control plane's view is older than this agent's",
 			"service_id", owner, "route", lr.ServiceID, "in_flight", e.inflight[owner] > 0)
 		out = append(out, lr)
+		added[routeKey(lr)] = true
+	}
+	// A preserved route must never be able to make the new table fail to
+	// apply: it yields to what the table already routes (hosts, tcp/udp listen
+	// ports) and must pass the validation the table gets.
+	var (
+		hosts  map[string]bool
+		ports  map[proxy.L4Port]bool
+		policy agentprotocol.UpstreamPolicy
+	)
+	for _, lr := range cur {
+		owner := ownerOf(lr)
+		if sent[lr.ServiceID] || added[routeKey(lr)] || !e.preservedLocked(owner, effective) {
+			continue
+		}
+		if hosts == nil {
+			hosts, ports = map[string]bool{}, map[proxy.L4Port]bool{}
+			routed := table
+			if out != nil {
+				routed = out
+			}
+			for _, r := range routed {
+				for _, h := range r.Hosts {
+					hosts[h] = true
+				}
+				if r.IsL4() {
+					ports[proxy.L4Port{Proto: r.Protocol, Port: r.ListenPort}] = true
+				}
+			}
+			policy = e.upstreamPolicy()
+		}
+		if slices.ContainsFunc(lr.Hosts, func(h string) bool { return hosts[h] }) {
+			continue
+		}
+		l4 := proxy.L4Port{Proto: lr.Protocol, Port: lr.ListenPort}
+		if lr.IsL4() && ports[l4] {
+			e.log.Warn("a route left behind is not kept: the new table already uses its listen port",
+				"service_id", owner, "protocol", lr.Protocol, "port", lr.ListenPort)
+			continue
+		}
+		if err := proxy.ValidateRoutes([]agentprotocol.Route{lr}, policy); err != nil {
+			e.log.Warn("a route left behind is not kept: it does not pass the proxy's validation", "service_id", owner, "err", err)
+			continue
+		}
+		if out == nil {
+			out = slices.Clone(table)
+		}
+		e.log.Info("route table keeps the route of a service held for adoption or left unmanaged", "service_id", owner, "route", lr.ServiceID)
+		out = append(out, lr)
+		added[routeKey(lr)] = true
+		for _, h := range lr.Hosts {
+			hosts[h] = true
+		}
+		if lr.IsL4() {
+			ports[l4] = true
+		}
 	}
 	if out == nil {
 		return table
@@ -240,7 +326,7 @@ func (e *Engine) handleProxyConfigure(_ context.Context, cmd agentprotocol.Comma
 		return failedResult(cmd.ID, "route table rejected: "+err.Error())
 	}
 	if replace {
-		routes = e.keepLiveRoutes(routes, e.cfg.Proxy.Current())
+		routes = e.keepLiveRoutes(routes, e.cfg.Proxy.Current(), e.desiredSnapshot())
 	}
 	if err := e.cfg.Proxy.Apply(routes); err != nil {
 		return proxyResult(cmd.ID, agentprotocol.OutcomeFailed, err.Error(), e.lastApply())
@@ -308,7 +394,7 @@ func (e *Engine) handleSyncRoutes(ctx context.Context, cmd agentprotocol.Command
 	}
 
 	prev := e.cfg.Proxy.Current()
-	routes = e.keepLiveRoutes(routes, prev)
+	routes = e.keepLiveRoutes(routes, prev, e.desiredSnapshot())
 	event(agentprotocol.StepRoute, agentprotocol.StepStarted, "Updating proxy routes")
 	if err := e.cfg.Proxy.Apply(routes); err != nil {
 		return reject("Proxy rejected the route table: " + err.Error())

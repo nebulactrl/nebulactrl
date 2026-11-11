@@ -152,7 +152,8 @@ func TestHeartbeatKeepsTheLastReadingWhileTheFilesCannotBeRead(t *testing.T) {
 }
 
 // A host that names a resolver the proxy does not run is a store-only target; once
-// the proxy runs it, the host is observed like any DNS-01 certificate.
+// the proxy runs it, the host is observed like any DNS-01 certificate. A tunnel
+// name has no origin certificate and is never observed.
 func TestStoreOnlyTargetsBecomeObservedOnceTheResolverRuns(t *testing.T) {
 	route := ruleRoute(
 		rule(domA, "app.example.com", func(d *agentprotocol.DomainRule) { d.DNSResolver = agentprotocol.DNSCloudflare }),
@@ -165,6 +166,7 @@ func TestStoreOnlyTargetsBecomeObservedOnceTheResolverRuns(t *testing.T) {
 	require.Equal(t, domA, before[0].id)
 
 	after := acmeTargets(agentprotocol.ProxyConfig{DNSResolvers: cfResolver()}, []agentprotocol.Route{route})
-	require.Len(t, after, 2, "the tunnel name that names the resolver is observed once the proxy runs it")
+	require.Len(t, after, 1, "the tunnel name stays unobserved once the proxy runs the resolver")
 	require.False(t, after[0].storeOnly)
+	require.Equal(t, domA, after[0].id)
 }

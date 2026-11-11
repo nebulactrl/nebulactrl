@@ -13,9 +13,7 @@ import (
 
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/db"
-	"github.com/nebulactrl/nebulactrl/internal/dns01"
 	"github.com/nebulactrl/nebulactrl/internal/domains"
-	"github.com/nebulactrl/nebulactrl/internal/integrations/cloudflare"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 	"github.com/nebulactrl/nebulactrl/pkg/composestack"
@@ -135,13 +133,11 @@ func stackSpec(ctx context.Context, q *db.Queries, sc services.Scope, cfg servic
 			routed = append(routed, d)
 		}
 	}
-	spec.Routes = domains.StackRoutes(sc.Service.ID, sc.EnvironmentID, cfg.BlockEgress, routed)
-	if err := dns01.ApplyAuto(ctx, q, srv.ID, spec.Routes); err != nil {
+	routes, err := domains.PrepareRoutes(ctx, q, srv.ID, domains.StackRoutes(sc.Service.ID, sc.EnvironmentID, cfg.BlockEgress, routed))
+	if err != nil {
 		return nil, err
 	}
-	if err := cloudflare.ApplyOriginLock(ctx, q, srv.ID, spec.Routes); err != nil {
-		return nil, err
-	}
+	spec.Routes = routes
 	return spec, nil
 }
 

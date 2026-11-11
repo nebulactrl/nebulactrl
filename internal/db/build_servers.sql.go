@@ -279,7 +279,7 @@ func (q *Queries) GetTeamBuildSettings(ctx context.Context, workspaceID uuid.UUI
 }
 
 const listBuildServers = `-- name: ListBuildServers :many
-SELECT id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at FROM servers
+SELECT id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at, adoption_state FROM servers
 WHERE workspace_id = $1 AND build_enabled AND status <> 'revoked'
 ORDER BY created_at, id
 `
@@ -351,6 +351,7 @@ func (q *Queries) ListBuildServers(ctx context.Context, workspaceID uuid.UUID) (
 			&i.RemovalState,
 			&i.RemovalError,
 			&i.RemovalStartedAt,
+			&i.AdoptionState,
 		); err != nil {
 			return nil, err
 		}
@@ -529,7 +530,7 @@ SET build_enabled         = COALESCE($1::boolean, build_enabled),
     build_allow_emulation = COALESCE($3::boolean, build_allow_emulation),
     build_allow_previews  = COALESCE($4::boolean, build_allow_previews)
 WHERE id = $5 AND workspace_id = $6
-RETURNING id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at
+RETURNING id, workspace_id, name, public_ip, base_domain, acme_email, status, agent_version, protocol_version, facts, proxy_status, proxy_error, last_seen_at, created_at, metrics_retention_days, disk_alert_threshold_percent, disk_alert_active, traffic_analytics_enabled, traffic_hourly_retention_days, traffic_daily_retention_days, drain_state, drain_message, drain_started_at, proxy_generation, proxy_applied_generation, upstream_policy, tailnet_mode, tailnet_hostname, tailnet_magic_dns, tailnet_applied_mode, tailnet_device_id, tailnet_status, tailnet_status_at, applied_upstream_policy, tailnet_applied_hostname, tailnet_applied_magic_dns, applied_dns01, geo_enabled, geo_source, geo_level, geo_refresh_days, unrestricted, accept_workloads, is_control_plane, build_enabled, build_max_concurrent, build_allow_emulation, build_allow_previews, proxy_http_port, proxy_https_port, proxy_applied_http_port, proxy_applied_https_port, removal_state, removal_error, removal_started_at, adoption_state
 `
 
 type SetServerBuildRoleParams struct {
@@ -610,6 +611,7 @@ func (q *Queries) SetServerBuildRole(ctx context.Context, arg SetServerBuildRole
 		&i.RemovalState,
 		&i.RemovalError,
 		&i.RemovalStartedAt,
+		&i.AdoptionState,
 	)
 	return i, err
 }

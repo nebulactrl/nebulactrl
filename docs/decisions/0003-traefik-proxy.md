@@ -22,9 +22,9 @@ Every enrolled host runs **Traefik v3**, created and owned by the agent as a Doc
 - network `nebulactrl-edge`; volume `nebulactrl-traefik-acme` (mounted at `/data`, holds `acme.json`);
 - container `nebulactrl-traefik` from `traefik:v3.7.17@sha256:f4bb143d1135a579b630ed491e17ec50f6f7c9c6a30585ff3d385471d2a86f5a` (v3.6.17 / v3.7.1 and later carry the fix for GHSA-96qj-4jj5-wcjc, the `rest@internal` exposure; v3.7.17 the fix for GHSA-xv5x-242w-7hf7, where an unauthenticated `NTLM`/`Negotiate` header leaked a backend transport per connection), restart `unless-stopped`, json-file logs rotated at 10 MB × 3;
 - static configuration as command flags:
-  - entrypoints `web` `:80`, `websecure` `:443` (HTTP/3 on 443/udp), `probe` `:8099` (never published) and `ncadmin` `:9000`;
+  - entrypoints `web` `:80`, `websecure` `:443` (HTTP/3 on 443/udp), `tunnel` `:81` (never published; the only entrypoint of domains served through a Cloudflare Tunnel, reached by the `cloudflared` connector on the edge network; below 1024 so no TCP/UDP route can claim it), `probe` `:8099` (never published) and `ncadmin` `:9000`;
   - `--providers.rest=true`, `--providers.file.filename=/etc/traefik/bootstrap.yml` (static bootstrap only), `--ping` with manual routing, the API without dashboard;
-  - `gracetimeout=10s` on the public entrypoints;
+  - `gracetimeout=10s` on the public entrypoints and `tunnel`;
   - the ACME resolver `le` (HTTP-01 on `web`, storage `/data/acme.json`) only when the server has an ACME email;
   - the JSON access log on stdout (read by the agent's traffic collector) unless the server's traffic analytics setting is off; Traefik's own log is JSON on stderr;
 - ports `<--proxy-http-port>:80`, `<--proxy-https-port>:443` and `…:443/udp`. The admin entrypoint is published as `127.0.0.1:<--proxy-admin-port>:9000` for a host-installed agent; an agent running in a container on the edge network reaches `http://nebulactrl-traefik:9000` and nothing is published;

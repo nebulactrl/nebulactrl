@@ -89,24 +89,6 @@ func TestAutoCloudflareWildcardHost(t *testing.T) {
 	}, httpsTLS(p, domA))
 }
 
-// A tunnelled domain keeps its behaviour whatever the rule names: no certificate
-// is requested at the origin through HTTP-01, and the control plane does not
-// name the automatic resolver for it at all.
-func TestAutoCloudflareTunnelBranchStillWins(t *testing.T) {
-	// The resolver is named but the proxy does not run it (so the builder would
-	// fall back to HTTP-01): the tunnel branch still returns the default store.
-	route := ruleRoute(rule(domA, "a.example.com", func(d *agentprotocol.DomainRule) {
-		d.Tunnel, d.DNSResolver = true, agentprotocol.DNSCloudflare
-	}))
-	p := parse(t, mustBuild(t, []agentprotocol.Route{route}, Options{ACMEEmail: "ops@example.com"}))
-	require.Equal(t, map[string]any{}, httpsTLS(p, domA))
-
-	// Nothing named, as the control plane sends it: the default store as well.
-	route.Domains[0].DNSResolver = ""
-	p = parse(t, mustBuild(t, []agentprotocol.Route{route}, Options{ACMEEmail: "ops@example.com", DNSResolvers: cfResolver()}))
-	require.Equal(t, map[string]any{}, httpsTLS(p, domA))
-}
-
 // The agent observes the DNS-01 status of a domain served through the automatic
 // resolver only once the proxy runs it; before, it reports only which storage
 // holds the certificate the host is still served with.

@@ -148,7 +148,9 @@ function RemoveZone({ server }: { server: ServerView }) {
 					Deletes the server from NebulaCtrl. A clean removal first has the
 					agent remove every container, network and volume NebulaCtrl manages on
 					the host; removing without cleaning leaves the host as it is. Services
-					placed here block it: move or delete them first.
+					placed here block both: move or delete them first. Releasing the
+					server to another NebulaCtrl deletes its services here instead, and
+					leaves the host running them.
 				</p>
 				<RemoveServerButton server={server} />
 			</CardContent>

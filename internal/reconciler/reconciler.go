@@ -177,6 +177,17 @@ func (r *Reconciler) DesiredState(ctx context.Context, serverID uuid.UUID) (agen
 	traffic := srv.TrafficAnalyticsEnabled
 	out.TrafficAnalytics = &traffic
 	out.Endpoints = instanceEndpoints(r.instanceTunnel, srv.Facts)
+	// A server held for adoption runs workloads this instance does not know yet:
+	// the agent leaves them alone until the person decides. Services left running
+	// unmanaged are never swept either.
+	out.KeepUnknown = srv.AdoptionState == services.AdoptionStateHeld
+	unmanaged, err := r.q.ListServerUnmanagedServices(ctx, serverID)
+	if err != nil {
+		return out, fmt.Errorf("list unmanaged services: %w", err)
+	}
+	for _, id := range unmanaged {
+		out.Unmanaged = append(out.Unmanaged, id.String())
+	}
 	rows, err := r.q.ListServerCurrentServices(ctx, &serverID)
 	if err != nil {
 		return out, fmt.Errorf("list current services: %w", err)

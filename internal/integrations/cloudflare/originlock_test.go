@@ -364,20 +364,9 @@ func TestApplyOriginLockSkipsWhatTheAgentCannotLock(t *testing.T) {
 	// A tunnel on the server excludes the domain even when the rule is not flagged.
 	e.tunnels.set(e.srvA.ID, "t9.cfargotunnel.com") // (the fake lookup is the service's; the query below is the builder's)
 	e.exec(t, `INSERT INTO server_tunnels (server_id, workspace_id, account_id, tunnel_id, tunnel_name, state, activated_at) VALUES ($1, $2, 'acc1', 'tun', 'n', 'online', now())`, e.srvA.ID, e.ws)
+	e.exec(t, `INSERT INTO cloudflare_records (zone_id, record_id, workspace_id, owner_kind, owner_id, hostname, type, content, proxied)
+		SELECT cf_zone_id, 'tun-r', $2, 'domain', id, hostname, 'CNAME', 'tun.cfargotunnel.com', true FROM domains WHERE id = $1`, d.ID, e.ws)
 	routes = rules()
 	require.NoError(t, ApplyOriginLock(bg, e.q, e.srvA.ID, routes))
 	require.False(t, routes[0].Domains[0].OriginLocked)
-
-	// The deploy payload variant gives the same answer for the same rules.
-	e.exec(t, `DELETE FROM server_tunnels`)
-	pr := []agentprotocol.DomainRule{{ID: d.ID.String(), Host: host}}
-	ol, err := ApplyOriginLockToRules(bg, e.q, e.srvA.ID, pr)
-	require.NoError(t, err)
-	require.NotNil(t, ol)
-	require.True(t, pr[0].OriginLocked)
-	require.True(t, pr[0].RequireClientCert)
-	require.NotEmpty(t, ol.ClientCAPEM)
-	none, err := ApplyOriginLockToRules(bg, e.q, e.srvA.ID, []agentprotocol.DomainRule{{ID: uuid.NewString(), Host: "other.example.net"}})
-	require.NoError(t, err)
-	require.Nil(t, none)
 }

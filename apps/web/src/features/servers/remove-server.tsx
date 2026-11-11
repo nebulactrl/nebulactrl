@@ -9,7 +9,7 @@ import { toast } from "#/components/ui/toast";
 import type { ServerView } from "./model";
 import { useServicesOnServer } from "./use-services-on-server";
 
-type Mode = "clean" | "forget";
+type Mode = "clean" | "forget" | "release";
 
 /**
  * Local backups are never deleted. The agent's default backup directory lives
@@ -52,6 +52,41 @@ function PlacedNote({ serverId }: { serverId: string }) {
 	);
 }
 
+/**
+ * What a release deletes: the services placed on the server, named, with the
+ * ones in a production environment marked. The host keeps running their
+ * containers; the services are gone from this instance.
+ */
+function ReleaseNote({ serverId }: { serverId: string }) {
+	const { placed } = useServicesOnServer(serverId);
+	if (placed.length === 0) return null;
+	const shown = placed.slice(0, 5);
+	const rest = placed.length - shown.length;
+	const production = placed.filter(
+		({ environment }) => environment.isProduction,
+	).length;
+	return (
+		<p>
+			{placed.length === 1
+				? "1 service is deleted from this instance: "
+				: `${placed.length} services are deleted from this instance: `}
+			<b className="text-ink-1">
+				{shown
+					.map(
+						({ service, project, environment }) =>
+							`${service.name} (${project.name}${environment.isProduction ? ", production" : ""})`,
+					)
+					.join(", ")}
+				{rest > 0 ? ` and ${rest} more` : ""}
+			</b>
+			.
+			{production > 0
+				? ` ${production === 1 ? "1 is" : `${production} are`} in production: ${production === 1 ? "it stops" : "they stop"} being managed here, and domains stop being served by this instance.`
+				: ""}
+		</p>
+	);
+}
+
 /** The commands that empty the host by hand, wrapped, with a key to copy them. */
 function CleanupCommands() {
 	const commands = manualCleanupCommand(window.location.origin);
@@ -66,8 +101,9 @@ function CleanupCommands() {
  * What removing a server does, as the dialog and the card menu share it:
  * `ask("clean")` has the agent empty the host and remove itself, `ask("forget")`
  * deletes the server and leaves the host as it is (with the commands to clean
- * it by hand). Both are called "Remove" throughout, and both ask for the
- * server's name and a hold. A server that never connected has nothing on a
+ * it by hand), `ask("release")` deletes the server and its services here and
+ * leaves the host running them for another NebulaCtrl to adopt. All three ask
+ * for the server's name and a hold. A server that never connected has nothing on a
  * host to clean, so it gets neither the cleanup text nor the commands.
  */
 export function useRemoveServer(server: ServerView) {
@@ -126,6 +162,22 @@ export function useRemoveServer(server: ServerView) {
 				</div>
 			);
 		}
+		if (mode === "release") {
+			return (
+				<div className="flex flex-col gap-2">
+					<p>
+						Deletes this server and its services here without touching the host;
+						the containers keep running for the instance that adopts it.
+					</p>
+					<ReleaseNote serverId={server.id} />
+					<p>
+						Add the host to the other NebulaCtrl with its install command. Its
+						workloads are held there until you review them. Backups stored on
+						this server stay at {backupPath(server)}.
+					</p>
+				</div>
+			);
+		}
 		return (
 			<div className="flex flex-col gap-2">
 				<p>
@@ -143,11 +195,13 @@ export function useRemoveServer(server: ServerView) {
 	const ask = (mode: Mode) =>
 		void confirm({
 			title:
-				mode === "forget" && canClean
-					? `Remove ${server.name} without cleaning?`
-					: `Remove ${server.name}?`,
+				mode === "release"
+					? `Release ${server.name} to another NebulaCtrl?`
+					: mode === "forget" && canClean
+						? `Remove ${server.name} without cleaning?`
+						: `Remove ${server.name}?`,
 			body: body(mode),
-			cta: "Remove server",
+			cta: mode === "release" ? "Release server" : "Remove server",
 			danger: true,
 			typeToConfirm: server.name,
 			onConfirm: async () => {
@@ -160,6 +214,8 @@ export function useRemoveServer(server: ServerView) {
 		hidden: server.controlPlane,
 		removing,
 		canClean,
+		/** A server that has connected can be handed to another NebulaCtrl, online or not. */
+		canRelease: !neverConnected,
 		ask,
 	};
 }
@@ -177,7 +233,8 @@ export function RemoveServerButton({
 	server: ServerView;
 	size?: "sm" | "md" | "lg";
 }) {
-	const { hidden, removing, canClean, ask } = useRemoveServer(server);
+	const { hidden, removing, canClean, canRelease, ask } =
+		useRemoveServer(server);
 	if (hidden) return null;
 	return (
 		<div className="flex flex-wrap items-center gap-2">
@@ -192,6 +249,11 @@ export function RemoveServerButton({
 			{canClean && !removing ? (
 				<Button variant="ghost" size={size} onClick={() => ask("forget")}>
 					Remove without cleaning…
+				</Button>
+			) : null}
+			{canRelease && !removing ? (
+				<Button variant="ghost" size={size} onClick={() => ask("release")}>
+					Release to another NebulaCtrl…
 				</Button>
 			) : null}
 		</div>

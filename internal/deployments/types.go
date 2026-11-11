@@ -23,6 +23,9 @@ const (
 	TriggerPreview    = "preview"
 	TriggerCron       = "cron"
 	TriggerDeployHook = "deploy_hook"
+	// TriggerAdopt marks the deployment recorded when a server's running
+	// workloads were adopted: nothing was deployed.
+	TriggerAdopt = "adopt"
 )
 
 // RollbackDisclaimer is shown wherever a rollback is offered or confirmed.
@@ -34,7 +37,7 @@ type DeploymentView struct {
 	ServiceID uuid.UUID  `json:"serviceId"`
 	ReleaseID *uuid.UUID `json:"releaseId"`
 	ServerID  *uuid.UUID `json:"serverId"`
-	Trigger   string     `json:"trigger" enum:"manual,redeploy,rollback,staged,reconcile,drain,git_push,preview,cron,deploy_hook"`
+	Trigger   string     `json:"trigger" enum:"manual,redeploy,rollback,staged,reconcile,drain,git_push,preview,cron,deploy_hook,adopt"`
 	ActorType string     `json:"actorType"`
 	// ActorLabel is who started the deployment, ready to display: the user's
 	// name (or email), the API token's name, "MCP · <token name>" or "System".

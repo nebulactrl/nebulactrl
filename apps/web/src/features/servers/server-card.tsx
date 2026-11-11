@@ -118,6 +118,15 @@ const ServerCardLink = memo(function ServerCardLink({
 							{buildBadge}
 						</Badge>
 					) : null}
+					{server.adoption?.state === "held" ? (
+						<Badge
+							tone="warn"
+							lamp
+							title="This host runs workloads from an earlier NebulaCtrl. Nothing on it is changed until you review them."
+						>
+							Review workloads
+						</Badge>
+					) : null}
 				</span>
 			</span>
 

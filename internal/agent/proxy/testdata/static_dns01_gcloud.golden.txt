@@ -8,6 +8,9 @@
 --entrypoints.websecure.http.aliasheadersstrategy=delete
 --entrypoints.websecure.http3=true
 --entrypoints.websecure.http3.advertisedport=8443
+--entrypoints.tunnel.address=:81
+--entrypoints.tunnel.transport.lifecycle.gracetimeout=10s
+--entrypoints.tunnel.http.aliasheadersstrategy=delete
 --entrypoints.probe.address=:8099
 --entrypoints.probe.http.aliasheadersstrategy=delete
 --entrypoints.ncadmin.address=:9000

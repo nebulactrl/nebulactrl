@@ -99,11 +99,43 @@ func recv[T any](t *testing.T, ch <-chan T) T {
 	}
 }
 
+// Facts that cannot be collected (Docker unreachable, so the managed services
+// are unknown) send no hello: the control plane would take a hello without
+// them for a host without workloads and never hold it. The client reconnects
+// and says hello once the facts are complete.
+func TestFailingFactsSendNoHelloAndReconnect(t *testing.T) {
+	c, _, srv := newHarness(t)
+	var calls atomic.Int32
+	c.cfg.Facts = func(context.Context) (agentprotocol.Facts, error) {
+		if calls.Add(1) == 1 {
+			return agentprotocol.Facts{OS: "linux"}, errors.New("docker daemon unreachable")
+		}
+		return agentprotocol.Facts{OS: "linux", ManagedServices: []string{"svc-1"}}, nil
+	}
+	c.cfg.ReconnectAfter = func(time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+	hellos := make(chan agentprotocol.Hello, 4)
+	srv.script = func(ctx context.Context, _ *websocket.Conn, h agentprotocol.Hello) {
+		hellos <- h
+		<-ctx.Done()
+	}
+	runClient(t, c)
+
+	h := recv(t, hellos)
+	require.Equal(t, []string{"svc-1"}, h.Facts.ManagedServices, "the only hello carries the complete facts")
+	require.EqualValues(t, 2, calls.Load())
+}
+
 func TestHelloCarriesFactsAndUnackedResultsAndHeartbeatsFlow(t *testing.T) {
 	c, st, srv := newHarness(t)
 	require.NoError(t, st.PutResult(agentprotocol.ResultFrame{CommandID: "old", Outcome: agentprotocol.OutcomeSucceeded}))
 	c.cfg.HeartbeatInterval = 5 * time.Millisecond
-	c.cfg.Facts = func(context.Context) agentprotocol.Facts { return agentprotocol.Facts{OS: "linux", CPUs: 4} }
+	c.cfg.Facts = func(context.Context) (agentprotocol.Facts, error) {
+		return agentprotocol.Facts{OS: "linux", CPUs: 4}, nil
+	}
 	c.cfg.Heartbeat = func(context.Context) agentprotocol.Heartbeat {
 		return agentprotocol.Heartbeat{CPUPercent: 12.5, DockerVersion: "27.1"}
 	}
@@ -480,6 +512,63 @@ func TestServerCloseWith4400EndsRun(t *testing.T) {
 	}
 	_, res := runClient(t, c)
 	require.ErrorIs(t, recv(t, res), ErrUnsupportedVersion)
+}
+
+func TestUnknownAgentCloseReenrollsThroughTheHook(t *testing.T) {
+	c, _, srv := newHarness(t)
+	srv.script = func(_ context.Context, ws *websocket.Conn, _ agentprotocol.Hello) {
+		_ = ws.Close(websocket.StatusCode(agentprotocol.CloseUnknownAgent), "unknown agent")
+	}
+	var calls atomic.Int32
+	c.cfg.OnUnknownAgent = func(context.Context) bool { calls.Add(1); return true }
+	_, res := runClient(t, c)
+	require.ErrorIs(t, recv(t, res), ErrReenrolled)
+	require.EqualValues(t, 1, calls.Load())
+}
+
+func TestUnknownAgentCloseBeforeHelloReenrollsToo(t *testing.T) {
+	// The control plane closes right after the auth frame, before reading hello.
+	c := rawClient(t, func(ctx context.Context, ws *websocket.Conn) {
+		ch := agentprotocol.Challenge{Nonce: make([]byte, 32), ServerTime: time.Now().UnixNano()}
+		b, _ := agentprotocol.Encode(agentprotocol.TypeChallenge, "", ch)
+		_ = ws.Write(ctx, websocket.MessageText, b)
+		_, _, _ = ws.Read(ctx)
+		_ = ws.Close(websocket.StatusCode(agentprotocol.CloseUnknownAgent), "unknown agent")
+	})
+	c.cfg.OnUnknownAgent = func(context.Context) bool { return true }
+	_, res := runClient(t, c)
+	require.ErrorIs(t, recv(t, res), ErrReenrolled)
+}
+
+func TestUnknownAgentCloseKeepsReconnectingWithoutAHookOrWhenItDeclines(t *testing.T) {
+	for name, hook := range map[string]func(context.Context) bool{
+		"no hook":  nil,
+		"declines": func(context.Context) bool { return false },
+	} {
+		t.Run(name, func(t *testing.T) {
+			c, _, srv := newHarness(t)
+			backoff := newFakeBackoff(c)
+			var conns atomic.Int32
+			srv.script = func(_ context.Context, ws *websocket.Conn, _ agentprotocol.Hello) {
+				conns.Add(1)
+				_ = ws.Close(websocket.StatusCode(agentprotocol.CloseUnknownAgent), "unknown agent")
+			}
+			c.cfg.OnUnknownAgent = hook
+			_, res := runClient(t, c)
+
+			for range 2 {
+				delay, elapse := backoff.next(t)
+				require.GreaterOrEqual(t, delay, minBackoff)
+				elapse()
+			}
+			require.Eventually(t, func() bool { return conns.Load() >= 2 }, 5*time.Second, time.Millisecond, "it connects again after the backoff")
+			select {
+			case err := <-res:
+				t.Fatalf("Run returned %v; an unknown agent keeps retrying", err)
+			default:
+			}
+		})
+	}
 }
 
 // rawClient dials a handler that scripts the server side of the handshake.

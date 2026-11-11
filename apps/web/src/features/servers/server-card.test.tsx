@@ -370,3 +370,24 @@ describe("ProxyLine", () => {
 		expect(screen.getByText("Proxy not reported")).toBeInTheDocument();
 	});
 });
+
+describe("ServerCard: adoption", () => {
+	test("a held server wears a Review workloads badge", async () => {
+		await renderCard(
+			wireServer({ adoption: { state: "held", found: 3, unmanaged: 0 } }),
+		);
+		expect(screen.getByText("Review workloads")).toBeInTheDocument();
+	});
+
+	test("a reviewed server, with workloads left unmanaged, has no badge", async () => {
+		await renderCard(
+			wireServer({ adoption: { state: "", found: 0, unmanaged: 2 } }),
+		);
+		expect(screen.queryByText("Review workloads")).not.toBeInTheDocument();
+	});
+
+	test("a server with no adoption has no badge", async () => {
+		await renderCard();
+		expect(screen.queryByText("Review workloads")).not.toBeInTheDocument();
+	});
+});

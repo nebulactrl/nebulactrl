@@ -157,9 +157,9 @@ func (a *analyzer) buildEnv(r *CoolifyPlanResource, c *refCtx) {
 			pe.Secret, pe.SecretReason = *it.choice.Secret, SecretChoice
 		case it.env.ShownOnce:
 			pe.Secret, pe.SecretReason = true, SecretLocked
-		case isSecretKey(it.key):
+		case services.LooksSecretKey(it.key):
 			pe.Secret, pe.SecretReason = true, SecretName
-		case valueHasCredentials(val):
+		case services.ValueHasCredentials(val):
 			pe.Secret, pe.SecretReason = true, SecretValue
 		case secretByRef:
 			pe.Secret, pe.SecretReason = true, SecretReference

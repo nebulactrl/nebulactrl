@@ -88,6 +88,13 @@ function findTargets(key: string): HTMLElement[] {
 	return Array.from(document.querySelectorAll<HTMLElement>(keySelector(key)));
 }
 
+// Dialogs live in portals outside `#main-content`, so the browser paints them
+// in the root snapshot, beneath the page area's group: a page that arrives
+// with a dialog already open (`/servers?enroll=true`) would lift in over it
+// and its scrim. A closing dialog is `data-closed`, not `data-open`.
+const OPEN_MODAL_SELECTOR =
+	':is([data-slot="dialog-content"],[data-slot="alert-dialog-content"])[data-open]';
+
 function runRouteTransition(
 	router: TransitionRouter,
 	update: () => Promise<void>,
@@ -143,6 +150,11 @@ function runRouteTransition(
 	try {
 		transition = document.startViewTransition(async () => {
 			await update();
+			// The page is behind the dialog's scrim anyway: show it at once.
+			if (document.querySelector(OPEN_MODAL_SELECTOR)) {
+				transition.skipTransition();
+				return;
+			}
 			pairTargets(registry, owner, armed, findTargets);
 			// A page without the shell on either side (login, setup) has no
 			// area to lift: the whole document cross-fades instead.

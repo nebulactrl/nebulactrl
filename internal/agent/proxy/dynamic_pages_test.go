@@ -115,7 +115,7 @@ func TestPagesMaintenanceRepoint(t *testing.T) {
 
 func TestPagesRouterNamesIncludeCatchAll(t *testing.T) {
 	names := RouterNames(nil, Options{Pages: true, Generation: 1})
-	require.ElementsMatch(t, []string{genRouter, notFoundRouter + "-http", notFoundRouter + "-https"}, names)
+	require.ElementsMatch(t, []string{genRouter, notFoundRouter + "-http", notFoundRouter + "-https", notFoundRouter + "-tunnel"}, names)
 	require.Equal(t, []string{genRouter}, RouterNames(nil, Options{Generation: 1}))
 }
 

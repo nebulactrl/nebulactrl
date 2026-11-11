@@ -10,6 +10,7 @@ import {
 	releaseLabel,
 	STATUS_KIND,
 	stepLabel,
+	TRIGGER_LABEL,
 } from "./labels";
 
 describe("STATUS_KIND", () => {
@@ -191,6 +192,10 @@ describe("deploymentMessage", () => {
 			input({ release: null, statusMessage: null, trigger: "redeploy" }),
 		);
 		expect(m).toEqual({ text: "Redeploy", kind: "trigger", detail: null });
+	});
+
+	test("a deployment recorded by adopting a running host is called Adopted", () => {
+		expect(TRIGGER_LABEL.adopt).toBe("Adopted");
 	});
 });
 

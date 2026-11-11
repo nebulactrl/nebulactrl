@@ -525,13 +525,17 @@ func TestAutoTunnelDomainsKeepTheirBehaviour(t *testing.T) {
 	_, err := e.pool.Exec(context.Background(), `INSERT INTO server_tunnels (server_id, workspace_id, account_id, tunnel_id, tunnel_name, state, activated_at)
 		VALUES ($1, $2, 'acc', 't1', 'tunnel', 'online', now())`, e.srv.ID, e.ws.ID)
 	require.NoError(t, err)
+	require.Len(t, e.desired().Resolvers, 1, "until its CNAME points at the tunnel the name is served on the public ports")
+	_, err = e.pool.Exec(context.Background(), `INSERT INTO cloudflare_records (zone_id, record_id, workspace_id, owner_kind, owner_id, hostname, type, content, proxied)
+		SELECT cf_zone_id, 'r1', $2, 'domain', id, hostname, 'CNAME', 't1.cfargotunnel.com', true FROM domains WHERE id = $1`, d.ID, e.ws.ID)
+	require.NoError(t, err)
 	require.Empty(t, e.desired().Resolvers, "no certificate is requested at the origin of a tunnel")
 	require.Empty(t, e.apply(ruleFor(d))[0].DNSResolver)
 	flagged := ruleFor(d)
 	flagged.Tunnel = true
 	require.Empty(t, e.apply(flagged)[0].DNSResolver)
 	c := e.cert(d)
-	require.Equal(t, SourceACME, c.Source)
+	require.Equal(t, SourceTunnel, c.Source)
 	require.Empty(t, c.Fallback, "a tunnel name is not a fallback")
 }
 

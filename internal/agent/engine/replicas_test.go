@@ -651,6 +651,11 @@ func TestReconcileAddsMissingReplicasHealthCheckedAndRoutesOnlyLiveOnes(t *testi
 			"environment cloned from a running replica, with its own replica index")
 		require.NotEmpty(t, spec.Labels[agentprotocol.LabelSpec], "new replicas carry the spec label too")
 	}
+	for _, spec := range r.dk.created {
+		sl, ok := agentprotocol.ParseSpecLabel(spec.Labels[agentprotocol.LabelSpec])
+		require.True(t, ok)
+		require.Equal(t, p.Image.Ref, sl.Image, "every replica records the image reference the deployment ran (adoption reads it)")
+	}
 	require.Equal(t, 3, r.eng.local[svcID].Replicas)
 	last := r.snd.observed[len(r.snd.observed)-1].Services[0]
 	require.Equal(t, 3, last.ReplicasReady)

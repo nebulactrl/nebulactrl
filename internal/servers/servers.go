@@ -126,6 +126,16 @@ type Server struct {
 
 	// Removal is set while the server is being removed or its removal failed.
 	Removal *ServerRemovalState `json:"removal,omitempty"`
+
+	// Adoption is set while the server is held for adoption or runs workloads left unmanaged.
+	Adoption *ServerAdoption `json:"adoption,omitempty"`
+}
+
+// ServerAdoption is the adoption state of a server that ran NebulaCtrl workloads before it was added.
+type ServerAdoption struct {
+	State     string `json:"state" enum:"held," doc:"held: nothing on the host is changed until the workloads are reviewed; empty once reviewed"`
+	Found     int    `json:"found" doc:"Services of an earlier NebulaCtrl found on the host while held"`
+	Unmanaged int    `json:"unmanaged" doc:"Services left running on the host without being managed"`
 }
 
 // Service implements the server use cases.
@@ -164,7 +174,8 @@ func NewService(pool *pgxpool.Pool, bus *events.Bus, hub *agents.Hub, cfg *confi
 
 type serverRow struct {
 	db.Server
-	serviceCount int32
+	serviceCount   int32
+	unmanagedCount int32
 }
 
 func (s *Service) toServer(r serverRow, latest *db.LatestServerMetricSamplesRow) Server {
@@ -196,6 +207,12 @@ func (s *Service) toServer(r serverRow, latest *db.LatestServerMetricSamplesRow)
 	out.CanDecommission = out.Facts != nil && slices.Contains(out.Facts.Capabilities, agentprotocol.CapDecommission)
 	if r.RemovalState != "" {
 		out.Removal = &ServerRemovalState{State: r.RemovalState, Error: r.RemovalError, StartedAt: r.RemovalStartedAt}
+	}
+	if r.AdoptionState == "held" || r.unmanagedCount > 0 {
+		out.Adoption = &ServerAdoption{State: r.AdoptionState, Unmanaged: int(r.unmanagedCount)}
+		if r.AdoptionState == "held" && out.Facts != nil {
+			out.Adoption.Found = len(out.Facts.ManagedServices)
+		}
 	}
 	if s.hub != nil {
 		out.GeoStatus = s.hub.GeoStatus(r.ID)
@@ -290,7 +307,8 @@ func (s *Service) List(ctx context.Context, cursor string, limit int) ([]Server,
 			ProxyGeneration: r.ProxyGeneration, ProxyAppliedGeneration: r.ProxyAppliedGeneration, TailnetMode: r.TailnetMode,
 			TailnetAppliedMode: r.TailnetAppliedMode, TailnetHostname: r.TailnetHostname, TailnetStatus: r.TailnetStatus,
 			RemovalState: r.RemovalState, RemovalError: r.RemovalError, RemovalStartedAt: r.RemovalStartedAt,
-		}, serviceCount: r.ServiceCount}, latest[r.ID])
+			AdoptionState: r.AdoptionState,
+		}, serviceCount: r.ServiceCount, unmanagedCount: r.UnmanagedCount}, latest[r.ID])
 		sv.Tunnel = tunnelSummary(tunnels[r.ID])
 		sv.Patches = patches[r.ID]
 		out = append(out, sv)
@@ -345,7 +363,8 @@ func fromScoped(r db.GetServerScopedRow) serverRow {
 		ProxyGeneration: r.ProxyGeneration, ProxyAppliedGeneration: r.ProxyAppliedGeneration, TailnetMode: r.TailnetMode,
 		TailnetAppliedMode: r.TailnetAppliedMode, TailnetHostname: r.TailnetHostname, TailnetStatus: r.TailnetStatus,
 		RemovalState: r.RemovalState, RemovalError: r.RemovalError, RemovalStartedAt: r.RemovalStartedAt,
-	}, serviceCount: r.ServiceCount}
+		AdoptionState: r.AdoptionState,
+	}, serviceCount: r.ServiceCount, unmanagedCount: r.UnmanagedCount}
 }
 
 func (s *Service) view(ctx context.Context, row db.GetServerScopedRow) (Server, error) {
@@ -805,14 +824,17 @@ func (s *Service) Revoke(ctx context.Context, id uuid.UUID) (Server, error) {
 			return Server{}, err
 		}
 	}
-	if err := s.revokeRow(ctx, cur); err != nil {
+	if err := s.revokeRow(ctx, cur, nil); err != nil {
 		return Server{}, err
 	}
 	return s.Get(ctx, id)
 }
 
-// revokeRow is Revoke for a server the caller has authorized and loaded.
-func (s *Service) revokeRow(ctx context.Context, cur db.GetServerScopedRow) error {
+// revokeRow is Revoke for a server the caller has authorized and loaded. With
+// inTx set it runs in the revoke's transaction, after the revoke itself: a
+// failure there rolls the revoke back too (the release removal deletes the
+// server's services this way, so a vetoed release leaves the agent working).
+func (s *Service) revokeRow(ctx context.Context, cur db.GetServerScopedRow, inTx func(tx pgx.Tx) error) error {
 	id := cur.ID
 	var canceled []agents.UndeliveredCommand
 	err := db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
@@ -832,6 +854,11 @@ func (s *Service) revokeRow(ctx context.Context, cur db.GetServerScopedRow) erro
 		}
 		for _, r := range rows {
 			canceled = append(canceled, agents.UndeliveredCommand{ID: r.ID, ServerID: r.ServerID, DeploymentID: r.DeploymentID})
+		}
+		if inTx != nil {
+			if err := inTx(tx); err != nil {
+				return err
+			}
 		}
 		if cur.Status == "revoked" {
 			return nil

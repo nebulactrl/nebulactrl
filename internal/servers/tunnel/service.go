@@ -2,14 +2,15 @@
 //
 // Enabling a tunnel creates a remotely-managed tunnel at Cloudflare (with the
 // team's Cloudflare connection), pushes its ingress rules (every hostname of the
-// server's services to the proxy's web entrypoint, then a 404 catch-all) and
+// server's services to the proxy's tunnel entrypoint, then a 404 catch-all) and
 // tells the agent to run the cloudflared connector. The connector token is
 // fetched from the Cloudflare API when the command is sent, attached as a
 // send-time secret and never stored. Once the connector reports its first
 // connection the tunnel is active: the server's domains in connected zones get
 // the tunnel CNAME (the Cloudflare integration asks TunnelTarget) and are
-// served as tunnelled (no HTTP-01, no HTTPS redirect). Disabling flips the DNS
-// back, removes the connector and deletes the tunnel at Cloudflare.
+// served as tunnelled (on the tunnel entrypoint only: not on the server's
+// public ports, no HTTP-01, no HTTPS redirect). Disabling flips the DNS back,
+// removes the connector and deletes the tunnel at Cloudflare.
 package tunnel
 
 import (
@@ -132,7 +133,22 @@ const StateOff = "off"
 // SupportsTunnel reports whether the server's agent advertised
 // agentprotocol.CapTunnel. A server that has never connected has no facts yet
 // and is assumed to enroll with a current agent.
-func SupportsTunnel(srv db.Server) bool {
+func SupportsTunnel(srv db.Server) bool { return agentHas(srv, agentprotocol.CapTunnel) }
+
+// Upstream is where the tunnel of srv forwards every request: the proxy's
+// tunnel entrypoint, or its web entrypoint while the agent is too old to have
+// one (agentprotocol.CapTunnelEntrypoint). The ingress hash covers it, so the
+// sweep re-pushes the rules once the agent is updated.
+func Upstream(srv db.Server) string {
+	if agentHas(srv, agentprotocol.CapTunnelEntrypoint) {
+		return agentprotocol.TunnelUpstream
+	}
+	return agentprotocol.TunnelUpstreamWeb
+}
+
+// agentHas reports whether the server's agent advertised capability; a server
+// without facts yet is assumed to run a current agent.
+func agentHas(srv db.Server, capability string) bool {
 	if len(srv.Facts) == 0 {
 		return true
 	}
@@ -140,7 +156,7 @@ func SupportsTunnel(srv db.Server) bool {
 	if err := json.Unmarshal(srv.Facts, &f); err != nil || f.OS == "" {
 		return true
 	}
-	return slices.Contains(f.Capabilities, agentprotocol.CapTunnel)
+	return slices.Contains(f.Capabilities, capability)
 }
 
 // TunnelView is the tunnel state of a server.
@@ -212,7 +228,7 @@ func (s *Service) getRow(ctx context.Context, q *db.Queries, serverID uuid.UUID)
 
 // view renders a server's tunnel state.
 func (s *Service) view(ctx context.Context, srv db.Server, row *db.ServerTunnel) TunnelView {
-	v := TunnelView{State: StateOff, AgentSupported: SupportsTunnel(srv), Upstream: agentprotocol.TunnelUpstream}
+	v := TunnelView{State: StateOff, AgentSupported: SupportsTunnel(srv), Upstream: Upstream(srv)}
 	if _, account, err := s.cf.Client(ctx, srv.WorkspaceID); err == nil {
 		v.CloudflareConnected, v.AccountReady = true, account != ""
 	} else if !errors.Is(err, cloudflare.ErrNotConfigured) {
@@ -282,14 +298,14 @@ func permanent(err error) bool {
 	return errors.As(err, &ae) && !ae.Retryable()
 }
 
-// ingress renders the ingress rules of a server's tunnel: every hostname of its
-// live services to the proxy, then the 404 catch-all.
-func (s *Service) ingress(ctx context.Context, q *db.Queries, serverID uuid.UUID) (rules []cloudflare.IngressRule, hash string, hosts int, err error) {
-	names, err := q.ListServerIngressHostnames(ctx, &serverID)
+// ingress renders the ingress rules of srv's tunnel: every hostname of its live
+// services to the proxy (Upstream), then the 404 catch-all.
+func (s *Service) ingress(ctx context.Context, q *db.Queries, srv db.Server) (rules []cloudflare.IngressRule, hash string, hosts int, err error) {
+	names, err := q.ListServerIngressHostnames(ctx, &srv.ID)
 	if err != nil {
 		return nil, "", 0, fmt.Errorf("list server hostnames: %w", err)
 	}
-	rules = cloudflare.IngressForHosts(names, agentprotocol.TunnelUpstream)
+	rules = cloudflare.IngressForHosts(names, Upstream(srv))
 	return rules, cloudflare.IngressHash(rules), len(rules) - 1, nil
 }
 
@@ -389,7 +405,7 @@ func (s *Service) Enable(ctx context.Context, serverID uuid.UUID) (TunnelView, e
 			s.log.WarnContext(ctx, "could not delete a tunnel after a failed enable", "tunnel_id", tun.ID, "err", derr)
 		}
 	}
-	rules, hash, hosts, err := s.ingress(ctx, s.q, serverID)
+	rules, hash, hosts, err := s.ingress(ctx, s.q, srv)
 	if err != nil {
 		cleanup()
 		return TunnelView{}, err
@@ -586,7 +602,11 @@ func (s *Service) SyncIngress(ctx context.Context, serverID uuid.UUID, force boo
 	if err != nil || row == nil || row.State == "removing" {
 		return err
 	}
-	rules, hash, hosts, err := s.ingress(ctx, s.q, serverID)
+	srv, err := s.q.LoadServerRow(ctx, db.LoadServerRowParams{ID: serverID})
+	if err != nil {
+		return fmt.Errorf("load server: %w", err)
+	}
+	rules, hash, hosts, err := s.ingress(ctx, s.q, srv)
 	if err != nil {
 		return err
 	}

@@ -6,7 +6,7 @@ Read [`README.md`](README.md) first, then the ADRs in [`docs/decisions/`](docs/d
 
 | Tool | Version | Used for |
 |---|---|---|
-| Go | 1.27 (CI and dev use 1.27.3) | control plane, agent, CLI |
+| Go | 1.27 (CI and dev use 1.27.4) | control plane, agent, CLI |
 | bun | 1.4 | web package manager, dev server, unit tests |
 | TypeScript | 7.0.2 (native `tsc`; pinned exactly in all four packages) | type checking |
 | sqlc | 1.30 | typed Go from `db/queries` |

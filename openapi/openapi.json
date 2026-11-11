@@ -281,6 +281,583 @@
         ],
         "type": "object"
       },
+      "AdoptedService": {
+        "additionalProperties": false,
+        "properties": {
+          "envSlug": {
+            "type": "string"
+          },
+          "environmentId": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectSlug": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug",
+          "environmentId",
+          "envSlug",
+          "projectId",
+          "projectSlug"
+        ],
+        "type": "object"
+      },
+      "AdoptionApplyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/components/schemas/AdoptionChoices"
+          }
+        },
+        "type": "object"
+      },
+      "AdoptionChoices": {
+        "additionalProperties": false,
+        "properties": {
+          "environments": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AdoptionEnvironmentChoice"
+            },
+            "description": "Keyed by the environment ID found on the containers",
+            "type": "object"
+          },
+          "services": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AdoptionServiceChoice"
+            },
+            "description": "Keyed by the service ID found on the containers",
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "AdoptionContainer": {
+        "additionalProperties": false,
+        "properties": {
+          "leftover": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "state"
+        ],
+        "type": "object"
+      },
+      "AdoptionDatabase": {
+        "additionalProperties": false,
+        "properties": {
+          "databaseName": {
+            "type": "string"
+          },
+          "engine": {
+            "type": "string"
+          },
+          "flavor": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "engine",
+          "version"
+        ],
+        "type": "object"
+      },
+      "AdoptionDomain": {
+        "additionalProperties": false,
+        "properties": {
+          "host": {
+            "type": "string"
+          },
+          "include": {
+            "type": "boolean"
+          },
+          "note": {
+            "type": "string"
+          },
+          "pathPrefix": {
+            "type": "string"
+          },
+          "targetPort": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "host",
+          "include"
+        ],
+        "type": "object"
+      },
+      "AdoptionEnvironment": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "create",
+              "existing",
+              "none"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "description": "The environment ID found on the containers; the rebuilt environment keeps it",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "production": {
+            "type": "boolean"
+          },
+          "projectAction": {
+            "enum": [
+              "create",
+              "existing",
+              "none"
+            ],
+            "type": "string"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          },
+          "projectSlug": {
+            "type": "string"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/AdoptionService"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "action",
+          "projectAction",
+          "projectName",
+          "name",
+          "slug",
+          "production",
+          "services"
+        ],
+        "type": "object"
+      },
+      "AdoptionEnvironmentChoice": {
+        "additionalProperties": false,
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "production": {
+            "type": "boolean"
+          },
+          "projectId": {
+            "type": "string"
+          },
+          "projectName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AdoptionPlan": {
+        "additionalProperties": false,
+        "properties": {
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "environments": {
+            "items": {
+              "$ref": "#/components/schemas/AdoptionEnvironment"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "held": {
+            "description": "True while the server is held for adoption: nothing on it is changed until the review is applied",
+            "type": "boolean"
+          },
+          "serverId": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/AdoptionTotals"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "serverId",
+          "held",
+          "environments",
+          "warnings",
+          "blockers",
+          "totals"
+        ],
+        "type": "object"
+      },
+      "AdoptionPlanRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "choices": {
+            "$ref": "#/components/schemas/AdoptionChoices"
+          }
+        },
+        "type": "object"
+      },
+      "AdoptionProject": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "slug": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "slug"
+        ],
+        "type": "object"
+      },
+      "AdoptionResult": {
+        "additionalProperties": false,
+        "properties": {
+          "left": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/AdoptionProject"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "reattached": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "removed": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/AdoptedService"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "projects",
+          "services",
+          "left",
+          "removed",
+          "reattached",
+          "warnings"
+        ],
+        "type": "object"
+      },
+      "AdoptionService": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "adopt",
+              "reattach",
+              "leave",
+              "remove"
+            ],
+            "type": "string"
+          },
+          "adoptable": {
+            "type": "boolean"
+          },
+          "containers": {
+            "items": {
+              "$ref": "#/components/schemas/AdoptionContainer"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "database": {
+            "$ref": "#/components/schemas/AdoptionDatabase"
+          },
+          "deploymentId": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/AdoptionDomain"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "env": {
+            "items": {
+              "$ref": "#/components/schemas/AdoptionVariable"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "id": {
+            "description": "The service ID found on the containers; the rebuilt service keeps it",
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "app",
+              "worker",
+              "database",
+              "stack",
+              "route"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "processes": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "reason": {
+            "type": "string"
+          },
+          "releaseId": {
+            "type": "string"
+          },
+          "replicas": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "slug": {
+            "type": "string"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "volumes": {
+            "items": {
+              "$ref": "#/components/schemas/AdoptionVolume"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "slug",
+          "name",
+          "kind",
+          "sourceType",
+          "action",
+          "adoptable",
+          "replicas",
+          "processes",
+          "containers",
+          "volumes",
+          "domains",
+          "env",
+          "notes"
+        ],
+        "type": "object"
+      },
+      "AdoptionServiceChoice": {
+        "additionalProperties": false,
+        "properties": {
+          "action": {
+            "enum": [
+              "adopt",
+              "leave",
+              "remove"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "secret": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "skipHosts": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "AdoptionTotals": {
+        "additionalProperties": false,
+        "properties": {
+          "adopt": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "containers": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "leave": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "remove": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "adopt",
+          "leave",
+          "remove",
+          "containers"
+        ],
+        "type": "object"
+      },
+      "AdoptionVariable": {
+        "additionalProperties": false,
+        "properties": {
+          "key": {
+            "type": "string"
+          },
+          "secret": {
+            "type": "boolean"
+          },
+          "secretReason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "secret"
+        ],
+        "type": "object"
+      },
+      "AdoptionVolume": {
+        "additionalProperties": false,
+        "properties": {
+          "dockerName": {
+            "type": "string"
+          },
+          "mountPath": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "mountPath"
+        ],
+        "type": "object"
+      },
       "ApplyConfigRequest": {
         "additionalProperties": false,
         "properties": {
@@ -9572,7 +10149,8 @@
               "git_push",
               "preview",
               "cron",
-              "deploy_hook"
+              "deploy_hook",
+              "adopt"
             ],
             "type": "string"
           },
@@ -10259,7 +10837,8 @@
               "dns01",
               "acme",
               "custom",
-              "none"
+              "none",
+              "tunnel"
             ],
             "type": "string"
           },
@@ -11100,7 +11679,8 @@
               "git_push",
               "preview",
               "cron",
-              "deploy_hook"
+              "deploy_hook",
+              "adopt"
             ],
             "type": "string"
           },
@@ -12025,6 +12605,15 @@
           },
           "kernel": {
             "type": "string"
+          },
+          "managedServices": {
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "memTotal": {
             "format": "int64",
@@ -23232,7 +23821,8 @@
               "git_push",
               "preview",
               "cron",
-              "deploy_hook"
+              "deploy_hook",
+              "adopt"
             ],
             "type": "string"
           },
@@ -24619,6 +25209,9 @@
               "null"
             ]
           },
+          "adoption": {
+            "$ref": "#/components/schemas/ServerAdoption"
+          },
           "agentVersion": {
             "type": [
               "string",
@@ -24856,6 +25449,35 @@
           "tunnel",
           "patches",
           "canDecommission"
+        ],
+        "type": "object"
+      },
+      "ServerAdoption": {
+        "additionalProperties": false,
+        "properties": {
+          "found": {
+            "description": "Services of an earlier NebulaCtrl found on the host while held",
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "description": "held: nothing on the host is changed until the workloads are reviewed; empty once reviewed",
+            "enum": [
+              "held",
+              ""
+            ],
+            "type": "string"
+          },
+          "unmanaged": {
+            "description": "Services left running on the host without being managed",
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "state",
+          "found",
+          "unmanaged"
         ],
         "type": "object"
       },
@@ -25346,7 +25968,8 @@
             "description": "What the removal does. An offline server is always forgotten: its host cannot be reached",
             "enum": [
               "clean",
-              "forget"
+              "forget",
+              "release"
             ],
             "type": "string"
           },
@@ -61223,7 +61846,7 @@
     },
     "/servers/{serverId}": {
       "delete": {
-        "description": "Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). Both need `confirm=\u003cthe server's name\u003e` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them) and for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.",
+        "description": "Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=\u003cthe server's name\u003e`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.",
         "operationId": "removeServer",
         "parameters": [
           {
@@ -61245,16 +61868,17 @@
             }
           },
           {
-            "description": "clean empties the host through the agent first; forget leaves the host as it is",
+            "description": "clean empties the host through the agent first; forget leaves the host as it is; release also deletes the services placed on the server without touching the host, for another NebulaCtrl to adopt",
             "explode": false,
             "in": "query",
             "name": "mode",
             "schema": {
               "default": "clean",
-              "description": "clean empties the host through the agent first; forget leaves the host as it is",
+              "description": "clean empties the host through the agent first; forget leaves the host as it is; release also deletes the services placed on the server without touching the host, for another NebulaCtrl to adopt",
               "enum": [
                 "clean",
-                "forget"
+                "forget",
+                "release"
               ],
               "type": "string"
             }
@@ -61579,6 +62203,309 @@
           }
         ],
         "summary": "Update a server's name, host settings, retention or alert settings",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/servers/{serverId}/adoption": {
+      "post": {
+        "description": "Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.",
+        "operationId": "adoptServer",
+        "parameters": [
+          {
+            "description": "Client-chosen key (\u003c=255 chars). A retry with the same key replays the original response for 24 hours.",
+            "in": "header",
+            "name": "Idempotency-Key",
+            "schema": {
+              "maxLength": 255,
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "serverId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptionApplyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdoptionResult"
+                }
+              }
+            },
+            "description": "Created"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "servers:write",
+              "projects:write",
+              "deployments:write"
+            ]
+          },
+          {
+            "cookie": [
+              "servers:write",
+              "projects:write",
+              "deployments:write"
+            ]
+          }
+        ],
+        "summary": "Adopt the workloads of a server",
+        "tags": [
+          "servers"
+        ]
+      }
+    },
+    "/servers/{serverId}/adoption/plan": {
+      "post": {
+        "description": "Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.",
+        "operationId": "planServerAdoption",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "serverId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdoptionPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdoptionPlan"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Unprocessable Entity"
+          },
+          "500": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Internal Server Error"
+          },
+          "503": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Service Unavailable"
+          },
+          "504": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Gateway Timeout"
+          },
+          "default": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            },
+            "description": "Error"
+          }
+        },
+        "security": [
+          {
+            "bearer": [
+              "servers:write",
+              "projects:write"
+            ]
+          },
+          {
+            "cookie": [
+              "servers:write",
+              "projects:write"
+            ]
+          }
+        ],
+        "summary": "Review the workloads of a server",
         "tags": [
           "servers"
         ]

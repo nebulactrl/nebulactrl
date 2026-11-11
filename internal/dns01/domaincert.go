@@ -19,11 +19,12 @@ const (
 	SourceACME     = "acme"     // Let's Encrypt HTTP-01 (state not observed)
 	SourceCustom   = "custom"   // an uploaded certificate
 	SourceNone     = "none"     // plain HTTP
+	SourceTunnel   = "tunnel"   // served through a Cloudflare Tunnel: Cloudflare ends the public TLS, no certificate at the origin
 )
 
 // DomainCert is the certificate state of a domain.
 type DomainCert struct {
-	Source       string     `json:"source" enum:"wildcard,dns01,acme,custom,none"`
+	Source       string     `json:"source" enum:"wildcard,dns01,acme,custom,none,tunnel"`
 	Status       string     `json:"status" enum:"pending,active,error,unknown" doc:"unknown: this source's certificate is not observed (HTTP-01 and uploaded certificates), or DNS-01 has not started yet (see staged)"`
 	Message      string     `json:"message"`
 	Resolver     string     `json:"resolver" doc:"DNS-01 provider, for sources wildcard and dns01"`
@@ -96,7 +97,7 @@ func DomainCerts(ctx context.Context, q *db.Queries, rows []db.Domain) (map[uuid
 		return nil, fmt.Errorf("list certificate storages: %w", err)
 	}
 	for _, s := range stores {
-		if c, ok := out[s.DomainID]; ok && c.Source != SourceNone && c.Source != SourceCustom && c.Source != SourceWildcard {
+		if c, ok := out[s.DomainID]; ok && c.Source != SourceNone && c.Source != SourceCustom && c.Source != SourceWildcard && c.Source != SourceTunnel {
 			c.IssuedVia = s.IssuedVia
 			if c.Automatic && s.IssuedVia == agentprotocol.AcmeIssuedHTTP01 {
 				c.Message = "The certificate in use was issued over HTTP-01 and is renewed there; DNS-01 through Cloudflare issues the certificates of names that have none."
@@ -119,7 +120,7 @@ type domainAuto struct {
 	why    string
 	// applied: the server's proxy runs a Cloudflare resolver.
 	applied bool
-	// tunnelled domains keep their behaviour: no certificate is requested.
+	// tunnelled: the domain is served through the server's Cloudflare Tunnel.
 	tunnelled bool
 }
 
@@ -171,10 +172,16 @@ func autoChoices(ctx context.Context, q *db.Queries, rows []db.Domain, serverOf 
 }
 
 func certFor(d db.Domain, wildcards []db.WildcardCert, auto *domainAuto, now time.Time) DomainCert {
-	switch d.TlsMode {
-	case agentprotocol.TLSNone:
+	if d.TlsMode == agentprotocol.TLSNone {
 		return DomainCert{Source: SourceNone, Status: "unknown"}
-	case agentprotocol.TLSCustom:
+	}
+	if auto != nil && auto.tunnelled {
+		// Cloudflare ends the public TLS of a tunnelled domain and the proxy serves
+		// it on the plain-HTTP tunnel entrypoint only: no certificate is used at
+		// the origin, whatever the domain names (resolver, wildcard, upload).
+		return DomainCert{Source: SourceTunnel, Status: "unknown"}
+	}
+	if d.TlsMode == agentprotocol.TLSCustom {
 		return DomainCert{Source: SourceCustom, Status: "unknown"}
 	}
 	for _, w := range wildcards {
@@ -190,7 +197,7 @@ func certFor(d db.Domain, wildcards []db.WildcardCert, auto *domainAuto, now tim
 		return c
 	}
 	fallback := ""
-	if auto != nil && !auto.tunnelled {
+	if auto != nil {
 		switch {
 		case auto.choice.DNS01 && auto.usable:
 			c := DomainCert{

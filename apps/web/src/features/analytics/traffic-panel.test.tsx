@@ -12,7 +12,7 @@ import type { Server } from "#/api/gen/types.gen";
 import { type ApiReply, stubApi } from "#/test/api";
 import { make, type Overrides } from "#/test/factories";
 import { renderWithProviders } from "#/test/render";
-import { makeReport } from "./test-fixtures";
+import { makeGeo, makeReport } from "./test-fixtures";
 import { TrafficPanel } from "./traffic-panel";
 
 // A whole dashboard renders per test; a loaded CI box needs more than 5 s.
@@ -451,15 +451,21 @@ describe("TrafficPanel for a server or environment", () => {
 		expect(analyticsCalls(api).length).toBeLessThanOrEqual(1);
 	});
 
-	test("an environment scope reads the traffic endpoint and never fetches a service or server", async () => {
-		const api = stubApi(routes());
+	test("an environment scope reads the traffic endpoint and its service list, never one service or server", async () => {
+		const api = stubApi({
+			...routes(),
+			"GET /environments/:environmentId/services": { body: { items: [] } },
+		});
 		await renderWithProviders(
 			<TrafficPanel scope={{ environmentId: "env-1" }} variant="summary" />,
 		);
 		expect(await screen.findByText("12.4k")).toBeInTheDocument();
 		expect(analyticsCalls(api)[0]?.path).toBe("/analytics/traffic");
 		expect(analyticsCalls(api)[0]?.query.get("environmentId")).toBe("env-1");
-		expect(api.calls.map((c) => c.path)).toEqual(["/analytics/traffic"]);
+		expect(api.calls.map((c) => c.path).sort()).toEqual([
+			"/analytics/traffic",
+			"/environments/env-1/services",
+		]);
 		// Summary: KPIs, status chart and the origins card, no lists.
 		expect(
 			screen.getByRole("heading", { name: "Where requests come from" }),
@@ -473,6 +479,56 @@ describe("TrafficPanel for a server or environment", () => {
 		expect(
 			window.localStorage.getItem("nebulactrl:traffic-range-environment"),
 		).toBe("30d");
+	});
+
+	describe("the GeoIP empty state's link", () => {
+		const nothingLocated = {
+			...makeGeo(),
+			locatedRequests: 0,
+			countries: [],
+			cities: null,
+		};
+		async function renderOn(...serverIds: string[]) {
+			const api = stubApi({
+				...routes({ report: { body: makeReport({ geo: nothingLocated }) } }),
+				"GET /environments/:environmentId/services": {
+					body: {
+						items: serverIds.map((serverId, i) =>
+							make("ServiceView", { id: `svc-${i}`, serverId }),
+						),
+					},
+				},
+			});
+			await renderWithProviders(
+				<TrafficPanel scope={{ environmentId: "env-1" }} variant="summary" />,
+			);
+			return {
+				api,
+				link: await screen.findByRole("button", {
+					name: "Check the GeoIP database",
+				}),
+			};
+		}
+
+		test("an environment on one server points at that server's settings", async () => {
+			const { link } = await renderOn("srv-1", "srv-1");
+			await waitFor(() =>
+				expect(link).toHaveAttribute(
+					"href",
+					"/servers/srv-1/settings/monitoring",
+				),
+			);
+		});
+
+		test("an environment spread over two servers has no one settings page: the list", async () => {
+			const { api, link } = await renderOn("srv-1", "srv-2");
+			await waitFor(() =>
+				expect(
+					api.calls.some((c) => c.path === "/environments/env-1/services"),
+				).toBe(true),
+			);
+			expect(link).toHaveAttribute("href", "/servers");
+		});
 	});
 
 	test("the control row stays above a blocked body", async () => {

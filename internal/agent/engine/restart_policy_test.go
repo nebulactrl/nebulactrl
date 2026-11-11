@@ -70,5 +70,5 @@ func TestRestartPolicyRoundTripsThroughTheSpecLabel(t *testing.T) {
 	require.Equal(t, agentprotocol.RestartNever, got.RestartPolicy)
 
 	// The default policy leaves no trace in the label.
-	require.NotContains(t, specLabelOf(basePayload()), "restartPolicy")
+	require.NotContains(t, specLabelOf(basePayload(), ""), "restartPolicy")
 }

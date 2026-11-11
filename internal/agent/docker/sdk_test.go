@@ -479,6 +479,8 @@ func TestImageInspectMapsFields(t *testing.T) {
 		"Config": obj{
 			"Labels":      obj{"org.x": "y"},
 			"Entrypoint":  []string{"/app"},
+			"Env":         []string{"PATH=/usr/bin", "MODE=prod"},
+			"Cmd":         []string{"serve"},
 			"Healthcheck": obj{"Test": []string{"CMD", "true"}},
 		},
 		"Metadata": obj{"LastTagTime": "2025-02-03T04:05:06Z"},
@@ -490,6 +492,8 @@ func TestImageInspectMapsFields(t *testing.T) {
 	assert.Equal(t, []string{"app@sha256:def"}, got.RepoDigests)
 	assert.Equal(t, map[string]string{"org.x": "y"}, got.Labels)
 	assert.Equal(t, []string{"/app"}, got.Entrypoint)
+	assert.Equal(t, []string{"PATH=/usr/bin", "MODE=prod"}, got.Env)
+	assert.Equal(t, []string{"serve"}, got.Cmd)
 	assert.True(t, got.HasHealthcheck)
 	assert.Equal(t, time.Date(2025, 1, 2, 3, 4, 5, 123456789, time.UTC), got.Created.UTC())
 	assert.Equal(t, time.Date(2025, 2, 3, 4, 5, 6, 0, time.UTC), got.LastTagged.UTC())

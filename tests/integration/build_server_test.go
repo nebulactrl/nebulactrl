@@ -158,7 +158,8 @@ func StartBuildAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	a.cancel = cancel
 	client := conn.New(conn.Config{
 		URL: eps.Connect, Identity: identity, Store: st, Version: "itest",
-		Facts: collector.Facts, Heartbeat: collector.Heartbeat, Logger: log,
+		Facts:     func(ctx context.Context) (agentprotocol.Facts, error) { return collector.Facts(ctx), nil },
+		Heartbeat: collector.Heartbeat, Logger: log,
 	})
 	deployer, err := engine.New(engine.Config{
 		BuildOnly: true,

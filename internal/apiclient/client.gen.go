@@ -18,6 +18,120 @@ import (
 	openapi_types "github.com/oapi-codegen/runtime/types"
 )
 
+// Defines values for AdoptionEnvironmentAction.
+const (
+	AdoptionEnvironmentActionCreate   AdoptionEnvironmentAction = "create"
+	AdoptionEnvironmentActionExisting AdoptionEnvironmentAction = "existing"
+	AdoptionEnvironmentActionNone     AdoptionEnvironmentAction = "none"
+)
+
+// Valid indicates whether the value is a known member of the AdoptionEnvironmentAction enum.
+func (e AdoptionEnvironmentAction) Valid() bool {
+	switch e {
+	case AdoptionEnvironmentActionCreate:
+		return true
+	case AdoptionEnvironmentActionExisting:
+		return true
+	case AdoptionEnvironmentActionNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdoptionEnvironmentProjectAction.
+const (
+	AdoptionEnvironmentProjectActionCreate   AdoptionEnvironmentProjectAction = "create"
+	AdoptionEnvironmentProjectActionExisting AdoptionEnvironmentProjectAction = "existing"
+	AdoptionEnvironmentProjectActionNone     AdoptionEnvironmentProjectAction = "none"
+)
+
+// Valid indicates whether the value is a known member of the AdoptionEnvironmentProjectAction enum.
+func (e AdoptionEnvironmentProjectAction) Valid() bool {
+	switch e {
+	case AdoptionEnvironmentProjectActionCreate:
+		return true
+	case AdoptionEnvironmentProjectActionExisting:
+		return true
+	case AdoptionEnvironmentProjectActionNone:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdoptionServiceAction.
+const (
+	AdoptionServiceActionAdopt    AdoptionServiceAction = "adopt"
+	AdoptionServiceActionLeave    AdoptionServiceAction = "leave"
+	AdoptionServiceActionReattach AdoptionServiceAction = "reattach"
+	AdoptionServiceActionRemove   AdoptionServiceAction = "remove"
+)
+
+// Valid indicates whether the value is a known member of the AdoptionServiceAction enum.
+func (e AdoptionServiceAction) Valid() bool {
+	switch e {
+	case AdoptionServiceActionAdopt:
+		return true
+	case AdoptionServiceActionLeave:
+		return true
+	case AdoptionServiceActionReattach:
+		return true
+	case AdoptionServiceActionRemove:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdoptionServiceKind.
+const (
+	AdoptionServiceKindApp      AdoptionServiceKind = "app"
+	AdoptionServiceKindDatabase AdoptionServiceKind = "database"
+	AdoptionServiceKindRoute    AdoptionServiceKind = "route"
+	AdoptionServiceKindStack    AdoptionServiceKind = "stack"
+	AdoptionServiceKindWorker   AdoptionServiceKind = "worker"
+)
+
+// Valid indicates whether the value is a known member of the AdoptionServiceKind enum.
+func (e AdoptionServiceKind) Valid() bool {
+	switch e {
+	case AdoptionServiceKindApp:
+		return true
+	case AdoptionServiceKindDatabase:
+		return true
+	case AdoptionServiceKindRoute:
+		return true
+	case AdoptionServiceKindStack:
+		return true
+	case AdoptionServiceKindWorker:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AdoptionServiceChoiceAction.
+const (
+	AdoptionServiceChoiceActionAdopt  AdoptionServiceChoiceAction = "adopt"
+	AdoptionServiceChoiceActionLeave  AdoptionServiceChoiceAction = "leave"
+	AdoptionServiceChoiceActionRemove AdoptionServiceChoiceAction = "remove"
+)
+
+// Valid indicates whether the value is a known member of the AdoptionServiceChoiceAction enum.
+func (e AdoptionServiceChoiceAction) Valid() bool {
+	switch e {
+	case AdoptionServiceChoiceActionAdopt:
+		return true
+	case AdoptionServiceChoiceActionLeave:
+		return true
+	case AdoptionServiceChoiceActionRemove:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ApprovalRequesterKind.
 const (
 	ApprovalRequesterKindMcp   ApprovalRequesterKind = "mcp"
@@ -2435,6 +2549,7 @@ func (e DeploymentViewStrategy) Valid() bool {
 
 // Defines values for DeploymentViewTrigger.
 const (
+	DeploymentViewTriggerAdopt      DeploymentViewTrigger = "adopt"
 	DeploymentViewTriggerCron       DeploymentViewTrigger = "cron"
 	DeploymentViewTriggerDeployHook DeploymentViewTrigger = "deploy_hook"
 	DeploymentViewTriggerDrain      DeploymentViewTrigger = "drain"
@@ -2450,6 +2565,8 @@ const (
 // Valid indicates whether the value is a known member of the DeploymentViewTrigger enum.
 func (e DeploymentViewTrigger) Valid() bool {
 	switch e {
+	case DeploymentViewTriggerAdopt:
+		return true
 	case DeploymentViewTriggerCron:
 		return true
 	case DeploymentViewTriggerDeployHook:
@@ -2523,6 +2640,7 @@ const (
 	DomainCertSourceCustom   DomainCertSource = "custom"
 	DomainCertSourceDns01    DomainCertSource = "dns01"
 	DomainCertSourceNone     DomainCertSource = "none"
+	DomainCertSourceTunnel   DomainCertSource = "tunnel"
 	DomainCertSourceWildcard DomainCertSource = "wildcard"
 )
 
@@ -2536,6 +2654,8 @@ func (e DomainCertSource) Valid() bool {
 	case DomainCertSourceDns01:
 		return true
 	case DomainCertSourceNone:
+		return true
+	case DomainCertSourceTunnel:
 		return true
 	case DomainCertSourceWildcard:
 		return true
@@ -2840,6 +2960,7 @@ func (e EnvDeploymentViewStrategy) Valid() bool {
 
 // Defines values for EnvDeploymentViewTrigger.
 const (
+	EnvDeploymentViewTriggerAdopt      EnvDeploymentViewTrigger = "adopt"
 	EnvDeploymentViewTriggerCron       EnvDeploymentViewTrigger = "cron"
 	EnvDeploymentViewTriggerDeployHook EnvDeploymentViewTrigger = "deploy_hook"
 	EnvDeploymentViewTriggerDrain      EnvDeploymentViewTrigger = "drain"
@@ -2855,6 +2976,8 @@ const (
 // Valid indicates whether the value is a known member of the EnvDeploymentViewTrigger enum.
 func (e EnvDeploymentViewTrigger) Valid() bool {
 	switch e {
+	case EnvDeploymentViewTriggerAdopt:
+		return true
 	case EnvDeploymentViewTriggerCron:
 		return true
 	case EnvDeploymentViewTriggerDeployHook:
@@ -5690,6 +5813,7 @@ func (e RollbackViewStrategy) Valid() bool {
 
 // Defines values for RollbackViewTrigger.
 const (
+	RollbackViewTriggerAdopt      RollbackViewTrigger = "adopt"
 	RollbackViewTriggerCron       RollbackViewTrigger = "cron"
 	RollbackViewTriggerDeployHook RollbackViewTrigger = "deploy_hook"
 	RollbackViewTriggerDrain      RollbackViewTrigger = "drain"
@@ -5705,6 +5829,8 @@ const (
 // Valid indicates whether the value is a known member of the RollbackViewTrigger enum.
 func (e RollbackViewTrigger) Valid() bool {
 	switch e {
+	case RollbackViewTriggerAdopt:
+		return true
 	case RollbackViewTriggerCron:
 		return true
 	case RollbackViewTriggerDeployHook:
@@ -6036,6 +6162,24 @@ func (e ServerStatus) Valid() bool {
 	}
 }
 
+// Defines values for ServerAdoptionState.
+const (
+	ServerAdoptionStateEmpty ServerAdoptionState = ""
+	ServerAdoptionStateHeld  ServerAdoptionState = "held"
+)
+
+// Valid indicates whether the value is a known member of the ServerAdoptionState enum.
+func (e ServerAdoptionState) Valid() bool {
+	switch e {
+	case ServerAdoptionStateEmpty:
+		return true
+	case ServerAdoptionStateHeld:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ServerCertificateChange.
 const (
 	ServerCertificateChangeAdd    ServerCertificateChange = "add"
@@ -6128,8 +6272,9 @@ func (e ServerPatchSummaryBusy) Valid() bool {
 
 // Defines values for ServerRemovalMode.
 const (
-	ServerRemovalModeClean  ServerRemovalMode = "clean"
-	ServerRemovalModeForget ServerRemovalMode = "forget"
+	ServerRemovalModeClean   ServerRemovalMode = "clean"
+	ServerRemovalModeForget  ServerRemovalMode = "forget"
+	ServerRemovalModeRelease ServerRemovalMode = "release"
 )
 
 // Valid indicates whether the value is a known member of the ServerRemovalMode enum.
@@ -6138,6 +6283,8 @@ func (e ServerRemovalMode) Valid() bool {
 	case ServerRemovalModeClean:
 		return true
 	case ServerRemovalModeForget:
+		return true
+	case ServerRemovalModeRelease:
 		return true
 	default:
 		return false
@@ -8279,8 +8426,9 @@ func (e ListRegistryImagesParamsState) Valid() bool {
 
 // Defines values for RemoveServerParamsMode.
 const (
-	RemoveServerParamsModeClean  RemoveServerParamsMode = "clean"
-	RemoveServerParamsModeForget RemoveServerParamsMode = "forget"
+	RemoveServerParamsModeClean   RemoveServerParamsMode = "clean"
+	RemoveServerParamsModeForget  RemoveServerParamsMode = "forget"
+	RemoveServerParamsModeRelease RemoveServerParamsMode = "release"
 )
 
 // Valid indicates whether the value is a known member of the RemoveServerParamsMode enum.
@@ -8289,6 +8437,8 @@ func (e RemoveServerParamsMode) Valid() bool {
 	case RemoveServerParamsModeClean:
 		return true
 	case RemoveServerParamsModeForget:
+		return true
+	case RemoveServerParamsModeRelease:
 		return true
 	default:
 		return false
@@ -8692,6 +8842,184 @@ type AddReplicaResult struct {
 // AdminProvidersOutputBody defines model for AdminProvidersOutputBody.
 type AdminProvidersOutputBody struct {
 	Items *[]ProviderBody `json:"items"`
+}
+
+// AdoptedService defines model for AdoptedService.
+type AdoptedService struct {
+	EnvSlug       string `json:"envSlug"`
+	EnvironmentId string `json:"environmentId"`
+	Id            string `json:"id"`
+	Name          string `json:"name"`
+	ProjectId     string `json:"projectId"`
+	ProjectSlug   string `json:"projectSlug"`
+	Slug          string `json:"slug"`
+}
+
+// AdoptionApplyRequest defines model for AdoptionApplyRequest.
+type AdoptionApplyRequest struct {
+	Choices *AdoptionChoices `json:"choices,omitempty"`
+}
+
+// AdoptionChoices defines model for AdoptionChoices.
+type AdoptionChoices struct {
+	// Environments Keyed by the environment ID found on the containers
+	Environments *map[string]AdoptionEnvironmentChoice `json:"environments,omitempty"`
+
+	// Services Keyed by the service ID found on the containers
+	Services *map[string]AdoptionServiceChoice `json:"services,omitempty"`
+}
+
+// AdoptionContainer defines model for AdoptionContainer.
+type AdoptionContainer struct {
+	Leftover *bool  `json:"leftover,omitempty"`
+	Name     string `json:"name"`
+	State    string `json:"state"`
+}
+
+// AdoptionDatabase defines model for AdoptionDatabase.
+type AdoptionDatabase struct {
+	DatabaseName *string `json:"databaseName,omitempty"`
+	Engine       string  `json:"engine"`
+	Flavor       *string `json:"flavor,omitempty"`
+	Username     *string `json:"username,omitempty"`
+	Version      string  `json:"version"`
+}
+
+// AdoptionDomain defines model for AdoptionDomain.
+type AdoptionDomain struct {
+	Host       string  `json:"host"`
+	Include    bool    `json:"include"`
+	Note       *string `json:"note,omitempty"`
+	PathPrefix *string `json:"pathPrefix,omitempty"`
+	TargetPort *int64  `json:"targetPort,omitempty"`
+}
+
+// AdoptionEnvironment defines model for AdoptionEnvironment.
+type AdoptionEnvironment struct {
+	Action AdoptionEnvironmentAction `json:"action"`
+
+	// Id The environment ID found on the containers; the rebuilt environment keeps it
+	Id            string                           `json:"id"`
+	Name          string                           `json:"name"`
+	Production    bool                             `json:"production"`
+	ProjectAction AdoptionEnvironmentProjectAction `json:"projectAction"`
+	ProjectId     *string                          `json:"projectId,omitempty"`
+	ProjectName   string                           `json:"projectName"`
+	ProjectSlug   *string                          `json:"projectSlug,omitempty"`
+	Services      *[]AdoptionService               `json:"services"`
+	Slug          string                           `json:"slug"`
+}
+
+// AdoptionEnvironmentAction defines model for AdoptionEnvironment.Action.
+type AdoptionEnvironmentAction string
+
+// AdoptionEnvironmentProjectAction defines model for AdoptionEnvironment.ProjectAction.
+type AdoptionEnvironmentProjectAction string
+
+// AdoptionEnvironmentChoice defines model for AdoptionEnvironmentChoice.
+type AdoptionEnvironmentChoice struct {
+	Name        *string `json:"name,omitempty"`
+	Production  *bool   `json:"production,omitempty"`
+	ProjectId   *string `json:"projectId,omitempty"`
+	ProjectName *string `json:"projectName,omitempty"`
+}
+
+// AdoptionPlan defines model for AdoptionPlan.
+type AdoptionPlan struct {
+	Blockers     *[]string              `json:"blockers"`
+	Environments *[]AdoptionEnvironment `json:"environments"`
+
+	// Held True while the server is held for adoption: nothing on it is changed until the review is applied
+	Held     bool           `json:"held"`
+	ServerId string         `json:"serverId"`
+	Totals   AdoptionTotals `json:"totals"`
+	Warnings *[]string      `json:"warnings"`
+}
+
+// AdoptionPlanRequest defines model for AdoptionPlanRequest.
+type AdoptionPlanRequest struct {
+	Choices *AdoptionChoices `json:"choices,omitempty"`
+}
+
+// AdoptionProject defines model for AdoptionProject.
+type AdoptionProject struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+	Slug string `json:"slug"`
+}
+
+// AdoptionResult defines model for AdoptionResult.
+type AdoptionResult struct {
+	Left       int64              `json:"left"`
+	Projects   *[]AdoptionProject `json:"projects"`
+	Reattached int64              `json:"reattached"`
+	Removed    int64              `json:"removed"`
+	Services   *[]AdoptedService  `json:"services"`
+	Warnings   *[]string          `json:"warnings"`
+}
+
+// AdoptionService defines model for AdoptionService.
+type AdoptionService struct {
+	Action       AdoptionServiceAction `json:"action"`
+	Adoptable    bool                  `json:"adoptable"`
+	Containers   *[]AdoptionContainer  `json:"containers"`
+	Database     *AdoptionDatabase     `json:"database,omitempty"`
+	DeploymentId *string               `json:"deploymentId,omitempty"`
+	Domains      *[]AdoptionDomain     `json:"domains"`
+	Env          *[]AdoptionVariable   `json:"env"`
+
+	// Id The service ID found on the containers; the rebuilt service keeps it
+	Id         string              `json:"id"`
+	Image      *string             `json:"image,omitempty"`
+	Kind       AdoptionServiceKind `json:"kind"`
+	Name       string              `json:"name"`
+	Notes      *[]string           `json:"notes"`
+	Processes  *[]string           `json:"processes"`
+	Reason     *string             `json:"reason,omitempty"`
+	ReleaseId  *string             `json:"releaseId,omitempty"`
+	Replicas   int64               `json:"replicas"`
+	Slug       string              `json:"slug"`
+	SourceType string              `json:"sourceType"`
+	Volumes    *[]AdoptionVolume   `json:"volumes"`
+}
+
+// AdoptionServiceAction defines model for AdoptionService.Action.
+type AdoptionServiceAction string
+
+// AdoptionServiceKind defines model for AdoptionService.Kind.
+type AdoptionServiceKind string
+
+// AdoptionServiceChoice defines model for AdoptionServiceChoice.
+type AdoptionServiceChoice struct {
+	Action    *AdoptionServiceChoiceAction `json:"action,omitempty"`
+	Name      *string                      `json:"name,omitempty"`
+	Secret    *map[string]bool             `json:"secret,omitempty"`
+	SkipHosts *[]string                    `json:"skipHosts,omitempty"`
+}
+
+// AdoptionServiceChoiceAction defines model for AdoptionServiceChoice.Action.
+type AdoptionServiceChoiceAction string
+
+// AdoptionTotals defines model for AdoptionTotals.
+type AdoptionTotals struct {
+	Adopt      int64 `json:"adopt"`
+	Containers int64 `json:"containers"`
+	Leave      int64 `json:"leave"`
+	Remove     int64 `json:"remove"`
+}
+
+// AdoptionVariable defines model for AdoptionVariable.
+type AdoptionVariable struct {
+	Key          string  `json:"key"`
+	Secret       bool    `json:"secret"`
+	SecretReason *string `json:"secretReason,omitempty"`
+}
+
+// AdoptionVolume defines model for AdoptionVolume.
+type AdoptionVolume struct {
+	DockerName *string `json:"dockerName,omitempty"`
+	MountPath  string  `json:"mountPath"`
+	Name       string  `json:"name"`
 }
 
 // ApplyConfigRequest defines model for ApplyConfigRequest.
@@ -12784,23 +13112,24 @@ type FacetValue struct {
 
 // Facts defines model for Facts.
 type Facts struct {
-	AgentUpgrade   *UpgradeReport    `json:"agentUpgrade,omitempty"`
-	Arch           string            `json:"arch"`
-	Capabilities   *[]string         `json:"capabilities,omitempty"`
-	CgroupVersion  string            `json:"cgroupVersion"`
-	ComposeVersion *string           `json:"composeVersion,omitempty"`
-	Cpus           int64             `json:"cpus"`
-	DiskTotal      int64             `json:"diskTotal"`
-	DockerVersion  string            `json:"dockerVersion"`
-	Emulation      *[]string         `json:"emulation,omitempty"`
-	HostSysctls    *map[string]int64 `json:"hostSysctls,omitempty"`
-	HostTailscale  *HostTailscale    `json:"hostTailscale,omitempty"`
-	Kernel         string            `json:"kernel"`
-	MemTotal       int64             `json:"memTotal"`
-	Os             string            `json:"os"`
-	Port443Free    bool              `json:"port443Free"`
-	Port80Free     bool              `json:"port80Free"`
-	TunDevice      *bool             `json:"tunDevice,omitempty"`
+	AgentUpgrade    *UpgradeReport    `json:"agentUpgrade,omitempty"`
+	Arch            string            `json:"arch"`
+	Capabilities    *[]string         `json:"capabilities,omitempty"`
+	CgroupVersion   string            `json:"cgroupVersion"`
+	ComposeVersion  *string           `json:"composeVersion,omitempty"`
+	Cpus            int64             `json:"cpus"`
+	DiskTotal       int64             `json:"diskTotal"`
+	DockerVersion   string            `json:"dockerVersion"`
+	Emulation       *[]string         `json:"emulation,omitempty"`
+	HostSysctls     *map[string]int64 `json:"hostSysctls,omitempty"`
+	HostTailscale   *HostTailscale    `json:"hostTailscale,omitempty"`
+	Kernel          string            `json:"kernel"`
+	ManagedServices *[]string         `json:"managedServices,omitempty"`
+	MemTotal        int64             `json:"memTotal"`
+	Os              string            `json:"os"`
+	Port443Free     bool              `json:"port443Free"`
+	Port80Free      bool              `json:"port80Free"`
+	TunDevice       *bool             `json:"tunDevice,omitempty"`
 }
 
 // FieldChange defines model for FieldChange.
@@ -17208,10 +17537,11 @@ type SeriesPoint struct {
 // Server defines model for Server.
 type Server struct {
 	// AcceptWorkloads Whether services may be scheduled on this server. Turning it off keeps what already runs here and refuses new placements and moves.
-	AcceptWorkloads bool    `json:"acceptWorkloads"`
-	AcmeEmail       *string `json:"acmeEmail"`
-	AgentVersion    *string `json:"agentVersion"`
-	BaseDomain      *string `json:"baseDomain"`
+	AcceptWorkloads bool            `json:"acceptWorkloads"`
+	AcmeEmail       *string         `json:"acmeEmail"`
+	Adoption        *ServerAdoption `json:"adoption,omitempty"`
+	AgentVersion    *string         `json:"agentVersion"`
+	BaseDomain      *string         `json:"baseDomain"`
 
 	// BuildAllowEmulation Allow building for another CPU architecture through emulation (slow); needs the agent to report emulation for the platform
 	BuildAllowEmulation bool `json:"buildAllowEmulation"`
@@ -17301,6 +17631,21 @@ type ServerGeoSource string
 
 // ServerStatus defines model for Server.Status.
 type ServerStatus string
+
+// ServerAdoption defines model for ServerAdoption.
+type ServerAdoption struct {
+	// Found Services of an earlier NebulaCtrl found on the host while held
+	Found int64 `json:"found"`
+
+	// State held: nothing on the host is changed until the workloads are reviewed; empty once reviewed
+	State ServerAdoptionState `json:"state"`
+
+	// Unmanaged Services left running on the host without being managed
+	Unmanaged int64 `json:"unmanaged"`
+}
+
+// ServerAdoptionState held: nothing on the host is changed until the workloads are reviewed; empty once reviewed
+type ServerAdoptionState string
 
 // ServerCertificate defines model for ServerCertificate.
 type ServerCertificate struct {
@@ -20977,12 +21322,18 @@ type RemoveServerParams struct {
 	// Confirm The server's name
 	Confirm *string `form:"confirm,omitempty" json:"confirm,omitempty"`
 
-	// Mode clean empties the host through the agent first; forget leaves the host as it is
+	// Mode clean empties the host through the agent first; forget leaves the host as it is; release also deletes the services placed on the server without touching the host, for another NebulaCtrl to adopt
 	Mode *RemoveServerParamsMode `form:"mode,omitempty" json:"mode,omitempty"`
 }
 
 // RemoveServerParamsMode defines parameters for RemoveServer.
 type RemoveServerParamsMode string
+
+// AdoptServerParams defines parameters for AdoptServer.
+type AdoptServerParams struct {
+	// IdempotencyKey Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
+	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
+}
 
 // UpgradeServerAgentParams defines parameters for UpgradeServerAgent.
 type UpgradeServerAgentParams struct {
@@ -21891,6 +22242,12 @@ type CreateEnrollmentTokenJSONRequestBody = CreateTokenInputBody1
 
 // UpdateServerJSONRequestBody defines body for UpdateServer for application/json ContentType.
 type UpdateServerJSONRequestBody = UpdateServerInputBody
+
+// AdoptServerJSONRequestBody defines body for AdoptServer for application/json ContentType.
+type AdoptServerJSONRequestBody = AdoptionApplyRequest
+
+// PlanServerAdoptionJSONRequestBody defines body for PlanServerAdoption for application/json ContentType.
+type PlanServerAdoptionJSONRequestBody = AdoptionPlanRequest
 
 // UpgradeServerAgentJSONRequestBody defines body for UpgradeServerAgent for application/json ContentType.
 type UpgradeServerAgentJSONRequestBody = ServerInputBody
@@ -25010,7 +25367,7 @@ type ClientInterface interface {
 
 	// RemoveServer Remove a server
 	//
-	// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). Both need `confirm=<the server's name>` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them) and for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
+	// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
 	//
 	// Corresponds with DELETE /servers/{serverId} (the `RemoveServer` operationId).
 	RemoveServer(ctx context.Context, serverId string, params *RemoveServerParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -25033,6 +25390,42 @@ type ClientInterface interface {
 	//
 	// Corresponds with PATCH /servers/{serverId} (the `UpdateServer` operationId).
 	UpdateServer(ctx context.Context, serverId string, body UpdateServerJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptServerWithBody Adopt the workloads of a server
+	//
+	// Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /servers/{serverId}/adoption (the `AdoptServer` operationId).
+	AdoptServerWithBody(ctx context.Context, serverId string, params *AdoptServerParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// AdoptServer Adopt the workloads of a server
+	//
+	// Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /servers/{serverId}/adoption (the `AdoptServer` operationId).
+	AdoptServer(ctx context.Context, serverId string, params *AdoptServerParams, body AdoptServerJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PlanServerAdoptionWithBody Review the workloads of a server
+	//
+	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with POST /servers/{serverId}/adoption/plan (the `PlanServerAdoption` operationId).
+	PlanServerAdoptionWithBody(ctx context.Context, serverId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// PlanServerAdoption Review the workloads of a server
+	//
+	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with POST /servers/{serverId}/adoption/plan (the `PlanServerAdoption` operationId).
+	PlanServerAdoption(ctx context.Context, serverId string, body PlanServerAdoptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UpgradeServerAgentWithBody Upgrade one server's agent to the control plane's version
 	//
@@ -33862,7 +34255,7 @@ func (c *Client) CreateEnrollmentToken(ctx context.Context, params *CreateEnroll
 
 // RemoveServer Remove a server
 //
-// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). Both need `confirm=<the server's name>` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them) and for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
+// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
 //
 // Corresponds with DELETE /servers/{serverId} (the `RemoveServer` operationId).
 func (c *Client) RemoveServer(ctx context.Context, serverId string, params *RemoveServerParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -33916,6 +34309,82 @@ func (c *Client) UpdateServerWithBody(ctx context.Context, serverId string, cont
 // Corresponds with PATCH /servers/{serverId} (the `UpdateServer` operationId).
 func (c *Client) UpdateServer(ctx context.Context, serverId string, body UpdateServerJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewUpdateServerRequest(c.Server, serverId, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptServerWithBody Adopt the workloads of a server
+//
+// Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /servers/{serverId}/adoption (the `AdoptServer` operationId).
+func (c *Client) AdoptServerWithBody(ctx context.Context, serverId string, params *AdoptServerParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptServerRequestWithBody(c.Server, serverId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// AdoptServer Adopt the workloads of a server
+//
+// Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /servers/{serverId}/adoption (the `AdoptServer` operationId).
+func (c *Client) AdoptServer(ctx context.Context, serverId string, params *AdoptServerParams, body AdoptServerJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewAdoptServerRequest(c.Server, serverId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PlanServerAdoptionWithBody Review the workloads of a server
+//
+// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with POST /servers/{serverId}/adoption/plan (the `PlanServerAdoption` operationId).
+func (c *Client) PlanServerAdoptionWithBody(ctx context.Context, serverId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPlanServerAdoptionRequestWithBody(c.Server, serverId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// PlanServerAdoption Review the workloads of a server
+//
+// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with POST /servers/{serverId}/adoption/plan (the `PlanServerAdoption` operationId).
+func (c *Client) PlanServerAdoption(ctx context.Context, serverId string, body PlanServerAdoptionJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPlanServerAdoptionRequest(c.Server, serverId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -51091,6 +51560,115 @@ func NewUpdateServerRequestWithBody(server string, serverId string, contentType 
 	return req, nil
 }
 
+// NewAdoptServerRequest calls the generic AdoptServer builder with application/json body
+func NewAdoptServerRequest(server string, serverId string, params *AdoptServerParams, body AdoptServerJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewAdoptServerRequestWithBody(server, serverId, params, "application/json", bodyReader)
+}
+
+// NewAdoptServerRequestWithBody constructs an http.Request for the AdoptServer method, with any body, and a specified content type
+func NewAdoptServerRequestWithBody(server string, serverId string, params *AdoptServerParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serverId", serverId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/adoption", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.IdempotencyKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", *params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Idempotency-Key", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewPlanServerAdoptionRequest calls the generic PlanServerAdoption builder with application/json body
+func NewPlanServerAdoptionRequest(server string, serverId string, body PlanServerAdoptionJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPlanServerAdoptionRequestWithBody(server, serverId, "application/json", bodyReader)
+}
+
+// NewPlanServerAdoptionRequestWithBody constructs an http.Request for the PlanServerAdoption method, with any body, and a specified content type
+func NewPlanServerAdoptionRequestWithBody(server string, serverId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serverId", serverId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/adoption/plan", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewUpgradeServerAgentRequest calls the generic UpgradeServerAgent builder with application/json body
 func NewUpgradeServerAgentRequest(server string, serverId string, params *UpgradeServerAgentParams, body UpgradeServerAgentJSONRequestBody) (*http.Request, error) {
 	var bodyReader io.Reader
@@ -64872,7 +65450,7 @@ type ClientWithResponsesInterface interface {
 
 	// RemoveServerWithResponse Remove a server
 	//
-	// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). Both need `confirm=<the server's name>` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them) and for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
+	// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -64899,6 +65477,42 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PATCH /servers/{serverId} (the `UpdateServer` operationId).
 	UpdateServerWithResponse(ctx context.Context, serverId string, body UpdateServerJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateServerResponse, error)
+
+	// AdoptServerWithBodyWithResponse Adopt the workloads of a server
+	//
+	// Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{serverId}/adoption (the `AdoptServer` operationId).
+	AdoptServerWithBodyWithResponse(ctx context.Context, serverId string, params *AdoptServerParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptServerResponse, error)
+
+	// AdoptServerWithResponse Adopt the workloads of a server
+	//
+	// Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{serverId}/adoption (the `AdoptServer` operationId).
+	AdoptServerWithResponse(ctx context.Context, serverId string, params *AdoptServerParams, body AdoptServerJSONRequestBody, reqEditors ...RequestEditorFn) (*AdoptServerResponse, error)
+
+	// PlanServerAdoptionWithBodyWithResponse Review the workloads of a server
+	//
+	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{serverId}/adoption/plan (the `PlanServerAdoption` operationId).
+	PlanServerAdoptionWithBodyWithResponse(ctx context.Context, serverId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PlanServerAdoptionResponse, error)
+
+	// PlanServerAdoptionWithResponse Review the workloads of a server
+	//
+	// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with POST /servers/{serverId}/adoption/plan (the `PlanServerAdoption` operationId).
+	PlanServerAdoptionWithResponse(ctx context.Context, serverId string, body PlanServerAdoptionJSONRequestBody, reqEditors ...RequestEditorFn) (*PlanServerAdoptionResponse, error)
 
 	// UpgradeServerAgentWithBodyWithResponse Upgrade one server's agent to the control plane's version
 	//
@@ -89067,6 +89681,214 @@ func (r UpdateServerResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r UpdateServerResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type AdoptServerResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON201 the response for an HTTP 201 `application/json` response
+	JSON201 *AdoptionResult
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Error
+	// ApplicationproblemJSON504 the response for an HTTP 504 `application/problem+json` response
+	ApplicationproblemJSON504 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON201 returns the response for an HTTP 201 `application/json` response
+func (r AdoptServerResponse) GetJSON201() *AdoptionResult {
+	return r.JSON201
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSON503() *Error {
+	return r.ApplicationproblemJSON503
+}
+
+// GetApplicationproblemJSON504 returns the response for an HTTP 504 `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSON504() *Error {
+	return r.ApplicationproblemJSON504
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r AdoptServerResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r AdoptServerResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r AdoptServerResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r AdoptServerResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r AdoptServerResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type PlanServerAdoptionResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AdoptionPlan
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSON503 the response for an HTTP 503 `application/problem+json` response
+	ApplicationproblemJSON503 *Error
+	// ApplicationproblemJSON504 the response for an HTTP 504 `application/problem+json` response
+	ApplicationproblemJSON504 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r PlanServerAdoptionResponse) GetJSON200() *AdoptionPlan {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSON503 returns the response for an HTTP 503 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON503() *Error {
+	return r.ApplicationproblemJSON503
+}
+
+// GetApplicationproblemJSON504 returns the response for an HTTP 504 `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSON504() *Error {
+	return r.ApplicationproblemJSON504
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r PlanServerAdoptionResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r PlanServerAdoptionResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r PlanServerAdoptionResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r PlanServerAdoptionResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r PlanServerAdoptionResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -113273,7 +114095,7 @@ func (c *ClientWithResponses) CreateEnrollmentTokenWithResponse(ctx context.Cont
 
 // RemoveServerWithResponse Remove a server
 //
-// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). Both need `confirm=<the server's name>` and are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them) and for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
+// Deletes the server. `mode=clean` (the default) first has the agent remove every container, network and volume NebulaCtrl manages on the host (the proxy and platform containers included) and then itself: its identity, systemd unit and files, as `install-agent.sh --uninstall --purge` does; Docker and everything that is not NebulaCtrl's stay. That takes a while, so it answers 202 and the server shows its `removal` state until it is deleted (or `removal.state` is `failed` with the reason: remove again to retry). `mode=forget`, and any offline server, revokes the agent and deletes the server at once (200) without touching the host: its containers keep running and the agent's files stay (`hostUntouched`). `mode=release` does the same and also deletes the services placed on the server (soft delete, no command reaches the host) so another NebulaCtrl can adopt them; it is refused while a deployment is in progress (409 `deployment_in_progress`). Every mode needs `confirm=<the server's name>`. Clean and forget are refused while services are placed on the server (409 `server_has_services`, `details.projects` lists them); every mode is refused for the server the control plane runs on (409 `server_is_control_plane`). Clean needs an agent that advertises `canDecommission` (409 `agent_cannot_decommission`). Audited as `server.removed`. Admin scope; denied to MCP agents.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -113323,6 +114145,66 @@ func (c *ClientWithResponses) UpdateServerWithResponse(ctx context.Context, serv
 		return nil, err
 	}
 	return ParseUpdateServerResponse(rsp)
+}
+
+// AdoptServerWithBodyWithResponse Adopt the workloads of a server
+//
+// Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{serverId}/adoption (the `AdoptServer` operationId).
+func (c *ClientWithResponses) AdoptServerWithBodyWithResponse(ctx context.Context, serverId string, params *AdoptServerParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*AdoptServerResponse, error) {
+	rsp, err := c.AdoptServerWithBody(ctx, serverId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdoptServerResponse(rsp)
+}
+
+// AdoptServerWithResponse Adopt the workloads of a server
+//
+// Rebuilds the services of a plan around their running containers with the IDs found on them: no container is recreated or restarted and no deployment runs. Services chosen as `leave` keep running unmanaged and are never removed; `remove` services are removed once the review ends. The request must match a plan without blockers; the plan is recomputed from the host. Ends the hold on the server. Needs servers:write, projects:write and deployments:write and an unrestricted token.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{serverId}/adoption (the `AdoptServer` operationId).
+func (c *ClientWithResponses) AdoptServerWithResponse(ctx context.Context, serverId string, params *AdoptServerParams, body AdoptServerJSONRequestBody, reqEditors ...RequestEditorFn) (*AdoptServerResponse, error) {
+	rsp, err := c.AdoptServer(ctx, serverId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseAdoptServerResponse(rsp)
+}
+
+// PlanServerAdoptionWithBodyWithResponse Review the workloads of a server
+//
+// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{serverId}/adoption/plan (the `PlanServerAdoption` operationId).
+func (c *ClientWithResponses) PlanServerAdoptionWithBodyWithResponse(ctx context.Context, serverId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PlanServerAdoptionResponse, error) {
+	rsp, err := c.PlanServerAdoptionWithBody(ctx, serverId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePlanServerAdoptionResponse(rsp)
+}
+
+// PlanServerAdoptionWithResponse Review the workloads of a server
+//
+// Asks the server's agent for the NebulaCtrl workloads already running on the host (containers labelled by an earlier NebulaCtrl, their volumes and proxy routes) and returns how each project, environment, service, volume, variable and domain would be rebuilt around them, reusing the IDs found on the containers so nothing is recreated or restarted. Variables are listed by key; values are never returned. `choices` change the defaults; send the same body again to see the effect. Nothing is written. 409 `nothing_to_adopt` when no workloads of an earlier NebulaCtrl are on the host. Needs servers:write, projects:write and an unrestricted token.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with POST /servers/{serverId}/adoption/plan (the `PlanServerAdoption` operationId).
+func (c *ClientWithResponses) PlanServerAdoptionWithResponse(ctx context.Context, serverId string, body PlanServerAdoptionJSONRequestBody, reqEditors ...RequestEditorFn) (*PlanServerAdoptionResponse, error) {
+	rsp, err := c.PlanServerAdoption(ctx, serverId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePlanServerAdoptionResponse(rsp)
 }
 
 // UpgradeServerAgentWithBodyWithResponse Upgrade one server's agent to the control plane's version
@@ -135528,6 +136410,184 @@ func ParseUpdateServerResponse(rsp *http.Response) (*UpdateServerResponse, error
 			return nil, err
 		}
 		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseAdoptServerResponse parses an HTTP response from a AdoptServerWithResponse call
+func ParseAdoptServerResponse(rsp *http.Response) (*AdoptServerResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &AdoptServerResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 201:
+		var dest AdoptionResult
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON201 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON504 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParsePlanServerAdoptionResponse parses an HTTP response from a PlanServerAdoptionWithResponse call
+func ParsePlanServerAdoptionResponse(rsp *http.Response) (*PlanServerAdoptionResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &PlanServerAdoptionResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AdoptionPlan
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 503:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON503 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 504:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON504 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
 		var dest Error

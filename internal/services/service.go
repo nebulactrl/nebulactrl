@@ -333,6 +333,9 @@ const (
 	DrainStateFailed   = "failed"
 )
 
+// AdoptionStateHeld is servers.adoption_state of a server held for adoption.
+const AdoptionStateHeld = "held"
+
 // ServerDrainingError is the 422 returned when placing a service on a server
 // that is being (or has been) drained.
 func ServerDrainingError(name string) *apierr.Error {
@@ -343,4 +346,14 @@ func ServerDrainingError(name string) *apierr.Error {
 // server whose "Accept workloads" setting is off.
 func ServerNotAcceptingError(name string) *apierr.Error {
 	return apierr.Unprocessable("server_not_accepting_workloads", fmt.Sprintf("%s does not accept workloads; turn on \"Accept workloads\" in its settings to schedule services there", name))
+}
+
+// CodeServerAdoptionPending is the error code of ServerAdoptionPendingError.
+const CodeServerAdoptionPending = "server_adoption_pending"
+
+// ServerAdoptionPendingError is the 409 returned when placing or deploying a
+// service on a server held for adoption: it runs workloads of an earlier
+// NebulaCtrl that must be reviewed first.
+func ServerAdoptionPendingError() *apierr.Error {
+	return apierr.Conflict(CodeServerAdoptionPending, "This server runs workloads from an earlier NebulaCtrl. Review the adoption first (Servers → server → Review workloads).")
 }

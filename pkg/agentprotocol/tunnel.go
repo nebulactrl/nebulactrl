@@ -1,13 +1,18 @@
 package agentprotocol
 
+import "strconv"
+
 // Cloudflare Tunnel per server. A pinned
 // cloudflare/cloudflared container joins the edge network next to the proxy and
-// forwards every public hostname to the proxy's web entrypoint
-// (http://nebulactrl-traefik:80). The tunnel itself is created, configured and
-// deleted by the control plane through the Cloudflare API; the agent only runs
-// the connector. The spec never carries the tunnel token: it travels in
-// Command.Secrets under SecretTunnelToken, is fetched from the Cloudflare API at
-// send time and is never persisted by the control plane.
+// forwards every public hostname to the proxy's tunnel entrypoint
+// (TunnelUpstream). That entrypoint is never published on the host and is the
+// only one that serves tunnelled domains, so a tunnelled hostname cannot be
+// reached through the server's public ports, around Cloudflare. The tunnel
+// itself is created, configured and deleted by the control plane through the
+// Cloudflare API; the agent only runs the connector. The spec never carries the
+// tunnel token: it travels in Command.Secrets under SecretTunnelToken, is
+// fetched from the Cloudflare API at send time and is never persisted by the
+// control plane.
 
 const (
 	// KindSyncTunnel ensures the cloudflared container (create, or recreate on a
@@ -30,6 +35,25 @@ func init() {
 // agent_too_old) on a server without it.
 const CapTunnel = "tunnel.cloudflared"
 
+// CapTunnelEntrypoint is advertised by agents whose proxy serves tunnelled
+// domains on the tunnel entrypoint (ProxyTunnelPort) and on no public
+// entrypoint. The control plane points a tunnel's ingress at TunnelUpstream
+// only for such an agent; an older agent's proxy has no tunnel entrypoint and
+// serves tunnelled domains on its web entrypoint (TunnelUpstreamWeb) until it
+// is updated.
+const CapTunnelEntrypoint = "proxy.tunnel-entrypoint"
+
+// Ingress targets of a tunnel; the control plane picks one per server by
+// CapTunnelEntrypoint.
+var (
+	// TunnelUpstream is the proxy's tunnel entrypoint on the edge network (plain
+	// HTTP; Cloudflare ends the public TLS).
+	TunnelUpstream = "http://" + ProxyContainer + ":" + strconv.Itoa(ProxyTunnelPort)
+	// TunnelUpstreamWeb is the proxy's plain-HTTP web entrypoint, for an agent
+	// without CapTunnelEntrypoint.
+	TunnelUpstreamWeb = "http://" + ProxyContainer + ":80"
+)
+
 // SecretTunnelToken is the Command.Secrets key of the tunnel's connector token
 // (the remotely-managed tunnel token of the Cloudflare API).
 const SecretTunnelToken = "tunnel:token"
@@ -38,9 +62,6 @@ const SecretTunnelToken = "tunnel:token"
 const (
 	// TunnelContainer is the cloudflared container.
 	TunnelContainer = "nebulactrl-cloudflared"
-	// TunnelUpstream is where the tunnel's ingress rules send every request:
-	// the proxy's plain-HTTP entrypoint on the edge network.
-	TunnelUpstream = "http://" + ProxyContainer + ":80"
 	// TunnelCNAMESuffix completes a tunnel's DNS target: <tunnelId>.cfargotunnel.com.
 	TunnelCNAMESuffix = ".cfargotunnel.com"
 	// LabelTunnel carries the tunnel ID the container connects to.

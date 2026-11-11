@@ -167,12 +167,39 @@ func TestServerRoutesNameTheAutomaticCloudflareResolver(t *testing.T) {
 	c.exec(`UPDATE domains SET cf_zone_id = 'z1', cf_status = 'managed' WHERE hostname = 'new.example.com'`)
 	require.Equal(t, cf, c.resolvers()["new.example.com"])
 
-	// Tunnel names keep their behaviour: the server's tunnel serves every name of a connected zone.
+	// Tunnel names keep their behaviour: the server's tunnel serves every name of
+	// a connected zone whose CNAME points at it.
 	c.exec(`INSERT INTO server_tunnels (server_id, workspace_id, account_id, tunnel_id, tunnel_name, state, activated_at)
 		VALUES ($1, $2, 'acc', 't1', 'tunnel', 'online', now())`, c.srv.ID, c.ws.ID)
+	c.exec(`INSERT INTO cloudflare_records (zone_id, record_id, workspace_id, owner_kind, owner_id, hostname, type, content, proxied)
+		SELECT cf_zone_id, 'tun-' || id::text, $1, 'domain', id, hostname, 'CNAME', 't1.cfargotunnel.com', true FROM domains WHERE cf_zone_id <> ''`, c.ws.ID)
 	got = c.resolvers()
 	require.Empty(t, got["dnsonly.example.com"])
 	require.Empty(t, got["proxied.example.com"])
+
+	// A deploy hands the agent the service's own rules: they carry the same
+	// tunnel flags as the table, or a deploy would put tunnelled names back on
+	// the public ports until the next route push.
+	table, err := ServerRoutes(context.Background(), c.q, c.srv.ID, uuid.Nil)
+	require.NoError(t, err)
+	want := map[string]bool{}
+	for _, rt := range table {
+		for _, d := range rt.Domains {
+			want[d.ID] = d.Tunnel
+		}
+	}
+	rows, err := c.q.ListServiceDomains(context.Background(), c.svc.ID)
+	require.NoError(t, err)
+	dr, err := PrepareDeployRules(context.Background(), c.q, c.srv.ID, c.svc.ID, rows)
+	require.NoError(t, err)
+	tunnelled := 0
+	for _, d := range dr.Rules {
+		require.Equal(t, want[d.ID], d.Tunnel, d.Host)
+		if d.Tunnel {
+			tunnelled++
+		}
+	}
+	require.Positive(t, tunnelled)
 }
 
 // No certificate gap on the switch: the control plane's applied configuration

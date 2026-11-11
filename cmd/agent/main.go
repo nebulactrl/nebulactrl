@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -95,7 +96,7 @@ func newCommand() *cobra.Command {
 	}
 	f := cmd.Flags()
 	f.StringVar(&o.URL, "url", "", "control plane base URL (https://… or wss://…; http/ws only with --insecure-dev) [required]")
-	f.StringVar(&o.Token, "token", "", "one-time enrollment token (used only when no identity is stored)")
+	f.StringVar(&o.Token, "token", "", "one-time enrollment token (enrolls when no identity is stored; also replaces the stored identity once when the control plane does not know it)")
 	f.StringVar(&o.StateDir, "state-dir", "/var/lib/nebulactrl-agent", "directory for agent.db and build workspaces")
 	f.StringVar(&o.ProxyAdminURL, "proxy-admin-url", "", "URL of the proxy's admin entrypoint as seen from the agent (default http://127.0.0.1:<proxy-admin-port>; use http://nebulactrl-traefik:9000 when the agent runs in a container on the edge network)")
 	f.IntVar(&o.ProxyAdminPort, "proxy-admin-port", agentprotocol.ProxyAdminPort, "host port the proxy admin entrypoint is published on (127.0.0.1 only; not published when --proxy-admin-url targets the proxy container)")
@@ -276,18 +277,34 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 			return err // a restored previous binary: restart to run it
 		}
 	}
-	facts := collector.Facts
-	if upgrader != nil {
-		facts = func(ctx context.Context) agentprotocol.Facts {
-			f := collector.Facts(ctx)
+	// facts are the hello facts. An unreadable Docker daemon is an error (the
+	// hello waits for it): only a complete ManagedServices lets the control plane
+	// hold a newly added server that runs workloads it does not know. The facts
+	// returned with the error are complete otherwise.
+	facts := func(ctx context.Context) (agentprotocol.Facts, error) {
+		f := collector.Facts(ctx)
+		if upgrader != nil {
 			if upgrader.Supported() == nil {
 				f.Capabilities = append(slices.Clone(f.Capabilities), agentprotocol.CapAgentUpgrade)
 			}
 			f.AgentUpgrade = upgrader.Report()
-			return f
 		}
+		ids, err := engine.ManagedServiceIDs(ctx, eng)
+		if err != nil {
+			return f, fmt.Errorf("list the services of managed containers: %w", err)
+		}
+		f.ManagedServices = ids
+		return f, nil
 	}
-	enrollFacts := facts(ctx)
+	// enrollFacts are what enrollment records; the hold is decided on the hello,
+	// so enrollment goes ahead without the managed services.
+	enrollFacts := func(ctx context.Context) agentprotocol.Facts {
+		f, err := facts(ctx)
+		if err != nil {
+			log.Warn("enrolling without the managed containers", "err", err)
+		}
+		return f
+	}
 
 	identity, ok, err := st.Identity()
 	if err != nil {
@@ -299,7 +316,7 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 	if !ok || identity.Revoked {
 		hostname, _ := os.Hostname()
 		log.Info("enrolling with control plane", "url", eps.Enroll)
-		identity, err = conn.Enroll(ctx, st, eps.Enroll, o.Token, hostname, enrollFacts, nil)
+		identity, err = conn.Enroll(ctx, st, eps.Enroll, o.Token, hostname, enrollFacts(ctx), nil)
 		if err != nil {
 			return err
 		}
@@ -311,6 +328,10 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 	go px.Run(pxCtx)
 	go pruneCommandsLoop(ctx, log, st)
 
+	// reenrollTried lets the configured token replace the identity of an agent the
+	// control plane does not know, once per process: a used token must not be
+	// retried on every reconnect.
+	var reenrollTried atomic.Bool
 	client = conn.New(conn.Config{
 		URL:       eps.Connect,
 		Identity:  identity,
@@ -319,6 +340,19 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 		Facts:     facts,
 		Heartbeat: collector.Heartbeat,
 		Logger:    log,
+		OnUnknownAgent: func(ctx context.Context) bool {
+			if o.Token == "" || !reenrollTried.CompareAndSwap(false, true) {
+				return false
+			}
+			host, _ := os.Hostname()
+			id, err := conn.Enroll(ctx, st, eps.Enroll, o.Token, host, enrollFacts(ctx), nil)
+			if err != nil {
+				log.Warn("re-enrollment with the configured token failed; keeping the current identity", "err", err)
+				return false
+			}
+			log.Info("re-enrolled with a control plane that did not know this agent", "server_id", id.ServerID)
+			return true
+		},
 	})
 	backupDir := o.BackupDir
 	if backupDir == "" {
@@ -452,6 +486,8 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 			log.Error("mark identity revoked", "err", perr)
 		}
 		return err
+	case errors.Is(err, conn.ErrReenrolled):
+		return errUpgradeRestart // the new identity is stored; start again with it
 	case restart.requested.Load():
 		return errUpgradeRestart
 	case ctx.Err() != nil:

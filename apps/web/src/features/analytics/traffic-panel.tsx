@@ -1,7 +1,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { serviceQuery } from "#/api/hooks";
+import { serviceQuery, servicesQuery } from "#/api/hooks";
+import type { Service } from "#/api/models";
 import { CopyButton } from "#/components/common/copy-button";
 import { EmptyState } from "#/components/common/empty-state";
 import { ErrorState } from "#/components/common/error-state";
@@ -33,6 +34,19 @@ export interface TrafficPanelProps {
 }
 
 const ALL_HOSTS = "__all__";
+
+/**
+ * The one server an environment's services run on, for the GeoIP links; a
+ * spread environment has no single server's settings to point at.
+ */
+function onlyServer(
+	services: readonly Service[] | undefined,
+): string | undefined {
+	const ids = new Set(
+		services?.flatMap((s) => (s.serverId ? [s.serverId] : [])),
+	);
+	return ids.size === 1 ? ids.values().next().value : undefined;
+}
 
 function Notice({
 	tone = "info",
@@ -95,6 +109,11 @@ export function TrafficPanel({
 		...serverViewQuery(serverId ?? ""),
 		enabled: serverId !== undefined,
 	});
+	const environmentServices = useQuery({
+		...servicesQuery("environmentId" in scope ? scope.environmentId : ""),
+		enabled: "environmentId" in scope,
+	});
+	const geoServerId = serverId ?? onlyServer(environmentServices.data);
 
 	const domains = service.data?.domains ?? [];
 	const noDomain =
@@ -247,7 +266,7 @@ export function TrafficPanel({
 					updatedAt={traffic.dataUpdatedAt}
 					pagesOnly={pagesOnly}
 					onPagesOnlyChange={setPagesOnly}
-					geoServerId={server.data?.id}
+					geoServerId={geoServerId}
 					variant={variant}
 					onHostSelect={domains.length > 1 ? setHost : undefined}
 				/>

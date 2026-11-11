@@ -387,6 +387,19 @@ describe("OverviewTab", () => {
 		expect(screen.queryByText("Connect this host")).not.toBeInTheDocument();
 	});
 
+	test("a server held for adoption leads with the review callout", async () => {
+		stubApi(CHARTS);
+		await renderTab(
+			view({ adoption: { state: "held", found: 2, unmanaged: 0 } }),
+		);
+		expect(
+			screen.getByText(/This host runs 2 services from an earlier NebulaCtrl/),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Review workloads" }),
+		).toBeInTheDocument();
+	});
+
 	test("a pending server leads with connecting and has no charts or host details", async () => {
 		stubApi({
 			...CHARTS,

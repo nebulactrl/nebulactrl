@@ -297,11 +297,11 @@ func (h *Hub) authenticate(ctx context.Context, ws *websocket.Conn) (*agentConn,
 	}
 	agentID, err := uuid.Parse(au.AgentID)
 	if err != nil {
-		return nil, hello, reject(ws, agentprotocol.CloseAuthFailed, "unknown agent")
+		return nil, hello, reject(ws, agentprotocol.CloseUnknownAgent, "unknown agent")
 	}
 	ident, err := h.q.GetAgentIdentity(ctx, agentID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return nil, hello, reject(ws, agentprotocol.CloseAuthFailed, "unknown agent")
+		return nil, hello, reject(ws, agentprotocol.CloseUnknownAgent, "unknown agent")
 	}
 	if err != nil {
 		h.log.Error("load agent identity", "err", err)

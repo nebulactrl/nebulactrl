@@ -72,7 +72,7 @@ The same calls exist in the API (`validateProjectConfig`, `planProjectConfig`, `
 
 ## Git integration
 
-An environment reads its file from a repository: either set under **Environment → Config from git**, or derived when all its git services share one repository and branch. On every push the control plane reads the file at the pushed commit and marks the environment:
+An environment reads its file from a repository: either set under **Environment → Config from git**, or derived when all its git services share one repository and branch. On every push, and on every new commit a linked service finds by [checking for new commits](git-providers.md#without-a-webhook-check-for-new-commits) when no webhook arrives, the control plane reads the file at that commit and marks the environment:
 
 - **nebula.toml differs**: a banner above the canvas, with **Review**. The review dialog is the plan; **Stage changes** applies it without deploying.
 - **invalid**: the banner shows the first error with its line and a link to the file at that commit.

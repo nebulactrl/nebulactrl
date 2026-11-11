@@ -141,7 +141,10 @@ export function CertificateSection({
 					of the server; HTTP-01 cannot validate it.
 				</p>
 			) : null}
-			{tlsOff || cert?.source === "wildcard" || line?.automatic ? null : (
+			{tlsOff ||
+			cert?.source === "wildcard" ||
+			cert?.source === "tunnel" ||
+			line?.automatic ? null : (
 				<div className="flex flex-wrap items-center gap-2 text-ink-2 text-xs">
 					<span id={`${resolverId}-label`}>Obtain it through</span>
 					<Select

@@ -456,3 +456,136 @@ describe("RemoveServerButton: removing", () => {
 		expect(api.calls.filter((c) => c.method === "DELETE")).toEqual([]);
 	});
 });
+
+describe("RemoveServerButton: releasing to another NebulaCtrl", () => {
+	test("a server that has connected offers the release, online or not", async () => {
+		stubApi(NO_SERVICES);
+		const { unmount } = await renderButton();
+		expect(
+			screen.getByRole("button", { name: "Release to another NebulaCtrl…" }),
+		).toBeEnabled();
+		unmount();
+		await renderButton(serverWith({ status: "offline" }));
+		expect(
+			screen.getByRole("button", { name: "Release to another NebulaCtrl…" }),
+		).toBeEnabled();
+	});
+
+	test("a server that never connected, or is being removed, has no release", async () => {
+		stubApi(NO_SERVICES);
+		const { unmount } = await renderButton(
+			serverWith({ status: "pending", canDecommission: false }),
+		);
+		expect(
+			screen.queryByRole("button", { name: "Release to another NebulaCtrl…" }),
+		).not.toBeInTheDocument();
+		unmount();
+		await renderButton(serverWith({ removal: { state: "removing" } }));
+		expect(
+			screen.queryByRole("button", { name: "Release to another NebulaCtrl…" }),
+		).not.toBeInTheDocument();
+	});
+
+	test("the dialog says the host keeps running its containers", async () => {
+		stubApi(NO_SERVICES);
+		const user = userEvent.setup();
+		await renderButton();
+		await user.click(
+			screen.getByRole("button", { name: "Release to another NebulaCtrl…" }),
+		);
+		const dialog = await screen.findByRole("alertdialog");
+		expect(
+			within(dialog).getByText("Release edge-1 to another NebulaCtrl?"),
+		).toBeInTheDocument();
+		expect(
+			within(dialog).getByText(
+				"Deletes this server and its services here without touching the host; the containers keep running for the instance that adopts it.",
+			),
+		).toBeInTheDocument();
+		expect(within(dialog).queryByText(/--uninstall/)).not.toBeInTheDocument();
+		expect(
+			within(dialog).getByRole("button", { name: /Hold to release server/ }),
+		).toBeInTheDocument();
+	});
+
+	test("names the services the release deletes, marking the ones in production", async () => {
+		stubApi({
+			"GET /projects": {
+				body: make("PageProject", { items: [project("prj_1", "shop")] }),
+			},
+			"GET /projects/:projectId/environments": {
+				body: make("PageEnvironment", {
+					items: [
+						make("Environment", {
+							id: "env_1",
+							projectId: "prj_1",
+							slug: "production",
+							name: "production",
+							isProduction: true,
+						}),
+					],
+				}),
+			},
+			"GET /environments/:environmentId/services": {
+				body: make("PageServiceView", {
+					items: [
+						service("svc_1", "web", "srv_1"),
+						service("svc_2", "db", "srv_1"),
+						service("svc_3", "elsewhere", "srv_2"),
+					],
+				}),
+			},
+		});
+		const user = userEvent.setup();
+		await renderButton();
+		await user.click(
+			screen.getByRole("button", { name: "Release to another NebulaCtrl…" }),
+		);
+		const dialog = await screen.findByRole("alertdialog");
+		const note = await within(dialog).findByText(
+			/2 services are deleted from this instance/,
+		);
+		expect(note).toHaveTextContent(
+			"db (shop, production), web (shop, production)",
+		);
+		expect(note).not.toHaveTextContent("elsewhere");
+		expect(note).toHaveTextContent("2 are in production");
+	});
+
+	test("a release with no service placed here says nothing about services", async () => {
+		stubApi(NO_SERVICES);
+		const user = userEvent.setup();
+		await renderButton();
+		await user.click(
+			screen.getByRole("button", { name: "Release to another NebulaCtrl…" }),
+		);
+		const dialog = await screen.findByRole("alertdialog");
+		expect(
+			within(dialog).queryByText(/deleted from this instance/),
+		).not.toBeInTheDocument();
+	});
+
+	test("holding the key sends mode=release", async () => {
+		const api = stubApi({
+			...NO_SERVICES,
+			"DELETE /servers/:serverId": {
+				body: make("ServerRemoval", {
+					removed: true,
+					mode: "release",
+					hostUntouched: true,
+				}),
+			},
+			"GET /servers": { body: make("PageServer", { items: [] }) },
+		});
+		const user = userEvent.setup();
+		await renderButton();
+		const dialog = await openAndName(user, "Release to another NebulaCtrl…");
+		await hold(
+			within(dialog).getByRole("button", { name: /Hold to release server/ }),
+		);
+		expect(await screen.findByText("Removed edge-1")).toBeVisible();
+		const del = api.calls.find((c) => c.method === "DELETE");
+		expect(del?.query.get("mode")).toBe("release");
+		expect(del?.query.get("confirm")).toBe("edge-1");
+	});
+});

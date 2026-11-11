@@ -19,6 +19,8 @@ func TestServiceFromRouterPerDomainNames(t *testing.T) {
 		"nc-" + svcA + "-daaaaaaaa-http@rest":        {true, true},
 		"nc-" + svcA + "-daaaaaaaa-http-local@rest":  {true, true},
 		"nc-" + svcA + "-daaaaaaaa-redir@rest":       {true, true},
+		"nc-" + svcA + "-daaaaaaaa-tunnel@rest":      {false, true},
+		"nc-pages-notfound-tunnel@rest":              {},
 		// L4
 		"nc-" + svcA + "-tcp@rest": {false, true},
 		"nc-" + svcA + "-udp@rest": {false, true},

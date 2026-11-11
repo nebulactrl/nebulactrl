@@ -1,11 +1,15 @@
 import { describe, expect, test } from "bun:test";
-import { screen, waitFor } from "@testing-library/react";
+import { act, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import type {
 	EnrollmentToken,
 	Server as ServerWire,
 } from "#/api/gen/types.gen";
+import {
+	closeAdoption,
+	useAdoptionState,
+} from "#/features/server-adoption/store";
 import { stubApi } from "#/test/api";
 import { make, type Overrides, problem } from "#/test/factories";
 import { renderWithProviders } from "#/test/render";
@@ -311,5 +315,67 @@ describe("EnrollDialog: waiting for the agent", () => {
 		await user.click(screen.getByRole("button", { name: "reopen" }));
 		expect(await screen.findByLabelText("Name")).toHaveValue("");
 		expect(screen.queryByLabelText("Install command")).not.toBeInTheDocument();
+	});
+});
+
+describe("EnrollDialog: a host that runs workloads from an earlier NebulaCtrl", () => {
+	const heldServer = () => ({
+		...onlineServer(),
+		adoption: { state: "held" as const, found: 3, unmanaged: 0 },
+	});
+
+	async function connectHeld(onClose?: () => void) {
+		stubApi({
+			"POST /servers/enrollment-tokens": { status: 201, body: enrollment() },
+			"GET /servers/:serverId": { body: heldServer() },
+		});
+		const user = userEvent.setup();
+		await renderWithProviders(<Host {...(onClose ? { onClose } : {})} />);
+		await user.type(await screen.findByLabelText("Name"), "hetzner-01");
+		await user.click(
+			screen.getByRole("button", { name: "Create install command" }),
+		);
+		await screen.findByText("Agent connected");
+		return user;
+	}
+
+	test("says nothing on the host is changed and offers the review", async () => {
+		await connectHeld();
+		expect(
+			screen.getByText(
+				/This host runs 3 services from an earlier NebulaCtrl. Nothing on it is changed until you review them./,
+			),
+		).toBeInTheDocument();
+		expect(
+			screen.getByRole("button", { name: "Review workloads" }),
+		).toBeInTheDocument();
+	});
+
+	test("Review workloads closes the dialog and opens the review of that server", async () => {
+		const adoption = renderHook(() => useAdoptionState());
+		let closed = 0;
+		const user = await connectHeld(() => (closed += 1));
+		await user.click(screen.getByRole("button", { name: "Review workloads" }));
+		expect(closed).toBe(1);
+		expect(adoption.result.current).toEqual({ open: true, serverId: "srv-9" });
+		act(() => closeAdoption());
+	});
+
+	test("a host with nothing held shows neither the notice nor the button", async () => {
+		stubApi({
+			"POST /servers/enrollment-tokens": { status: 201, body: enrollment() },
+			"GET /servers/:serverId": { body: onlineServer() },
+		});
+		const user = userEvent.setup();
+		await renderWithProviders(<Host />);
+		await user.type(await screen.findByLabelText("Name"), "hetzner-01");
+		await user.click(
+			screen.getByRole("button", { name: "Create install command" }),
+		);
+		await screen.findByText("Agent connected");
+		expect(screen.queryByText(/from an earlier NebulaCtrl/)).toBeNull();
+		expect(
+			screen.queryByRole("button", { name: "Review workloads" }),
+		).toBeNull();
 	});
 });

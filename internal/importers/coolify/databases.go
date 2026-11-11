@@ -8,51 +8,14 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/databases/engines"
 )
 
-// imageRepoTag splits an image reference into a normalised repository (Docker
-// Hub prefixes and library/ removed, lower case) and its tag; a digest is dropped.
-func imageRepoTag(ref string) (repo, tag string) {
-	ref = strings.TrimSpace(ref)
-	if i := strings.IndexByte(ref, '@'); i >= 0 {
-		ref = ref[:i]
-	}
-	last := strings.LastIndexByte(ref, '/')
-	if i := strings.LastIndexByte(ref, ':'); i > last {
-		ref, tag = ref[:i], ref[i+1:]
-	}
-	for _, p := range []string{"docker.io/", "index.docker.io/", "registry-1.docker.io/"} {
-		ref = strings.TrimPrefix(ref, p)
-	}
-	ref = strings.TrimPrefix(ref, "library/")
-	return strings.ToLower(ref), tag
-}
-
-// engineImages maps the repository of a database image to its managed engine.
-var engineImages = map[string]struct{ engine, flavor string }{
-	"postgres":              {engines.Postgres, ""},
-	"postgis/postgis":       {engines.Postgres, engines.FlavorPostGIS},
-	"mysql":                 {engines.MySQL, ""},
-	"mariadb":               {engines.MariaDB, ""},
-	"mongo":                 {engines.MongoDB, ""},
-	"redis":                 {engines.Redis, ""},
-	"valkey/valkey":         {engines.Valkey, ""},
-	"valkey":                {engines.Valkey, ""},
-	"eqalpha/keydb":         {engines.Valkey, ""},
-	"dragonflydb/dragonfly": {engines.Valkey, ""},
-	"docker.dragonflydb.io/dragonflydb/dragonfly": {engines.Valkey, ""},
-	"clickhouse/clickhouse-server":                {engines.ClickHouse, ""},
-	"clickhouse":                                  {engines.ClickHouse, ""},
-	"yandex/clickhouse-server":                    {engines.ClickHouse, ""},
-}
-
 // classifyDatabase decides which managed engine (and flavor) replaces a Coolify
 // database. The engine is empty, with a reason, when there is none.
 func classifyDatabase(d *Database) (engine, flavor, reason string) {
 	if strings.HasSuffix(d.Type, "sqlite") {
 		return "", "", "SQLite databases are files inside an application's volume; there is no server to create. Keep the file on the application's volume."
 	}
-	repo, _ := imageRepoTag(d.Image)
-	if e, ok := engineImages[repo]; ok {
-		return e.engine, e.flavor, ""
+	if e, f, _, ok := engines.FromImage(d.Image); ok {
+		return e, f, ""
 	}
 	if d.Image == "" {
 		switch {
@@ -177,7 +140,7 @@ func (a *analyzer) planDatabase(d *Database, rc CoolifyResourceChoice) CoolifyPl
 	}
 	e := engines.Lookup(engine)
 	res.engine = engine
-	repo, tag := imageRepoTag(d.Image)
+	repo, tag := engines.RepoTag(d.Image)
 	if repo == "eqalpha/keydb" || repo == "keydb" || strings.Contains(repo, "dragonfly") {
 		tag = "" // their versions are not Valkey's
 	}
