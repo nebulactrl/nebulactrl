@@ -229,14 +229,22 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	if opt.ScopeEnv != "" {
 		dk = envScopedDocker{Engine: dk, env: opt.ScopeEnv}
 	}
-	factsOf := func(ctx context.Context) agentprotocol.Facts {
+	factsOf := func(ctx context.Context) (agentprotocol.Facts, error) {
 		f := collector.Facts(ctx)
 		if opt.ScopeEnv != "" {
-			f.ManagedServices = engine.ManagedServiceIDs(ctx, dk)
+			ids, err := engine.ManagedServiceIDs(ctx, dk)
+			if err != nil {
+				return f, err
+			}
+			f.ManagedServices = ids
 		}
-		return f
+		return f, nil
 	}
-	facts := factsOf(ctx)
+	facts, err := factsOf(ctx)
+	if err != nil {
+		cleanupEarly()
+		return nil, err
+	}
 
 	identity, ok, err := st.Identity()
 	if err != nil {
@@ -267,7 +275,12 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 				return false
 			}
 			host, _ := os.Hostname()
-			id, err := conn.Enroll(ctx, st, eps.Enroll, opt.Token, host, factsOf(ctx), nil)
+			f, err := factsOf(ctx)
+			if err != nil {
+				log.Warn("re-enrollment needs the managed containers", "err", err)
+				return false
+			}
+			id, err := conn.Enroll(ctx, st, eps.Enroll, opt.Token, host, f, nil)
 			if err != nil {
 				log.Warn("re-enrollment with the configured token failed; keeping the current identity", "err", err)
 				return false
@@ -395,7 +408,7 @@ func StartLiteAgent(t testing.TB, url, token string) *LiteAgent {
 	client := conn.New(conn.Config{
 		URL: eps.Connect, Identity: identity, Store: st, Version: "itest-lite",
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		Facts:  func(context.Context) agentprotocol.Facts { return facts },
+		Facts:  func(context.Context) (agentprotocol.Facts, error) { return facts, nil },
 		Heartbeat: func(context.Context) agentprotocol.Heartbeat {
 			return agentprotocol.Heartbeat{DockerVersion: "itest", Proxy: agentprotocol.ProxyHealth{Status: agentprotocol.ProxyOK}}
 		},

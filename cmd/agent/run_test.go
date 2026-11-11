@@ -23,9 +23,11 @@ import (
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
-// useFakeDocker points DOCKER_HOST at a daemon that answers the ping and
-// rejects every other call: enough for run() to get past its start-up check,
-// while the managed containers (proxy, tunnel, mesh) simply never come up.
+// useFakeDocker points DOCKER_HOST at a daemon that answers the ping and an
+// empty container list and rejects every other call: enough for run() to get
+// past its start-up check and say hello (the hello lists the managed
+// containers), while the managed containers (proxy, tunnel, mesh) simply never
+// come up.
 func useFakeDocker(t *testing.T) {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -36,6 +38,11 @@ func useFakeDocker(t *testing.T) {
 			if r.Method != http.MethodHead {
 				_, _ = io.WriteString(w, "OK")
 			}
+			return
+		}
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/containers/json") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, "[]")
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")

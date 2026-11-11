@@ -50,8 +50,10 @@ type Config struct {
 	Identity store.Identity
 	Store    *store.Store
 	Version  string
-	// Facts and Heartbeat supply hello facts and periodic heartbeats.
-	Facts     func(ctx context.Context) agentprotocol.Facts
+	// Facts and Heartbeat supply hello facts and periodic heartbeats. A Facts
+	// error fails the handshake: the client sends no hello and reconnects after
+	// the usual backoff (the facts decide whether a new server is held).
+	Facts     func(ctx context.Context) (agentprotocol.Facts, error)
 	Heartbeat func(ctx context.Context) agentprotocol.Heartbeat
 	Logger    *slog.Logger
 	// MaxBuffered bounds frames queued while disconnected (default DefaultMaxBuffered).
@@ -303,7 +305,9 @@ func (c *Client) handshake(ctx context.Context, ws *websocket.Conn) error {
 	}
 	var facts agentprotocol.Facts
 	if c.cfg.Facts != nil {
-		facts = c.cfg.Facts(hctx)
+		if facts, err = c.cfg.Facts(hctx); err != nil {
+			return fmt.Errorf("collect hello facts: %w", err)
+		}
 	}
 	hello := agentprotocol.Hello{
 		AgentVersion:    c.cfg.Version,

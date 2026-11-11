@@ -3,6 +3,7 @@ package engine
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 
@@ -159,9 +160,27 @@ func TestManagedServiceIDsListsEveryManagedServiceOnce(t *testing.T) {
 	unmarked := r.dk.seed("nc-x-33333333-0", "cccccccc-0000-4000-8000-000000000003", "d", true, time.Hour)
 	delete(unmarked.Labels, agentprotocol.LabelManaged)
 
-	require.Equal(t, []string{"aaaaaaaa-0000-4000-8000-000000000001", "bbbbbbbb-0000-4000-8000-000000000002"},
-		ManagedServiceIDs(context.Background(), r.dk))
-	require.Empty(t, ManagedServiceIDs(context.Background(), newFakeDocker()))
+	ids, err := ManagedServiceIDs(context.Background(), r.dk)
+	require.NoError(t, err)
+	require.Equal(t, []string{"aaaaaaaa-0000-4000-8000-000000000001", "bbbbbbbb-0000-4000-8000-000000000002"}, ids)
+	ids, err = ManagedServiceIDs(context.Background(), newFakeDocker())
+	require.NoError(t, err)
+	require.Empty(t, ids)
+}
+
+// A daemon that cannot list is an error, never "no workloads": an empty list
+// would let a newly added server go unheld and its workloads be swept.
+func TestManagedServiceIDsFailsWhenTheDaemonCannotList(t *testing.T) {
+	ids, err := ManagedServiceIDs(context.Background(), listFailDocker{newFakeDocker()})
+	require.Error(t, err)
+	require.Nil(t, ids)
+}
+
+// listFailDocker is a daemon whose container listing fails.
+type listFailDocker struct{ *fakeDocker }
+
+func (listFailDocker) ContainerList(context.Context, docker.ListFilter) ([]docker.ContainerInfo, error) {
+	return nil, errors.New("docker daemon unreachable")
 }
 
 // invDocker adds a volume listing to the fake daemon.

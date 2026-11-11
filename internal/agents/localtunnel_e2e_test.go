@@ -172,7 +172,9 @@ func (e *e2e) startAgent(o agentOptions) *e2eAgent {
 		URL:      "ws" + strings.TrimPrefix(e.srv.URL, "http") + "/agent/v1/connect",
 		Identity: store.Identity{AgentID: uuid.NewString(), ServerID: e.serverID.String(), PrivateKey: priv},
 		Store:    st, Version: "test",
-		Facts: func(context.Context) agentprotocol.Facts { return agentprotocol.Facts{Capabilities: o.caps} },
+		Facts: func(context.Context) (agentprotocol.Facts, error) {
+			return agentprotocol.Facts{Capabilities: o.caps}, nil
+		},
 		Heartbeat: func(context.Context) agentprotocol.Heartbeat {
 			return agentprotocol.Heartbeat{
 				Proxy:     agentprotocol.ProxyHealth{Status: "running", Error: strconv.FormatInt(time.Now().UnixNano(), 10)},

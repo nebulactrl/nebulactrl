@@ -277,7 +277,11 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 			return err // a restored previous binary: restart to run it
 		}
 	}
-	facts := func(ctx context.Context) agentprotocol.Facts {
+	// facts are the hello facts. An unreadable Docker daemon is an error (the
+	// hello waits for it): only a complete ManagedServices lets the control plane
+	// hold a newly added server that runs workloads it does not know. The facts
+	// returned with the error are complete otherwise.
+	facts := func(ctx context.Context) (agentprotocol.Facts, error) {
 		f := collector.Facts(ctx)
 		if upgrader != nil {
 			if upgrader.Supported() == nil {
@@ -285,12 +289,22 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 			}
 			f.AgentUpgrade = upgrader.Report()
 		}
-		// The services of managed containers already on this host: the control
-		// plane holds a newly added server that runs workloads it does not know.
-		f.ManagedServices = engine.ManagedServiceIDs(ctx, eng)
+		ids, err := engine.ManagedServiceIDs(ctx, eng)
+		if err != nil {
+			return f, fmt.Errorf("list the services of managed containers: %w", err)
+		}
+		f.ManagedServices = ids
+		return f, nil
+	}
+	// enrollFacts are what enrollment records; the hold is decided on the hello,
+	// so enrollment goes ahead without the managed services.
+	enrollFacts := func(ctx context.Context) agentprotocol.Facts {
+		f, err := facts(ctx)
+		if err != nil {
+			log.Warn("enrolling without the managed containers", "err", err)
+		}
 		return f
 	}
-	enrollFacts := facts(ctx)
 
 	identity, ok, err := st.Identity()
 	if err != nil {
@@ -302,7 +316,7 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 	if !ok || identity.Revoked {
 		hostname, _ := os.Hostname()
 		log.Info("enrolling with control plane", "url", eps.Enroll)
-		identity, err = conn.Enroll(ctx, st, eps.Enroll, o.Token, hostname, enrollFacts, nil)
+		identity, err = conn.Enroll(ctx, st, eps.Enroll, o.Token, hostname, enrollFacts(ctx), nil)
 		if err != nil {
 			return err
 		}
@@ -331,7 +345,7 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 				return false
 			}
 			host, _ := os.Hostname()
-			id, err := conn.Enroll(ctx, st, eps.Enroll, o.Token, host, facts(ctx), nil)
+			id, err := conn.Enroll(ctx, st, eps.Enroll, o.Token, host, enrollFacts(ctx), nil)
 			if err != nil {
 				log.Warn("re-enrollment with the configured token failed; keeping the current identity", "err", err)
 				return false

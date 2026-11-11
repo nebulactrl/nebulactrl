@@ -99,11 +99,43 @@ func recv[T any](t *testing.T, ch <-chan T) T {
 	}
 }
 
+// Facts that cannot be collected (Docker unreachable, so the managed services
+// are unknown) send no hello: the control plane would take a hello without
+// them for a host without workloads and never hold it. The client reconnects
+// and says hello once the facts are complete.
+func TestFailingFactsSendNoHelloAndReconnect(t *testing.T) {
+	c, _, srv := newHarness(t)
+	var calls atomic.Int32
+	c.cfg.Facts = func(context.Context) (agentprotocol.Facts, error) {
+		if calls.Add(1) == 1 {
+			return agentprotocol.Facts{OS: "linux"}, errors.New("docker daemon unreachable")
+		}
+		return agentprotocol.Facts{OS: "linux", ManagedServices: []string{"svc-1"}}, nil
+	}
+	c.cfg.ReconnectAfter = func(time.Duration) <-chan time.Time {
+		ch := make(chan time.Time, 1)
+		ch <- time.Now()
+		return ch
+	}
+	hellos := make(chan agentprotocol.Hello, 4)
+	srv.script = func(ctx context.Context, _ *websocket.Conn, h agentprotocol.Hello) {
+		hellos <- h
+		<-ctx.Done()
+	}
+	runClient(t, c)
+
+	h := recv(t, hellos)
+	require.Equal(t, []string{"svc-1"}, h.Facts.ManagedServices, "the only hello carries the complete facts")
+	require.EqualValues(t, 2, calls.Load())
+}
+
 func TestHelloCarriesFactsAndUnackedResultsAndHeartbeatsFlow(t *testing.T) {
 	c, st, srv := newHarness(t)
 	require.NoError(t, st.PutResult(agentprotocol.ResultFrame{CommandID: "old", Outcome: agentprotocol.OutcomeSucceeded}))
 	c.cfg.HeartbeatInterval = 5 * time.Millisecond
-	c.cfg.Facts = func(context.Context) agentprotocol.Facts { return agentprotocol.Facts{OS: "linux", CPUs: 4} }
+	c.cfg.Facts = func(context.Context) (agentprotocol.Facts, error) {
+		return agentprotocol.Facts{OS: "linux", CPUs: 4}, nil
+	}
 	c.cfg.Heartbeat = func(context.Context) agentprotocol.Heartbeat {
 		return agentprotocol.Heartbeat{CPUPercent: 12.5, DockerVersion: "27.1"}
 	}

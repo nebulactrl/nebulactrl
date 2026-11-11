@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"fmt"
 	"sort"
 
 	"github.com/nebulactrl/nebulactrl/internal/agent/docker"
@@ -113,11 +114,13 @@ func isInfraContainer(name string) bool {
 // ManagedServiceIDs returns the sorted, distinct service IDs (the
 // nebulactrl.service label) of every managed container on the host, running or
 // not. It rides on the hello (Facts.ManagedServices): the control plane holds a
-// newly added server that already runs workloads. A failing daemon yields none.
-func ManagedServiceIDs(ctx context.Context, d docker.Engine) []string {
+// newly added server that already runs workloads. A failing daemon is an error,
+// never an empty list: an empty list would let a new server go unheld and its
+// workloads be swept.
+func ManagedServiceIDs(ctx context.Context, d docker.Engine) ([]string, error) {
 	cs, err := managedServiceContainers(ctx, d)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("list managed containers: %w", err)
 	}
 	seen := map[string]bool{}
 	var ids []string
@@ -128,5 +131,5 @@ func ManagedServiceIDs(ctx context.Context, d docker.Engine) []string {
 		}
 	}
 	sort.Strings(ids)
-	return ids
+	return ids, nil
 }
