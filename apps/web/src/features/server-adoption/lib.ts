@@ -271,7 +271,11 @@ export function adoptionBlocker({
  * review that only left workloads says "Left 2 workloads running unmanaged."
  */
 export function resultText(result: AdoptionResult): string {
-	const adopted = (result.services ?? []).length;
+	// `services` lists the adopted and the reattached services alike.
+	const adopted = Math.max(
+		0,
+		(result.services ?? []).length - result.reattached,
+	);
 	const parts: string[] = [];
 	if (adopted > 0) parts.push(`adopted ${plural(adopted, "service")}`);
 	if (result.reattached > 0) parts.push(`reattached ${result.reattached}`);

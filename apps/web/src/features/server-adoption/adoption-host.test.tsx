@@ -8,22 +8,26 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type {
-	AdoptionChoices,
+	AdoptionApplyRequest,
 	AdoptionPlan,
 	AdoptionResult,
 	Project,
 } from "#/api/gen/types.gen";
 import { serverWire } from "#/features/servers/server.fixture";
 import { type ApiStub, stubApi } from "#/test/api";
-import { make } from "#/test/factories";
+import { make, problem } from "#/test/factories";
 import { renderWithProviders } from "#/test/render";
 import { AdoptionHost } from "./adoption-host";
 import { closeAdoption, openAdoption } from "./store";
-import { applied, environment, plan, service } from "./test-fixtures";
-
-const SVC = "11111111-1111-4111-8111-111111111111";
-const DB = "33333333-3333-4333-8333-333333333333";
-const ENV = "22222222-2222-4222-8222-222222222222";
+import {
+	applied,
+	DB,
+	ENV,
+	environment,
+	plan,
+	SVC,
+	service,
+} from "./test-fixtures";
 
 // The review debounces its plan by 400 ms and the machine may be busy.
 setDefaultTimeout(30_000);
@@ -31,24 +35,37 @@ configure({ asyncUtilTimeout: 5_000 });
 
 afterEach(() => act(() => closeAdoption()));
 
-type PlanReply =
-	| AdoptionPlan
-	| ((choices: AdoptionChoices) => Response | AdoptionPlan);
+/** A canned reply; the stub holds its status and body to openapi.json. */
+interface Reply {
+	status: number;
+	body: unknown;
+}
+
+const planned = (body: AdoptionPlan = plan()): Reply => ({ status: 200, body });
+const created = (body: AdoptionResult = applied()): Reply => ({
+	status: 201,
+	body,
+});
 
 interface Setup {
-	plan?: PlanReply;
-	apply?: AdoptionResult | ((req: Request) => Response | Promise<Response>);
+	plan?: AdoptionPlan;
+	apply?: AdoptionResult;
 	projects?: Project[];
 }
 
-function stub(setup: Setup = {}): ApiStub & {
-	applyKeys: string[];
-	planBodies: AdoptionChoices[];
-	applyBodies: AdoptionChoices[];
-} {
-	const applyKeys: string[] = [];
-	const planBodies: AdoptionChoices[] = [];
-	const applyBodies: AdoptionChoices[] = [];
+/**
+ * The server the review talks to. `replies` are the canned replies of the plan
+ * and apply routes: a test that wants a later request answered differently
+ * assigns the next reply with `answer` (the stub reads it when it answers).
+ * `keys` are the Idempotency-Keys of the apply requests, which the stub does
+ * not record, and `hold` is a promise the apply request waits for before it
+ * reaches the stub, so a test can look at the screen while it is in flight.
+ */
+function stub(setup: Setup = {}) {
+	const replies = {
+		plan: planned(setup.plan),
+		apply: created(setup.apply),
+	};
 	const api = stubApi({
 		"GET /servers/:serverId": {
 			body: serverWire({ id: "srv-1", name: "alpha" }),
@@ -56,25 +73,32 @@ function stub(setup: Setup = {}): ApiStub & {
 		"GET /projects": {
 			body: make("PageProject", { items: setup.projects ?? [] }),
 		},
-		"POST /servers/:serverId/adoption/plan": async (req) => {
-			const body = (await req.json()) as { choices: AdoptionChoices };
-			planBodies.push(body.choices);
-			const reply = setup.plan ?? plan();
-			const out = typeof reply === "function" ? reply(body.choices) : reply;
-			return out instanceof Response ? out : Response.json(out);
+		"POST /servers/:serverId/adoption/plan": replies.plan,
+		"POST /servers/:serverId/adoption": replies.apply,
+	});
+	const keys: string[] = [];
+	const held: { promise?: Promise<void> } = {};
+	const inner = globalThis.fetch;
+	globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+		const request = input instanceof Request ? input : undefined;
+		const method = (request?.method ?? init?.method ?? "GET").toUpperCase();
+		const url = new URL(request?.url ?? String(input), location.href);
+		if (method === "POST" && url.pathname.endsWith("/servers/srv-1/adoption")) {
+			const headers = new Headers(request?.headers ?? init?.headers);
+			keys.push(headers.get("Idempotency-Key") ?? "");
+			await held.promise;
+		}
+		return inner(input, init);
+	}) as typeof fetch;
+	return Object.assign(api, {
+		keys,
+		hold(promise: Promise<void>) {
+			held.promise = promise;
 		},
-		"POST /servers/:serverId/adoption": async (req) => {
-			applyKeys.push(req.headers.get("Idempotency-Key") ?? "");
-			applyBodies.push(
-				((await req.clone().json()) as { choices: AdoptionChoices }).choices,
-			);
-			const reply = setup.apply ?? applied();
-			return typeof reply === "function"
-				? reply(req)
-				: Response.json(reply, { status: 201 });
+		answer(route: "plan" | "apply", reply: Reply) {
+			Object.assign(replies[route], reply);
 		},
 	});
-	return Object.assign(api, { applyKeys, planBodies, applyBodies });
 }
 
 async function openReview() {
@@ -95,28 +119,18 @@ const action = (slug: string, label: string) =>
 		screen.getByRole("group", { name: `What to do with ${slug}` }),
 	).getByRole("button", { name: label });
 
-/** A plan that follows the choices the way the control plane does for the leave action. */
-function following(base: AdoptionPlan): PlanReply {
-	return (choices) => {
-		const left = Object.entries(choices.services ?? {}).filter(
-			([, c]) => c.action === "leave",
-		);
-		const ids = new Set(left.map(([id]) => id));
-		const environments = (base.environments ?? []).map((env) => ({
-			...env,
-			services: (env.services ?? []).map((svc) =>
-				ids.has(svc.id) ? { ...svc, action: "leave" as const } : svc,
-			),
-		}));
-		const adopt = environments
-			.flatMap((e) => e.services ?? [])
-			.filter((s) => s.action === "adopt").length;
-		return {
-			...base,
-			environments,
-			totals: { ...base.totals, adopt, leave: ids.size },
-		};
-	};
+/** What the plan is after the web service is left running, the way the control plane answers. */
+const leftPlan = () =>
+	plan({
+		environments: [environment({}, [service({ action: "leave" })])],
+		totals: { adopt: 0, leave: 1, remove: 0, containers: 2 },
+	});
+
+/** The choices of every apply request the stub has seen. */
+function applyChoices(api: ApiStub) {
+	return api.calls
+		.filter((c) => c.path === "/servers/srv-1/adoption")
+		.map((c) => (c.body as AdoptionApplyRequest).choices);
 }
 
 describe("opening", () => {
@@ -161,31 +175,21 @@ describe("opening", () => {
 	});
 
 	test("a plan that fails says why and can be tried again", async () => {
-		let calls = 0;
-		const api = stub({
-			plan: () => {
-				calls += 1;
-				return calls === 1
-					? Response.json(
-							{
-								status: 409,
-								title: "Conflict",
-								detail: "There is nothing to adopt on this server.",
-								code: "nothing_to_adopt",
-							},
-							{
-								status: 409,
-								headers: { "Content-Type": "application/problem+json" },
-							},
-						)
-					: plan();
-			},
-		});
+		const api = stub();
+		api.answer(
+			"plan",
+			problem(409, {
+				title: "Conflict",
+				detail: "There is nothing to adopt on this server.",
+				code: "nothing_to_adopt",
+			}),
+		);
 		const user = userEvent.setup();
 		await openReview();
 		expect(
 			await screen.findByText(/There is nothing to adopt on this server/),
 		).toBeInTheDocument();
+		api.answer("plan", planned());
 		await user.click(screen.getByRole("button", { name: "Try again" }));
 		expect(
 			await screen.findByRole("region", { name: "Environment production" }),
@@ -196,14 +200,12 @@ describe("opening", () => {
 
 describe("choices", () => {
 	test("a choice re-plans a beat later with that choice, and the plan on screen follows", async () => {
-		const base = plan({
-			environments: [environment({}, [service()])],
-		});
-		const api = stub({ plan: following(base) });
+		const api = stub();
 		const user = userEvent.setup();
 		await openReview();
 		await screen.findByText("2 containers · 1 to adopt");
 
+		api.answer("plan", planned(leftPlan()));
 		await user.click(action("web", "Leave running"));
 		expect(action("web", "Leave running")).toHaveAttribute(
 			"aria-pressed",
@@ -404,8 +406,8 @@ describe("applying", () => {
 		await user.click(apply());
 
 		expect(await screen.findByText("Workloads adopted")).toBeInTheDocument();
-		expect(api.applyBodies).toEqual([{}]);
-		expect(api.applyKeys[0]).toMatch(/^[0-9a-f-]{36}$/);
+		expect(applyChoices(api)).toEqual([{}]);
+		expect(api.keys[0]).toMatch(/^[0-9a-f-]{36}$/);
 		expect(
 			within(screen.getByRole("dialog")).getByText(
 				"Adopted 1 service, left 1 running unmanaged.",
@@ -421,18 +423,14 @@ describe("applying", () => {
 
 	test("nothing can change while the apply is in flight, and the result still arrives", async () => {
 		const release = Promise.withResolvers<void>();
-		const api = stub({
-			apply: async () => {
-				await release.promise;
-				return Response.json(applied(), { status: 201 });
-			},
-		});
+		const api = stub();
+		api.hold(release.promise);
 		const user = userEvent.setup();
 		await openReview();
 		await screen.findByText("2 containers · 1 to adopt");
 		await user.click(apply());
 
-		await waitFor(() => expect(api.applyKeys).toHaveLength(1));
+		await waitFor(() => expect(api.keys).toHaveLength(1));
 		expect(screen.getByLabelText("Name of web")).toBeDisabled();
 		expect(screen.getByLabelText("Environment name")).toBeDisabled();
 		expect(screen.getByRole("switch", { name: "Production" })).toHaveAttribute(
@@ -453,8 +451,8 @@ describe("applying", () => {
 
 		release.resolve();
 		expect(await screen.findByText("Workloads adopted")).toBeInTheDocument();
-		expect(api.applyKeys).toHaveLength(1);
-		expect(api.applyBodies).toEqual([{}]);
+		expect(api.keys).toHaveLength(1);
+		expect(applyChoices(api)).toEqual([{}]);
 	});
 
 	test("Leave all running unmanaged applies every service as leave", async () => {
@@ -483,7 +481,7 @@ describe("applying", () => {
 		expect(
 			await screen.findByText("Workloads left unmanaged"),
 		).toBeInTheDocument();
-		expect(api.applyBodies).toEqual([
+		expect(applyChoices(api)).toEqual([
 			{ services: { [SVC]: { action: "leave" }, [DB]: { action: "leave" } } },
 		]);
 		expect(
@@ -505,25 +503,19 @@ describe("applying", () => {
 			screen.getByRole("button", { name: "Leave all running unmanaged" }),
 		);
 		await screen.findByText("Workloads adopted");
-		expect(api.applyBodies).toHaveLength(1);
+		expect(applyChoices(api)).toHaveLength(1);
 	});
 
 	test("an apply the control plane refuses stays on the review with its reason", async () => {
-		stub({
-			apply: () =>
-				Response.json(
-					{
-						status: 422,
-						title: "Unprocessable",
-						detail: "The host changed since the review.",
-						code: "adoption_blocked",
-					},
-					{
-						status: 422,
-						headers: { "Content-Type": "application/problem+json" },
-					},
-				),
-		});
+		const api = stub();
+		api.answer(
+			"apply",
+			problem(422, {
+				title: "Unprocessable",
+				detail: "The host changed since the review.",
+				code: "adoption_blocked",
+			}),
+		);
 		const user = userEvent.setup();
 		await openReview();
 		await screen.findByText("2 containers · 1 to adopt");
@@ -537,40 +529,32 @@ describe("applying", () => {
 	});
 
 	test("a retry of the same request reuses the key; a changed choice gets a new one", async () => {
-		let fail = 2;
-		const api = stub({
-			plan: following(plan()),
-			apply: () =>
-				fail-- > 0
-					? Response.json(
-							{
-								status: 503,
-								title: "Unavailable",
-								detail: "try later",
-								code: "unavailable",
-							},
-							{
-								status: 503,
-								headers: { "Content-Type": "application/problem+json" },
-							},
-						)
-					: Response.json(applied(), { status: 201 }),
-		});
+		const api = stub();
+		api.answer(
+			"apply",
+			problem(503, {
+				title: "Unavailable",
+				detail: "try later",
+				code: "unavailable",
+			}),
+		);
 		const user = userEvent.setup();
 		await openReview();
 		await screen.findByText("2 containers · 1 to adopt");
 		await user.click(apply());
 		await screen.findByText("Nothing was adopted");
 		await user.click(apply());
-		await waitFor(() => expect(api.applyKeys).toHaveLength(2));
-		expect(api.applyKeys[1]).toBe(api.applyKeys[0] as string);
+		await waitFor(() => expect(api.keys).toHaveLength(2));
+		expect(api.keys[1]).toBe(api.keys[0] as string);
 
+		api.answer("plan", planned(leftPlan()));
+		api.answer("apply", created());
 		await user.click(action("web", "Leave running"));
 		await waitFor(() => expect(planCalls(api)).toHaveLength(2));
 		await screen.findByText("2 containers · 1 left running");
 		await user.click(apply());
-		await waitFor(() => expect(api.applyKeys).toHaveLength(3));
-		expect(api.applyKeys[2]).not.toBe(api.applyKeys[0]);
+		await waitFor(() => expect(api.keys).toHaveLength(3));
+		expect(api.keys[2]).not.toBe(api.keys[0]);
 	});
 });
 

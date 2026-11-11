@@ -3,12 +3,20 @@ import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "#/test/render";
 import { ResultStep } from "./result-step";
-import { applied } from "./test-fixtures";
+import { adoptedService, applied, DB } from "./test-fixtures";
 
 describe("ResultStep", () => {
 	test("says what was adopted, with the counts of the rest", async () => {
 		await renderWithProviders(
-			<ResultStep result={applied({ left: 2, removed: 1, reattached: 1 })} />,
+			<ResultStep
+				result={applied({
+					// `services` lists the reattached service too.
+					services: [adoptedService(), adoptedService({ id: DB, slug: "db" })],
+					left: 2,
+					removed: 1,
+					reattached: 1,
+				})}
+			/>,
 		);
 		expect(screen.getByRole("status")).toHaveTextContent(
 			"Adopted 1 service, reattached 1, left 2 running unmanaged, removed 1.",

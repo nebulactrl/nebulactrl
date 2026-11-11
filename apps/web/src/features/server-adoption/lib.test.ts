@@ -16,10 +16,16 @@ import {
 	sourceLine,
 	totalsText,
 } from "./lib";
-import { applied, environment, plan, service } from "./test-fixtures";
-
-const ENV = "22222222-2222-4222-8222-222222222222";
-const SVC = "11111111-1111-4111-8111-111111111111";
+import {
+	adoptedService,
+	applied,
+	DB,
+	ENV,
+	environment,
+	plan,
+	SVC,
+	service,
+} from "./test-fixtures";
 
 describe("choices", () => {
 	test("a patch sets members, and undefined takes one back out", () => {
@@ -192,9 +198,23 @@ describe("summary texts", () => {
 
 	test("the result says what happened, and only what happened", () => {
 		expect(resultText(applied())).toBe("Adopted 1 service.");
-		expect(resultText(applied({ left: 2, removed: 1, reattached: 1 }))).toBe(
+		// `services` lists the reattached services too: 1 adopted + 1 reattached.
+		const both = applied({
+			services: [adoptedService(), adoptedService({ id: DB, slug: "db" })],
+			left: 2,
+			removed: 1,
+			reattached: 1,
+		});
+		expect(resultText(both)).toBe(
 			"Adopted 1 service, reattached 1, left 2 running unmanaged, removed 1.",
 		);
+		expect(resultTitle(both)).toBe("Workloads adopted");
+		const onlyReattached = applied({
+			services: [adoptedService()],
+			reattached: 1,
+		});
+		expect(resultText(onlyReattached)).toBe("Reattached 1.");
+		expect(resultTitle(onlyReattached)).toBe("Workloads adopted");
 		expect(resultText(applied({ services: null, left: 2 }))).toBe(
 			"Left 2 workloads running unmanaged.",
 		);
