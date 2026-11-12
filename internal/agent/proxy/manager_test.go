@@ -58,7 +58,10 @@ func (f *fakeEngine) ImageInspect(context.Context, string) (docker.ImageInfo, er
 	return docker.ImageInfo{}, nil
 }
 
-func (f *fakeEngine) ContainerInspect(_ context.Context, _ string) (docker.ContainerInfo, error) {
+func (f *fakeEngine) ContainerInspect(_ context.Context, name string) (docker.ContainerInfo, error) {
+	if name == agentprotocol.GuardContainer {
+		return docker.ContainerInfo{}, docker.ErrNotFound // the fake models one container: the proxy
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.container == nil {
@@ -98,7 +101,10 @@ func (f *fakeEngine) ContainerStart(context.Context, string) error {
 	return nil
 }
 
-func (f *fakeEngine) ContainerRemove(context.Context, string, bool, bool) error {
+func (f *fakeEngine) ContainerRemove(_ context.Context, name string, _, _ bool) error {
+	if name == agentprotocol.GuardContainer {
+		return docker.ErrNotFound
+	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.removed++

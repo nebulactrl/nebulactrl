@@ -130,6 +130,11 @@ func validateHTTPRoute(i int, r agentprotocol.Route) error {
 			return fmt.Errorf("route %d (service %s): maintenance: %w", i, r.ServiceID, err)
 		}
 	}
+	if r.Firewall != nil {
+		if err := r.Firewall.Validate(); err != nil {
+			return fmt.Errorf("route %d (service %s): firewall: %w", i, r.ServiceID, err)
+		}
+	}
 	switch r.Scheme {
 	case "", "http", "https":
 	default:
@@ -168,8 +173,8 @@ func validateHTTPRoute(i int, r agentprotocol.Route) error {
 }
 
 func validateL4Route(i int, r agentprotocol.Route) error {
-	if r.Maintenance != nil {
-		return fmt.Errorf("route %d (service %s): maintenance only applies to http routes", i, r.ServiceID)
+	if r.Maintenance != nil || r.Firewall != nil {
+		return fmt.Errorf("route %d (service %s): maintenance and firewalls only apply to http routes", i, r.ServiceID)
 	}
 	if len(r.Hosts) > 0 || len(r.Domains) > 0 {
 		return fmt.Errorf("route %d (service %s): %s routes have no hosts or domains", i, r.ServiceID, r.Protocol)

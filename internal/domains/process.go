@@ -72,7 +72,7 @@ func processRoute(r db.ListServerRouteDomainsRow) (agentprotocol.Route, bool) {
 		Upstreams:  ProcessUpstreams(r.ServiceSlug, r.DeploymentID.String(), p.Name, n, int(r.Domain.TargetPort)),
 		HealthPath: processHealthPath(p),
 		Networks:   services.RouteNetworks(r.EnvironmentID, cfg.BlockEgress),
-		RouteExt:   agentprotocol.RouteExt{Maintenance: maintenanceFrom(r.MaintenanceEnabled, r.MaintenanceTitle, r.MaintenanceMessage, r.MaintenanceEta)},
+		RouteExt:   agentprotocol.RouteExt{Maintenance: maintenanceFrom(r.MaintenanceEnabled, r.MaintenanceTitle, r.MaintenanceMessage, r.MaintenanceEta), Firewall: firewallFrom(r.Firewall)},
 	}, true
 }
 

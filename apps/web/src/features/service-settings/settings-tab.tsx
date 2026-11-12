@@ -14,6 +14,7 @@ import { Button } from "#/components/ui/button";
 import { Spinner } from "#/components/ui/spinner";
 import { toast } from "#/components/ui/toast";
 import { DeployHookSection } from "#/features/deploy-hook";
+import { FirewallSection } from "#/features/firewall/firewall-section";
 import { MaintenanceSection } from "#/features/maintenance";
 import { ProcessesSection } from "#/features/processes/processes-section";
 import { ConfigServiceProvider } from "#/features/project-config";
@@ -83,7 +84,7 @@ export interface SettingsTabProps {
 
 /**
  * Everything about a service that is configuration, one category at a time
- * (General, Deploy, Networking, Resources, Storage, Operations, Advanced,
+ * (General, Deploy, Networking, Firewall, Resources, Storage, Operations, Advanced,
  * Danger zone). Fields
  * edit a working copy shared by every category; Save sends one PATCH with
  * `If-Match` set to the generation the form was opened on, so two people
@@ -353,6 +354,9 @@ export function SettingsTab({
 				return <TasksSection service={service} />;
 			case "maintenance":
 				return <MaintenanceSection service={service} />;
+			case "rules":
+				// Its own sections: the rules, and Try a request below them.
+				return <FirewallSection service={service} />;
 			case "danger-zone":
 				return <DangerZone service={service} />;
 			case "compose":

@@ -722,6 +722,10 @@ type DeployPayload struct {
 	// OriginLock is the Cloudflare origin lock data of the service's locked
 	// DomainRules (cforigin.go); nil when none is locked.
 	OriginLock *OriginLock `json:"originLock,omitempty"`
+	// Firewall is the service's firewall (nil = none), for the route the agent
+	// builds from this payload when the service has no live route yet; a live
+	// route keeps the live table's firewall (sync_routes is the authority).
+	Firewall *Firewall `json:"firewall,omitempty"`
 	// Proxy replaces the server-level proxy configuration (nil = unchanged).
 	Proxy *ProxyConfig `json:"proxy,omitempty"`
 	// Tailnet is the service's desired per-service tailnet node (nil = none and

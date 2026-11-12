@@ -287,7 +287,7 @@ func (q *Queries) ListProjectSlugsLike(ctx context.Context, arg ListProjectSlugs
 }
 
 const listProjectStandardServices = `-- name: ListProjectStandardServices :many
-SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since FROM services s
+SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, s.firewall FROM services s
 JOIN environments e ON e.id = s.environment_id
 WHERE e.project_id = $1 AND e.kind <> 'preview' AND s.deleted_at IS NULL
 ORDER BY s.created_at, s.id
@@ -336,6 +336,7 @@ func (q *Queries) ListProjectStandardServices(ctx context.Context, projectID uui
 			&i.MaintenanceMessage,
 			&i.MaintenanceEta,
 			&i.MaintenanceSince,
+			&i.Firewall,
 		); err != nil {
 			return nil, err
 		}

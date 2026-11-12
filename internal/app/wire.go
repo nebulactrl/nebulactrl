@@ -28,6 +28,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/downloads"
 	"github.com/nebulactrl/nebulactrl/internal/environments"
+	"github.com/nebulactrl/nebulactrl/internal/firewall"
 	"github.com/nebulactrl/nebulactrl/internal/fleet"
 	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/gitssh/deploykeys"
@@ -282,6 +283,7 @@ func wire(c *Core) Modules {
 	canvasSvc := canvas.NewService(c.Pool, c.Bus)
 	scalingSvc := scaling.NewService(c.Pool, c.Bus, hub, serviceSvc, c.Logger)
 	maintenanceSvc := maintenance.NewService(c.Pool, c.Bus, hub, serviceSvc, c.Logger)
+	firewallSvc := firewall.NewService(c.Pool, c.Bus, proxySvc, c.Logger)
 	networkSvc := networks.NewService(c.Pool, c.Bus)
 
 	// One-click template catalog (embedded, validated at startup; a bad template is
@@ -575,6 +577,7 @@ func wire(c *Core) Modules {
 		func(h huma.API) { scaling.Register(h, scalingSvc) },
 		func(h huma.API) { combine.Register(h, combineSvc) },
 		func(h huma.API) { maintenance.Register(h, maintenanceSvc) },
+		func(h huma.API) { firewall.Register(h, firewallSvc) },
 		func(h huma.API) { networks.Register(h, networkSvc) },
 		func(h huma.API) { backups.Register(h, backupSvc) },
 		func(h huma.API) { backups.RegisterVolume(h, backupSvc) },

@@ -4312,6 +4312,44 @@ export type FileWritePolicy = {
     reason?: string;
 };
 
+export type FirewallCondition = {
+    field: 'ip' | 'country' | 'path' | 'method' | 'header' | 'userAgent' | 'query';
+    name?: string;
+    not?: boolean;
+    op: 'in' | 'prefix' | 'exact' | 'equals' | 'contains' | 'regex' | 'present';
+    values?: Array<string> | null;
+};
+
+export type FirewallRule = {
+    action: 'block' | 'allow';
+    conditions: Array<FirewallCondition> | null;
+    disabled?: boolean;
+    /**
+     * 1-16 lowercase letters or digits, unique in the list; generated when omitted
+     */
+    id?: string;
+    name: string;
+};
+
+export type FirewallView = {
+    deployed: boolean;
+    /**
+     * none: no active rule. routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
+     */
+    enforcement: 'none' | 'routes' | 'guard';
+    geoAvailable: boolean;
+    /**
+     * Every domain of the service; the firewall covers all of them
+     */
+    hosts: Array<string> | null;
+    /**
+     * The rules in evaluation order; the first rule whose conditions all match decides
+     */
+    rules: Array<FirewallRule> | null;
+    server: string;
+    supported: boolean;
+};
+
 export type FixesInputBody = {
     /**
      * The fixes to apply or undo. Apply with none selects the default set (the ones marked default in the fix list); rollback needs at least one.
@@ -7327,6 +7365,13 @@ export type PutInputBody2 = {
 
 export type PutInputBody3 = {
     layout: Layout;
+};
+
+export type PutInputBody4 = {
+    /**
+     * The complete rule list, in evaluation order; an empty list removes the firewall. A rule without an id gets one.
+     */
+    rules: Array<FirewallRule> | null;
 };
 
 export type PutSettingsInputBody = {
@@ -29659,6 +29704,106 @@ export type ListServiceFilesResponses = {
 };
 
 export type ListServiceFilesResponse = ListServiceFilesResponses[keyof ListServiceFilesResponses];
+
+export type GetServiceFirewallData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/firewall';
+};
+
+export type GetServiceFirewallErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type GetServiceFirewallError = GetServiceFirewallErrors[keyof GetServiceFirewallErrors];
+
+export type GetServiceFirewallResponses = {
+    /**
+     * OK
+     */
+    200: FirewallView;
+};
+
+export type GetServiceFirewallResponse = GetServiceFirewallResponses[keyof GetServiceFirewallResponses];
+
+export type SetServiceFirewallData = {
+    body: PutInputBody4;
+    headers?: {
+        /**
+         * Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
+         */
+        'Idempotency-Key'?: string;
+    };
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/firewall';
+};
+
+export type SetServiceFirewallErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type SetServiceFirewallError = SetServiceFirewallErrors[keyof SetServiceFirewallErrors];
+
+export type SetServiceFirewallResponses = {
+    /**
+     * OK
+     */
+    200: FirewallView;
+};
+
+export type SetServiceFirewallResponse = SetServiceFirewallResponses[keyof SetServiceFirewallResponses];
 
 export type UnlinkServiceGitData = {
     body?: never;

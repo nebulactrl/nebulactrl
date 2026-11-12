@@ -127,5 +127,5 @@ func TestValidateMaintenanceRoutes(t *testing.T) {
 	require.ErrorContains(t, ValidateRoutes([]agentprotocol.Route{long}, agentprotocol.DefaultUpstreamPolicy()), "title")
 
 	l4 := agentprotocol.Route{ServiceID: svcPG, Upstreams: []string{"a:1"}, RouteExt: agentprotocol.RouteExt{Protocol: "tcp", ListenPort: 5432, Maintenance: &agentprotocol.Maintenance{}}}
-	require.ErrorContains(t, ValidateRoutes([]agentprotocol.Route{l4}, agentprotocol.DefaultUpstreamPolicy()), "only applies to http")
+	require.ErrorContains(t, ValidateRoutes([]agentprotocol.Route{l4}, agentprotocol.DefaultUpstreamPolicy()), "only apply to http routes")
 }

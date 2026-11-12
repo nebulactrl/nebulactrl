@@ -946,7 +946,7 @@ func (d *deploy) routePhase(ctx context.Context, st *deployState) (string, bool)
 		// The payload's own route carries the maintenance state it was
 		// dispatched with; the proxy's live table is the authority. A proxy
 		// with no state yet was seeded from the payload, which stays as sent.
-		table = inheritMaintenance(table, st.prevRoutes)
+		table = inheritOperational(table, st.prevRoutes)
 	}
 	d.debugf("routes after: %s; own %s", routeSummary(table), routeSummary(d.verifiableRoutes(table)))
 	if d.p.Proxy != nil || !routesEqual(table, st.prevRoutes) {
@@ -1205,7 +1205,7 @@ func (d *deploy) route() agentprotocol.Route {
 		Upstreams:  d.upstreams(d.p.Port),
 		HealthPath: d.traefikHealthPath(),
 		Networks:   d.plan().RouteNetworks(),
-		RouteExt:   agentprotocol.RouteExt{Domains: append([]agentprotocol.DomainRule(nil), d.p.DomainRules...), OriginLock: d.p.OriginLock},
+		RouteExt:   agentprotocol.RouteExt{Domains: append([]agentprotocol.DomainRule(nil), d.p.DomainRules...), OriginLock: d.p.OriginLock, Firewall: d.p.Firewall},
 	}
 	if pr := d.proc(); pr != nil && !pr.Default {
 		r.Stack = d.p.ServiceID // the route of a named process belongs to the service like a stack's does

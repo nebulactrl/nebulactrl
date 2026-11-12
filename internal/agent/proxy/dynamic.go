@@ -117,6 +117,15 @@ type dynMiddleware struct {
 	Compress       *dynCompress       `json:"compress,omitempty"`
 	Errors         *dynErrors         `json:"errors,omitempty"`
 	ReplacePath    *dynReplacePath    `json:"replacePath,omitempty"`
+	ForwardAuth    *dynForwardAuth    `json:"forwardAuth,omitempty"`
+}
+
+// dynForwardAuth asks Address before forwarding a request: a 2xx answer lets
+// it through, anything else is returned to the client as is. Traefik sends
+// the request's headers plus X-Forwarded-For (the peer address; never trusted
+// from the client), X-Forwarded-Method and X-Forwarded-Uri.
+type dynForwardAuth struct {
+	Address string `json:"address"`
 }
 
 // dynCompress is Traefik's compress middleware. The REST provider decodes the
@@ -404,6 +413,10 @@ type builder struct {
 	// tlsOptions are the Authenticated Origin Pulls options locked domains
 	// reference, by name (see aopFor).
 	tlsOptions map[string]*dynTLSOption
+	// prefixes lists, per host, the path prefixes of every http router of the
+	// table ("" for a whole-host router), so a firewall router never takes a
+	// request a more specific domain of the same host serves (firewallRouters).
+	prefixes map[string][]string
 }
 
 func (b *builder) covered(host string) bool {
@@ -502,6 +515,7 @@ func buildDynamic(routes []agentprotocol.Route, opts Options) dynConfig {
 		}
 		sort.Slice(b.wildcards, func(i, j int) bool { return b.wildcards[i].Domain < b.wildcards[j].Domain })
 	}
+	b.prefixes = hostPrefixes(routes)
 	for _, r := range routes {
 		if r.IsL4() {
 			b.l4(r)
@@ -620,12 +634,31 @@ func (b *builder) http(r agentprotocol.Route) {
 			b.addMiddleware(t.maint, &dynMiddleware{ReplacePath: &dynReplacePath{Path: pages.MaintenancePath(r.ServiceID)}})
 		}
 	}
+	if fw := r.Firewall; len(fw.Active()) > 0 {
+		if fw.NeedsGuard(headerClientIP(r)) {
+			t.guardRoute = r.ServiceID
+		} else {
+			t.fw = fw.Active()
+		}
+	}
 	if len(rest) > 0 {
 		b.defaultHosts(t, rest)
 	}
 	for _, d := range r.Domains {
 		b.domain(t, d)
 	}
+}
+
+// headerClientIP reports whether the visitor address of some domain of r
+// arrives in a header: the peer of a tunnelled domain is cloudflared, the peer
+// of a domain locked to Cloudflare is Cloudflare.
+func headerClientIP(r agentprotocol.Route) bool {
+	for _, d := range r.Domains {
+		if d.Tunnel || d.OriginLocked {
+			return true
+		}
+	}
+	return false
 }
 
 // target is where the serving routers of one route send requests: the route's
@@ -643,6 +676,13 @@ type target struct {
 	// original upstream name after the agent pinned it to addresses; empty
 	// when the Host header needs no override.
 	host string
+	// fw are the rules of a firewall compiled into routers (firewallRouters);
+	// guardRoute is set instead when the edge guard evaluates the firewall.
+	fw         []agentprotocol.FirewallRule
+	guardRoute string
+	// guard names the forwardAuth middleware of the router group being
+	// rendered (empty: no guard).
+	guard string
 }
 
 // withHost returns chain followed by the Host override middleware, if any.
@@ -673,6 +713,15 @@ func (b *builder) serving(t target, chain []string) (service string, mws []strin
 		return pagesService, append(mws, t.maint)
 	}
 	chain = t.withHost(chain)
+	if t.guard != "" {
+		// After the lock (a locked origin answers Cloudflare only), before any
+		// other rule: a blocked request is not counted by the rate limit.
+		at := 0
+		if t.lock != "" && len(chain) > 0 && chain[0] == t.lock {
+			at = 1
+		}
+		chain = slices.Insert(slices.Clone(chain), at, t.guard)
+	}
 	if b.opts.Pages {
 		return t.service, append([]string{errorsMiddleware}, chain...)
 	}
@@ -684,6 +733,9 @@ func (b *builder) serving(t target, chain []string) (service string, mws []strin
 // gets two routers), http redirect, and probe.
 func (b *builder) defaultHosts(t target, hosts []string) {
 	name := t.service
+	if t.guardRoute != "" {
+		t.guard = b.guardMiddleware(name, t.guardRoute, false)
+	}
 	svc, mws := b.serving(t, nil)
 	var public, local []string
 	for _, h := range hosts {
@@ -718,6 +770,7 @@ func (b *builder) defaultHosts(t target, hosts []string) {
 		EntryPoints: []string{EntryProbe}, Rule: hostRule(hosts), Service: name,
 		Middlewares: t.withHost(nil), Observability: b.noLogs,
 	}
+	b.firewallRouters(t.fw, []string{name + "-https", name + "-https-local", name + "-http"}, hosts, "")
 }
 
 func domainRule(d agentprotocol.DomainRule) string {
@@ -741,6 +794,9 @@ func (b *builder) domain(t target, d agentprotocol.DomainRule) {
 	}
 
 	t.lock = b.lockFor(t, d)
+	if t.guardRoute != "" {
+		t.guard = b.guardMiddleware(n, t.guardRoute, d.Tunnel || d.OriginLocked)
+	}
 	chain, probeChain := b.chain(n, d, t.lock)
 	servSvc, servMws := b.serving(t, chain)
 	if d.Tunnel {
@@ -770,6 +826,7 @@ func (b *builder) domain(t target, d agentprotocol.DomainRule) {
 		EntryPoints: []string{EntryProbe}, Rule: rule, Service: svc,
 		Middlewares: t.withHost(probeChain), Observability: b.noLogs,
 	}
+	b.firewallRouters(t.fw, []string{n + "-https", n + "-http", n + "-tunnel"}, []string{d.Host}, d.PathPrefix)
 }
 
 // redirectDomain renders a redirect-only domain: no upstream, a redirectRegex
@@ -994,4 +1051,198 @@ func BuildConfig(routes []agentprotocol.Route, opts Options) ([]byte, error) {
 		return nil, err
 	}
 	return bytes.TrimRight(buf.Bytes(), "\n"), nil
+}
+
+// Firewall routers (see agentprotocol.Firewall).
+const (
+	// firewallPriority is the priority of a firewall's first rule; rule i gets
+	// firewallPriority-i, so the first matching rule wins. Every other router
+	// keeps Traefik's rule-length default, far below. A firewall router never
+	// takes a request of another router group: it repeats its group's rule and
+	// excludes the more specific prefixes of the same host (exclusions).
+	firewallPriority = 1 << 30
+	// firewallBlockMiddleware rewrites a blocked request to the pages
+	// server's 403 page; firewallDenyMiddleware answers a bare 403 when no
+	// pages server runs.
+	firewallBlockMiddleware = RouterPrefix + "fw-blocked"
+	firewallDenyMiddleware  = RouterPrefix + "fw-deny"
+)
+
+// hostPrefixes lists, per host, the path prefixes of the table's http routers
+// ("" for a host served whole), sorted and without duplicates.
+func hostPrefixes(routes []agentprotocol.Route) map[string][]string {
+	m := map[string][]string{}
+	for _, r := range routes {
+		if r.IsL4() {
+			continue
+		}
+		ruled := map[string]bool{}
+		for _, d := range r.Domains {
+			ruled[d.Host] = true
+			m[d.Host] = append(m[d.Host], d.PathPrefix)
+		}
+		for _, h := range r.Hosts {
+			if !ruled[h] {
+				m[h] = append(m[h], "")
+			}
+		}
+	}
+	for h, ps := range m {
+		sort.Strings(ps)
+		m[h] = slices.Compact(ps)
+	}
+	return m
+}
+
+// exclusions returns the "&& !…" clauses that keep a firewall router of the
+// router group (hosts, prefix) off requests a more specific router serves: a
+// longer prefix of the same host, and for a wildcard host every exact host it
+// covers.
+func (b *builder) exclusions(hosts []string, prefix string) string {
+	var out strings.Builder
+	for _, h := range hosts {
+		for _, p := range b.prefixes[h] {
+			if p == prefix || !strings.HasPrefix(p, prefix) {
+				continue
+			}
+			if len(hosts) == 1 {
+				out.WriteString(" && !PathPrefix(`" + p + "`)")
+			} else {
+				out.WriteString(" && !(" + hostRule([]string{h}) + " && PathPrefix(`" + p + "`))")
+			}
+		}
+		base, wild := strings.CutPrefix(h, "*.")
+		if !wild {
+			continue
+		}
+		exact := make([]string, 0)
+		for other := range b.prefixes {
+			if label, ok := strings.CutSuffix(other, "."+base); ok && label != "" && !strings.Contains(label, ".") && !strings.HasPrefix(other, "*.") {
+				exact = append(exact, other)
+			}
+		}
+		sort.Strings(exact)
+		for _, e := range exact {
+			out.WriteString(" && !Host(`" + e + "`)")
+		}
+	}
+	return out.String()
+}
+
+// firewallRouters renders a compiled firewall next to each existing router in
+// names (the serving routers of one group: hosts and path prefix): per rule a
+// copy of the router whose rule adds the rule's conditions, at the rule's
+// priority. An allow copy keeps the router's service and middlewares (the
+// request is served as usual, past the rules below); a block copy answers 403.
+func (b *builder) firewallRouters(rules []agentprotocol.FirewallRule, names, hosts []string, prefix string) {
+	if len(rules) == 0 {
+		return
+	}
+	excl := b.exclusions(hosts, prefix)
+	for _, base := range names {
+		br, ok := b.cfg.HTTP.Routers[base]
+		if !ok {
+			continue
+		}
+		for i, r := range rules {
+			fr := *br
+			fr.Rule = "(" + br.Rule + ")" + excl + " && " + firewallRule(r.Conditions)
+			fr.Priority = firewallPriority - i
+			if r.Action == agentprotocol.FirewallBlock {
+				fr.Service, fr.Middlewares = b.blocked()
+			}
+			b.cfg.HTTP.Routers[base+"-fw"+r.ID] = &fr
+		}
+	}
+}
+
+// blocked returns the service and middlewares of a block router.
+func (b *builder) blocked() (string, []string) {
+	if b.opts.Pages {
+		b.addMiddleware(firewallBlockMiddleware, &dynMiddleware{ReplacePath: &dynReplacePath{Path: pages.ErrorPath(http.StatusForbidden)}})
+		return pagesService, []string{firewallBlockMiddleware}
+	}
+	b.addMiddleware(firewallDenyMiddleware, &dynMiddleware{IPAllowList: &dynIPAllowList{SourceRange: []string{neverMatch}, RejectStatusCode: http.StatusForbidden}})
+	return "noop@internal", []string{firewallDenyMiddleware}
+}
+
+// guardMiddleware adds the forwardAuth middleware of a router group whose
+// firewall the edge guard evaluates. headerIP makes the guard read the visitor
+// from Cf-Connecting-IP (tunnelled and Cloudflare-locked domains).
+func (b *builder) guardMiddleware(name, routeID string, headerIP bool) string {
+	src := agentprotocol.GuardClientPeer
+	if headerIP {
+		src = agentprotocol.GuardClientCloudflare
+	}
+	mw := name + "-guard"
+	b.addMiddleware(mw, &dynMiddleware{ForwardAuth: &dynForwardAuth{Address: agentprotocol.GuardCheckURL(routeID, src)}})
+	return mw
+}
+
+// firewallRule renders the conditions of a rule as Traefik matchers: all of
+// them (&&), each true when any of its values matches (||), negated by Not.
+// It implements agentprotocol.FirewallMatcher's semantics; country
+// conditions never reach it (NeedsGuard).
+func firewallRule(conds []agentprotocol.FirewallCondition) string {
+	parts := make([]string, len(conds))
+	for i, c := range conds {
+		expr := "(" + strings.Join(conditionMatchers(c), " || ") + ")"
+		if c.Not {
+			expr = "!" + expr
+		}
+		parts[i] = expr
+	}
+	return strings.Join(parts, " && ")
+}
+
+func conditionMatchers(c agentprotocol.FirewallCondition) []string {
+	q := func(s string) string { return "`" + s + "`" }
+	name := c.Name
+	if c.Field == agentprotocol.FirewallFieldHeader {
+		name = http.CanonicalHeaderKey(name)
+	}
+	if c.Field == agentprotocol.FirewallFieldUserAgent {
+		c.Field, name = agentprotocol.FirewallFieldHeader, "User-Agent"
+	}
+	if c.Op == agentprotocol.FirewallOpPresent {
+		if c.Field == agentprotocol.FirewallFieldQuery {
+			return []string{"QueryRegexp(" + q(name) + ", " + q(".*") + ")"}
+		}
+		return []string{"HeaderRegexp(" + q(name) + ", " + q(".*") + ")"}
+	}
+	out := make([]string, len(c.Values))
+	for i, v := range c.Values {
+		pattern := v
+		if c.Op == agentprotocol.FirewallOpContains {
+			pattern = agentprotocol.ContainsPattern(v)
+		}
+		switch c.Field {
+		case agentprotocol.FirewallFieldIP:
+			out[i] = "ClientIP(" + q(v) + ")"
+		case agentprotocol.FirewallFieldMethod:
+			out[i] = "Method(" + q(v) + ")"
+		case agentprotocol.FirewallFieldPath:
+			switch c.Op {
+			case agentprotocol.FirewallOpPrefix:
+				out[i] = "PathPrefix(" + q(v) + ")"
+			case agentprotocol.FirewallOpExact:
+				out[i] = "Path(" + q(v) + ")"
+			default:
+				out[i] = "PathRegexp(" + q(pattern) + ")"
+			}
+		case agentprotocol.FirewallFieldHeader:
+			if c.Op == agentprotocol.FirewallOpEquals {
+				out[i] = "Header(" + q(name) + ", " + q(v) + ")"
+			} else {
+				out[i] = "HeaderRegexp(" + q(name) + ", " + q(pattern) + ")"
+			}
+		case agentprotocol.FirewallFieldQuery:
+			if c.Op == agentprotocol.FirewallOpEquals {
+				out[i] = "Query(" + q(name) + ", " + q(v) + ")"
+			} else {
+				out[i] = "QueryRegexp(" + q(name) + ", " + q(pattern) + ")"
+			}
+		}
+	}
+	return out
 }

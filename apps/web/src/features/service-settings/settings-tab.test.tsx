@@ -34,6 +34,7 @@ const children = (id: string): ApiRoutes => ({
 	[`GET /services/${id}/volumes`]: { body: { items: [] } },
 	[`GET /services/${id}/uptime-monitor`]: problem(404),
 	[`GET /services/${id}/tasks`]: { body: { items: [] } },
+	[`GET /services/${id}/firewall`]: problem(404),
 });
 
 /** Mounts the tab with its own `?section=` state, recording every change the tab asks for. */
@@ -372,6 +373,7 @@ describe("SettingsTab navigation", () => {
 			"General",
 			"Deploy",
 			"Networking",
+			"Firewall",
 			"Resources",
 			"Storage",
 			"Operations",

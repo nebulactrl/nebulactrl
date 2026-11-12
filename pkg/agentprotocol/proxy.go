@@ -123,6 +123,10 @@ type RouteExt struct {
 	// Maintenance, when set, serves the maintenance page on every domain of the
 	// route (HTTP routes only; see Maintenance).
 	Maintenance *Maintenance `json:"maintenance,omitempty"`
+	// Firewall is the service's firewall (HTTP routes only; see Firewall).
+	// Like Maintenance it is operational: sync_routes toggles it, and tables
+	// the agent builds from a deploy payload take it from the live table.
+	Firewall *Firewall `json:"firewall,omitempty"`
 	// System marks a route the control plane generates for its own containers
 	// (the dashboard and the public status pages). Its upstream is a name only
 	// the proxy's Docker network resolves, so the agent does not resolve and

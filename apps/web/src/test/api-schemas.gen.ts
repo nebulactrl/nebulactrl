@@ -309,6 +309,9 @@ export interface ApiSchemas {
 	"FileListing": T.FileListing;
 	"FileMount": T.FileMount;
 	"FileWritePolicy": T.FileWritePolicy;
+	"FirewallCondition": T.FirewallCondition;
+	"FirewallRule": T.FirewallRule;
+	"FirewallView": T.FirewallView;
 	"FixesInputBody": T.FixesInputBody;
 	"FlavorView": T.FlavorView;
 	"FleetInputBody": T.FleetInputBody;
@@ -544,6 +547,7 @@ export interface ApiSchemas {
 	"PutInputBody1": T.PutInputBody1;
 	"PutInputBody2": T.PutInputBody2;
 	"PutInputBody3": T.PutInputBody3;
+	"PutInputBody4": T.PutInputBody4;
 	"PutSettingsInputBody": T.PutSettingsInputBody;
 	"PutSettingsInputBody1": T.PutSettingsInputBody1;
 	"PutTeamSettingsInputBody": T.PutTeamSettingsInputBody;

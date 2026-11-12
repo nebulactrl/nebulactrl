@@ -168,7 +168,7 @@ func (q *Queries) EnsureProcessScale(ctx context.Context, arg EnsureProcessScale
 }
 
 const listAutoscalingProcesses = `-- name: ListAutoscalingProcesses :many
-SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, p.service_id, p.process, p.replicas, p.autoscaling, p.last_scale_at, p.last_scale_event, p.scale_blocked_reason, p.updated_at, d.server_id AS deployment_server_id
+SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, s.firewall, p.service_id, p.process, p.replicas, p.autoscaling, p.last_scale_at, p.last_scale_event, p.scale_blocked_reason, p.updated_at, d.server_id AS deployment_server_id
 FROM service_process_scale p
 JOIN services s ON s.id = p.service_id
 JOIN deployments d ON d.id = s.current_deployment_id
@@ -227,6 +227,7 @@ func (q *Queries) ListAutoscalingProcesses(ctx context.Context) ([]ListAutoscali
 			&i.Service.MaintenanceMessage,
 			&i.Service.MaintenanceEta,
 			&i.Service.MaintenanceSince,
+			&i.Service.Firewall,
 			&i.ServiceProcessScale.ServiceID,
 			&i.ServiceProcessScale.Process,
 			&i.ServiceProcessScale.Replicas,

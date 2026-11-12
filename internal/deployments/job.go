@@ -568,6 +568,9 @@ func (s *Service) prepare(ctx context.Context, dc depCtx, commitSHA, overrideIma
 		}
 		pl.DomainRules, pl.Hosts, pl.OriginLock = dr.Rules, dr.Hosts, dr.OriginLock
 	}
+	if cfg.Stack == nil {
+		pl.Firewall = domains.FirewallOf(sc.Service)
+	}
 	mem, err := networks.Resolve(ctx, q, sc.EnvironmentID, srv.ID, sc.Service.ID, cfg.BlockEgress, relNets)
 	if err != nil {
 		return nil, err
@@ -583,7 +586,7 @@ func (s *Service) prepare(ctx context.Context, dc depCtx, commitSHA, overrideIma
 		}
 		pl.Tailnet = spec
 		if hide { // "Tailnet only": no public router for this service
-			pl.DomainRules, pl.Hosts, pl.OriginLock = nil, nil, nil
+			pl.DomainRules, pl.Hosts, pl.OriginLock, pl.Firewall = nil, nil, nil, nil
 			tailnetOnly = true
 		}
 	}

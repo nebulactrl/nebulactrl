@@ -21,7 +21,7 @@ SET replicas = $1,
     scale_blocked_reason = NULL,
     updated_at = now()
 WHERE id = $3 AND replicas = $4 AND deleted_at IS NULL
-RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since
+RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall
 `
 
 type ApplyServiceScaleParams struct {
@@ -74,6 +74,7 @@ func (q *Queries) ApplyServiceScale(ctx context.Context, arg ApplyServiceScalePa
 		&i.MaintenanceMessage,
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
+		&i.Firewall,
 	)
 	return i, err
 }
@@ -261,7 +262,7 @@ func (q *Queries) LatestServiceReplicaSamples(ctx context.Context, arg LatestSer
 }
 
 const listAutoscalingServices = `-- name: ListAutoscalingServices :many
-SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, d.server_id AS deployment_server_id
+SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, s.firewall, d.server_id AS deployment_server_id
 FROM services s
 JOIN deployments d ON d.id = s.current_deployment_id
 WHERE s.deleted_at IS NULL
@@ -318,6 +319,7 @@ func (q *Queries) ListAutoscalingServices(ctx context.Context) ([]ListAutoscalin
 			&i.Service.MaintenanceMessage,
 			&i.Service.MaintenanceEta,
 			&i.Service.MaintenanceSince,
+			&i.Service.Firewall,
 			&i.DeploymentServerID,
 		); err != nil {
 			return nil, err
@@ -386,7 +388,7 @@ const setServiceAutoscaling = `-- name: SetServiceAutoscaling :one
 UPDATE services
 SET autoscaling = $1, scale_blocked_reason = NULL, updated_at = now()
 WHERE id = $2 AND deleted_at IS NULL
-RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since
+RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall
 `
 
 type SetServiceAutoscalingParams struct {
@@ -430,6 +432,7 @@ func (q *Queries) SetServiceAutoscaling(ctx context.Context, arg SetServiceAutos
 		&i.MaintenanceMessage,
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
+		&i.Firewall,
 	)
 	return i, err
 }

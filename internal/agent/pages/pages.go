@@ -70,6 +70,7 @@ type kindInfo struct {
 
 var kinds = map[string]kindInfo{
 	"maintenance": {503, "Maintenance", "amber", DefaultTitle, DefaultMessage},
+	"403":         {403, "403 · Blocked", "red", "Access blocked", "This site's firewall blocked the request. If you think it should get through, contact the site's owner."},
 	"404":         {404, "404 · Not found", "muted", "Nothing here", "No service is configured for this address."},
 	"502":         {502, "502 · Bad gateway", "red", "Service unavailable", "This service isn't responding right now. Try again in a moment. If you run it, check that it's started and healthy."},
 	"503":         {503, "503 · Unavailable", "red", "Service unavailable", "This service has no healthy instance right now. It may be starting, stopped or being updated. Try again in a moment."},
@@ -77,7 +78,7 @@ var kinds = map[string]kindInfo{
 }
 
 // ErrorKinds are the static error pages, in rendering order.
-var ErrorKinds = []string{"404", "502", "503", "504"}
+var ErrorKinds = []string{"403", "404", "502", "503", "504"}
 
 type pageData struct {
 	Lang, Kind, Tone, Kicker string

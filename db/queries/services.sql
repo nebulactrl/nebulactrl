@@ -117,7 +117,7 @@ ORDER BY s.created_at, s.id;
 -- maps each named process of the service to its desired replicas.
 SELECT s.id AS service_id, s.slug AS service_slug, s.kind AS service_kind, s.environment_id, d.id AS deployment_id, sqlc.embed(dm),
        s.replicas, rel.config AS release_config,
-       s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta,
+       s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.firewall,
        (SELECT COALESCE(jsonb_object_agg(p.process, p.replicas), '{}'::jsonb)
           FROM service_process_scale p WHERE p.service_id = s.id)::jsonb AS process_replicas
 FROM deployments d

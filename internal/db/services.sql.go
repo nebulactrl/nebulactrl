@@ -61,7 +61,7 @@ func (q *Queries) DeleteServiceVolumeByName(ctx context.Context, arg DeleteServi
 }
 
 const getServiceScope = `-- name: GetServiceScope :one
-SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since,
+SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, s.firewall,
        e.project_id,
        e.slug AS env_slug,
        e.name AS env_name,
@@ -133,6 +133,7 @@ func (q *Queries) GetServiceScope(ctx context.Context, arg GetServiceScopeParams
 		&i.Service.MaintenanceMessage,
 		&i.Service.MaintenanceEta,
 		&i.Service.MaintenanceSince,
+		&i.Service.Firewall,
 		&i.ProjectID,
 		&i.EnvSlug,
 		&i.EnvName,
@@ -146,7 +147,7 @@ func (q *Queries) GetServiceScope(ctx context.Context, arg GetServiceScopeParams
 }
 
 const getServiceScopeInternal = `-- name: GetServiceScopeInternal :one
-SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since,
+SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, s.firewall,
        e.project_id,
        e.slug AS env_slug,
        e.name AS env_name,
@@ -212,6 +213,7 @@ func (q *Queries) GetServiceScopeInternal(ctx context.Context, id uuid.UUID) (Ge
 		&i.Service.MaintenanceMessage,
 		&i.Service.MaintenanceEta,
 		&i.Service.MaintenanceSince,
+		&i.Service.Firewall,
 		&i.ProjectID,
 		&i.EnvSlug,
 		&i.EnvName,
@@ -227,7 +229,7 @@ func (q *Queries) GetServiceScopeInternal(ctx context.Context, id uuid.UUID) (Ge
 const insertService = `-- name: InsertService :one
 INSERT INTO services (environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, server_id, id)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since
+RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall
 `
 
 type InsertServiceParams struct {
@@ -290,12 +292,13 @@ func (q *Queries) InsertService(ctx context.Context, arg InsertServiceParams) (S
 		&i.MaintenanceMessage,
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
+		&i.Firewall,
 	)
 	return i, err
 }
 
 const listAllEnvironmentServices = `-- name: ListAllEnvironmentServices :many
-SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since FROM services
+SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall FROM services
 WHERE environment_id = $1 AND deleted_at IS NULL
 ORDER BY created_at, id
 `
@@ -342,6 +345,7 @@ func (q *Queries) ListAllEnvironmentServices(ctx context.Context, environmentID 
 			&i.MaintenanceMessage,
 			&i.MaintenanceEta,
 			&i.MaintenanceSince,
+			&i.Firewall,
 		); err != nil {
 			return nil, err
 		}
@@ -405,7 +409,7 @@ func (q *Queries) ListDeploymentsByIDs(ctx context.Context, ids []uuid.UUID) ([]
 }
 
 const listEnvironmentServices = `-- name: ListEnvironmentServices :many
-SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since FROM services
+SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall FROM services
 WHERE environment_id = $1
   AND deleted_at IS NULL
   AND ($2::timestamptz IS NULL
@@ -468,6 +472,7 @@ func (q *Queries) ListEnvironmentServices(ctx context.Context, arg ListEnvironme
 			&i.MaintenanceMessage,
 			&i.MaintenanceEta,
 			&i.MaintenanceSince,
+			&i.Firewall,
 		); err != nil {
 			return nil, err
 		}
@@ -565,7 +570,7 @@ func (q *Queries) ListReleasesByIDs(ctx context.Context, ids []uuid.UUID) ([]Rel
 }
 
 const listServerCurrentServices = `-- name: ListServerCurrentServices :many
-SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, d.release_id AS current_release_id,
+SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, s.firewall, d.release_id AS current_release_id,
        (SELECT COALESCE(jsonb_object_agg(p.process, p.replicas), '{}'::jsonb)
           FROM service_process_scale p WHERE p.service_id = s.id)::jsonb AS process_replicas,
        (SELECT COALESCE(jsonb_object_agg(p.process, p.last_scale_at) FILTER (WHERE p.last_scale_at IS NOT NULL), '{}'::jsonb)
@@ -628,6 +633,7 @@ func (q *Queries) ListServerCurrentServices(ctx context.Context, serverID *uuid.
 			&i.Service.MaintenanceMessage,
 			&i.Service.MaintenanceEta,
 			&i.Service.MaintenanceSince,
+			&i.Service.Firewall,
 			&i.CurrentReleaseID,
 			&i.ProcessReplicas,
 			&i.ProcessScaledAt,
@@ -645,7 +651,7 @@ func (q *Queries) ListServerCurrentServices(ctx context.Context, serverID *uuid.
 const listServerRouteDomains = `-- name: ListServerRouteDomains :many
 SELECT s.id AS service_id, s.slug AS service_slug, s.kind AS service_kind, s.environment_id, d.id AS deployment_id, dm.id, dm.service_id, dm.hostname, dm.target_port, dm.generated, dm.status, dm.status_message, dm.dns_ok, dm.dns_checked_at, dm.created_at, dm.kind, dm.path_prefix, dm.strip_prefix, dm.add_prefix, dm.redirect_to, dm.redirect_code, dm.preserve_path, dm.tls_mode, dm.certificate_id, dm.options, dm.dns_resolver, dm.cert_status, dm.cert_message, dm.cert_issuer, dm.cert_not_after, dm.cert_checked_at, dm.cf_zone_id, dm.cf_zone_name, dm.cf_proxied, dm.cf_status, dm.cf_message, dm.cf_error, dm.cf_checked_at, dm.component, dm.cf_origin_lock,
        s.replicas, rel.config AS release_config,
-       s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta,
+       s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.firewall,
        (SELECT COALESCE(jsonb_object_agg(p.process, p.replicas), '{}'::jsonb)
           FROM service_process_scale p WHERE p.service_id = s.id)::jsonb AS process_replicas
 FROM deployments d
@@ -669,6 +675,7 @@ type ListServerRouteDomainsRow struct {
 	MaintenanceTitle   string          `json:"maintenanceTitle"`
 	MaintenanceMessage string          `json:"maintenanceMessage"`
 	MaintenanceEta     *time.Time      `json:"maintenanceEta"`
+	Firewall           json.RawMessage `json:"firewall"`
 	ProcessReplicas    json.RawMessage `json:"processReplicas"`
 }
 
@@ -730,6 +737,7 @@ func (q *Queries) ListServerRouteDomains(ctx context.Context, serverID *uuid.UUI
 			&i.MaintenanceTitle,
 			&i.MaintenanceMessage,
 			&i.MaintenanceEta,
+			&i.Firewall,
 			&i.ProcessReplicas,
 		); err != nil {
 			return nil, err
@@ -963,7 +971,7 @@ func (q *Queries) LoadServerRows(ctx context.Context, ids []uuid.UUID) ([]Server
 }
 
 const lockServiceRow = `-- name: LockServiceRow :one
-SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since FROM services WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
+SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall FROM services WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
 `
 
 func (q *Queries) LockServiceRow(ctx context.Context, id uuid.UUID) (Service, error) {
@@ -1002,6 +1010,7 @@ func (q *Queries) LockServiceRow(ctx context.Context, id uuid.UUID) (Service, er
 		&i.MaintenanceMessage,
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
+		&i.Firewall,
 	)
 	return i, err
 }
@@ -1027,7 +1036,7 @@ const setServiceConfigBumped = `-- name: SetServiceConfigBumped :one
 UPDATE services
 SET config = $2, generation = generation + 1, updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since
+RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall
 `
 
 type SetServiceConfigBumpedParams struct {
@@ -1072,6 +1081,7 @@ func (q *Queries) SetServiceConfigBumped(ctx context.Context, arg SetServiceConf
 		&i.MaintenanceMessage,
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
+		&i.Firewall,
 	)
 	return i, err
 }
@@ -1124,7 +1134,7 @@ func (q *Queries) SetServiceObserved(ctx context.Context, arg SetServiceObserved
 const setServiceServerBumped = `-- name: SetServiceServerBumped :one
 UPDATE services SET server_id = $2, generation = generation + 1, updated_at = now()
 WHERE id = $1 AND deleted_at IS NULL
-RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since
+RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall
 `
 
 type SetServiceServerBumpedParams struct {
@@ -1169,6 +1179,7 @@ func (q *Queries) SetServiceServerBumped(ctx context.Context, arg SetServiceServ
 		&i.MaintenanceMessage,
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
+		&i.Firewall,
 	)
 	return i, err
 }
@@ -1208,7 +1219,7 @@ SET name = $1,
     generation = generation + 1,
     updated_at = now()
 WHERE id = $6 AND generation = $7 AND deleted_at IS NULL
-RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since
+RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall
 `
 
 type UpdateServiceCASParams struct {
@@ -1266,6 +1277,7 @@ func (q *Queries) UpdateServiceCAS(ctx context.Context, arg UpdateServiceCASPara
 		&i.MaintenanceMessage,
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
+		&i.Firewall,
 	)
 	return i, err
 }

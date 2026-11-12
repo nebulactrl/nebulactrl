@@ -799,7 +799,7 @@ func (d *deploy) processRoutePhase(ctx context.Context, led *processLedger, own 
 	if len(live) > 0 {
 		// The live table is the authority on maintenance state; a route built
 		// from the payload carries the state it was dispatched with.
-		table = inheritMaintenance(table, live)
+		table = inheritOperational(table, live)
 	}
 	d.debugf("routes after: %s; own %s", routeSummary(table), routeSummary(d.verifiableRoutes(table)))
 	if (first && d.p.Proxy != nil) || !routesEqual(table, live) {

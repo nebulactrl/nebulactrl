@@ -95,7 +95,7 @@ func (q *Queries) InsertRoutePort(ctx context.Context, arg InsertRoutePortParams
 }
 
 const listEnvironmentRouteServices = `-- name: ListEnvironmentRouteServices :many
-SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since FROM services
+SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall FROM services
 WHERE environment_id = $1 AND kind = 'route' AND deleted_at IS NULL
 ORDER BY created_at, id
 `
@@ -142,6 +142,7 @@ func (q *Queries) ListEnvironmentRouteServices(ctx context.Context, environmentI
 			&i.MaintenanceMessage,
 			&i.MaintenanceEta,
 			&i.MaintenanceSince,
+			&i.Firewall,
 		); err != nil {
 			return nil, err
 		}
@@ -201,7 +202,7 @@ func (q *Queries) ListManagedTargets(ctx context.Context, serviceIds []uuid.UUID
 }
 
 const listRouteServicesTargeting = `-- name: ListRouteServicesTargeting :many
-SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since FROM services s
+SELECT s.id, s.environment_id, s.name, s.slug, s.kind, s.source_type, s.config, s.git_token_enc, s.registry_auth_enc, s.generation, s.applied_generation, s.server_id, s.current_deployment_id, s.observed, s.observed_at, s.created_at, s.updated_at, s.deleted_at, s.desired_state, s.replicas, s.autoscaling, s.last_scale_at, s.last_scale_event, s.scale_blocked_reason, s.suggested_env, s.template_instance_id, s.template_key, s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.maintenance_since, s.firewall FROM services s
 JOIN environments e ON e.id = s.environment_id
 JOIN projects p ON p.id = e.project_id
 WHERE p.workspace_id = $1 AND s.kind = 'route' AND s.deleted_at IS NULL
@@ -257,6 +258,7 @@ func (q *Queries) ListRouteServicesTargeting(ctx context.Context, arg ListRouteS
 			&i.MaintenanceMessage,
 			&i.MaintenanceEta,
 			&i.MaintenanceSince,
+			&i.Firewall,
 		); err != nil {
 			return nil, err
 		}
@@ -381,7 +383,7 @@ func (q *Queries) ListServerRouteServiceIDs(ctx context.Context, serverID *uuid.
 
 const listServerRouteServices = `-- name: ListServerRouteServices :many
 SELECT s.id AS service_id, s.slug AS service_slug, s.name AS service_name, s.config AS service_config,
-       s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta,
+       s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.firewall,
        d.id AS deployment_id, rel.config AS release_config
 FROM deployments d
 JOIN services s ON s.id = d.service_id AND s.current_deployment_id = d.id
@@ -399,6 +401,7 @@ type ListServerRouteServicesRow struct {
 	MaintenanceTitle   string          `json:"maintenanceTitle"`
 	MaintenanceMessage string          `json:"maintenanceMessage"`
 	MaintenanceEta     *time.Time      `json:"maintenanceEta"`
+	Firewall           json.RawMessage `json:"firewall"`
 	DeploymentID       uuid.UUID       `json:"deploymentId"`
 	ReleaseConfig      json.RawMessage `json:"releaseConfig"`
 }
@@ -423,6 +426,7 @@ func (q *Queries) ListServerRouteServices(ctx context.Context, serverID *uuid.UU
 			&i.MaintenanceTitle,
 			&i.MaintenanceMessage,
 			&i.MaintenanceEta,
+			&i.Firewall,
 			&i.DeploymentID,
 			&i.ReleaseConfig,
 		); err != nil {
