@@ -46,6 +46,16 @@ TCP/UDP ports are static Traefik entrypoints on the host. A listen port is 1024-
 - **UDP has no IP rules.** Traefik has no UDP middleware, so `allowCidrs`, `denyCidrs` and `proxyProtocol` are rejected for UDP (`422 invalid_config`). Put UDP behind a firewall or VPN if it must not be public.
 - **Public database ports** are TCP routes with a mandatory allow-list: see [Managed databases](databases.md#public-port).
 
+### Long-lived connections and client addresses (TCP)
+
+What a TCP route does to the connections it carries (game servers, databases, MQTT), checked against Traefik v3.7:
+
+- **No 60 s cut-off.** Traefik's entrypoint `readTimeout` (60 s by default since v2.11.2) only limits how long it waits for the first bytes of a TCP connection. A TCP route's entrypoint has nothing but its own `HostSNI(*)` router, so Traefik hands the connection over without reading and clears the deadline first (`pkg/server/router/tcp/router.go`), and its TCP proxy sets no deadline until one side closes. Checked through the pinned Traefik: a session with 25 s gaps stayed open past 75 s. Older Traefik versions and entrypoints shared with HTTP or TLS routers have been reported to drop Minecraft players after exactly 60 s; this setup has neither.
+- **The upstream sees the proxy, not the client.** Traefik opens its own connection to the service, so the service sees the proxy container's address for every client: per-address bans, limits and logs in the app treat everyone as one client. Either turn on `proxyProtocol` (1 or 2) for an app that reads the PROXY protocol header (Paper with `proxies.proxy-protocol`, nginx, HAProxy …), or apply address rules on the route (`allowCidrs`/`denyCidrs`), where the real client address is known. An app that does **not** speak the PROXY protocol fails every connection when it is on. Its own health check probes that connect directly (without the header) fail too: use a `tcp` health check then.
+- **Restarts drop connections.** A deploy of the service closes its connections, and a recreate of the proxy (a new published port on the server, a changed static option) drops every TCP connection on that server for about a second. Clients have to reconnect.
+- **IPv4 only by default.** TCP routes are published on IPv4 unless the `nebulactrl-edge` network has an IPv6 subnet (see [IP rules](#ip-rules-allow-and-deny)).
+- **Not through Cloudflare's proxy.** A name proxied by Cloudflare (orange cloud) or served by a Cloudflare Tunnel only carries HTTP(S). Clients of a TCP route connect to the server's IP or a DNS-only name; game clients that understand SRV records (Minecraft: `_minecraft._tcp.<name>`) can hide a non-default port.
+
 ### Upstream policy
 
 External upstreams are checked against the server's upstream policy twice: by the control plane when you create or edit the route (`422 upstream_denied`) and by the agent when it applies the table (so a stale or hand-edited table cannot bypass it). By default:
