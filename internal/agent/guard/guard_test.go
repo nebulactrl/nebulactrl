@@ -1,15 +1,18 @@
 package guard
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -432,6 +435,59 @@ func TestDisabledRulesAreNotEvaluated(t *testing.T) {
 	off.Disabled = true
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw(off)}})
 	require.Equal(t, 200, h.status(visit{route: "r1", method: "GET", uri: "/"}))
+}
+
+// Run is what the sidecar executes: it serves forwardAuth on its address and
+// picks up a rules file the agent rewrites, without a restart.
+func TestRunServesAndReloadsRewrittenRules(t *testing.T) {
+	h := newHarness(t)
+	block := fw(rule("adm", agentprotocol.FirewallBlock, cond("path", "prefix", "/admin")))
+	h.write(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": block}})
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	addr := ln.Addr().String()
+	require.NoError(t, ln.Close())
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() { done <- Run(ctx, h.dir, addr, slog.New(slog.NewTextHandler(io.Discard, nil))) }()
+
+	visit := func(path string) int {
+		req, _ := http.NewRequest(http.MethodGet, "http://"+addr+"/v1/check/r1?client=peer", nil)
+		req.Header.Set("X-Forwarded-Method", "GET")
+		req.Header.Set("X-Forwarded-Uri", path)
+		req.Header.Set("X-Forwarded-For", "198.51.100.7")
+		res, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return 0
+		}
+		_ = res.Body.Close()
+		return res.StatusCode
+	}
+	require.Eventually(t, func() bool { return visit("/admin") == http.StatusForbidden }, 5*time.Second, 20*time.Millisecond)
+	require.Equal(t, http.StatusOK, visit("/shop"))
+
+	// The agent rewrites the rules: the guard serves the new ones on its own.
+	time.Sleep(10 * time.Millisecond) // a different modification time
+	h.write(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw(rule("shop", agentprotocol.FirewallBlock, cond("path", "prefix", "/shop")))}})
+	require.Eventually(t, func() bool { return visit("/shop") == http.StatusForbidden }, 5*time.Second, 50*time.Millisecond)
+	require.Equal(t, http.StatusOK, visit("/admin"))
+
+	cancel()
+	select {
+	case err := <-done:
+		require.NoError(t, err, "a cancelled guard shuts down cleanly")
+	case <-time.After(10 * time.Second):
+		t.Fatal("Run did not return after its context ended")
+	}
+}
+
+func TestRunFailsWhenItCannotListen(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer ln.Close()
+	err = Run(context.Background(), t.TempDir(), ln.Addr().String(), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	require.Error(t, err, "a taken port is reported, not ignored")
 }
 
 func TestEncodeAndHash(t *testing.T) {
