@@ -3,7 +3,16 @@ id: minecraft-java
 revision: 2
 name: Minecraft Java Server
 summary: Minecraft Java Edition server (Vanilla, Paper, Purpur, Fabric, Forge and more) with persistent world data.
-description: Runs the itzg/minecraft-server image, which downloads the selected server type and Minecraft version at startup and keeps the world in a persistent volume. You must accept the Minecraft EULA (https://aka.ms/MinecraftEULA) to start the server. The image project is Apache-2.0; the Minecraft server software itself is downloaded from Mojang and is covered by the Minecraft EULA.
+description: |-
+  Runs the itzg/minecraft-server image, which downloads the selected server type and Minecraft version at startup and keeps the world in a persistent volume. You must accept the Minecraft EULA (https://aka.ms/MinecraftEULA) to start the server. The image project is Apache-2.0; the Minecraft server software itself is downloaded from Mojang and is covered by the Minecraft EULA.
+
+  Before you deploy (each can be changed later):
+  • Port: players connect on TCP 25565, which must be free on the server. Change it on the published port route (listen port) after install; the server inside keeps 25565.
+  • Firewall: open the port in any firewall in front of the server (Hetzner, AWS security group …). The host's ufw is bypassed by Docker. Restrict who may connect with the route's allow list.
+  • Address: give players the server's IP or a DNS-only name (on Cloudflare a grey cloud; a proxied name or Tunnel does not carry Minecraft). An SRV record _minecraft._tcp.<name> hides a non-default port.
+  • Memory: about 3 GB free on the server (2 GB Java heap in a 3 GB limit). Raise the service's memory limit first, then MEMORY.
+  • Version: pinned to 26.3, which every server type here supports. Change VERSION on purpose, after a backup: an upgraded world cannot be downgraded.
+  • The first deploy adds the port to the server's proxy, which restarts it for about a second (all its sites).
 category: games
 tags: [minecraft, game-server, java, paper, fabric, forge]
 icon: minecraft
@@ -33,8 +42,8 @@ inputs:
     options: [VANILLA, PAPER, PURPUR, FOLIA, SPIGOT, FABRIC, QUILT, FORGE, NEOFORGE]
   - key: VERSION
     label: Minecraft version
-    description: LATEST, SNAPSHOT or a specific version such as 1.21.4. With LATEST every restart (every deploy) downloads a newer server and upgrades the world, which cannot be undone and can break plugins and mods. After the first start, set the variable VERSION to the version the logs show.
-    default: LATEST
+    description: A version such as 26.3 (supported by Vanilla, Paper, Purpur, Folia, Fabric, Quilt, Forge and NeoForge). LATEST or SNAPSHOT download a newer server on every restart (every deploy) and upgrade the world, which cannot be undone and can break plugins and mods.
+    default: "26.3"
   - key: MEMORY
     label: Java heap size
     description: Heap for the server, for example 2G. Keep it below the service memory limit (2G fits the default 3 GB limit); raise the limit under the service's resources before raising this.
@@ -93,9 +102,26 @@ services:
       # Daily, compressed logs in /data/logs, at most 14 kept (unbounded otherwise).
       ENABLE_ROLLING_LOGS: "true"
       ROLLING_LOG_MAX_FILES: "14"
+      # Plugin servers (Paper, Purpur, Folia, Spigot) refuse a second join from
+      # one address within 4 s; behind the proxy every player has the proxy's
+      # address. The patch below turns that throttle off; it is skipped while
+      # bukkit.yml does not exist (vanilla and mod loaders have none).
+      PATCH_DEFINITIONS: /nebula/patches
       ENABLE_RCON: "true"
       RCON_PASSWORD: ${{secret(24)}}
+      # Deploys restart the server: tell players in chat 10 s before it stops.
+      STOP_SERVER_ANNOUNCE_DELAY: "10"
       STOP_DURATION: "90"
+    files:
+      - path: /nebula/patches/bukkit-connection-throttle.json
+        mode: "0444"
+        content: |
+          {
+            "file": "/data/bukkit.yml",
+            "ops": [
+              {"$put": {"path": "$.settings", "key": "connection-throttle", "value": -1}}
+            ]
+          }
     ports:
       - name: game
         port: 25565
@@ -109,13 +135,11 @@ services:
     stopGraceSeconds: 120
 group: Minecraft Java
 notes:
-  - "Connect with Minecraft Java Edition to the server's address on port 25565. The first start downloads the server and generates the world, which can take a few minutes. Use an IP address or a DNS-only name (on Cloudflare: grey cloud): a proxied name, or a Cloudflare Tunnel domain, does not carry Minecraft. An SRV record (_minecraft._tcp.<name>) lets players connect without the port."
-  - "Pin the version: with VERSION=LATEST every deploy or restart may upgrade the world to a newer Minecraft, which cannot be undone and can break plugins and mods. After the first start, set the variable VERSION to the version the logs show (\"Starting minecraft server version …\") and change it on purpose, after a backup."
+  - "Connect with Minecraft Java Edition to the server's address on port 25565. The first start downloads the server and generates the world, which can take a few minutes."
   - "The server is reachable from the internet. Set Allowed players (WHITELIST) unless it is meant to be public; ONLINE_MODE stays true so only real Minecraft accounts can join."
   - "Back up the world: open the service's Backups tab, choose Keep running (no freeze), set the before-backup command to sh -c \"rcon-cli save-off && rcon-cli save-all flush\" and the after-backup command to rcon-cli save-on, and exclude *.jar, cache, logs and libraries. Saving is paused while the copy is made, so the world on disk is consistent at any size."
-  - "Every player reaches the server from the proxy's address, so ban by name (/ban), not by address (/ban-ip would ban everyone). On Paper, Purpur, Folia and Spigot, the per-address connection throttle (bukkit.yml connection-throttle, 4 s) then refuses players who join seconds apart: set it to -1, or turn on the PROXY protocol (version 2) on the published port route together with proxies.proxy-protocol in config/paper-global.yml and switch the health check to TCP. Vanilla and Fabric do not speak the PROXY protocol; leave it off for them."
-  - "To restrict who can connect by address, set an allow list on the published port route (port 25565): the proxy sees the real client address even though the server does not. Behind a cloud firewall (Hetzner, AWS security group …), open TCP 25565 there; the host's ufw neither blocks nor needs to allow it, because Docker bypasses it."
-  - "Deploys restart the server and disconnect every player (a service with a volume is recreated, not rolled). Adding this port the first time also restarts the server's proxy for about a second (all its sites)."
+  - "Every player reaches the server from the proxy's address. Ban by name (/ban); to keep addresses out, put them in the deny list of the published port route, where the real address is known (/ban-ip would ban everyone). The plugin servers' per-address join throttle is turned off for the same reason (bukkit.yml connection-throttle -1, applied from the second start, once Paper has written bukkit.yml)."
+  - "A deploy restarts the server: players get a chat warning 10 seconds before it stops (STOP_SERVER_ANNOUNCE_DELAY), then the world is saved and they are disconnected until it is back."
   - "RCON is enabled with a generated password (variable RCON_PASSWORD) and is only reachable inside the private network; the server console is available in the service logs."
   - "MEMORY is the Java heap. Leave headroom: the service memory limit is 3 GB, so raise it before setting a heap above 2G. Aikar's G1 flags are on (USE_AIKAR_FLAGS)."
   - "The image runs Java 25. Very old Minecraft versions that need an older Java require a different image tag (the itzg javaNN variants)."
