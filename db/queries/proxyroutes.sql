@@ -39,7 +39,7 @@ ORDER BY rp.protocol, rp.listen_port;
 -- Live route services whose current deployment runs on the server, with the
 -- snapshot config of that deployment's release.
 SELECT s.id AS service_id, s.slug AS service_slug, s.name AS service_name, s.config AS service_config,
-       s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta,
+       s.maintenance_enabled, s.maintenance_title, s.maintenance_message, s.maintenance_eta, s.firewall,
        d.id AS deployment_id, rel.config AS release_config
 FROM deployments d
 JOIN services s ON s.id = d.service_id AND s.current_deployment_id = d.id

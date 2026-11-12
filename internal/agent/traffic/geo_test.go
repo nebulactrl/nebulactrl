@@ -267,8 +267,10 @@ func TestManagerDownloadsDBIPAndKeepsOnlyTheCurrentDatabase(t *testing.T) {
 	m.Apply(agentprotocol.GeoConfig{Enabled: true, Source: agentprotocol.GeoSourceDBIP, Level: agentprotocol.GeoLevelCountry, RefreshDays: 7}, nil)
 	require.NotNil(t, m.Status())
 	require.False(t, m.Status().Downloaded, "enabled but nothing downloaded yet")
+	require.Empty(t, m.DatabasePath(), "the edge guard gets no database before one is installed")
 	require.Equal(t, 7*24*time.Hour, m.syncOnce(ctx))
 	require.Equal(t, []string{"dbip-country-2026-10.mmdb"}, mmdbFiles(t, dir))
+	require.Equal(t, filepath.Join(dir, "dbip-country-2026-10.mmdb"), m.DatabasePath(), "the guard copies the installed file")
 	require.Equal(t, agentprotocol.GeoLevelCountry, m.DB().Level())
 	loc, ok := m.DB().Locate(ipLondon)
 	require.True(t, ok)
@@ -298,6 +300,7 @@ func TestManagerDownloadsDBIPAndKeepsOnlyTheCurrentDatabase(t *testing.T) {
 	// A changed level deletes the country database and downloads the city one.
 	m.Apply(agentprotocol.GeoConfig{Enabled: true, Source: agentprotocol.GeoSourceDBIP, Level: agentprotocol.GeoLevelCity, RefreshDays: 7}, nil)
 	require.Empty(t, mmdbFiles(t, dir), "the old database is deleted at once")
+	require.Empty(t, m.DatabasePath(), "a deleted database is never handed to the guard")
 	_, ok = m.DB().Locate(ipLondon)
 	require.False(t, ok)
 	m.syncOnce(ctx)

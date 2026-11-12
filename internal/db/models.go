@@ -1454,6 +1454,7 @@ type Service struct {
 	MaintenanceMessage  string          `json:"maintenanceMessage"`
 	MaintenanceEta      *time.Time      `json:"maintenanceEta"`
 	MaintenanceSince    *time.Time      `json:"maintenanceSince"`
+	Firewall            json.RawMessage `json:"firewall"`
 }
 
 type ServiceAlertSetting struct {

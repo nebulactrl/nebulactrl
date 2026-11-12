@@ -189,6 +189,7 @@ export type ApiRouteKey =
 	| `GET /services/${string}/domains`
 	| `GET /services/${string}/dump-restores`
 	| `GET /services/${string}/files`
+	| `GET /services/${string}/firewall`
 	| `GET /services/${string}/git`
 	| `GET /services/${string}/git-poll`
 	| `GET /services/${string}/incidents`
@@ -474,6 +475,7 @@ export type ApiRouteKey =
 	| `PUT /servers/${string}/unrestricted`
 	| `PUT /services/${string}/database/public-port`
 	| `PUT /services/${string}/deploy-hook`
+	| `PUT /services/${string}/firewall`
 	| `PUT /services/${string}/git`
 	| `PUT /services/${string}/git-poll`
 	| `PUT /services/${string}/maintenance`

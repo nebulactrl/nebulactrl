@@ -3258,6 +3258,111 @@ func (e FileEntryType) Valid() bool {
 	}
 }
 
+// Defines values for FirewallConditionField.
+const (
+	FirewallConditionFieldCountry   FirewallConditionField = "country"
+	FirewallConditionFieldHeader    FirewallConditionField = "header"
+	FirewallConditionFieldIp        FirewallConditionField = "ip"
+	FirewallConditionFieldMethod    FirewallConditionField = "method"
+	FirewallConditionFieldPath      FirewallConditionField = "path"
+	FirewallConditionFieldQuery     FirewallConditionField = "query"
+	FirewallConditionFieldUserAgent FirewallConditionField = "userAgent"
+)
+
+// Valid indicates whether the value is a known member of the FirewallConditionField enum.
+func (e FirewallConditionField) Valid() bool {
+	switch e {
+	case FirewallConditionFieldCountry:
+		return true
+	case FirewallConditionFieldHeader:
+		return true
+	case FirewallConditionFieldIp:
+		return true
+	case FirewallConditionFieldMethod:
+		return true
+	case FirewallConditionFieldPath:
+		return true
+	case FirewallConditionFieldQuery:
+		return true
+	case FirewallConditionFieldUserAgent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallConditionOp.
+const (
+	FirewallConditionOpContains FirewallConditionOp = "contains"
+	FirewallConditionOpEquals   FirewallConditionOp = "equals"
+	FirewallConditionOpExact    FirewallConditionOp = "exact"
+	FirewallConditionOpIn       FirewallConditionOp = "in"
+	FirewallConditionOpPrefix   FirewallConditionOp = "prefix"
+	FirewallConditionOpPresent  FirewallConditionOp = "present"
+	FirewallConditionOpRegex    FirewallConditionOp = "regex"
+)
+
+// Valid indicates whether the value is a known member of the FirewallConditionOp enum.
+func (e FirewallConditionOp) Valid() bool {
+	switch e {
+	case FirewallConditionOpContains:
+		return true
+	case FirewallConditionOpEquals:
+		return true
+	case FirewallConditionOpExact:
+		return true
+	case FirewallConditionOpIn:
+		return true
+	case FirewallConditionOpPrefix:
+		return true
+	case FirewallConditionOpPresent:
+		return true
+	case FirewallConditionOpRegex:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallRuleAction.
+const (
+	FirewallRuleActionAllow FirewallRuleAction = "allow"
+	FirewallRuleActionBlock FirewallRuleAction = "block"
+)
+
+// Valid indicates whether the value is a known member of the FirewallRuleAction enum.
+func (e FirewallRuleAction) Valid() bool {
+	switch e {
+	case FirewallRuleActionAllow:
+		return true
+	case FirewallRuleActionBlock:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallViewEnforcement.
+const (
+	FirewallViewEnforcementGuard  FirewallViewEnforcement = "guard"
+	FirewallViewEnforcementNone   FirewallViewEnforcement = "none"
+	FirewallViewEnforcementRoutes FirewallViewEnforcement = "routes"
+)
+
+// Valid indicates whether the value is a known member of the FirewallViewEnforcement enum.
+func (e FirewallViewEnforcement) Valid() bool {
+	switch e {
+	case FirewallViewEnforcementGuard:
+		return true
+	case FirewallViewEnforcementNone:
+		return true
+	case FirewallViewEnforcementRoutes:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FleetServerDrainState.
 const (
 	FleetServerDrainStateDrained  FleetServerDrainState = "drained"
@@ -13196,6 +13301,58 @@ type FileWritePolicy struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
+// FirewallCondition defines model for FirewallCondition.
+type FirewallCondition struct {
+	Field  FirewallConditionField `json:"field"`
+	Name   *string                `json:"name,omitempty"`
+	Not    *bool                  `json:"not,omitempty"`
+	Op     FirewallConditionOp    `json:"op"`
+	Values *[]string              `json:"values,omitempty"`
+}
+
+// FirewallConditionField defines model for FirewallCondition.Field.
+type FirewallConditionField string
+
+// FirewallConditionOp defines model for FirewallCondition.Op.
+type FirewallConditionOp string
+
+// FirewallRule defines model for FirewallRule.
+type FirewallRule struct {
+	Action     FirewallRuleAction   `json:"action"`
+	Conditions *[]FirewallCondition `json:"conditions"`
+	Disabled   *bool                `json:"disabled,omitempty"`
+
+	// Id 1-16 lowercase letters or digits, unique in the list; generated when omitted
+	Id   *string `json:"id,omitempty"`
+	Name string  `json:"name"`
+}
+
+// FirewallRuleAction defines model for FirewallRule.Action.
+type FirewallRuleAction string
+
+// FirewallView defines model for FirewallView.
+type FirewallView struct {
+	Deployed bool `json:"deployed"`
+
+	// Enforcement none: no firewall (tcp/udp routes). routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
+	Enforcement  FirewallViewEnforcement `json:"enforcement"`
+	GeoAvailable bool                    `json:"geoAvailable"`
+
+	// Hosts Every domain of the service; the firewall covers all of them
+	Hosts *[]string `json:"hosts"`
+
+	// Rules The service's own rules in evaluation order; the first rule whose conditions all match decides
+	Rules  *[]FirewallRule `json:"rules"`
+	Server string          `json:"server"`
+
+	// Standard Standard protection NebulaCtrl applies to every HTTP service after its own rules; it cannot be switched off, but an allow rule above lets a request through. Empty for tcp/udp routes
+	Standard  *[]StandardRule `json:"standard"`
+	Supported bool            `json:"supported"`
+}
+
+// FirewallViewEnforcement none: no firewall (tcp/udp routes). routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
+type FirewallViewEnforcement string
+
 // FixesInputBody defines model for FixesInputBody.
 type FixesInputBody struct {
 	// FixIds The fixes to apply or undo. Apply with none selects the default set (the ones marked default in the fix list); rollback needs at least one.
@@ -16342,6 +16499,12 @@ type PutInputBody3 struct {
 	Layout Layout `json:"layout"`
 }
 
+// PutInputBody4 defines model for PutInputBody4.
+type PutInputBody4 struct {
+	// Rules The complete rule list, in evaluation order; an empty list removes the firewall. A rule without an id gets one.
+	Rules *[]FirewallRule `json:"rules"`
+}
+
 // PutSettingsInputBody defines model for PutSettingsInputBody.
 type PutSettingsInputBody struct {
 	Capture         bool  `json:"capture"`
@@ -18473,6 +18636,16 @@ type StageServiceSourceChangeInputBodySubmodules string
 type StagedResult struct {
 	Items *[]DeploymentView `json:"items"`
 	Order *[]string         `json:"order"`
+}
+
+// StandardRule defines model for StandardRule.
+type StandardRule struct {
+	// Description What the rule blocks, in a sentence
+	Description string `json:"description"`
+
+	// Examples Request paths it blocks
+	Examples *[]string    `json:"examples"`
+	Rule     FirewallRule `json:"rule"`
 }
 
 // StartIdentityLinkInputBody defines model for StartIdentityLinkInputBody.
@@ -21623,6 +21796,12 @@ type ListServiceFilesParams struct {
 	Path *string `form:"path,omitempty" json:"path,omitempty"`
 }
 
+// SetServiceFirewallParams defines parameters for SetServiceFirewall.
+type SetServiceFirewallParams struct {
+	// IdempotencyKey Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
+	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
+}
+
 // ListServiceIncidentsParams defines parameters for ListServiceIncidents.
 type ListServiceIncidentsParams struct {
 	// Limit Default 50.
@@ -22384,6 +22563,9 @@ type CreateDomainJSONRequestBody = CreateInputBody1
 
 // CreateDumpRestoreJSONRequestBody defines body for CreateDumpRestore for application/json ContentType.
 type CreateDumpRestoreJSONRequestBody = CreateDumpRestoreInputBody
+
+// SetServiceFirewallJSONRequestBody defines body for SetServiceFirewall for application/json ContentType.
+type SetServiceFirewallJSONRequestBody = PutInputBody4
 
 // LinkServiceGitJSONRequestBody defines body for LinkServiceGit for application/json ContentType.
 type LinkServiceGitJSONRequestBody = LinkInputBody
@@ -26534,6 +26716,31 @@ type ClientInterface interface {
 	//
 	// Corresponds with GET /services/{serviceId}/files (the `ListServiceFiles` operationId).
 	ListServiceFiles(ctx context.Context, serviceId string, params *ListServiceFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetServiceFirewall Get a service's firewall
+	//
+	// The rules the proxy evaluates against every request to the service's domains, and how it enforces them.
+	//
+	// Corresponds with GET /services/{serviceId}/firewall (the `GetServiceFirewall` operationId).
+	GetServiceFirewall(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetServiceFirewallWithBody Replace a service's firewall
+	//
+	// Rules are evaluated top to bottom for every request to any domain of the service; the first rule whose conditions all match decides. `block` answers HTTP 403, `allow` lets the request through and skips the rules below it; a request no rule matches goes through. A condition matches when any of its values does (`not` inverts it). Fields and operators: `ip` in (CIDRs or addresses), `country` in (ISO 3166-1 codes; needs geolocation on the server, 422 `geo_required`), `method` in, `path` prefix/exact/contains/regex, `header` and `query` equals/contains/regex/present (with `name`), `userAgent` contains/regex. `contains` ignores case; regular expressions use Go syntax and are unanchored. The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_firewall` names the rule and condition at fault; 422 `agent_too_old` when the server's agent predates firewalls.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
+	SetServiceFirewallWithBody(ctx context.Context, serviceId string, params *SetServiceFirewallParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetServiceFirewall Replace a service's firewall
+	//
+	// Rules are evaluated top to bottom for every request to any domain of the service; the first rule whose conditions all match decides. `block` answers HTTP 403, `allow` lets the request through and skips the rules below it; a request no rule matches goes through. A condition matches when any of its values does (`not` inverts it). Fields and operators: `ip` in (CIDRs or addresses), `country` in (ISO 3166-1 codes; needs geolocation on the server, 422 `geo_required`), `method` in, `path` prefix/exact/contains/regex, `header` and `query` equals/contains/regex/present (with `name`), `userAgent` contains/regex. `contains` ignores case; regular expressions use Go syntax and are unanchored. The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_firewall` names the rule and condition at fault; 422 `agent_too_old` when the server's agent predates firewalls.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
+	SetServiceFirewall(ctx context.Context, serviceId string, params *SetServiceFirewallParams, body SetServiceFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UnlinkServiceGit Unlink a service from its repository
 	//
@@ -36873,6 +37080,61 @@ func (c *Client) ScanServiceEnvTemplates(ctx context.Context, serviceId string, 
 // Corresponds with GET /services/{serviceId}/files (the `ListServiceFiles` operationId).
 func (c *Client) ListServiceFiles(ctx context.Context, serviceId string, params *ListServiceFilesParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewListServiceFilesRequest(c.Server, serviceId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetServiceFirewall Get a service's firewall
+//
+// The rules the proxy evaluates against every request to the service's domains, and how it enforces them.
+//
+// Corresponds with GET /services/{serviceId}/firewall (the `GetServiceFirewall` operationId).
+func (c *Client) GetServiceFirewall(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServiceFirewallRequest(c.Server, serviceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetServiceFirewallWithBody Replace a service's firewall
+//
+// Rules are evaluated top to bottom for every request to any domain of the service; the first rule whose conditions all match decides. `block` answers HTTP 403, `allow` lets the request through and skips the rules below it; a request no rule matches goes through. A condition matches when any of its values does (`not` inverts it). Fields and operators: `ip` in (CIDRs or addresses), `country` in (ISO 3166-1 codes; needs geolocation on the server, 422 `geo_required`), `method` in, `path` prefix/exact/contains/regex, `header` and `query` equals/contains/regex/present (with `name`), `userAgent` contains/regex. `contains` ignores case; regular expressions use Go syntax and are unanchored. The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_firewall` names the rule and condition at fault; 422 `agent_too_old` when the server's agent predates firewalls.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
+func (c *Client) SetServiceFirewallWithBody(ctx context.Context, serviceId string, params *SetServiceFirewallParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetServiceFirewallRequestWithBody(c.Server, serviceId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetServiceFirewall Replace a service's firewall
+//
+// Rules are evaluated top to bottom for every request to any domain of the service; the first rule whose conditions all match decides. `block` answers HTTP 403, `allow` lets the request through and skips the rules below it; a request no rule matches goes through. A condition matches when any of its values does (`not` inverts it). Fields and operators: `ip` in (CIDRs or addresses), `country` in (ISO 3166-1 codes; needs geolocation on the server, 422 `geo_required`), `method` in, `path` prefix/exact/contains/regex, `header` and `query` equals/contains/regex/present (with `name`), `userAgent` contains/regex. `contains` ignores case; regular expressions use Go syntax and are unanchored. The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_firewall` names the rule and condition at fault; 422 `agent_too_old` when the server's agent predates firewalls.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
+func (c *Client) SetServiceFirewall(ctx context.Context, serviceId string, params *SetServiceFirewallParams, body SetServiceFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetServiceFirewallRequest(c.Server, serviceId, params, body)
 	if err != nil {
 		return nil, err
 	}
@@ -56359,6 +56621,102 @@ func NewListServiceFilesRequest(server string, serviceId string, params *ListSer
 	return req, nil
 }
 
+// NewGetServiceFirewallRequest constructs an http.Request for the GetServiceFirewall method
+func NewGetServiceFirewallRequest(server string, serviceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/firewall", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSetServiceFirewallRequest calls the generic SetServiceFirewall builder with application/json body
+func NewSetServiceFirewallRequest(server string, serviceId string, params *SetServiceFirewallParams, body SetServiceFirewallJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetServiceFirewallRequestWithBody(server, serviceId, params, "application/json", bodyReader)
+}
+
+// NewSetServiceFirewallRequestWithBody constructs an http.Request for the SetServiceFirewall method, with any body, and a specified content type
+func NewSetServiceFirewallRequestWithBody(server string, serviceId string, params *SetServiceFirewallParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/firewall", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.IdempotencyKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", *params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Idempotency-Key", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewUnlinkServiceGitRequest constructs an http.Request for the UnlinkServiceGit method
 func NewUnlinkServiceGitRequest(server string, serviceId string) (*http.Request, error) {
 	var err error
@@ -66729,6 +67087,33 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with GET /services/{serviceId}/files (the `ListServiceFiles` operationId).
 	ListServiceFilesWithResponse(ctx context.Context, serviceId string, params *ListServiceFilesParams, reqEditors ...RequestEditorFn) (*ListServiceFilesResponse, error)
+
+	// GetServiceFirewallWithResponse Get a service's firewall
+	//
+	// The rules the proxy evaluates against every request to the service's domains, and how it enforces them.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /services/{serviceId}/firewall (the `GetServiceFirewall` operationId).
+	GetServiceFirewallWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*GetServiceFirewallResponse, error)
+
+	// SetServiceFirewallWithBodyWithResponse Replace a service's firewall
+	//
+	// Rules are evaluated top to bottom for every request to any domain of the service; the first rule whose conditions all match decides. `block` answers HTTP 403, `allow` lets the request through and skips the rules below it; a request no rule matches goes through. A condition matches when any of its values does (`not` inverts it). Fields and operators: `ip` in (CIDRs or addresses), `country` in (ISO 3166-1 codes; needs geolocation on the server, 422 `geo_required`), `method` in, `path` prefix/exact/contains/regex, `header` and `query` equals/contains/regex/present (with `name`), `userAgent` contains/regex. `contains` ignores case; regular expressions use Go syntax and are unanchored. The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_firewall` names the rule and condition at fault; 422 `agent_too_old` when the server's agent predates firewalls.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
+	SetServiceFirewallWithBodyWithResponse(ctx context.Context, serviceId string, params *SetServiceFirewallParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetServiceFirewallResponse, error)
+
+	// SetServiceFirewallWithResponse Replace a service's firewall
+	//
+	// Rules are evaluated top to bottom for every request to any domain of the service; the first rule whose conditions all match decides. `block` answers HTTP 403, `allow` lets the request through and skips the rules below it; a request no rule matches goes through. A condition matches when any of its values does (`not` inverts it). Fields and operators: `ip` in (CIDRs or addresses), `country` in (ISO 3166-1 codes; needs geolocation on the server, 422 `geo_required`), `method` in, `path` prefix/exact/contains/regex, `header` and `query` equals/contains/regex/present (with `name`), `userAgent` contains/regex. `contains` ignores case; regular expressions use Go syntax and are unanchored. The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_firewall` names the rule and condition at fault; 422 `agent_too_old` when the server's agent predates firewalls.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
+	SetServiceFirewallWithResponse(ctx context.Context, serviceId string, params *SetServiceFirewallParams, body SetServiceFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*SetServiceFirewallResponse, error)
 
 	// UnlinkServiceGitWithResponse Unlink a service from its repository
 	//
@@ -98330,6 +98715,172 @@ func (r ListServiceFilesResponse) ContentType() string {
 	return ""
 }
 
+type GetServiceFirewallResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FirewallView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetServiceFirewallResponse) GetJSON200() *FirewallView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetServiceFirewallResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetServiceFirewallResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetServiceFirewallResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r GetServiceFirewallResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r GetServiceFirewallResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetServiceFirewallResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetServiceFirewallResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetServiceFirewallResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetServiceFirewallResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetServiceFirewallResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetServiceFirewallResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FirewallView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetServiceFirewallResponse) GetJSON200() *FirewallView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r SetServiceFirewallResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r SetServiceFirewallResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r SetServiceFirewallResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r SetServiceFirewallResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r SetServiceFirewallResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SetServiceFirewallResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SetServiceFirewallResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetServiceFirewallResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetServiceFirewallResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetServiceFirewallResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type UnlinkServiceGitResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -116249,6 +116800,51 @@ func (c *ClientWithResponses) ListServiceFilesWithResponse(ctx context.Context, 
 		return nil, err
 	}
 	return ParseListServiceFilesResponse(rsp)
+}
+
+// GetServiceFirewallWithResponse Get a service's firewall
+//
+// The rules the proxy evaluates against every request to the service's domains, and how it enforces them.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /services/{serviceId}/firewall (the `GetServiceFirewall` operationId).
+func (c *ClientWithResponses) GetServiceFirewallWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*GetServiceFirewallResponse, error) {
+	rsp, err := c.GetServiceFirewall(ctx, serviceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetServiceFirewallResponse(rsp)
+}
+
+// SetServiceFirewallWithBodyWithResponse Replace a service's firewall
+//
+// Rules are evaluated top to bottom for every request to any domain of the service; the first rule whose conditions all match decides. `block` answers HTTP 403, `allow` lets the request through and skips the rules below it; a request no rule matches goes through. A condition matches when any of its values does (`not` inverts it). Fields and operators: `ip` in (CIDRs or addresses), `country` in (ISO 3166-1 codes; needs geolocation on the server, 422 `geo_required`), `method` in, `path` prefix/exact/contains/regex, `header` and `query` equals/contains/regex/present (with `name`), `userAgent` contains/regex. `contains` ignores case; regular expressions use Go syntax and are unanchored. The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_firewall` names the rule and condition at fault; 422 `agent_too_old` when the server's agent predates firewalls.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
+func (c *ClientWithResponses) SetServiceFirewallWithBodyWithResponse(ctx context.Context, serviceId string, params *SetServiceFirewallParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetServiceFirewallResponse, error) {
+	rsp, err := c.SetServiceFirewallWithBody(ctx, serviceId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetServiceFirewallResponse(rsp)
+}
+
+// SetServiceFirewallWithResponse Replace a service's firewall
+//
+// Rules are evaluated top to bottom for every request to any domain of the service; the first rule whose conditions all match decides. `block` answers HTTP 403, `allow` lets the request through and skips the rules below it; a request no rule matches goes through. A condition matches when any of its values does (`not` inverts it). Fields and operators: `ip` in (CIDRs or addresses), `country` in (ISO 3166-1 codes; needs geolocation on the server, 422 `geo_required`), `method` in, `path` prefix/exact/contains/regex, `header` and `query` equals/contains/regex/present (with `name`), `userAgent` contains/regex. `contains` ignores case; regular expressions use Go syntax and are unanchored. The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_firewall` names the rule and condition at fault; 422 `agent_too_old` when the server's agent predates firewalls.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
+func (c *ClientWithResponses) SetServiceFirewallWithResponse(ctx context.Context, serviceId string, params *SetServiceFirewallParams, body SetServiceFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*SetServiceFirewallResponse, error) {
+	rsp, err := c.SetServiceFirewall(ctx, serviceId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetServiceFirewallResponse(rsp)
 }
 
 // UnlinkServiceGitWithResponse Unlink a service from its repository
@@ -143626,6 +144222,142 @@ func ParseListServiceFilesResponse(rsp *http.Response) (*ListServiceFilesRespons
 			return nil, err
 		}
 		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetServiceFirewallResponse parses an HTTP response from a GetServiceFirewallWithResponse call
+func ParseGetServiceFirewallResponse(rsp *http.Response) (*GetServiceFirewallResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetServiceFirewallResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FirewallView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetServiceFirewallResponse parses an HTTP response from a SetServiceFirewallWithResponse call
+func ParseSetServiceFirewallResponse(rsp *http.Response) (*SetServiceFirewallResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetServiceFirewallResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FirewallView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
 		var dest Error

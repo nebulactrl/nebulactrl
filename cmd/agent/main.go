@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -27,6 +28,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/agent/conn"
 	"github.com/nebulactrl/nebulactrl/internal/agent/docker"
 	"github.com/nebulactrl/nebulactrl/internal/agent/engine"
+	"github.com/nebulactrl/nebulactrl/internal/agent/guard"
 	"github.com/nebulactrl/nebulactrl/internal/agent/localproxy"
 	"github.com/nebulactrl/nebulactrl/internal/agent/loghistory"
 	"github.com/nebulactrl/nebulactrl/internal/agent/mesh"
@@ -108,7 +110,33 @@ func newCommand() *cobra.Command {
 	f.StringVar(&o.NetworkPool, "network-pool", netpool.DefaultPool, "IPv4 address range (CIDR) the agent allocates the subnets of its environment and shared networks from; must not overlap your LAN, VPN or other Docker networks")
 	f.IntVar(&o.NetworkPrefix, "network-prefix-len", netpool.DefaultPrefixLen, "prefix length of each allocated network subnet (24 = 253 containers per network, 256 networks in a /16 pool)")
 	f.DurationVar(&o.UptimeInterval, "uptime-interval", agentprotocol.UptimeInterval, "how often the agent probes each service for uptime (at least 1s; a test and diagnostic knob, leave the default in production)")
-	cmd.AddCommand(newHardeningCommand())
+	cmd.AddCommand(newHardeningCommand(), newGuardCommand())
+	return cmd
+}
+
+// newGuardCommand runs the edge guard (internal/agent/guard). The agent starts
+// it in the guard container; it is not meant to be run by hand.
+func newGuardCommand() *cobra.Command {
+	var dir, listen string
+	cmd := &cobra.Command{
+		Use:    "guard",
+		Short:  "Run the edge guard that evaluates service firewalls for the proxy (started by the agent)",
+		Hidden: true,
+		Args:   cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt, syscall.SIGTERM)
+			defer stop()
+			log := newLogger().With("component", "guard")
+			err := guard.Run(ctx, dir, listen, log)
+			if err != nil {
+				// The root command silences errors; the container log is all there is.
+				log.Error("guard exiting", "err", err)
+			}
+			return err
+		},
+	}
+	cmd.Flags().StringVar(&dir, "dir", guard.Dir, "directory with rules.json and the GeoIP database")
+	cmd.Flags().StringVar(&listen, "listen", fmt.Sprintf("127.0.0.1:%d", agentprotocol.GuardPort), "address to serve forwardAuth on")
 	return cmd
 }
 
@@ -155,6 +183,27 @@ func newLogger() *slog.Logger {
 	return slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})).With("service", "nebulactrl-agent")
 }
 
+// guardBinary is the agent's own executable for the edge guard container and
+// an identity that changes with it ("" on anything but Linux: the guard runs
+// in a Linux container).
+func guardBinary() (path, id string) {
+	if runtime.GOOS != "linux" {
+		return "", ""
+	}
+	exe, err := os.Executable()
+	if err != nil {
+		return "", ""
+	}
+	if p, err := filepath.EvalSymlinks(exe); err == nil {
+		exe = p
+	}
+	fi, err := os.Stat(exe)
+	if err != nil {
+		return "", ""
+	}
+	return exe, fmt.Sprintf("%s/%d/%d", version, fi.Size(), fi.ModTime().Unix())
+}
+
 func run(parent context.Context, log *slog.Logger, o options) error {
 	runCtx, stop := signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -196,6 +245,12 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 	}
 	defer st.Close()
 
+	// Request-origin geolocation: the control plane's reconcile frames configure
+	// the manager, which keeps the GeoIP database in <state-dir>/geoip; its
+	// state rides on every heartbeat, and the edge guard gets a copy for the
+	// firewalls' country conditions.
+	geo := traffic.NewGeoManager(filepath.Join(o.StateDir, "geoip"), log)
+	guardBin, guardID := guardBinary()
 	px, err := proxy.NewManager(proxy.Config{
 		Engine:    eng,
 		Store:     st,
@@ -207,6 +262,9 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 		Pages:     true,
 		// Tailnet mode "host": the host's own Tailscale (interface in 100.64.0.0/10).
 		HostTailscale: stats.DetectHostTailscale,
+		GuardBinary:   guardBin,
+		GuardBinaryID: guardID,
+		GeoDatabase:   geo.DatabasePath,
 	})
 	if err != nil {
 		return err
@@ -234,10 +292,6 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 	// Docker Compose runs compose stacks; a host without the plugin still
 	// starts the agent (only stack deploys fail, and CapCompose is not offered).
 	composeRunner := compose.New()
-	// Request-origin geolocation: the control plane's reconcile frames configure
-	// the manager, which keeps the GeoIP database in <state-dir>/geoip; its
-	// state rides on every heartbeat.
-	geo := traffic.NewGeoManager(filepath.Join(o.StateDir, "geoip"), log)
 	// Facts are collected before the proxy starts so port80Free/port443Free describe the host;
 	// they probe the ports the proxy will publish (a server setting overrides the flags).
 	webHTTP, webHTTPS := px.WebPorts()

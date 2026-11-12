@@ -647,7 +647,7 @@ func (q *Queries) ListUptimeServiceRefs(ctx context.Context, serviceIds []uuid.U
 const listUptimeServicesOnServer = `-- name: ListUptimeServicesOnServer :many
 
 
-SELECT sv.id, sv.environment_id, sv.name, sv.slug, sv.kind, sv.source_type, sv.config, sv.git_token_enc, sv.registry_auth_enc, sv.generation, sv.applied_generation, sv.server_id, sv.current_deployment_id, sv.observed, sv.observed_at, sv.created_at, sv.updated_at, sv.deleted_at, sv.desired_state, sv.replicas, sv.autoscaling, sv.last_scale_at, sv.last_scale_event, sv.scale_blocked_reason, sv.suggested_env, sv.template_instance_id, sv.template_key, sv.maintenance_enabled, sv.maintenance_title, sv.maintenance_message, sv.maintenance_eta, sv.maintenance_since,
+SELECT sv.id, sv.environment_id, sv.name, sv.slug, sv.kind, sv.source_type, sv.config, sv.git_token_enc, sv.registry_auth_enc, sv.generation, sv.applied_generation, sv.server_id, sv.current_deployment_id, sv.observed, sv.observed_at, sv.created_at, sv.updated_at, sv.deleted_at, sv.desired_state, sv.replicas, sv.autoscaling, sv.last_scale_at, sv.last_scale_event, sv.scale_blocked_reason, sv.suggested_env, sv.template_instance_id, sv.template_key, sv.maintenance_enabled, sv.maintenance_title, sv.maintenance_message, sv.maintenance_eta, sv.maintenance_since, sv.firewall,
        p.id AS project_id, p.name AS project_name, e.name AS environment_name
 FROM services sv
 JOIN environments e ON e.id = sv.environment_id
@@ -720,6 +720,7 @@ func (q *Queries) ListUptimeServicesOnServer(ctx context.Context, arg ListUptime
 			&i.Service.MaintenanceMessage,
 			&i.Service.MaintenanceEta,
 			&i.Service.MaintenanceSince,
+			&i.Service.Firewall,
 			&i.ProjectID,
 			&i.ProjectName,
 			&i.EnvironmentName,

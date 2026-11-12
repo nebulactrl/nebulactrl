@@ -43,7 +43,25 @@
         "tlsMode": "auto",
         "options": {}
       }
-    ]
+    ],
+    "firewall": {
+      "rules": [
+        {
+          "id": "stdsecrets",
+          "name": "Secret files",
+          "action": "block",
+          "conditions": [
+            {
+              "field": "path",
+              "op": "regex",
+              "values": [
+                "(?i)/\\.(env|envrc|git|git-credentials|svn|hg|bzr|aws|ssh|docker|npmrc|pypirc|netrc|htpasswd|ds_store)(/|\\.|$)"
+              ]
+            }
+          ]
+        }
+      ]
+    }
   },
   {
     "serviceId": "<idE>",
@@ -67,7 +85,25 @@
         "tlsMode": "auto",
         "options": {}
       }
-    ]
+    ],
+    "firewall": {
+      "rules": [
+        {
+          "id": "stdsecrets",
+          "name": "Secret files",
+          "action": "block",
+          "conditions": [
+            {
+              "field": "path",
+              "op": "regex",
+              "values": [
+                "(?i)/\\.(env|envrc|git|git-credentials|svn|hg|bzr|aws|ssh|docker|npmrc|pypirc|netrc|htpasswd|ds_store)(/|\\.|$)"
+              ]
+            }
+          ]
+        }
+      ]
+    }
   },
   {
     "serviceId": "<idG>",

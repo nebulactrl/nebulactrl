@@ -11,6 +11,7 @@ export const CATEGORY_IDS = [
 	"general",
 	"deploy",
 	"networking",
+	"firewall",
 	"resources",
 	"storage",
 	"operations",
@@ -45,6 +46,8 @@ export type SectionId =
 	| "files"
 	| "tasks"
 	| "maintenance"
+	| "rules"
+	| "try-a-request"
 	| "danger-zone"
 	| "upstreams"
 	| "target"
@@ -92,6 +95,11 @@ const CATEGORY_COPY: Record<
 	networking: {
 		label: "Networking",
 		description: "How people and other services reach this service.",
+	},
+	firewall: {
+		label: "Firewall",
+		description:
+			"Block or allow requests by IP address, country, path, method or header before they reach the service.",
 	},
 	resources: {
 		label: "Resources",
@@ -141,6 +149,8 @@ const SECTION_LABEL: Record<SectionId, string> = {
 	files: "Files",
 	tasks: "Tasks",
 	maintenance: "Maintenance",
+	rules: "Rules",
+	"try-a-request": "Try a request",
 	"danger-zone": "Danger zone",
 	upstreams: "Upstreams",
 	target: "Target",
@@ -171,6 +181,7 @@ function sectionsFor(
 				http ? "upstreams" : "target",
 				http ? "domains" : "port-and-access",
 			],
+			firewall: [],
 			resources: [],
 			storage: [],
 			operations: [],
@@ -186,6 +197,7 @@ function sectionsFor(
 			general: ["identity", "placement", "compose"],
 			deploy: ["stack-deploy", "deploy-hook"],
 			networking: ["stack-networking"],
+			firewall: [],
 			resources: ["stack-limits"],
 			storage: [],
 			operations: ["uptime-monitoring"],
@@ -215,6 +227,7 @@ function sectionsFor(
 			"releases",
 		],
 		networking: oneshot ? [] : ["networking", "tailnet", "mesh"],
+		firewall: oneshot ? [] : ["rules", "try-a-request"],
 		resources: ["scaling", "resources"],
 		storage: ["volumes", "files"],
 		operations: oneshot ? [] : ["uptime-monitoring", "tasks", "maintenance"],
@@ -1083,6 +1096,25 @@ export const SEARCH_ENTRIES: readonly SearchEntry[] = [
 		"page",
 		"retry",
 	]),
+	entry("rules", "Firewall rules", "rules", [
+		"waf",
+		"firewall",
+		"block",
+		"allow",
+		"deny",
+		"ip",
+		"country",
+		"geo",
+		"bot",
+		"scanner",
+		"403",
+	]),
+	entry(
+		"try-a-request",
+		"Test a request against the firewall",
+		"firewall-try",
+		["simulate", "test", "waf", "blocked"],
+	),
 	entry("danger-zone", "Delete service", "delete-confirm", [
 		"remove",
 		"destroy",

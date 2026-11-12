@@ -104,6 +104,14 @@ type Config struct {
 	// PortInUse reports whether a process of the host holds a port (proto tcp
 	// or udp). Optional: the default tries to bind it. Tests replace it.
 	PortInUse func(proto string, port int) bool
+	// GuardBinary is the agent's own Linux executable, copied into the edge
+	// guard container (manager_guard.go); empty when the agent cannot run the
+	// guard. GuardBinaryID identifies it (a new binary recreates the guard).
+	GuardBinary   string
+	GuardBinaryID string
+	// GeoDatabase returns the installed GeoIP database file ("" none), for the
+	// firewalls' country conditions. Optional.
+	GeoDatabase func() string
 }
 
 // Manager owns the Traefik container and its dynamic config.
@@ -161,6 +169,8 @@ type Manager struct {
 	busyFor [2]int
 	// edge is what the last apply saw of the edge network (edge.go).
 	edge edgeState
+	// guard is what the edge guard container holds (applyMu).
+	guard guardState
 }
 
 // NewManager builds a Manager and loads any persisted route table, settings
@@ -412,6 +422,9 @@ func (m *Manager) applyLocked(ctx context.Context, routes []agentprotocol.Route)
 		err = m.preparePages(ctx, routes)
 	}
 	if err == nil {
+		err = m.prepareGuard(ctx, routes)
+	}
+	if err == nil {
 		err = m.push(ctx, routes, email, usable, cfg)
 	}
 	if err != nil {
@@ -429,6 +442,8 @@ func (m *Manager) applyLocked(ctx context.Context, routes []agentprotocol.Route)
 			err = fmt.Errorf("%w (restoring the previous route table also failed: %v)", err, rerr)
 		}
 		m.revertConfig()
+		// The guard follows the restored table (and container).
+		m.finishGuard(ctx, prev)
 		// The proxy may have joined networks only the rejected table needs.
 		if nerr := m.syncNetworks(ctx, prev, true); nerr != nil {
 			m.log.Warn("restore proxy networks", "err", nerr)
@@ -436,6 +451,7 @@ func (m *Manager) applyLocked(ctx context.Context, routes []agentprotocol.Route)
 		return err
 	}
 	m.finishPages(ctx, routes)
+	m.finishGuard(ctx, routes)
 	// Leave the networks no route needs any more (the new table is live).
 	if nerr := m.syncNetworks(ctx, routes, true); nerr != nil {
 		m.log.Warn("prune proxy networks", "err", nerr)
@@ -869,6 +885,7 @@ func (m *Manager) check(ctx context.Context) error {
 		return fmt.Errorf("proxy lost its route table (generation %d answered %d)", gen, code)
 	}
 	m.refreshTailnetIfDue(cctx)
+	m.checkGuard(cctx)
 	// The TLS handshakes can take seconds; never hold the health loop for them.
 	go m.refreshAcmeIfDue(ctx)
 	return nil

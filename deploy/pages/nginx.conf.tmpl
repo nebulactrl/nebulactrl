@@ -25,6 +25,7 @@ http {
         server_name _;
         root {{.Root}};
 
+        error_page 403 /p/403.html;
         error_page 404 /p/404.html;
         error_page 502 /p/502.html;
         error_page 503 /p/503.html;
@@ -34,13 +35,16 @@ http {
         location = /healthz { access_log off; add_header Cache-Control "no-store" always; return 200 "ok\n"; }
 
         # Entry points. Traefik's errors middleware asks for /err/<status>; the
-        # catch-all router asks for /err/404. The status code is the response's.
+        # catch-all router asks for /err/404 and a firewall block router for
+        # /err/403. The status code is the response's.
+        location = /err/403 { return 403; }
         location = /err/404 { return 404; }
         location = /err/502 { return 502; }
         location = /err/503 { return 503; }
         location = /err/504 { return 504; }
 
         # Rendered pages: internal only, served with the status of the error.
+        location = /p/403.html { internal; {{.Headers}} }
         location = /p/404.html { internal; {{.Headers}} }
         location = /p/502.html { internal; {{.Headers}} add_header Retry-After "30" always; }
         location = /p/503.html { internal; {{.Headers}} add_header Retry-After "30" always; }

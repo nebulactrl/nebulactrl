@@ -104,6 +104,17 @@ func NewGeoManager(dir string, logger *slog.Logger) *GeoManager {
 // DB returns the lookup handle the aggregator uses.
 func (m *GeoManager) DB() *GeoDB { return m.db }
 
+// DatabasePath is the installed database file ("" while none is installed).
+// The edge guard gets a copy of it for the firewalls' country conditions.
+func (m *GeoManager) DatabasePath() string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if !m.haveDB || m.state.File == "" {
+		return ""
+	}
+	return filepath.Join(m.dir, filepath.Base(m.state.File))
+}
+
 // LastError is the reason the last download failed ("" when healthy).
 func (m *GeoManager) LastError() string {
 	m.mu.Lock()

@@ -14,8 +14,9 @@ Two things share one design: a **maintenance mode** you switch on per service, a
 | Service is in maintenance mode | `503` + `Retry-After` | "Down for maintenance" (your title, message and expected-back time) |
 | The service answers `502`, `503` or `504`, or has no healthy replica (stopped, crashed, restarting) | the same status | "Service unavailable" / "Service timed out" |
 | A host that no service of this server serves | `404` | "Nothing here: No service is configured for this address." |
+| A request a [service firewall](firewall.md) rule blocks | `403` | "Access blocked" |
 
-Every page is sent with `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow` and a strict Content-Security-Policy. Error and maintenance pages other than the 404 also carry `Retry-After` (the ETA of a maintenance window as an HTTP date, a fixed delay otherwise: 120 s without an ETA, 300 s once it has passed, 30 s for automatic error pages).
+Every page is sent with `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow` and a strict Content-Security-Policy. Error and maintenance pages other than the 403 and the 404 also carry `Retry-After` (the ETA of a maintenance window as an HTTP date, a fixed delay otherwise: 120 s without an ETA, 300 s once it has passed, 30 s for automatic error pages).
 
 ## Maintenance mode
 

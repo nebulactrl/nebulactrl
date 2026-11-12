@@ -39,6 +39,7 @@ func routePayload(ctx context.Context, q *db.Queries, sc services.Scope, depID u
 	if ok {
 		if !rt.IsL4() {
 			rt.Maintenance = domains.MaintenanceOf(sc.Service)
+			rt.Firewall = domains.FirewallOf(sc.Service)
 		}
 		own, err := domains.PrepareRoutes(ctx, q, srv.ID, []agentprotocol.Route{rt})
 		if err != nil {

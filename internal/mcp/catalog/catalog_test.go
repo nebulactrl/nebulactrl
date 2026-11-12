@@ -446,7 +446,7 @@ var prodGuarded = map[string]bool{
 	"runServiceTask": true, "runServiceCommand": true, "deleteVolume": true, "deleteDomain": true,
 	"deleteEnvironment": true, "updateEnvironment": true, "deleteProject": true,
 	"restoreVolumeBackup": true, "upgradeDatabase": true, "rotateDatabaseCredentials": true,
-	"setServiceMaintenance": true, "setServiceScaling": true, "deleteTemplateInstance": true,
+	"setServiceMaintenance": true, "setServiceFirewall": true, "setServiceScaling": true, "deleteTemplateInstance": true,
 	"importCompose": true, "cancelDeployment": true, "startServerDrain": true, "moveService": true, "setProcessScaling": true,
 }
 

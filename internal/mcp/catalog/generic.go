@@ -129,6 +129,8 @@ var genericEntries = map[string]Generic{
 	"listPendingChanges":        rd(tConfig),
 	"reprovisionServiceTailnet": {Toolset: tConfig, Hints: Hints{Destructive: true, OpenWorld: true}, ProdGuard: true},
 	"setServiceMaintenance":     guarded(ai(tConfig)),
+	"getServiceFirewall":        rd(tConfig),
+	"setServiceFirewall":        guarded(ai(tConfig)),
 	"setServiceScaling":         guarded(ai(tConfig)),
 	"setProcessScaling":         guarded(ai(tConfig)),
 	"planCombineServices":       rd(tConfig),
