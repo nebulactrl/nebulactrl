@@ -427,7 +427,8 @@ func TestPollDoesNotReparkACommitWaitForCIRefused(t *testing.T) {
 	v, err = f.svc.Link(f.ctx, sv.ID, gitproviders.LinkInput{ConnectionID: conn.ID, Repo: "acme/shop", WaitForCI: ptr(false)})
 	require.NoError(t, err)
 	require.Nil(t, v.CIBlocked)
-	now = now.Add(time.Minute)
+	// Checks are spread by ±10% of the interval: two minutes is due for sure.
+	now = now.Add(2 * time.Minute)
 	require.NoError(t, f.svc.Sweep(context.Background()))
 	calls := f.dep.snapshot()
 	require.Len(t, calls, 1)
