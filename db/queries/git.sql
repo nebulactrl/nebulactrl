@@ -18,6 +18,10 @@ SELECT * FROM git_connections WHERE id = sqlc.arg(id);
 -- name: ListGitConnections :many
 SELECT * FROM git_connections WHERE workspace_id = $1 ORDER BY created_at, id;
 
+-- name: ListActiveGitHubAppConnections :many
+-- Every workspace's active GitHub App connections (the maintenance job keeps their App webhook pointed here).
+SELECT * FROM git_connections WHERE provider = 'github' AND auth_type = 'github_app' AND status = 'active' ORDER BY created_at, id;
+
 -- name: UpdateGitConnection :one
 UPDATE git_connections
 SET name = sqlc.arg(name),
@@ -97,10 +101,13 @@ VALUES ($1, $2, $3, $4, $5, $6)
 ON CONFLICT (service_id)
 DO UPDATE SET connection_id = EXCLUDED.connection_id, repo_full_name = EXCLUDED.repo_full_name,
               auto_deploy = EXCLUDED.auto_deploy, watch_paths = EXCLUDED.watch_paths, wait_for_ci = EXCLUDED.wait_for_ci,
-              -- A push that waits for CI is forgotten when the wait is turned off or the repository changes.
+              -- A push that waits for CI, and the commit CI refused, are forgotten when the wait is turned off or the repository changes.
               ci_wait = CASE WHEN EXCLUDED.wait_for_ci AND service_git.connection_id = EXCLUDED.connection_id
                               AND lower(service_git.repo_full_name) = lower(EXCLUDED.repo_full_name)
                              THEN service_git.ci_wait ELSE NULL END,
+              ci_blocked = CASE WHEN EXCLUDED.wait_for_ci AND service_git.connection_id = EXCLUDED.connection_id
+                                 AND lower(service_git.repo_full_name) = lower(EXCLUDED.repo_full_name)
+                                THEN service_git.ci_blocked ELSE NULL END,
               updated_at = now()
 RETURNING *;
 
@@ -157,8 +164,9 @@ WHERE sg.pending_commit IS NOT NULL
 LIMIT 100;
 
 -- name: SetServiceGitCIWait :exec
--- Parks the newest push until its CI checks pass ({sha, message, author, branch, since, checkedAt}).
-UPDATE service_git SET ci_wait = $2 WHERE service_id = $1;
+-- Parks the newest push until its CI checks pass ({sha, message, author, branch, since, checkedAt}); a newer
+-- push supersedes the commit CI refused before.
+UPDATE service_git SET ci_wait = $2, ci_blocked = NULL WHERE service_id = $1;
 
 -- name: TouchServiceGitCIWait :exec
 -- Records when the parked push's checks were last read (ignored when a newer push replaced it).
@@ -168,6 +176,14 @@ WHERE service_id = sqlc.arg(service_id) AND ci_wait IS NOT NULL AND ci_wait->>'s
 -- name: ClearServiceGitCIWait :execrows
 -- Takes the parked push (one row when this caller got it, zero when a newer push replaced it or another sweep took it).
 UPDATE service_git SET ci_wait = NULL
+WHERE service_id = sqlc.arg(service_id) AND ci_wait IS NOT NULL AND ci_wait->>'sha' = sqlc.arg(sha)::text;
+
+-- name: BlockServiceGitCIWait :execrows
+-- Takes the parked push and records it as refused by CI ({sha, branch, reason, at}); zero rows when a newer
+-- push replaced it or another sweep took it.
+UPDATE service_git SET ci_wait = NULL,
+       ci_blocked = jsonb_build_object('sha', ci_wait->>'sha', 'branch', ci_wait->>'branch',
+                                       'reason', sqlc.arg(reason)::text, 'at', now())
 WHERE service_id = sqlc.arg(service_id) AND ci_wait IS NOT NULL AND ci_wait->>'sha' = sqlc.arg(sha)::text;
 
 -- name: ListServiceGitWaitingCI :many

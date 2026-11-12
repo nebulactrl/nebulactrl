@@ -48,7 +48,8 @@ WHERE service_id = sqlc.arg(service_id);
 
 -- name: GitPollCommitHandled :one
 -- Whether the commit already has a deployment after the one the service runs (active, queued, failed or
--- succeeded: a failed commit is never retried, and a rollback is not undone), or is waiting to deploy.
+-- succeeded: a failed commit is never retried, and a rollback is not undone), is waiting to deploy, or was
+-- refused by wait-for-CI (while the service still waits for CI).
 SELECT (
     EXISTS (
         SELECT 1 FROM deployments d
@@ -63,7 +64,8 @@ SELECT (
     OR EXISTS (
         SELECT 1 FROM service_git g
         WHERE g.service_id = sqlc.arg(service_id)
-          AND (g.pending_commit->>'sha' = sqlc.arg(sha)::text OR g.ci_wait->>'sha' = sqlc.arg(sha)::text)
+          AND (g.pending_commit->>'sha' = sqlc.arg(sha)::text OR g.ci_wait->>'sha' = sqlc.arg(sha)::text
+               OR (g.wait_for_ci AND g.ci_blocked->>'sha' = sqlc.arg(sha)::text))
     )
 )::boolean AS handled;
 

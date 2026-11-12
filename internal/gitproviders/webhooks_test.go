@@ -93,6 +93,7 @@ func TestGitHubAppConnectionTestChecksRepositoryAccess(t *testing.T) {
 	f := newFixture(t)
 	id := f.githubApp()
 	f.provider.json("GET /api/v3/installation/repositories", 200, map[string]any{"total_count": 0, "repositories": []any{}})
+	f.provider.json("GET /api/v3/app/hook/config", 200, map[string]any{"url": "https://nebula.example.com/hooks/git/github/" + id.String()})
 
 	v, err := f.svc.TestConnection(f.ctx, id)
 	require.NoError(t, err)

@@ -224,9 +224,10 @@ func (githubDriver) parse(h http.Header, body []byte) (parsed, error) {
 		if err := json.Unmarshal(body, &in); err != nil {
 			return p, fmt.Errorf("decode installation payload: %w", err)
 		}
-		if in.Action == "created" && in.Installation.ID > 0 {
-			p.kind, p.installationID = kindInstallation, in.Installation.ID
-		} else {
+		switch {
+		case in.Installation.ID > 0 && (in.Action == "created" || in.Action == "new_permissions_accepted"):
+			p.kind, p.installationID, p.installationAction = kindInstallation, in.Installation.ID, in.Action
+		default:
 			p.reason = "installation " + in.Action
 		}
 	default:

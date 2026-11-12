@@ -59,6 +59,7 @@ export interface ApiSchemas {
 	"BuildPackage": T.BuildPackage;
 	"BuildPlanResult": T.BuildPlanResult;
 	"BuildStep": T.BuildStep;
+	"CIBlockedCommit": T.CiBlockedCommit;
 	"CORS": T.Cors;
 	"Canvas": T.Canvas;
 	"Capacity": T.Capacity;

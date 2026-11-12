@@ -478,10 +478,22 @@ export function GitLinkRows({
 							This connection cannot read CI results.
 						</span>
 					)}
+					{link.ciWarning ? (
+						<span className="text-destructive-text text-xs leading-relaxed">
+							{link.ciWarning}
+						</span>
+					) : null}
 					{link.waitingForCi ? (
 						<span className="type-secondary">
 							Waiting for CI on {shortSha(link.waitingForCi.sha)} since{" "}
 							{relativeTime(link.waitingForCi.since)}.
+						</span>
+					) : link.ciBlocked ? (
+						<span className="type-secondary">
+							{shortSha(link.ciBlocked.sha)} was not deployed (
+							{relativeTime(link.ciBlocked.at)})
+							{link.ciWarning ? "." : `: ${link.ciBlocked.reason}`} Deploy it by
+							hand, or push a new commit.
 						</span>
 					) : null}
 				</div>

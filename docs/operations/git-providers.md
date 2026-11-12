@@ -15,7 +15,7 @@ Set `NEBULACTRL_PUBLIC_URL` first: it is the address providers deliver webhooks 
 
 | Provider | How | Webhooks |
 |---|---|---|
-| GitHub (and GitHub Enterprise Server) | One click creates a **GitHub App** (manifest flow) owned by you or an organization: NebulaCtrl sends you to GitHub to confirm it. Permissions: contents read, metadata read, pull requests write, commit statuses write. Events: push, pull request. Install it on the repositories you want. If you leave GitHub before confirming, the connection stays "Waiting to finish": its **Finish setup** button sends you back to GitHub. | The App's own webhook delivers for every installed repository. |
+| GitHub (and GitHub Enterprise Server) | One click creates a **GitHub App** (manifest flow) owned by you or an organization: NebulaCtrl sends you to GitHub to confirm it. Permissions: contents read, metadata read, checks read, pull requests write, commit statuses write. Events: push, pull request. Install it on the repositories you want. If you leave GitHub before confirming, the connection stays "Waiting to finish": its **Finish setup** button sends you back to GitHub. | The App's own webhook delivers for every installed repository. NebulaCtrl keeps it pointed at `NEBULACTRL_PUBLIC_URL` (see [GitHub App webhook address](#github-app-webhook-address)). |
 | GitLab (gitlab.com or self-managed) | A personal/group/project access token with the `api` scope, or an OAuth application (scopes `api read_repository`; redirect URI `<public url>/api/v1/git/oauth/callback`). | Registered per repository through the API, with a secret token header. |
 | Gitea, Forgejo | Always give the instance URL. An access token, or an OAuth2 application (same redirect URI). | Registered per repository through the API; signed with HMAC-SHA256. Gitea blocks private webhook targets by default: allow the control plane in `[webhook] ALLOWED_HOST_LIST`. |
 | Bitbucket (Cloud and Data Center) | A signed push webhook only (optionally a repository access token to clone private repositories). No repository picker, no statuses, no previews. | You create it by hand with the URL and secret NebulaCtrl shows once; the secret can be rotated. |
@@ -43,7 +43,9 @@ With **Wait for CI to pass** on (`waitForCi` on the link, `git.wait_for_ci` in `
 
 What counts as a check: GitHub check runs (a run that is not `completed` is pending; `success`, `neutral` and `skipped` pass) and commit statuses; GitLab's newest pipeline of the commit; Gitea and Forgejo commit statuses. Statuses named `nebulactrl/…` (the deployment status NebulaCtrl reports itself) are ignored. Bitbucket and webhook-only connections cannot read CI results (`422 ci_not_supported`).
 
-GitHub Apps created by NebulaCtrl ask for the **Checks: read** permission. An App created earlier does not gain it automatically: grant it in the App's settings and accept the new permission on the installation. Until then a waiting push is dropped with a notification that says so.
+GitHub Apps created by NebulaCtrl ask for the **Checks: read** permission. An App created earlier does not gain it automatically: grant it in the App's settings (Permissions & events) and accept the new permission on the installation. While a service waits for CI on such an App, its Source settings say so (`ciWarning` on the link), and every push is refused with a notification. NebulaCtrl notices the accepted permission at once (GitHub's `installation` event).
+
+A commit Wait for CI refused stays on the link as `ciBlocked` (sha, branch, reason, at) and in the Source settings ("e73651f was not deployed: …") until a newer push is parked, Wait for CI is turned off or the service runs that commit. [Check for new commits](#without-a-webhook-check-for-new-commits) does not park a refused commit again; turning Wait for CI off lets the next check deploy it.
 
 ## Without a webhook: check for new commits
 
@@ -56,7 +58,7 @@ Turn it on in the service's Source settings → **Check for new commits**: choos
 - **Status**: the settings show when the branch was last checked, "main is at abc1234 (running)" or "New commit abc1234 on main" with a **Deploy latest** button, or the error of the last check (an unreachable remote, a rejected token). A failed check is not announced; it stays on the service and the next check tries again. **Check now** reads the head right away and never deploys.
 - **Each commit once**: a commit that already has a deployment after the running release (active, queued, failed or succeeded) is not deployed again, so a failed commit is not retried and a rollback is not undone. Push or deploy by hand to continue.
 - **Busy services**: a commit found during a running deployment waits and deploys when it ends. A linked service queues it like a push; others look again within a minute.
-- **Wait for CI** applies: on a linked service that waits for CI, a commit found by checking is parked until its checks pass.
+- **Wait for CI** applies: on a linked service that waits for CI, a commit found by checking is parked until its checks pass. A commit CI refused is not parked again (see [Wait for CI](#wait-for-ci)).
 - Stopped services, cron services and pull-request previews are checked but never deployed, and a service that was never deployed has no running commit to compare with. Watch paths do not filter commits found by checking: every new commit on the branch counts.
 
 The same setting in `nebula.toml`: `[services.api.git] poll = "5m"` (`"off"`, `"1m"`, `"5m"`, `"15m"` or `"60m"`) and `poll_deploy = false` for notify-only. From the CLI: `nebulactrl services git-poll api --every 5m`, `--notify-only`, `--off`, `--check`. A production service asks for approval when a token turns it on (see [production approval](../reference/mcp.md#production-approval)).
@@ -68,6 +70,13 @@ Every deployment of a linked service reports `nebulactrl/<service>` on its commi
 ## Webhook security
 
 `POST /hooks/git/{provider}/{connectionId}` is unauthenticated but verified: GitHub, Gitea and Forgejo by HMAC-SHA256 of the body, GitLab by its secret token header, Bitbucket by `X-Hub-Signature: sha256=…`. A delivery that fails verification triggers nothing (HTTP 401). Providers sign only the body, so the delivery id header alone proves nothing: both the delivery id and the hash of the payload are remembered for 7 days, and a repeat of either (a captured payload sent again under a new id) is rejected as a replay (HTTP 409), so an old push cannot roll a service back. Every delivery is logged with redacted headers (Team settings → Integrations → Deliveries; last 200, 14 days): processed, ignored, rejected, replayed or error, and what it started.
+
+## GitHub App webhook address
+
+A GitHub App has one webhook address, set when NebulaCtrl created it from `NEBULACTRL_PUBLIC_URL`. GitHub keeps that address when the public URL changes later (another host name, a port that is no longer open), and pushes stop arriving: the delivery log stays empty. NebulaCtrl reads the App's address from GitHub (`GET /app/hook/config`) and:
+
+- shows a **Webhook problem** on each linked service while it points elsewhere ("GitHub delivers this App's events to https://old:8443/…, not to https://new/…");
+- corrects it (`PATCH /app/hook/config`) when the control plane starts, every hour, and when you **Test** the connection in Team settings → Integrations.
 
 ## Clone credentials
 

@@ -83,6 +83,7 @@ function gitRoutes() {
 				connectionName: "",
 				queuedCommit: "",
 				waitForCi: false,
+				ciWarning: "",
 				repo: "",
 				repoUrl: "",
 				watchPaths: null,

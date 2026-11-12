@@ -1495,6 +1495,7 @@ type ServiceGit struct {
 	UpdatedAt     time.Time       `json:"updatedAt"`
 	WaitForCi     bool            `json:"waitForCi"`
 	CiWait        json.RawMessage `json:"ciWait"`
+	CiBlocked     json.RawMessage `json:"ciBlocked"`
 }
 
 type ServiceGitPoll struct {

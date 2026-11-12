@@ -112,7 +112,8 @@ SELECT (
     OR EXISTS (
         SELECT 1 FROM service_git g
         WHERE g.service_id = $1
-          AND (g.pending_commit->>'sha' = $2::text OR g.ci_wait->>'sha' = $2::text)
+          AND (g.pending_commit->>'sha' = $2::text OR g.ci_wait->>'sha' = $2::text
+               OR (g.wait_for_ci AND g.ci_blocked->>'sha' = $2::text))
     )
 )::boolean AS handled
 `
@@ -123,7 +124,8 @@ type GitPollCommitHandledParams struct {
 }
 
 // Whether the commit already has a deployment after the one the service runs (active, queued, failed or
-// succeeded: a failed commit is never retried, and a rollback is not undone), or is waiting to deploy.
+// succeeded: a failed commit is never retried, and a rollback is not undone), is waiting to deploy, or was
+// refused by wait-for-CI (while the service still waits for CI).
 func (q *Queries) GitPollCommitHandled(ctx context.Context, arg GitPollCommitHandledParams) (bool, error) {
 	row := q.db.QueryRow(ctx, gitPollCommitHandled, arg.ServiceID, arg.Sha)
 	var handled bool

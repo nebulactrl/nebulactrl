@@ -436,6 +436,42 @@ describe("GitLinkRows with a link", () => {
 		).toBeChecked();
 	});
 
+	test("a commit wait-for-CI refused is shown with why", async () => {
+		await setup({
+			waitForCi: true,
+			ciBlocked: {
+				sha: "e73651fd1f8dc509a08dad413f52bfb4490260f7",
+				branch: "main",
+				reason: "CI failed: ci/test",
+				at: new Date(Date.now() - 5 * 60_000).toISOString(),
+			},
+		}).ready;
+		expect(
+			await screen.findByText(
+				/e73651f was not deployed \(5m ago\): CI failed: ci\/test/,
+			),
+		).toBeInTheDocument();
+	});
+
+	test("a GitHub App that cannot read checks is called out", async () => {
+		const warning =
+			"The GitHub App may not read this repository's CI results, so Wait for CI refuses every push: grant it 'Checks: read'.";
+		await setup({
+			waitForCi: true,
+			ciWarning: warning,
+			ciBlocked: {
+				sha: "e73651fd1f8dc509a08dad413f52bfb4490260f7",
+				branch: "main",
+				reason: "NebulaCtrl cannot read check runs",
+				at: new Date().toISOString(),
+			},
+		}).ready;
+		expect(await screen.findByText(warning)).toBeInTheDocument();
+		expect(
+			screen.queryByText(/NebulaCtrl cannot read check runs/),
+		).not.toBeInTheDocument();
+	});
+
 	test("a Bitbucket link cannot wait for CI", async () => {
 		await setup({
 			provider: "bitbucket",

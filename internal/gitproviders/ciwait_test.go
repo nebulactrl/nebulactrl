@@ -383,6 +383,129 @@ func TestWaitForCIGitHubWithoutChecksPermissionNotifiesHowToFixIt(t *testing.T) 
 	require.Equal(t, "Bearer ghs_installation_token", f.provider.callsTo("GET", base+"/check-runs")[0].Auth)
 }
 
+// ghTokenWith makes the fake GitHub mint installation tokens carrying perms.
+func ghTokenWith(f *fixture, perms map[string]string) {
+	f.provider.json("POST /api/v3/app/installations/555/access_tokens", 201, map[string]any{
+		"token": "ghs_installation_token", "expires_at": time.Now().Add(time.Hour).UTC().Format(time.RFC3339), "permissions": perms,
+	})
+}
+
+func TestPollDoesNotReparkACommitWaitForCIRefused(t *testing.T) {
+	rec := &eventRecorder{}
+	f := newFixture(t, func(d *gitproviders.Deps) { d.Notifier = rec })
+	conn := githubConnection(t, f)
+	sv := f.gitService("api")
+	_, err := f.svc.Link(f.ctx, sv.ID, gitproviders.LinkInput{ConnectionID: conn.ID, Repo: "acme/shop", Branch: "main", WaitForCI: ptr(true)})
+	require.NoError(t, err)
+	f.deployedAt(sv, pollRunning)
+	const base = "/api/v3/repos/acme/shop/commits/" + pollHead
+	f.provider.on("GET "+base+"/check-runs", func(w http.ResponseWriter, _ *http.Request, _ []byte) {
+		http.Error(w, `{"message":"Resource not accessible by integration"}`, http.StatusForbidden)
+	})
+	now := time.Now().UTC().Truncate(time.Second)
+	f.svc.SetNow(func() time.Time { return now })
+	minutes, deploy := 1, true
+	_, err = f.svc.PutGitPoll(f.ctx, sv.ID, gitproviders.GitPollInput{Enabled: true, IntervalMinutes: &minutes, Deploy: &deploy})
+	require.NoError(t, err)
+	f.dep.setHead(pollHead, "main", nil)
+
+	for range 10 {
+		now = now.Add(time.Minute)
+		require.NoError(t, f.svc.Sweep(context.Background()))
+	}
+	require.Empty(t, f.dep.snapshot())
+	require.Len(t, rec.blocked(), 1, "the refused commit is not parked and refused again every check")
+	require.Len(t, f.provider.callsTo("GET", base+"/check-runs"), 1)
+	v, err := f.svc.GetLink(f.ctx, sv.ID)
+	require.NoError(t, err)
+	require.Nil(t, v.WaitingForCI)
+	require.NotNil(t, v.CIBlocked, "the link says which commit was refused")
+	require.Equal(t, pollHead, v.CIBlocked.SHA)
+	require.Contains(t, v.CIBlocked.Reason, "'Checks: read'")
+
+	// Turning wait for CI off forgets the refusal: the next check deploys the commit.
+	v, err = f.svc.Link(f.ctx, sv.ID, gitproviders.LinkInput{ConnectionID: conn.ID, Repo: "acme/shop", WaitForCI: ptr(false)})
+	require.NoError(t, err)
+	require.Nil(t, v.CIBlocked)
+	// Checks are spread by ±10% of the interval: two minutes is due for sure.
+	now = now.Add(2 * time.Minute)
+	require.NoError(t, f.svc.Sweep(context.Background()))
+	calls := f.dep.snapshot()
+	require.Len(t, calls, 1)
+	require.Equal(t, pollHead, calls[0].Commit.SHA)
+}
+
+func TestLinkWarnsWhenTheGitHubAppCannotReadChecks(t *testing.T) {
+	f := newFixture(t)
+	conn := githubConnection(t, f)
+	ghTokenWith(f, map[string]string{"contents": "read", "metadata": "read", "statuses": "write", "pull_requests": "write"})
+	sv := f.gitService("api")
+
+	v, err := f.svc.Link(f.ctx, sv.ID, gitproviders.LinkInput{ConnectionID: conn.ID, Repo: "acme/shop", Branch: "main"})
+	require.NoError(t, err)
+	require.Empty(t, v.CIWarning, "no warning while the service does not wait for CI")
+
+	v, err = f.svc.Link(f.ctx, sv.ID, gitproviders.LinkInput{ConnectionID: conn.ID, Repo: "acme/shop", WaitForCI: ptr(true)})
+	require.NoError(t, err)
+	require.Contains(t, v.CIWarning, "'Checks: read'")
+	require.NotContains(t, v.CIWarning, "Commit statuses")
+
+	// Accepting the new permissions on GitHub drops the cached token, so the warning goes at once.
+	ghTokenWith(f, map[string]string{"contents": "read", "metadata": "read", "statuses": "write", "checks": "read"})
+	body := []byte(`{"action":"new_permissions_accepted","installation":{"id":555}}`)
+	code, reply := f.post("github", conn.ID, map[string]string{
+		"X-GitHub-Event": "installation", "X-GitHub-Delivery": "gh-perm-1", "X-Hub-Signature-256": "sha256=" + gitproviders.SignForTest("whsec_from_github", body),
+	}, body)
+	require.Equal(t, 200, code)
+	require.Equal(t, "new GitHub App permissions accepted", reply["summary"])
+	v, err = f.svc.GetLink(f.ctx, sv.ID)
+	require.NoError(t, err)
+	require.Empty(t, v.CIWarning)
+}
+
+func TestGitHubAppWebhookPointingElsewhereIsReportedAndCorrected(t *testing.T) {
+	f := newFixture(t)
+	conn := githubConnection(t, f)
+	sv := f.gitService("api")
+	want := "https://nebula.example.com/hooks/git/github/" + conn.ID.String()
+	hook := "https://nebula.example.com:8443/hooks/git/github/" + conn.ID.String()
+	var mu sync.Mutex
+	f.provider.on("GET /api/v3/app/hook/config", func(w http.ResponseWriter, _ *http.Request, _ []byte) {
+		mu.Lock()
+		defer mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"url": hook, "content_type": "json"})
+	})
+	f.provider.on("PATCH /api/v3/app/hook/config", func(w http.ResponseWriter, _ *http.Request, body []byte) {
+		var in struct {
+			URL string `json:"url"`
+		}
+		_ = json.Unmarshal(body, &in)
+		mu.Lock()
+		hook = in.URL
+		mu.Unlock()
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write(body)
+	})
+
+	v, err := f.svc.Link(f.ctx, sv.ID, gitproviders.LinkInput{ConnectionID: conn.ID, Repo: "acme/shop", Branch: "main"})
+	require.NoError(t, err)
+	require.Equal(t, "error", v.Webhook.Status)
+	require.Contains(t, v.Webhook.Message, "nebula.example.com:8443")
+
+	require.NoError(t, f.svc.Maintain(context.Background()))
+	patches := f.provider.callsTo("PATCH", "/api/v3/app/hook/config")
+	require.Len(t, patches, 1)
+	require.JSONEq(t, `{"url":"`+want+`"}`, patches[0].Body)
+	v, err = f.svc.GetLink(f.ctx, sv.ID)
+	require.NoError(t, err)
+	require.Equal(t, "active", v.Webhook.Status)
+	require.Empty(t, v.Webhook.Message)
+
+	require.NoError(t, f.svc.Maintain(context.Background()))
+	require.Len(t, f.provider.callsTo("PATCH", "/api/v3/app/hook/config"), 1, "an App already pointed here is left alone")
+}
+
 func jsonString(s string) string {
 	raw, _ := json.Marshal(s)
 	return string(raw)

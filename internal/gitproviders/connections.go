@@ -449,7 +449,8 @@ func (s *Service) UpdateConnection(ctx context.Context, id uuid.UUID, in UpdateC
 }
 
 // TestConnection re-verifies the stored credentials against the provider and
-// records the outcome on the connection.
+// records the outcome on the connection. A GitHub App's webhook is pointed at
+// this instance on the way (see syncAppHook).
 func (s *Service) TestConnection(ctx context.Context, id uuid.UUID) (ConnectionView, error) {
 	c, err := s.loadConnection(ctx, policy.ScopeAdmin, id)
 	if err != nil {
@@ -466,7 +467,9 @@ func (s *Service) TestConnection(ctx context.Context, id uuid.UUID) (ConnectionV
 		if aerr == nil {
 			tctx, cancel := context.WithTimeout(ctx, 20*time.Second)
 			if c.AuthType == AuthGitHubApp {
-				_, _, aerr = drv.listRepos(tctx, cl, "", 1)
+				if _, _, aerr = drv.listRepos(tctx, cl, "", 1); aerr == nil {
+					aerr = s.syncAppHook(tctx, c)
+				}
 			} else {
 				var login string
 				if login, aerr = drv.currentUser(tctx, cl); aerr == nil && login != "" {
