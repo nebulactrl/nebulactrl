@@ -167,14 +167,6 @@ func TestFirewallValidateRejections(t *testing.T) {
 	})
 }
 
-func TestFirewallOps(t *testing.T) {
-	require.Equal(t, []string{FirewallOpIn}, FirewallOps(FirewallFieldIP))
-	require.Nil(t, FirewallOps("nope"))
-	ops := FirewallOps(FirewallFieldHeader)
-	ops[0] = "mutated"
-	require.NotEqual(t, "mutated", FirewallOps(FirewallFieldHeader)[0], "the caller gets a copy")
-}
-
 func TestFirewallActiveUsesAndNeedsGuard(t *testing.T) {
 	var nilFw *Firewall
 	require.Empty(t, nilFw.Active())

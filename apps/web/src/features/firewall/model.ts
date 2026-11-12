@@ -14,13 +14,13 @@ export type { FirewallCondition, FirewallView, StandardRule };
 /** A rule in the editor: always has its id (the API fills in a missing one). */
 export type FirewallRule = RuleBody & { id: string };
 export type Field = FirewallCondition["field"];
-export type Op = FirewallCondition["op"];
+type Op = FirewallCondition["op"];
 
 /** Limits of pkg/agentprotocol/firewall.go. */
 export const MAX_RULES = 50;
 export const MAX_CONDITIONS = 10;
-export const MAX_VALUES = 50;
-export const MAX_IP_VALUES = 200;
+const MAX_VALUES = 50;
+const MAX_IP_VALUES = 200;
 const MAX_NAME = 80;
 const MAX_VALUE = 512;
 const MAX_FIELD_NAME = 128;
@@ -239,7 +239,7 @@ const SUBJECT: Record<Field, (c: FirewallCondition) => string> = {
 };
 
 /** "the path starts with /admin", "the country is not Germany or France". */
-export function conditionSentence(c: FirewallCondition): string {
+function conditionSentence(c: FirewallCondition): string {
 	const op = opChoices(c.field).find((o) => o.key === opKey(c));
 	const values = c.values ?? [];
 	const shown =
@@ -272,14 +272,14 @@ const NOT_RE2 = /\(\?<?[=!]|\\[1-9]|\\k</;
  * like (?i) becomes flags (JavaScript has no inline flags; U has no
  * counterpart and is dropped).
  */
-export function jsRegex(source: string): RegExp {
+function jsRegex(source: string): RegExp {
 	const lead = /^\(\?([imsU]+)\)/.exec(source);
 	if (!lead) return new RegExp(source);
 	const flags = [...new Set((lead[1] ?? "").replace(/U/g, ""))].join("");
 	return new RegExp(source.slice(lead[0].length), flags);
 }
 
-export function regexProblem(source: string): string | null {
+function regexProblem(source: string): string | null {
 	if (NOT_RE2.test(source)) {
 		return "Lookarounds and backreferences are not supported (Go regular expressions).";
 	}
@@ -715,7 +715,7 @@ export const RECIPES: readonly Recipe[] = [
 
 // --- the state line -------------------------------------------------------------
 
-export function activeCount(rules: readonly FirewallRule[]): number {
+function activeCount(rules: readonly FirewallRule[]): number {
 	return rules.filter((r) => !r.disabled).length;
 }
 

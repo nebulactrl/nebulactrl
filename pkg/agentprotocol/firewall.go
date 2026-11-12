@@ -93,9 +93,6 @@ var firewallOps = map[string][]string{
 	FirewallFieldQuery:     {FirewallOpEquals, FirewallOpContains, FirewallOpRegex, FirewallOpPresent},
 }
 
-// FirewallOps returns the operators field accepts (nil for an unknown field).
-func FirewallOps(field string) []string { return slices.Clone(firewallOps[field]) }
-
 // The edge guard: a sidecar in the proxy container's network namespace that
 // evaluates the firewalls Traefik routers cannot express (countries, visitor
 // addresses from Cf-Connecting-IP), answering Traefik's forwardAuth.
