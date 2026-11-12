@@ -7,9 +7,25 @@ import { stubApi } from "#/test/api";
 import { renderWithProviders } from "#/test/render";
 import { FirewallSection } from "./firewall-section";
 
+const STANDARD: FirewallView["standard"] = [
+	{
+		rule: {
+			id: "stdsecrets",
+			name: "Secret files",
+			action: "block",
+			conditions: [
+				{ field: "path", op: "regex", values: ["(?i)/\\.(env|git)(/|\\.|$)"] },
+			],
+		},
+		description: "Requests for environment files and version control folders.",
+		examples: ["/.env", "/.git/config"],
+	},
+];
+
 const view = (over: Partial<FirewallView> = {}): FirewallView => ({
 	rules: [],
-	enforcement: "none",
+	standard: STANDARD,
+	enforcement: "routes",
 	hosts: ["shop.example.com"],
 	deployed: true,
 	server: "hetzner-01",
@@ -42,19 +58,19 @@ describe("FirewallSection", () => {
 		const api = await mount(view(), (body) =>
 			view({ rules: (body as FirewallView).rules, enforcement: "routes" }),
 		);
+		// Without rules of its own the service still has the standard protection.
 		expect(
-			screen.getByText(/every request reaches the service/),
+			screen.getByText(/only the standard protection below applies/),
 		).toBeInTheDocument();
+		expect(screen.getByText("Secret files")).toBeInTheDocument();
 		await user.click(
-			screen.getByRole("button", { name: /Block probes for secrets/ }),
+			screen.getByRole("button", { name: /Block WordPress probes/ }),
 		);
 
 		// The rule is open, reads as a sentence, and nothing is sent before Apply.
-		expect(screen.getByLabelText("Name")).toHaveValue(
-			"Block probes for secrets",
-		);
+		expect(screen.getByLabelText("Name")).toHaveValue("Block WordPress probes");
 		expect(
-			screen.getByText(/Block requests when the path contains \/\.env/),
+			screen.getByText(/Block requests when the path contains wp-login\.php/),
 		).toBeInTheDocument();
 		expect(api.calls.filter((c) => c.method === "PUT")).toHaveLength(0);
 
@@ -64,12 +80,42 @@ describe("FirewallSection", () => {
 		expect(put?.body).toMatchObject({
 			rules: [
 				{
-					name: "Block probes for secrets",
+					name: "Block WordPress probes",
 					action: "block",
 					conditions: [{ field: "path", op: "contains" }],
 				},
 			],
 		});
+	});
+
+	test("Try a request reaches the standard protection after the service's own rules", async () => {
+		await mount(
+			view({
+				rules: [
+					{
+						id: "dotenv",
+						name: "Our public .env.example",
+						action: "allow",
+						conditions: [
+							{ field: "path", op: "exact", values: ["/.env.example"] },
+						],
+					},
+				],
+			}),
+		);
+		const path = screen.getByLabelText("Path");
+		const verdict = () => screen.getByRole("status");
+		fireEvent.change(path, { target: { value: "/.ENV.production" } });
+		expect(verdict()).toHaveTextContent(
+			"Blocked by the standard protection, Secret files.",
+		);
+		// An allow rule of the service runs first and exempts the path.
+		fireEvent.change(path, { target: { value: "/.env.example" } });
+		expect(verdict()).toHaveTextContent(
+			"Allowed by rule 1, Our public .env.example.",
+		);
+		fireEvent.change(path, { target: { value: "/.github/workflows" } });
+		expect(verdict()).toHaveTextContent("Reaches the service.");
 	});
 
 	test("a rule missing its values cannot be applied, and says what to fix", async () => {

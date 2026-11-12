@@ -168,6 +168,14 @@ describe("validateRules", () => {
 			]),
 		).toEqual({});
 	});
+
+	test("a Go inline flag like (?i) is accepted and matches as in the proxy", () => {
+		const ci = rule({
+			conditions: [{ field: "path", op: "regex", values: ["(?i)/\\.env$"] }],
+		});
+		expect(validateRules([ci])).toEqual({});
+		expect(decide([ci], req({ target: "/.ENV" })).kind).toBe("block");
+	});
 });
 
 describe("sentences and editing", () => {
@@ -245,7 +253,7 @@ describe("sentences and editing", () => {
 				},
 			],
 		});
-		expect(summary(rules)).toBe("1 of 2 rules on");
-		expect(summary([])).toBe("Off");
+		expect(summary(rules)).toBe("1 of 2 rules on + standard");
+		expect(summary([])).toBe("Standard protection");
 	});
 });

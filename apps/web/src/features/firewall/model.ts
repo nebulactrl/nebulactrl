@@ -6,10 +6,11 @@ import type {
 	FirewallCondition,
 	FirewallView,
 	FirewallRule as RuleBody,
+	StandardRule,
 } from "#/api/gen/types.gen";
 import { parseNetwork, validateEntry } from "#/features/access-rules/rules";
 
-export type { FirewallCondition, FirewallView };
+export type { FirewallCondition, FirewallView, StandardRule };
 /** A rule in the editor: always has its id (the API fills in a missing one). */
 export type FirewallRule = RuleBody & { id: string };
 export type Field = FirewallCondition["field"];
@@ -266,12 +267,24 @@ const PLAIN = /^[^`\r\n]*$/;
 /** RE2 (Go) has no lookaround and no backreferences; JavaScript does. */
 const NOT_RE2 = /\(\?<?[=!]|\\[1-9]|\\k</;
 
+/**
+ * A Go regular expression as a JavaScript one: a leading inline flag group
+ * like (?i) becomes flags (JavaScript has no inline flags; U has no
+ * counterpart and is dropped).
+ */
+export function jsRegex(source: string): RegExp {
+	const lead = /^\(\?([imsU]+)\)/.exec(source);
+	if (!lead) return new RegExp(source);
+	const flags = [...new Set((lead[1] ?? "").replace(/U/g, ""))].join("");
+	return new RegExp(source.slice(lead[0].length), flags);
+}
+
 export function regexProblem(source: string): string | null {
 	if (NOT_RE2.test(source)) {
 		return "Lookarounds and backreferences are not supported (Go regular expressions).";
 	}
 	try {
-		new RegExp(source);
+		jsRegex(source);
 		return null;
 	} catch (error) {
 		return `Not a valid regular expression: ${(error as Error).message}`;
@@ -371,7 +384,20 @@ export interface TestRequest {
 
 export type Decision =
 	| { kind: "pass" }
-	| { kind: "block" | "allow"; index: number; rule: FirewallRule };
+	/** A rule of the service, by its position. */
+	| {
+			kind: "block" | "allow";
+			index: number;
+			rule: FirewallRule;
+			standard?: undefined;
+	  }
+	/** A rule of the standard protection. */
+	| {
+			kind: "block" | "allow";
+			index: number;
+			rule: FirewallRule;
+			standard: StandardRule;
+	  };
 
 interface Parsed {
 	method: string;
@@ -437,7 +463,7 @@ function testValue(
 					return containsRe(v).test(g);
 				case "regex":
 					try {
-						return new RegExp(v).test(g);
+						return jsRegex(v).test(g);
 					} catch {
 						return false;
 					}
@@ -484,21 +510,36 @@ function matches(c: FirewallCondition, r: Parsed): boolean {
 }
 
 /**
- * What the proxy does with req: the first enabled rule whose conditions all
- * match decides; no match lets it through (FirewallMatcher.Decide).
+ * What the proxy does with req: the service's enabled rules in order, then the
+ * standard protection; the first rule whose conditions all match decides, and
+ * no match lets the request through (FirewallMatcher.Decide on the route's
+ * firewall).
  */
 export function decide(
 	rules: readonly FirewallRule[],
 	req: TestRequest,
+	standard: readonly StandardRule[] = [],
 ): Decision {
 	const r = parseRequest(req);
-	for (const [index, rule] of rules.entries()) {
-		if (rule.disabled) continue;
+	const hit = (rule: RuleBody) => {
 		const conds = rule.conditions ?? [];
-		if (conds.length === 0) continue;
-		if (conds.every((c) => matches(c, r) !== Boolean(c.not))) {
-			return { kind: rule.action, index, rule };
-		}
+		return (
+			!rule.disabled &&
+			conds.length > 0 &&
+			conds.every((c) => matches(c, r) !== Boolean(c.not))
+		);
+	};
+	for (const [index, rule] of rules.entries()) {
+		if (hit(rule)) return { kind: rule.action, index, rule };
+	}
+	for (const [index, s] of standard.entries()) {
+		if (hit(s.rule))
+			return {
+				kind: s.rule.action,
+				index,
+				rule: { ...s.rule, id: s.rule.id ?? "" },
+				standard: s,
+			};
 	}
 	return { kind: "pass" };
 }
@@ -603,23 +644,23 @@ export interface Recipe {
 
 export const RECIPES: readonly Recipe[] = [
 	{
-		id: "scanners",
-		title: "Block probes for secrets",
+		id: "wordpress",
+		title: "Block WordPress probes",
 		description:
-			"Requests for .env, .git and WordPress logins your app does not serve.",
+			"For apps that are not WordPress: wp-login.php, xmlrpc.php, wp-admin and phpMyAdmin.",
 		build: () => ({
 			id: newRuleId(),
-			name: "Block probes for secrets",
+			name: "Block WordPress probes",
 			action: "block",
 			conditions: [
 				{
 					field: "path",
 					op: "contains",
 					values: [
-						"/.env",
-						"/.git/",
 						"wp-login.php",
 						"xmlrpc.php",
+						"/wp-admin",
+						"/wp-includes",
 						"phpmyadmin",
 					],
 				},
@@ -678,15 +719,15 @@ export function activeCount(rules: readonly FirewallRule[]): number {
 	return rules.filter((r) => !r.disabled).length;
 }
 
-/** The section's aside: "Off", "3 rules", "2 of 3 rules on". */
+/** The section's aside: "Standard protection", "3 rules + standard", "2 of 3 rules on + standard". */
 export function summary(rules: readonly FirewallRule[]): string {
 	const active = activeCount(rules);
-	if (active === 0) return "Off";
+	if (active === 0) return "Standard protection";
 	const total = rules.length;
 	const noun = total === 1 ? "rule" : "rules";
 	return active === total
-		? `${total} ${noun}`
-		: `${active} of ${total} ${noun} on`;
+		? `${total} ${noun} + standard`
+		: `${active} of ${total} ${noun} on + standard`;
 }
 
 export function usesCountry(rules: readonly FirewallRule[]): boolean {

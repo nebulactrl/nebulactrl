@@ -71,7 +71,7 @@ func TestFirewallValidateRejections(t *testing.T) {
 		return out
 	}
 	tooManyRules := Firewall{}
-	for i := range MaxFirewallRules + 1 {
+	for i := range MaxRouteFirewallRules + 1 {
 		tooManyRules.Rules = append(tooManyRules.Rules, fwRule("r"+strconv.Itoa(i), FirewallBlock, fwCond(FirewallFieldMethod, FirewallOpIn, "GET")))
 	}
 	tooManyConds := with(func(r *FirewallRule) {
@@ -89,7 +89,7 @@ func TestFirewallValidateRejections(t *testing.T) {
 		fw   Firewall
 		want string
 	}{
-		"too many rules":            {tooManyRules, "at most 50 firewall rules"},
+		"too many rules":            {tooManyRules, "at most 64 firewall rules"},
 		"empty id":                  {with(func(r *FirewallRule) { r.ID = "" }), "id must be"},
 		"upper-case id":             {with(func(r *FirewallRule) { r.ID = "Rule" }), "id must be"},
 		"id too long":               {with(func(r *FirewallRule) { r.ID = strings.Repeat("a", 17) }), "id must be"},

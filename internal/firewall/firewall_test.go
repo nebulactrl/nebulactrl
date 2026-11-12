@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -224,7 +225,7 @@ func TestPutStoresRulesAndGetReturnsThem(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, v.Rules)
 	require.NotNil(t, v.Rules, "the view lists no rules as [] not null")
-	require.Equal(t, firewall.EnforcementNone, v.Enforcement)
+	require.Equal(t, firewall.EnforcementRoutes, v.Enforcement, "the standard protection stays without rules of the service's own")
 	require.Nil(t, f.storedFirewall(sv.ID), "no rules is stored as NULL")
 
 	got, err = f.svc.Get(f.reader, sv.ID)
@@ -274,6 +275,14 @@ func TestPutRejectsInvalidRules(t *testing.T) {
 		"duplicate id":                    {blockAdmin, blockAdmin},
 		"path no slash":                   {rule("a", agentprotocol.FirewallBlock, cond("path", "prefix", "admin"))},
 		"values emptied by normalization": {rule("a", agentprotocol.FirewallBlock, cond("path", "contains", "  "))},
+		"reserved standard id":            {rule("stdsecrets", agentprotocol.FirewallAllow, cond("path", "prefix", "/"))},
+		"more than 50 rules": func() []agentprotocol.FirewallRule {
+			out := make([]agentprotocol.FirewallRule, agentprotocol.MaxFirewallRules+1)
+			for i := range out {
+				out[i] = rule(fmt.Sprintf("r%d", i), agentprotocol.FirewallBlock, cond("method", "in", "TRACE"))
+			}
+			return out
+		}(),
 	} {
 		t.Run(name, func(t *testing.T) {
 			_, err := f.svc.Put(f.ctx, sv.ID, firewall.PutInput{Rules: rules})
@@ -330,7 +339,7 @@ func TestPutCountryRulesNeedGeolocationOnTheServer(t *testing.T) {
 	f.exec("UPDATE servers SET geo_enabled = false WHERE id = $1", f.server.ID)
 	v, err = f.svc.Put(f.ctx, sv.ID, firewall.PutInput{})
 	require.NoError(t, err)
-	require.Equal(t, firewall.EnforcementNone, v.Enforcement)
+	require.Equal(t, firewall.EnforcementRoutes, v.Enforcement)
 }
 
 func TestPutAgentWithoutFirewallCapabilityIsTooOld(t *testing.T) {
@@ -543,10 +552,12 @@ func TestServerRoutesCarryTheActiveRulesOnly(t *testing.T) {
 	require.Len(t, routes, 2)
 	fw := routes[sv.ID.String()].Firewall
 	require.NotNil(t, fw)
-	require.Len(t, fw.Rules, 2, "the disabled rule is not sent to the agent")
+	require.Len(t, fw.Rules, 3, "the disabled rule is not sent to the agent")
 	require.Equal(t, "admin", fw.Rules[0].ID)
 	require.Equal(t, "office", fw.Rules[1].ID)
-	require.Nil(t, routes[other.ID.String()].Firewall, "other services carry no firewall")
+	require.Equal(t, "stdsecrets", fw.Rules[2].ID, "the standard protection runs after the service's own rules")
+	standardOnly := domains.RouteFirewall(nil)
+	require.Equal(t, standardOnly, routes[other.ID.String()].Firewall, "other services carry the standard protection only")
 	require.Equal(t, agentprotocol.Firewall{Rules: fw.Rules}, *fw)
 	require.NoError(t, fw.Validate())
 
@@ -554,18 +565,18 @@ func TestServerRoutesCarryTheActiveRulesOnly(t *testing.T) {
 	// without a firewall.
 	_, err = f.svc.Put(f.ctx, sv.ID, firewall.PutInput{Rules: []agentprotocol.FirewallRule{off}})
 	require.NoError(t, err)
-	require.Nil(t, table()[sv.ID.String()].Firewall)
+	require.Equal(t, standardOnly, table()[sv.ID.String()].Firewall)
 	v, err := f.svc.Get(f.ctx, sv.ID)
 	require.NoError(t, err)
 	require.Len(t, v.Rules, 1, "the disabled rule is kept in the service's firewall")
-	require.Equal(t, firewall.EnforcementNone, v.Enforcement)
+	require.Equal(t, firewall.EnforcementRoutes, v.Enforcement)
 
 	_, err = f.svc.Put(f.ctx, sv.ID, firewall.PutInput{Rules: []agentprotocol.FirewallRule{blockAdmin}})
 	require.NoError(t, err)
-	require.NotNil(t, table()[sv.ID.String()].Firewall)
+	require.Len(t, table()[sv.ID.String()].Firewall.Rules, 2)
 	_, err = f.svc.Put(f.ctx, sv.ID, firewall.PutInput{})
 	require.NoError(t, err)
-	require.Nil(t, table()[sv.ID.String()].Firewall)
+	require.Equal(t, standardOnly, table()[sv.ID.String()].Firewall)
 }
 
 func TestFirewallOfServiceRowAndDecode(t *testing.T) {
@@ -576,12 +587,13 @@ func TestFirewallOfServiceRowAndDecode(t *testing.T) {
 	require.NotNil(t, fw)
 	require.Len(t, fw.Rules, 1)
 
-	require.Nil(t, domains.FirewallOf(db.Service{}))
-	require.Nil(t, domains.FirewallOf(db.Service{Firewall: json.RawMessage(`{"rules":[{"id":"a","name":"a","action":"block","disabled":true,"conditions":[]}]}`)}))
+	standard := domains.StandardRules()
+	require.NotEmpty(t, standard)
+	require.Equal(t, standard[0].Rule, domains.FirewallOf(db.Service{}).Rules[0], "a service without rules carries the standard protection")
+	require.Len(t, domains.FirewallOf(db.Service{Firewall: json.RawMessage(`{"rules":[{"id":"a","name":"a","action":"block","disabled":true,"conditions":[]}]}`)}).Rules, len(standard))
 	of := domains.FirewallOf(db.Service{Firewall: json.RawMessage(`{"rules":[{"id":"a","name":"a","action":"block","disabled":true,"conditions":[]},{"id":"b","name":"b","action":"allow","conditions":[]}]}`)})
-	require.NotNil(t, of)
-	require.Len(t, of.Rules, 1)
-	require.Equal(t, "b", of.Rules[0].ID)
+	require.Len(t, of.Rules, 1+len(standard))
+	require.Equal(t, "b", of.Rules[0].ID, "the service's rules come first")
 }
 
 // ---- HTTP ----

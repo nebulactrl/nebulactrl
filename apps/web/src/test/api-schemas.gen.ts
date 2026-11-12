@@ -702,6 +702,7 @@ export interface ApiSchemas {
 	"StackResources": T.StackResources;
 	"StageServiceSourceChangeInputBody": T.StageServiceSourceChangeInputBody;
 	"StagedResult": T.StagedResult;
+	"StandardRule": T.StandardRule;
 	"StartIdentityLinkInputBody": T.StartIdentityLinkInputBody;
 	"StartIdentityLinkOutputBody": T.StartIdentityLinkOutputBody;
 	"StartInputBody": T.StartInputBody;

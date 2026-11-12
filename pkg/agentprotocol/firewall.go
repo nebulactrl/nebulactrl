@@ -65,7 +65,11 @@ const (
 
 // Limits of a firewall.
 const (
+	// MaxFirewallRules bounds the rules a person writes. A route carries at
+	// most MaxRouteFirewallRules: those plus the standard protection the
+	// control plane appends to every HTTP route.
 	MaxFirewallRules      = 50
+	MaxRouteFirewallRules = 64
 	MaxFirewallConditions = 10
 	MaxFirewallValues     = 50
 	// MaxFirewallIPValues bounds the address list of one ip condition.
@@ -195,8 +199,8 @@ var headerName = regexp.MustCompile("^[!#$%&'*+.^_|~0-9A-Za-z-]+$")
 // break (Traefik rule quoting), paths start with "/", regular expressions
 // compile.
 func (f Firewall) Validate() error {
-	if len(f.Rules) > MaxFirewallRules {
-		return fmt.Errorf("at most %d firewall rules", MaxFirewallRules)
+	if len(f.Rules) > MaxRouteFirewallRules {
+		return fmt.Errorf("at most %d firewall rules", MaxRouteFirewallRules)
 	}
 	seen := map[string]bool{}
 	for i, r := range f.Rules {

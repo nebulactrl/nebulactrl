@@ -19,6 +19,7 @@ import {
 	type FirewallRule,
 	METHODS,
 	parseCountry,
+	type StandardRule,
 	type TestRequest,
 } from "./model";
 import { COUNTRY_LIST_ID } from "./rule-editor";
@@ -41,10 +42,13 @@ const METHOD_ITEMS = METHODS.map((m) => ({ value: m, label: m }));
  */
 export function TryRequest({
 	rules,
+	standard,
 	onShowRule,
 	countryKnown,
 }: {
 	rules: readonly FirewallRule[];
+	/** The standard protection, checked after rules. */
+	standard: readonly StandardRule[];
 	/** Opens the rule that decided. */
 	onShowRule(index: number): void;
 	/** The server places visitors by country; without it country rules wait. */
@@ -53,7 +57,10 @@ export function TryRequest({
 	const id = useId();
 	const [req, setReq] = useState<TestRequest>(START);
 	const [countryText, setCountryText] = useState("");
-	const decision = useMemo(() => decide(rules, req), [rules, req]);
+	const decision = useMemo(
+		() => decide(rules, req, standard),
+		[rules, req, standard],
+	);
 	const set = (patch: Partial<TestRequest>) =>
 		setReq((r) => ({ ...r, ...patch }));
 
@@ -197,6 +204,14 @@ function Verdict({
 					<span className="font-medium text-ink-1">Reaches the service.</span>{" "}
 					No rule matches it.
 				</span>
+			) : decision.standard ? (
+				<span className="min-w-0 text-ink-2">
+					<span className="font-medium text-ink-1">
+						{blocked ? "Blocked" : "Allowed"} by the standard protection
+					</span>
+					, {decision.rule.name}.{" "}
+					{blocked ? "The visitor gets HTTP 403." : null}
+				</span>
 			) : (
 				<>
 					<span className="min-w-0 text-ink-2">
@@ -206,7 +221,7 @@ function Verdict({
 						, {decision.rule.name}.{" "}
 						{blocked
 							? "The visitor gets HTTP 403."
-							: "The rules below it are skipped."}
+							: "The rules below it and the standard protection are skipped."}
 					</span>
 					<Button
 						type="button"

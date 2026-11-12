@@ -13334,20 +13334,23 @@ type FirewallRuleAction string
 type FirewallView struct {
 	Deployed bool `json:"deployed"`
 
-	// Enforcement none: no active rule. routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
+	// Enforcement none: no firewall (tcp/udp routes). routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
 	Enforcement  FirewallViewEnforcement `json:"enforcement"`
 	GeoAvailable bool                    `json:"geoAvailable"`
 
 	// Hosts Every domain of the service; the firewall covers all of them
 	Hosts *[]string `json:"hosts"`
 
-	// Rules The rules in evaluation order; the first rule whose conditions all match decides
-	Rules     *[]FirewallRule `json:"rules"`
-	Server    string          `json:"server"`
+	// Rules The service's own rules in evaluation order; the first rule whose conditions all match decides
+	Rules  *[]FirewallRule `json:"rules"`
+	Server string          `json:"server"`
+
+	// Standard Standard protection NebulaCtrl applies to every HTTP service after its own rules; it cannot be switched off, but an allow rule above lets a request through. Empty for tcp/udp routes
+	Standard  *[]StandardRule `json:"standard"`
 	Supported bool            `json:"supported"`
 }
 
-// FirewallViewEnforcement none: no active rule. routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
+// FirewallViewEnforcement none: no firewall (tcp/udp routes). routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
 type FirewallViewEnforcement string
 
 // FixesInputBody defines model for FixesInputBody.
@@ -18633,6 +18636,16 @@ type StageServiceSourceChangeInputBodySubmodules string
 type StagedResult struct {
 	Items *[]DeploymentView `json:"items"`
 	Order *[]string         `json:"order"`
+}
+
+// StandardRule defines model for StandardRule.
+type StandardRule struct {
+	// Description What the rule blocks, in a sentence
+	Description string `json:"description"`
+
+	// Examples Request paths it blocks
+	Examples *[]string    `json:"examples"`
+	Rule     FirewallRule `json:"rule"`
 }
 
 // StartIdentityLinkInputBody defines model for StartIdentityLinkInputBody.

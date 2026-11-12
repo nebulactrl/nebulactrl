@@ -7,9 +7,24 @@ order: 135
 
 # Service firewall
 
-A service's firewall is an ordered list of **block** and **allow** rules the proxy applies to every request for every domain of the service, before the request reaches a container. Use it to keep scanners out, lock an admin path to your own network, or refuse countries you do not serve.
+A service's firewall is an ordered list of **block** and **allow** rules the proxy applies to every request for every domain of the service, before the request reaches a container. Every HTTP service also has the **standard protection**, which needs no setup. Use your own rules to lock an admin path to your network, keep known attack tools out, or refuse countries you do not serve.
 
 It lives in the service's **Settings → Firewall**. Like maintenance mode it is operational: **Apply firewall** changes the proxy at once, without a deployment. Changes are never staged or rolled back, and they survive deployments.
+
+## Standard protection
+
+Every HTTP service blocks requests for secret files that no application serves on purpose and that scanners probe on every public address within minutes of it going live:
+
+- environment files: `/.env`, `/.env.production`, `/.envrc`
+- version control folders: `/.git/…`, `/.git-credentials`, `/.svn`, `/.hg`, `/.bzr`
+- credentials: `/.aws/…`, `/.ssh/…`, `/.docker/…`, `/.npmrc`, `/.pypirc`, `/.netrc`, `/.htpasswd`
+- `/.DS_Store`
+
+It matches anywhere in the path (`/app/.git/config`), ignoring case, and the name must end there: `/.github`, `/.gitignore`, `/.well-known` and `/repo.git` are not touched. Blocked requests get the same HTTP 403 as your own block rules.
+
+There is no switch. Your own rules run first, so to let one of these paths through (a public `/.env.example`, say), add an **Allow** rule for it. The Firewall settings list it under your rules ("Always on, after your rules"), and **Try a request** includes it. TCP and UDP routes have no firewall, so they have no standard protection either.
+
+WordPress paths (`wp-login.php`, `xmlrpc.php`, `/wp-admin`, `phpmyadmin`) are not part of it, because NebulaCtrl runs WordPress and phpMyAdmin too. For other apps the **Block WordPress probes** recipe adds them.
 
 ## How rules are evaluated
 
@@ -34,7 +49,7 @@ It lives in the service's **Settings → Firewall**. Like maintenance mode it is
 
 **Try a request** under the rules describes a request (method, path, address, country, user agent, headers) and shows which rule decides, using the rules as edited, before you apply them.
 
-The empty firewall offers recipes: probes for secrets (`/.env`, `/.git/`, `wp-login.php`, `xmlrpc.php`, `phpmyadmin`), self-declared attack tools (sqlmap, Nikto, Nuclei, masscan, zgrab), a path locked to your network, and blocked countries.
+The empty firewall offers recipes: WordPress probes for apps that are not WordPress (`wp-login.php`, `xmlrpc.php`, `/wp-admin`, `/wp-includes`, `phpmyadmin`), self-declared attack tools (sqlmap, Nikto, Nuclei, masscan, zgrab), a path locked to your network, and blocked countries.
 
 ## How the proxy enforces it
 
@@ -48,6 +63,6 @@ Country conditions read the server's GeoIP database, the one [traffic analytics]
 
 ## API
 
-- `GET /api/v1/services/{serviceId}/firewall` (scope `projects:read`) returns `{rules, enforcement, hosts, deployed, server, geoAvailable, supported}`. `enforcement` is `none`, `routes` or `guard`.
-- `PUT /api/v1/services/{serviceId}/firewall` with `{rules: [...]}` replaces the list (scopes `projects:write` and `proxy:write`; an empty list removes the firewall). A rule is `{id, name, action: "block" | "allow", disabled?, conditions: [{field, op, name?, values?, not?}]}`; a rule without an `id` gets one. It is audited as `service.firewall.update`, and a production service asks for approval when a token changes it (see [production approval](../reference/mcp.md#production-approval)).
+- `GET /api/v1/services/{serviceId}/firewall` (scope `projects:read`) returns `{rules, standard, enforcement, hosts, deployed, server, geoAvailable, supported}`. `standard` lists the standard protection (`{rule, description, examples}`, evaluated after `rules`). `enforcement` is `routes` or `guard` for HTTP services and `none` for tcp/udp routes.
+- `PUT /api/v1/services/{serviceId}/firewall` with `{rules: [...]}` replaces the service's own rules (at most 50; scopes `projects:write` and `proxy:write`). An empty list removes them, and the standard protection stays. A rule is `{id, name, action: "block" | "allow", disabled?, conditions: [{field, op, name?, values?, not?}]}`. A rule without an `id` gets one, and ids starting with `std` are reserved for the standard protection. The change is audited as `service.firewall.update`, and a production service asks for approval when a token changes it (see [production approval](../reference/mcp.md#production-approval)).
 - `422 invalid_firewall` names the rule and condition at fault, and `422 agent_too_old` means the server's agent predates firewalls (capability `proxy.firewall`). TCP and UDP route services have no firewall (`422 firewall_unsupported`).

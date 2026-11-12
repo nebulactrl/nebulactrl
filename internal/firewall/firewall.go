@@ -72,9 +72,11 @@ func NewService(pool *pgxpool.Pool, bus *events.Bus, routes RoutePusher, logger 
 
 // FirewallView is a service's firewall and where it applies.
 type FirewallView struct {
-	Rules []agentprotocol.FirewallRule `json:"rules" doc:"The rules in evaluation order; the first rule whose conditions all match decides"`
+	Rules []agentprotocol.FirewallRule `json:"rules" doc:"The service's own rules in evaluation order; the first rule whose conditions all match decides"`
+	// Standard is the standard protection, evaluated after Rules.
+	Standard []domains.StandardRule `json:"standard" doc:"Standard protection NebulaCtrl applies to every HTTP service after its own rules; it cannot be switched off, but an allow rule above lets a request through. Empty for tcp/udp routes"`
 	// Enforcement says how the proxy evaluates the active rules.
-	Enforcement string `json:"enforcement" enum:"none,routes,guard" doc:"none: no active rule. routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)"`
+	Enforcement string `json:"enforcement" enum:"none,routes,guard" doc:"none: no firewall (tcp/udp routes). routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)"`
 	// Hosts are the domains the firewall covers.
 	Hosts []string `json:"hosts" doc:"Every domain of the service; the firewall covers all of them"`
 	// Deployed is false while the service has never run: the rules then
@@ -131,8 +133,15 @@ func (s *Service) Get(ctx context.Context, id uuid.UUID) (FirewallView, error) {
 	return s.view(ctx, t)
 }
 
+// httpService reports whether the service serves HTTP: a tcp/udp route has
+// no firewall, not even the standard protection.
+func httpService(sc services.Scope) bool {
+	rc := sc.Config().Route
+	return sc.Service.Kind != services.KindRoute || rc == nil || rc.Protocol == "" || rc.Protocol == agentprotocol.ProtoHTTP
+}
+
 func (s *Service) view(ctx context.Context, t target) (FirewallView, error) {
-	v := FirewallView{Rules: []agentprotocol.FirewallRule{}, Enforcement: EnforcementNone, Hosts: []string{}, Deployed: t.deployed, Supported: true}
+	v := FirewallView{Rules: []agentprotocol.FirewallRule{}, Standard: []domains.StandardRule{}, Enforcement: EnforcementNone, Hosts: []string{}, Deployed: t.deployed, Supported: true}
 	fw := domains.DecodeFirewall(t.sc.Service.Firewall)
 	if fw != nil {
 		v.Rules = fw.Rules
@@ -160,9 +169,10 @@ func (s *Service) view(ctx context.Context, t target) (FirewallView, error) {
 			}
 		}
 	}
-	if len(fw.Active()) > 0 {
+	if httpService(t.sc) {
+		v.Standard = domains.StandardRules()
 		v.Enforcement = EnforcementRoutes
-		if fw.NeedsGuard(tunnelOrLocked) {
+		if domains.RouteFirewall(t.sc.Service.Firewall).NeedsGuard(tunnelOrLocked) {
 			v.Enforcement = EnforcementGuard
 		}
 	}
@@ -207,8 +217,17 @@ func (s *Service) Put(ctx context.Context, id uuid.UUID, in PutInput) (FirewallV
 	if err := services.RequireNotStack(sc); err != nil {
 		return FirewallView{}, err
 	}
-	if rc := sc.Config().Route; sc.Service.Kind == services.KindRoute && rc != nil && rc.Protocol != "" && rc.Protocol != agentprotocol.ProtoHTTP {
+	if !httpService(sc) {
 		return FirewallView{}, apierr.Unprocessable("firewall_unsupported", "a firewall only applies to HTTP services, not tcp/udp routes")
+	}
+	if len(in.Rules) > agentprotocol.MaxFirewallRules {
+		return FirewallView{}, apierr.Unprocessable("invalid_firewall", fmt.Sprintf("at most %d firewall rules", agentprotocol.MaxFirewallRules))
+	}
+	for i, r := range in.Rules {
+		if domains.IsStandardRuleID(strings.TrimSpace(r.ID)) {
+			return FirewallView{}, apierr.Unprocessable("invalid_firewall",
+				fmt.Sprintf("rule %d: ids starting with %q are reserved for the standard protection", i+1, domains.StandardRuleIDPrefix))
+		}
 	}
 	fw := normalize(in.Rules)
 	if err := fw.Validate(); err != nil {

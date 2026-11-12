@@ -6,6 +6,7 @@ import {
 	BanIcon,
 	CopyIcon,
 	EllipsisIcon,
+	LockIcon,
 	PlusIcon,
 	ShieldCheckIcon,
 	Trash2Icon,
@@ -50,6 +51,7 @@ import {
 	ruleSentence,
 	rulesEqual,
 	rulesOf,
+	type StandardRule,
 	summary,
 	toBody,
 	usesCountry,
@@ -95,9 +97,9 @@ export function FirewallSection({ service }: { service: Service }) {
 			setEdited(null);
 			const active = (view.rules ?? []).filter((r) => !r.disabled).length;
 			toast.success(
-				active === 0 ? "Firewall off" : "Firewall applied",
+				active === 0 ? "Firewall rules removed" : "Firewall applied",
 				active === 0
-					? `Every request reaches ${service.name} again.`
+					? `Only the standard protection applies to ${service.name} now.`
 					: view.deployed
 						? `The proxy enforces ${active === 1 ? "1 rule" : `${active} rules`} on ${listPhrase(view.hosts ?? [], "and")} now.`
 						: `The ${active === 1 ? "rule applies" : "rules apply"} with the first deploy of ${service.name}.`,
@@ -243,6 +245,11 @@ export function FirewallSection({ service }: { service: Service }) {
 						) : null}
 					</SectionBody>
 				)}
+				{(view.standard ?? []).length > 0 ? (
+					<SectionBody anchor="firewall-standard">
+						<StandardProtection standard={view.standard ?? []} />
+					</SectionBody>
+				) : null}
 				{dirty || apply.isError ? (
 					<ApplyBar
 						state={apply.isError ? "failed" : invalid ? "invalid" : "dirty"}
@@ -263,14 +270,15 @@ export function FirewallSection({ service }: { service: Service }) {
 					/>
 				) : null}
 			</Section>
-			{rules.length > 0 ? (
+			{rules.length > 0 || (view.standard ?? []).length > 0 ? (
 				<Section
 					title="Try a request"
-					description="Describe a request and see what the rules as edited do with it, before you apply them."
+					description="Describe a request and see what the rules as edited, then the standard protection, do with it before you apply them."
 				>
 					<SectionBody anchor="firewall-try">
 						<TryRequest
 							rules={rules}
+							standard={view.standard ?? []}
 							countryKnown={view.geoAvailable}
 							onShowRule={(index) => {
 								const rule = rules[index];
@@ -293,7 +301,10 @@ function Coverage({
 	rules: readonly FirewallRule[];
 }) {
 	const hosts = view.hosts ?? [];
-	const on = rules.some((r) => !r.disabled);
+	const own = rules.some((r) => !r.disabled);
+	const what = own
+		? "your rules and the standard protection"
+		: "the standard protection";
 	const where = view.server ? (
 		<>
 			{" "}
@@ -318,10 +329,10 @@ function Coverage({
 					{where}.
 				</>
 			)}{" "}
-			{on && view.enforcement === "guard"
+			{view.enforcement === "guard"
 				? "Country rules (and visitor addresses behind Cloudflare) are checked by a small guard next to the proxy, about a millisecond per request."
-				: on
-					? "The proxy checks the rules in its own routing, with no extra hop."
+				: view.enforcement === "routes"
+					? `The proxy applies ${what} in its own routing, with no extra hop.`
 					: null}
 		</FactLine>
 	);
@@ -346,7 +357,7 @@ function Problems({
 			key: "agent",
 			tone: "warning",
 			title: "The agent is too old for firewalls",
-			body: `Update the agent on ${view.server} to apply rules.`,
+			body: `Update the agent on ${view.server}: until then it applies neither your rules nor the standard protection.`,
 		});
 	}
 	if (usesCountry(rules) && !view.geoAvailable) {
@@ -378,7 +389,7 @@ function Problems({
 	);
 }
 
-/** The empty state: no rule means every request gets through; start from a recipe. */
+/** The empty state: only the standard protection applies; start from a recipe. */
 function Recipes({
 	geoAvailable,
 	onPick,
@@ -391,8 +402,8 @@ function Recipes({
 	return (
 		<div className="flex flex-col gap-3">
 			<p className="m-0 text-ink-2 text-sm">
-				No rules: every request reaches the service. Start from a common one, or
-				write your own.
+				No rules of your own: only the standard protection below applies. Add a
+				common one, or write your own.
 			</p>
 			<ul className="m-0 grid list-none grid-cols-1 gap-2 p-0 @lg/section:grid-cols-2">
 				{RECIPES.map((recipe) => (
@@ -424,6 +435,65 @@ function Recipes({
 					Write a rule
 				</Button>
 			</div>
+		</div>
+	);
+}
+
+/**
+ * The standard protection: rules NebulaCtrl keeps on every HTTP service, after
+ * the service's own. Shown in evaluation order, below the editable list, and
+ * locked: there is nothing to switch, only what it blocks and how to exempt a
+ * path.
+ */
+function StandardProtection({
+	standard,
+}: {
+	standard: readonly StandardRule[];
+}) {
+	return (
+		<div className="flex flex-col gap-2">
+			<div className="flex items-baseline justify-between gap-3">
+				<span className="font-medium text-ink-1 text-sm">
+					Standard protection
+				</span>
+				<span className="text-ink-3 text-xs">Always on, after your rules</span>
+			</div>
+			<ul
+				aria-label="Standard protection"
+				className="rule-rows m-0 list-none p-0"
+			>
+				{standard.map((s) => (
+					<li key={s.rule.id} className="flex items-start gap-2">
+						<LockIcon
+							aria-hidden
+							className="mt-0.5 ml-7 size-3.5 shrink-0 text-ink-3"
+						/>
+						<span className="flex min-w-0 flex-1 flex-col gap-1.5">
+							<span className="font-medium text-ink-1 text-sm">
+								{s.rule.name}
+							</span>
+							<span className="text-ink-3 text-xs leading-[1.45]">
+								{s.description}
+							</span>
+							<span className="flex flex-wrap gap-1">
+								{(s.examples ?? []).map((example) => (
+									<code
+										key={example}
+										className="rounded-[5px] bg-surface-raised px-1.5 py-0.5 text-ink-2 text-xs"
+									>
+										{example}
+									</code>
+								))}
+							</span>
+						</span>
+						<Badge variant="outline">Block</Badge>
+					</li>
+				))}
+			</ul>
+			<p className="m-0 text-ink-3 text-xs">
+				To let one of these paths through, add an Allow rule for it: your rules
+				run first.
+			</p>
 		</div>
 	);
 }

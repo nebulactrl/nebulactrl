@@ -4334,7 +4334,7 @@ export type FirewallRule = {
 export type FirewallView = {
     deployed: boolean;
     /**
-     * none: no active rule. routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
+     * none: no firewall (tcp/udp routes). routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)
      */
     enforcement: 'none' | 'routes' | 'guard';
     geoAvailable: boolean;
@@ -4343,10 +4343,14 @@ export type FirewallView = {
      */
     hosts: Array<string> | null;
     /**
-     * The rules in evaluation order; the first rule whose conditions all match decides
+     * The service's own rules in evaluation order; the first rule whose conditions all match decides
      */
     rules: Array<FirewallRule> | null;
     server: string;
+    /**
+     * Standard protection NebulaCtrl applies to every HTTP service after its own rules; it cannot be switched off, but an allow rule above lets a request through. Empty for tcp/udp routes
+     */
+    standard: Array<StandardRule> | null;
     supported: boolean;
 };
 
@@ -9488,6 +9492,18 @@ export type StageServiceSourceChangeInputBody = {
 export type StagedResult = {
     items: Array<DeploymentView> | null;
     order: Array<string> | null;
+};
+
+export type StandardRule = {
+    /**
+     * What the rule blocks, in a sentence
+     */
+    description: string;
+    /**
+     * Request paths it blocks
+     */
+    examples: Array<string> | null;
+    rule: FirewallRule;
 };
 
 export type StartIdentityLinkInputBody = {

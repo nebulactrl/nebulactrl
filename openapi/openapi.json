@@ -12908,7 +12908,7 @@
             "type": "boolean"
           },
           "enforcement": {
-            "description": "none: no active rule. routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)",
+            "description": "none: no firewall (tcp/udp routes). routes: compiled into the proxy's routers (no extra hop). guard: the edge guard next to the proxy evaluates them (country rules, or visitor addresses behind Cloudflare)",
             "enum": [
               "none",
               "routes",
@@ -12930,7 +12930,7 @@
             ]
           },
           "rules": {
-            "description": "The rules in evaluation order; the first rule whose conditions all match decides",
+            "description": "The service's own rules in evaluation order; the first rule whose conditions all match decides",
             "items": {
               "$ref": "#/components/schemas/FirewallRule"
             },
@@ -12942,12 +12942,23 @@
           "server": {
             "type": "string"
           },
+          "standard": {
+            "description": "Standard protection NebulaCtrl applies to every HTTP service after its own rules; it cannot be switched off, but an allow rule above lets a request through. Empty for tcp/udp routes",
+            "items": {
+              "$ref": "#/components/schemas/StandardRule"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "supported": {
             "type": "boolean"
           }
         },
         "required": [
           "rules",
+          "standard",
           "enforcement",
           "hosts",
           "deployed",
@@ -28008,6 +28019,34 @@
         "required": [
           "items",
           "order"
+        ],
+        "type": "object"
+      },
+      "StandardRule": {
+        "additionalProperties": false,
+        "properties": {
+          "description": {
+            "description": "What the rule blocks, in a sentence",
+            "type": "string"
+          },
+          "examples": {
+            "description": "Request paths it blocks",
+            "items": {
+              "type": "string"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "rule": {
+            "$ref": "#/components/schemas/FirewallRule"
+          }
+        },
+        "required": [
+          "rule",
+          "description",
+          "examples"
         ],
         "type": "object"
       },
