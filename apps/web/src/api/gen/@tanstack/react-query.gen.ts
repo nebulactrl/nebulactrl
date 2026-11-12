@@ -2698,7 +2698,7 @@ export const listGitReposOptions = (options: Options<ListGitReposData>) => query
 /**
  * Test a git connection
  *
- * Calls the provider with the stored credentials and records the outcome in `status`.
+ * Calls the provider with the stored credentials and records the outcome in `status`. For a GitHub App it also points the App's webhook at this instance's `NEBULACTRL_PUBLIC_URL` when GitHub delivers elsewhere.
  */
 export const testGitConnectionMutation = (options?: Partial<Options<TestGitConnectionData>>): UseMutationOptions<TestGitConnectionResponse, TestGitConnectionError, Options<TestGitConnectionData>> => {
     const mutationOptions: UseMutationOptions<TestGitConnectionResponse, TestGitConnectionError, Options<TestGitConnectionData>> = {

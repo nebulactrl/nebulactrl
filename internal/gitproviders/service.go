@@ -91,8 +91,10 @@ type Service struct {
 
 	tokMu      sync.Mutex
 	instTokens map[uuid.UUID]cachedToken // GitHub installation tokens for API calls
-	refreshMu  sync.Mutex                // serializes OAuth refreshes (refresh tokens rotate)
-	statusMu   sync.Mutex                // serializes commit status reports
+	hookMu     sync.Mutex
+	appHooks   map[uuid.UUID]cachedHook // where GitHub delivers each App's webhooks
+	refreshMu  sync.Mutex               // serializes OAuth refreshes (refresh tokens rotate)
+	statusMu   sync.Mutex               // serializes commit status reports
 
 	rejectMu       sync.Mutex
 	rejectLimiters map[uuid.UUID]*rate.Limiter
@@ -101,6 +103,8 @@ type Service struct {
 type cachedToken struct {
 	token   string
 	expires time.Time
+	// permissions the installation granted (GitHub App tokens minted for the whole installation).
+	permissions map[string]string
 }
 
 // NewService returns a Service (Pool may be nil for OpenAPI generation).
@@ -117,7 +121,7 @@ func NewService(d Deps) *Service {
 	s := &Service{
 		pool: d.Pool, bus: d.Bus, jobs: d.Jobs, box: d.Box, cfg: d.Config, svcs: d.Services, dep: d.Deployer, ntf: d.Notifier,
 		hc: d.HTTP, log: d.Logger.With("component", "gitproviders"), now: time.Now, pushHookWait: d.PushHookWait, pollUnit: time.Minute,
-		instTokens: map[uuid.UUID]cachedToken{}, rejectLimiters: map[uuid.UUID]*rate.Limiter{},
+		instTokens: map[uuid.UUID]cachedToken{}, appHooks: map[uuid.UUID]cachedHook{}, rejectLimiters: map[uuid.UUID]*rate.Limiter{},
 	}
 	if u := d.Config.Timers.GitPollUnit; u > 0 {
 		s.pollUnit = u

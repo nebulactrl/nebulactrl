@@ -38,6 +38,14 @@ type ciWait struct {
 	CheckedAt time.Time `json:"checkedAt"`
 }
 
+// ciBlocked is the newest commit wait-for-CI refused to deploy (service_git.ci_blocked).
+type ciBlocked struct {
+	SHA    string    `json:"sha"`
+	Branch string    `json:"branch"`
+	Reason string    `json:"reason"`
+	At     time.Time `json:"at"`
+}
+
 // parkForCI parks a push until its checks pass; the newest push replaces an older one.
 func (s *Service) parkForCI(ctx context.Context, serviceID uuid.UUID, ev PushEvent, label, note string) string {
 	raw, _ := json.Marshal(ciWait{SHA: ev.CommitSHA, Message: ev.CommitMessage, Author: ev.Author, Branch: ev.Branch, Note: note, Since: s.now().UTC()})
@@ -128,12 +136,15 @@ func (s *Service) resolveCIWait(ctx context.Context, sg db.ServiceGit, w ciWait)
 		s.log.Info("push deployed after CI", "service", sc.Service.Slug, "commit", shortSHA(w.SHA), "note", note)
 		return nil
 	}
+	// block drops the push and records why, so that a check for new commits
+	// does not park the same commit again every minute.
 	block := func(reason string) error {
-		ok, err := take()
-		if err != nil || !ok {
+		n, err := s.q.BlockServiceGitCIWait(ctx, db.BlockServiceGitCIWaitParams{ServiceID: sg.ServiceID, Sha: w.SHA, Reason: reason})
+		if err != nil || n != 1 {
 			return err
 		}
 		s.notifyBlockedByCI(ctx, sc, w, reason)
+		services.PublishService(s.bus, services.EventServiceUpdated, sc)
 		return nil
 	}
 

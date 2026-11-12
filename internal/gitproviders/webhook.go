@@ -232,6 +232,12 @@ func (s *Service) process(ctx context.Context, conn db.GitConnection, p parsed, 
 			}
 			return processResult{outcome: "processed", summary: fmt.Sprintf("GitHub App installation %d recorded", p.installationID)}, nil
 		}
+		if p.installationAction == "new_permissions_accepted" && conn.AuthType == AuthGitHubApp {
+			// The cached API token still carries the old permissions.
+			s.forgetInstallationToken(conn.ID)
+			publish(s.bus, EventConnectionUpdated, conn.WorkspaceID, conn.ID)
+			return processResult{outcome: "processed", summary: "new GitHub App permissions accepted"}, nil
+		}
 		return processResult{outcome: "ignored", summary: "installation already recorded"}, nil
 	case kindPush:
 		var summaries []string

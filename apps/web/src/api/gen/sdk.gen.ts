@@ -2026,7 +2026,7 @@ export const listGitRepos = <ThrowOnError extends boolean = true>(options: Optio
 /**
  * Test a git connection
  *
- * Calls the provider with the stored credentials and records the outcome in `status`.
+ * Calls the provider with the stored credentials and records the outcome in `status`. For a GitHub App it also points the App's webhook at this instance's `NEBULACTRL_PUBLIC_URL` when GitHub delivers elsewhere.
  */
 export const testGitConnection = <ThrowOnError extends boolean = true>(options: Options<TestGitConnectionData, ThrowOnError>): RequestResult<TestGitConnectionResponses, TestGitConnectionErrors, ThrowOnError> => (options.client ?? client).post<TestGitConnectionResponses, TestGitConnectionErrors, ThrowOnError>({
     security: [{ scheme: 'bearer', type: 'http' }, {

@@ -568,6 +568,13 @@ export type BuildStep = {
     name: string;
 };
 
+export type CiBlockedCommit = {
+    at: string;
+    branch: string;
+    reason: string;
+    sha: string;
+};
+
 export type Cors = {
     credentials?: boolean;
     exposeHeaders?: Array<string> | null;
@@ -4488,6 +4495,8 @@ export type GitHubAppView = {
 export type GitLinkView = {
     autoDeploy: boolean;
     branch: string;
+    ciBlocked?: CiBlockedCommit;
+    ciWarning: string;
     connectionId: string | null;
     connectionName: string;
     linked: boolean;

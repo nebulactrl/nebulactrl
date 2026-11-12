@@ -1719,6 +1719,31 @@
         ],
         "type": "object"
       },
+      "CIBlockedCommit": {
+        "additionalProperties": false,
+        "properties": {
+          "at": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "branch": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "sha": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "sha",
+          "branch",
+          "reason",
+          "at"
+        ],
+        "type": "object"
+      },
       "CORS": {
         "additionalProperties": false,
         "properties": {
@@ -13410,6 +13435,12 @@
           "branch": {
             "type": "string"
           },
+          "ciBlocked": {
+            "$ref": "#/components/schemas/CIBlockedCommit"
+          },
+          "ciWarning": {
+            "type": "string"
+          },
           "connectionId": {
             "type": [
               "string",
@@ -13471,7 +13502,8 @@
           "watchPaths",
           "waitForCi",
           "webhook",
-          "queuedCommit"
+          "queuedCommit",
+          "ciWarning"
         ],
         "type": "object"
       },
@@ -48440,7 +48472,7 @@
     },
     "/git/connections/{connectionId}/test": {
       "post": {
-        "description": "Calls the provider with the stored credentials and records the outcome in `status`.",
+        "description": "Calls the provider with the stored credentials and records the outcome in `status`. For a GitHub App it also points the App's webhook at this instance's `NEBULACTRL_PUBLIC_URL` when GitHub delivers elsewhere.",
         "operationId": "testGitConnection",
         "parameters": [
           {

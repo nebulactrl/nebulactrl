@@ -142,6 +142,20 @@ type GitLinkView struct {
 	QueuedCommit string `json:"queuedCommit"`
 	// WaitingForCI is the push held back until its checks pass (absent when none).
 	WaitingForCI *QueuedCommit `json:"waitingForCi,omitempty"`
+	// CIBlocked is the newest commit Wait for CI refused to deploy, and why
+	// (absent when none, or when the service already runs it).
+	CIBlocked *CIBlockedCommit `json:"ciBlocked,omitempty"`
+	// CIWarning says why Wait for CI cannot read this repository's checks, so
+	// that it refuses every push (empty when it can, or when wait for CI is off).
+	CIWarning string `json:"ciWarning"`
+}
+
+// CIBlockedCommit is a commit Wait for CI refused to deploy.
+type CIBlockedCommit struct {
+	SHA    string    `json:"sha"`
+	Branch string    `json:"branch"`
+	Reason string    `json:"reason"`
+	At     time.Time `json:"at"`
 }
 
 // QueuedCommit is a push waiting for its CI checks.
@@ -226,6 +240,17 @@ func (s *Service) linkView(ctx context.Context, sc services.Scope) (GitLinkView,
 		if jsonUnmarshal(sg.CiWait, &w) == nil && w.SHA != "" {
 			v.WaitingForCI = &QueuedCommit{SHA: w.SHA, Message: w.Message, Author: w.Author, Branch: w.Branch, Since: w.Since}
 		}
+	}
+	if len(sg.CiBlocked) > 0 && sg.WaitForCi {
+		var b ciBlocked
+		if jsonUnmarshal(sg.CiBlocked, &b) == nil && b.SHA != "" {
+			if running, err := s.runningCommit(ctx, sc.Service.ID); err == nil && running != b.SHA {
+				v.CIBlocked = &CIBlockedCommit{SHA: b.SHA, Branch: b.Branch, Reason: b.Reason, At: b.At}
+			}
+		}
+	}
+	if sg.WaitForCi {
+		v.CIWarning = s.ciReadWarning(ctx, c)
 	}
 	return v, nil
 }
@@ -416,6 +441,12 @@ func (s *Service) hookStatus(ctx context.Context, c db.GitConnection, repo strin
 	v := HookStatusView{Mode: hookMode(c), Status: "active"}
 	if s.publicURL() != "" {
 		v.URL = s.hookURL(c.Provider, c.ID)
+	}
+	if v.Mode == "app" {
+		if problem := s.appHookProblem(ctx, c); problem != "" {
+			v.Status, v.Message = "error", problem
+		}
+		return v
 	}
 	if v.Mode != "registered" {
 		return v

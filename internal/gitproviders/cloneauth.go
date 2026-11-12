@@ -120,11 +120,11 @@ func (s *Service) CloneAuth(ctx context.Context, serviceID uuid.UUID, gitURL str
 		if i := strings.LastIndex(name, "/"); i >= 0 {
 			name = name[i+1:]
 		}
-		tok, exp, err := s.mintInstallationToken(ctx, c, name)
+		t, err := s.mintInstallationToken(ctx, c, name)
 		if err != nil {
 			return agentprotocol.GitAuth{}, err
 		}
-		return agentprotocol.GitAuth{Username: drv.cloneUsername(), Token: tok, ExpiresAt: &exp}, nil
+		return agentprotocol.GitAuth{Username: drv.cloneUsername(), Token: t.token, ExpiresAt: &t.expires}, nil
 	case AuthToken:
 		cr, err := s.creds(c)
 		if err != nil {

@@ -76,7 +76,8 @@ func RegisterJobs(jm *jobs.Manager, s *Service) {
 	jm.AddPeriodic(river.NewPeriodicJob(
 		river.PeriodicInterval(time.Hour),
 		func() (river.JobArgs, *river.InsertOpts) { return MaintenanceArgs{}, &river.InsertOpts{MaxAttempts: 1} },
-		nil,
+		// On start too: a changed NEBULACTRL_PUBLIC_URL re-points the GitHub Apps' webhooks right away.
+		&river.PeriodicJobOpts{RunOnStart: true},
 	))
 }
 
@@ -114,7 +115,8 @@ func (s *Service) Sweep(ctx context.Context) error {
 	return nil
 }
 
-// Maintain runs the hourly housekeeping.
+// Maintain runs the hourly housekeeping, and points every GitHub App's webhook
+// at this instance's address.
 func (s *Service) Maintain(ctx context.Context) error {
 	if _, err := s.q.PruneGitDeliveryIDs(ctx, s.now().Add(-DeliveryIDTTL)); err != nil {
 		return fmt.Errorf("prune delivery ids: %w", err)
@@ -135,6 +137,15 @@ func (s *Service) Maintain(ctx context.Context) error {
 			continue
 		}
 		s.removeWebhook(ctx, c, h.RepoFullName)
+	}
+	apps, err := s.q.ListActiveGitHubAppConnections(ctx)
+	if err != nil {
+		return fmt.Errorf("list GitHub App connections: %w", err)
+	}
+	for _, c := range apps {
+		if err := s.syncAppHook(ctx, c); err != nil {
+			s.log.Warn("sync GitHub App webhook", "connection", c.Name, "err", err)
+		}
 	}
 	return nil
 }

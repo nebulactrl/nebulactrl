@@ -208,7 +208,7 @@ func Register(h huma.API, s *Service) {
 
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "testGitConnection", Method: http.MethodPost, Path: "/git/connections/{connectionId}/test", Tags: tags,
-		Summary: "Test a git connection", Description: "Calls the provider with the stored credentials and records the outcome in `status`.",
+		Summary: "Test a git connection", Description: "Calls the provider with the stored credentials and records the outcome in `status`. For a GitHub App it also points the App's webhook at this instance's `NEBULACTRL_PUBLIC_URL` when GitHub delivers elsewhere.",
 		Errors: append(errs, http.StatusNotFound),
 	}, policy.ScopeAdmin), func(ctx context.Context, in *ConnectionPath) (*connectionOutput, error) {
 		v, err := s.TestConnection(ctx, in.ID)

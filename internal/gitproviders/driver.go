@@ -25,8 +25,9 @@ type parsed struct {
 	reason string // why an event was ignored
 	pushes []PushEvent
 	pr     *PullRequestEvent
-	// installationID is set for GitHub App installation events.
-	installationID int64
+	// installationID and installationAction are set for GitHub App installation events.
+	installationID     int64
+	installationAction string
 }
 
 // CI states of a commit as the wait-for-CI gate sees them.

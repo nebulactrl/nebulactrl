@@ -9327,6 +9327,14 @@ type BuildStep struct {
 	Name     string    `json:"name"`
 }
 
+// CIBlockedCommit defines model for CIBlockedCommit.
+type CIBlockedCommit struct {
+	At     time.Time `json:"at"`
+	Branch string    `json:"branch"`
+	Reason string    `json:"reason"`
+	Sha    string    `json:"sha"`
+}
+
 // CORS defines model for CORS.
 type CORS struct {
 	Credentials   *bool     `json:"credentials,omitempty"`
@@ -13396,6 +13404,8 @@ type GitHubAppView struct {
 type GitLinkView struct {
 	AutoDeploy     bool                 `json:"autoDeploy"`
 	Branch         string               `json:"branch"`
+	CiBlocked      *CIBlockedCommit     `json:"ciBlocked,omitempty"`
+	CiWarning      string               `json:"ciWarning"`
 	ConnectionId   *string              `json:"connectionId"`
 	ConnectionName string               `json:"connectionName"`
 	Linked         bool                 `json:"linked"`
@@ -23962,7 +23972,7 @@ type ClientInterface interface {
 
 	// TestGitConnection Test a git connection
 	//
-	// Calls the provider with the stored credentials and records the outcome in `status`.
+	// Calls the provider with the stored credentials and records the outcome in `status`. For a GitHub App it also points the App's webhook at this instance's `NEBULACTRL_PUBLIC_URL` when GitHub delivers elsewhere.
 	//
 	// Corresponds with POST /git/connections/{connectionId}/test (the `TestGitConnection` operationId).
 	TestGitConnection(ctx context.Context, connectionId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -31020,7 +31030,7 @@ func (c *Client) ListGitRepos(ctx context.Context, connectionId string, params *
 
 // TestGitConnection Test a git connection
 //
-// Calls the provider with the stored credentials and records the outcome in `status`.
+// Calls the provider with the stored credentials and records the outcome in `status`. For a GitHub App it also points the App's webhook at this instance's `NEBULACTRL_PUBLIC_URL` when GitHub delivers elsewhere.
 //
 // Corresponds with POST /git/connections/{connectionId}/test (the `TestGitConnection` operationId).
 func (c *Client) TestGitConnection(ctx context.Context, connectionId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -63887,7 +63897,7 @@ type ClientWithResponsesInterface interface {
 
 	// TestGitConnectionWithResponse Test a git connection
 	//
-	// Calls the provider with the stored credentials and records the outcome in `status`.
+	// Calls the provider with the stored credentials and records the outcome in `status`. For a GitHub App it also points the App's webhook at this instance's `NEBULACTRL_PUBLIC_URL` when GitHub delivers elsewhere.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -111434,7 +111444,7 @@ func (c *ClientWithResponses) ListGitReposWithResponse(ctx context.Context, conn
 
 // TestGitConnectionWithResponse Test a git connection
 //
-// Calls the provider with the stored credentials and records the outcome in `status`.
+// Calls the provider with the stored credentials and records the outcome in `status`. For a GitHub App it also points the App's webhook at this instance's `NEBULACTRL_PUBLIC_URL` when GitHub delivers elsewhere.
 //
 // Returns a wrapper object for the known response body format(s).
 //

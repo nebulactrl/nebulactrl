@@ -100,52 +100,175 @@ func (s *Service) appClient(c db.GitConnection) (*apiClient, error) {
 
 // mintInstallationToken creates an installation access token. With repoName it
 // is restricted to that repository and to read access to its contents (what a
-// clone needs).
-func (s *Service) mintInstallationToken(ctx context.Context, c db.GitConnection, repoName string) (string, time.Time, error) {
+// clone needs); without, it carries every permission the installation granted.
+func (s *Service) mintInstallationToken(ctx context.Context, c db.GitConnection, repoName string) (cachedToken, error) {
 	m := decodeMeta(c.Meta)
 	if m.InstallationID == 0 {
-		return "", time.Time{}, errors.New("the GitHub App is not installed yet: install it on your account or organization first")
+		return cachedToken{}, errors.New("the GitHub App is not installed yet: install it on your account or organization first")
 	}
 	cl, err := s.appClient(c)
 	if err != nil {
-		return "", time.Time{}, err
+		return cachedToken{}, err
 	}
 	var body any
 	if repoName != "" {
 		body = map[string]any{"repositories": []string{repoName}, "permissions": map[string]string{"contents": "read"}}
 	}
 	var out struct {
-		Token     string    `json:"token"`
-		ExpiresAt time.Time `json:"expires_at"`
+		Token       string            `json:"token"`
+		ExpiresAt   time.Time         `json:"expires_at"`
+		Permissions map[string]string `json:"permissions"`
 	}
 	if err := cl.do(ctx, http.MethodPost, "/app/installations/"+strconv.FormatInt(m.InstallationID, 10)+"/access_tokens", nil, body, &out); err != nil {
-		return "", time.Time{}, fmt.Errorf("mint GitHub installation token: %w", err)
+		return cachedToken{}, fmt.Errorf("mint GitHub installation token: %w", err)
 	}
 	if out.Token == "" {
-		return "", time.Time{}, errors.New("GitHub returned no installation token")
+		return cachedToken{}, errors.New("GitHub returned no installation token")
 	}
-	return out.Token, out.ExpiresAt, nil
+	return cachedToken{token: out.Token, expires: out.ExpiresAt, permissions: out.Permissions}, nil
 }
 
 // installationToken returns a cached installation token for API calls.
 func (s *Service) installationToken(ctx context.Context, c db.GitConnection) (string, error) {
+	t, err := s.cachedInstallationToken(ctx, c)
+	return t.token, err
+}
+
+func (s *Service) cachedInstallationToken(ctx context.Context, c db.GitConnection) (cachedToken, error) {
 	s.tokMu.Lock()
 	defer s.tokMu.Unlock()
 	if t, ok := s.instTokens[c.ID]; ok && s.now().Add(installationTokenSlack).Before(t.expires) {
-		return t.token, nil
+		return t, nil
 	}
-	tok, exp, err := s.mintInstallationToken(ctx, c, "")
+	t, err := s.mintInstallationToken(ctx, c, "")
 	if err != nil {
-		return "", err
+		return cachedToken{}, err
 	}
-	s.instTokens[c.ID] = cachedToken{token: tok, expires: exp}
-	return tok, nil
+	s.instTokens[c.ID] = t
+	return t, nil
+}
+
+// ciPermissions are the installation permissions wait-for-CI reads checks with.
+var ciPermissions = []struct{ key, label string }{{"checks", "Checks"}, {"statuses", "Commit statuses"}}
+
+// ciReadWarning says why wait-for-CI cannot read the checks of the
+// connection's commits: a GitHub App installed before it asked for the Checks
+// permission, or one whose new permissions were never accepted. It is empty
+// when the checks can be read or the permissions cannot be looked up.
+func (s *Service) ciReadWarning(ctx context.Context, c db.GitConnection) string {
+	if c.AuthType != AuthGitHubApp {
+		return ""
+	}
+	t, err := s.cachedInstallationToken(ctx, c)
+	if err != nil || t.permissions == nil {
+		return ""
+	}
+	var missing []string
+	for _, p := range ciPermissions {
+		if t.permissions[p.key] == "" {
+			missing = append(missing, "'"+p.label+": read'")
+		}
+	}
+	if len(missing) == 0 {
+		return ""
+	}
+	return "The GitHub App may not read this repository's CI results, so Wait for CI refuses every push: grant it " +
+		strings.Join(missing, " and ") + " in the App's settings (Permissions & events), then accept the change on the installation."
 }
 
 func (s *Service) forgetInstallationToken(id uuid.UUID) {
 	s.tokMu.Lock()
 	delete(s.instTokens, id)
 	s.tokMu.Unlock()
+}
+
+// appHookTTL is how long the App webhook address read from GitHub is trusted.
+const appHookTTL = 5 * time.Minute
+
+type cachedHook struct {
+	url string
+	at  time.Time
+}
+
+// appHookURL reads where GitHub delivers the App's webhooks (cached for appHookTTL).
+// https://docs.github.com/en/rest/apps/webhooks#get-a-webhook-configuration-for-an-app
+func (s *Service) appHookURL(ctx context.Context, c db.GitConnection) (string, error) {
+	s.hookMu.Lock()
+	h, ok := s.appHooks[c.ID]
+	s.hookMu.Unlock()
+	if ok && s.now().Sub(h.at) < appHookTTL {
+		return h.url, nil
+	}
+	cl, err := s.appClient(c)
+	if err != nil {
+		return "", err
+	}
+	var out struct {
+		URL string `json:"url"`
+	}
+	if err := cl.do(ctx, http.MethodGet, "/app/hook/config", nil, nil, &out); err != nil {
+		return "", fmt.Errorf("read the GitHub App's webhook configuration: %w", err)
+	}
+	s.rememberAppHook(c.ID, out.URL)
+	return out.URL, nil
+}
+
+func (s *Service) rememberAppHook(id uuid.UUID, u string) {
+	s.hookMu.Lock()
+	s.appHooks[id] = cachedHook{url: u, at: s.now()}
+	s.hookMu.Unlock()
+}
+
+// syncAppHook points the App's webhook at this instance when GitHub delivers
+// elsewhere: the App was created while NEBULACTRL_PUBLIC_URL named another
+// address (a port or host that changed since), and GitHub keeps the old one.
+// https://docs.github.com/en/rest/apps/webhooks#update-a-webhook-configuration-for-an-app
+func (s *Service) syncAppHook(ctx context.Context, c db.GitConnection) error {
+	if c.AuthType != AuthGitHubApp || !appCreated(c) || s.publicURL() == "" {
+		return nil
+	}
+	s.hookMu.Lock()
+	delete(s.appHooks, c.ID)
+	s.hookMu.Unlock()
+	got, err := s.appHookURL(ctx, c)
+	if err != nil {
+		return err
+	}
+	want := s.hookURL(c.Provider, c.ID)
+	if got == want {
+		return nil
+	}
+	cl, err := s.appClient(c)
+	if err != nil {
+		return err
+	}
+	if err := cl.do(ctx, http.MethodPatch, "/app/hook/config", nil, map[string]string{"url": want}, nil); err != nil {
+		return fmt.Errorf("point the GitHub App's webhook at %s: %w", want, err)
+	}
+	s.rememberAppHook(c.ID, want)
+	s.log.Info("pointed the GitHub App webhook at this instance", "connection", c.Name, "from", got, "to", want)
+	return nil
+}
+
+// appHookProblem says why GitHub does not deliver the App's events to this
+// instance ("" when it does, or when GitHub cannot be asked right now).
+func (s *Service) appHookProblem(ctx context.Context, c db.GitConnection) string {
+	if c.AuthType != AuthGitHubApp || !appCreated(c) || s.publicURL() == "" {
+		return ""
+	}
+	got, err := s.appHookURL(ctx, c)
+	if err != nil {
+		s.log.Warn("read GitHub App webhook", "connection", c.Name, "err", err)
+		return ""
+	}
+	want := s.hookURL(c.Provider, c.ID)
+	switch got {
+	case want:
+		return ""
+	case "":
+		return "The GitHub App has no webhook address, so pushes never arrive. Test the connection in Team settings → Integrations to set it to " + want + "."
+	}
+	return "GitHub delivers this App's events to " + got + ", not to " + want + ", so pushes never arrive. Test the connection in Team settings → Integrations to correct it (NebulaCtrl also corrects it within the hour)."
 }
 
 // ---- manifest flow ----
@@ -508,7 +631,7 @@ func (s *Service) activateInstallation(ctx context.Context, c db.GitConnection, 
 	c.Meta = encodeMeta(m)
 	s.forgetInstallationToken(c.ID)
 	status, msg := StatusActive, ""
-	if _, _, err := s.mintInstallationToken(ctx, c, ""); err != nil {
+	if _, err := s.mintInstallationToken(ctx, c, ""); err != nil {
 		status, msg = StatusError, err.Error()
 	}
 	err := db.InTx(ctx, s.pool, func(tx pgx.Tx) error {
@@ -538,7 +661,9 @@ func (s *Service) activateInstallation(ctx context.Context, c db.GitConnection, 
 }
 
 // RefreshInstallation looks the installation up again (for installs that did
-// not return to NebulaCtrl) and re-verifies the connection.
+// not return to NebulaCtrl) and re-verifies the connection. It also points the
+// App's webhook at this instance; a failure there is left to Test and to the
+// hourly maintenance, which report and retry it.
 func (s *Service) RefreshInstallation(ctx context.Context, id uuid.UUID) error {
 	c, err := s.loadConnection(ctx, policy.ScopeAdmin, id)
 	if err != nil {
@@ -551,5 +676,11 @@ func (s *Service) RefreshInstallation(ctx context.Context, id uuid.UUID) error {
 	if err != nil {
 		return err
 	}
-	return s.activateInstallation(ctx, c, iid)
+	if err := s.activateInstallation(ctx, c, iid); err != nil {
+		return err
+	}
+	if err := s.syncAppHook(ctx, c); err != nil {
+		s.log.Warn("sync GitHub App webhook", "connection", c.Name, "err", err)
+	}
+	return nil
 }
