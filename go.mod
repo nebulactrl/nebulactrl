@@ -6,10 +6,10 @@ require (
 	github.com/alexedwards/argon2id v1.0.0
 	github.com/alexedwards/scs/pgxstore v0.0.0-20251002162104-209de6e426de
 	github.com/alexedwards/scs/v2 v2.9.0
-	github.com/aws/aws-sdk-go-v2 v1.47.5
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.13
-	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.5.2
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.6
+	github.com/aws/aws-sdk-go-v2 v1.47.7
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.15
+	github.com/aws/aws-sdk-go-v2/feature/s3/transfermanager v0.5.4
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.8
 	github.com/aws/smithy-go v1.28.8
 	github.com/axiomhq/hyperloglog v0.3.0
 	github.com/coder/websocket v1.8.15
@@ -20,7 +20,7 @@ require (
 	github.com/go-chi/chi/v5 v5.5.0
 	github.com/go-git/go-billy/v5 v5.9.2
 	github.com/go-git/go-git/v5 v5.19.3
-	github.com/go-jose/go-jose/v4 v4.1.8
+	github.com/go-jose/go-jose/v4 v4.1.9
 	github.com/go-sql-driver/mysql v1.10.1
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/jsonschema-go v0.4.3
@@ -35,9 +35,9 @@ require (
 	github.com/oschwald/maxminddb-golang/v2 v2.9.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/pressly/goose/v3 v3.29.0
-	github.com/riverqueue/river v0.51.0
-	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.51.0
-	github.com/riverqueue/river/rivertype v0.51.0
+	github.com/riverqueue/river v0.51.1
+	github.com/riverqueue/river/riverdriver/riverpgxv5 v0.51.1
+	github.com/riverqueue/river/rivertype v0.51.1
 	github.com/shirou/gopsutil/v4 v4.26.10
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.1.0
@@ -58,14 +58,14 @@ require (
 	github.com/Microsoft/go-winio v0.6.3 // indirect
 	github.com/ProtonMail/go-crypto v1.1.6 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
-	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.25 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.9 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.8 // indirect
+	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.26 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.10 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.10 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.10 // indirect
 	github.com/boyter/go-string v1.0.5 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudflare/circl v1.6.3 // indirect
@@ -102,8 +102,8 @@ require (
 	github.com/philhofer/fwd v1.2.1 // indirect
 	github.com/pjbgf/sha1cd v0.7.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
-	github.com/riverqueue/river/riverdriver v0.51.0 // indirect
-	github.com/riverqueue/river/rivershared v0.51.0 // indirect
+	github.com/riverqueue/river/riverdriver v0.51.1 // indirect
+	github.com/riverqueue/river/rivershared v0.51.1 // indirect
 	github.com/segmentio/asm v1.2.1 // indirect
 	github.com/segmentio/encoding v0.5.4 // indirect
 	github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3 // indirect
