@@ -1,0 +1,95 @@
+# Turns on auto-merge for a Dependabot pull request that only carries patch updates
+# from the groups in AUTOMERGE_GROUPS (.github/dependabot.yml): GitHub Actions, Docker
+# and Compose images and Bun development dependencies, each released at least 7 days
+# ago (the cooldown). GitHub squash-merges it once the required checks of the main
+# ruleset pass. Everything else stays for a human: Go modules, Bun runtime
+# dependencies, minor and major updates, and security updates (they skip the
+# cooldown and carry no group).
+#
+# The pull request must be opened by Dependabot and hold exactly one commit, by
+# Dependabot and verified, so a push by anyone else to the branch stops it.
+#
+# Auto-merge is enabled with a token of the repository's auto-merge GitHub App, not
+# with the GITHUB_TOKEN: a merge by the GITHUB_TOKEN starts no workflow, so ci and
+# security would not run on main. A run that Dependabot starts only gets Dependabot
+# secrets, so the App's credentials are Dependabot secrets (CONTRIBUTING.md, "Owner
+# actions").
+name: dependabot-automerge
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dependabot-automerge-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  automerge:
+    name: dependabot auto-merge
+    # The author of the pull request, not github.actor (whoever triggered this run).
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read # the commits of the pull request
+    steps:
+      - name: Check the updates
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          AUTOMERGE_GROUPS: github-actions-patch docker-image-patch docker-dev-patch compose-install-patch compose-dev-patch bun-dev-patch
+        run: |
+          eligible() {
+            echo "eligible=$1" >>"$GITHUB_OUTPUT"
+            [ "$1" = true ] || echo "::notice::not auto-merged: $2"
+            exit 0
+          }
+
+          commits="$(gh api "repos/$REPO/pulls/$PR/commits")"
+          jq -e 'length == 1 and .[0].author.login == "dependabot[bot]" and .[0].commit.verification.verified' \
+            <<<"$commits" >/dev/null || eligible false "the branch must hold exactly one verified commit by Dependabot"
+
+          # Dependabot's metadata block at the end of the commit message, one line
+          # "<group> <update-type>" per dependency, "-" for a missing field.
+          updates="$(jq -r '.[0].commit.message' <<<"$commits" | awk '
+            /^updated-dependencies:$/ { block = 1; next }
+            block && /^\.\.\.$/ { exit }
+            block && /^- dependency-name:/ { n++ }
+            block && /^  update-type:/ { type[n] = $2 }
+            block && /^  dependency-group:/ { group[n] = $2 }
+            END { for (i = 1; i <= n; i++) print (i in group ? group[i] : "-") " " (i in type ? type[i] : "-") }
+          ')"
+          [ -n "$updates" ] || eligible false "no updated-dependencies metadata in the commit message"
+
+          while read -r group type; do
+            case " $AUTOMERGE_GROUPS " in
+            *" $group "*) ;;
+            *) eligible false "group '$group' is not in AUTOMERGE_GROUPS" ;;
+            esac
+            [ "$type" = version-update:semver-patch ] || eligible false "'$type' in group '$group' is not a patch update"
+          done <<<"$updates"
+          eligible true
+
+      - name: Create a token of the auto-merge App
+        id: app-token
+        if: steps.check.outputs.eligible == 'true'
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ secrets.AUTOMERGE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.AUTOMERGE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Enable auto-merge
+        if: steps.check.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"

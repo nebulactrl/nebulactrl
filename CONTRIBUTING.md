@@ -101,6 +101,7 @@ GitHub Actions runs on standard GitHub-hosted runners (`ubuntu-24.04`; `ubuntu-2
 | `full` | nightly (03:17 UTC, on `main`), on demand (`templates: sample` or `all`; `run` for a focused repeat of chosen tests), and as a release gate | tier 3, every Docker scenario, in 4 shards |
 | `security` | nightly (04:41 UTC, on `main`), on demand, and on a push to `main` that changes `bun.lock`, `go.mod` or `go.sum` | govulncheck, osv-scanner over `bun.lock` and `go.mod`, and a Grype scan of `ghcr.io/nebulactrl/nebulactrl:latest` whose findings go to code scanning (skipped while no release exists) |
 | `scorecard` | every push to `main`, weekly (Saturday 05:29 UTC), and when a branch protection rule changes | [OpenSSF Scorecard](https://scorecard.dev/viewer/?uri=github.com/nebulactrl/nebulactrl); the result is published for the README badge and uploaded to code scanning |
+| `dependabot-automerge` | every pull request to `main` that Dependabot opens | turns on auto-merge for patch updates of GitHub Actions, Docker and Compose images and Bun development dependencies (the `*-patch` groups of `.github/dependabot.yml`); GitHub merges once the required checks pass. Go modules, Bun runtime dependencies, minor, major and security updates are reviewed by hand |
 | `release` | on demand only, from `main` | the gates above, then the release itself (below) |
 
 **Pull requests.** A pull request to `main` produces these checks, which are the required status checks of the `main` ruleset:
@@ -124,7 +125,7 @@ Workflow rules, enforced by `make lint-workflows` (the `workflows` check runs th
 - top-level `permissions: contents: read`; a job asks for more only for what it does (`contents: write` to tag or upload release assets, `packages: write` to push the image, `id-token: write` and `attestations: write` to attest a build);
 - `actions/checkout` uses `persist-credentials: false` unless the job pushes with the checkout's credentials (only the release `version` job does);
 - only standard GitHub-hosted runners (`ubuntu-24.04`, `ubuntu-24.04-arm`), no self-hosted or third-party labels;
-- every action is pinned to a full commit SHA with its tag as a trailing comment (`uses: actions/checkout@<sha> # v7.0.1`; Dependabot proposes the updates daily, one grouped pull request per ecosystem, for releases at least 7 days old), and the repository only allows GitHub-owned actions plus `oven-sh/setup-bun`, `docker/setup-buildx-action`, `docker/login-action`, `docker/build-push-action` and `ossf/scorecard-action`;
+- every action is pinned to a full commit SHA with its tag as a trailing comment (`uses: actions/checkout@<sha> # v7.0.1`; Dependabot proposes the updates daily, grouped, for releases at least 7 days old, and patch updates merge on their own once the checks pass), and the repository only allows GitHub-owned actions plus `oven-sh/setup-bun`, `docker/setup-buildx-action`, `docker/login-action`, `docker/build-push-action` and `ossf/scorecard-action`;
 - every job has `timeout-minutes`, so a hang cannot run for hours;
 - the release workflow restores no cache in the jobs that hold secrets or publish (`site`, the image builds), so a cache entry written by another run cannot reach a release; `ci`, `full` and `docs` keep theirs;
 - the base images of the `Dockerfile` are pinned as `tag@sha256:<digest>`; Dependabot bumps the tag and the digest together;
@@ -148,6 +149,8 @@ Versions come from commit messages. Use `type(scope): subject` (scope optional) 
 | `docs:`, `chore:`, `ci:`, `build:`, `test:`, `refactor:`, `style:` | no release |
 
 The highest bump among the commits since the last tag wins. If none of them needs a release, the release workflow says so and creates nothing.
+
+Dependabot writes `fix(deps):` for what ships (Go modules, Bun runtime dependencies, the `Dockerfile` base images, the installer's compose file), so a dependency fix makes the next release a patch release, and `chore(deps):` for GitHub Actions, development dependencies and dev or test images.
 
 **NebulaCtrl is on 0.x**, where Semantic Versioning allows a minor version to break things. `release.config.mjs` maps a breaking change to a **minor** bump on purpose: semantic-release's default would cut `1.0.0` the first time anyone writes `feat!:`. `make test-release-rules` checks this against the real semantic-release in a scratch repository under `/tmp` (a `feat!:` after `v0.1.0` yields `0.2.0`); run it after touching `release.config.mjs` or the pinned versions in `scripts/release/semantic-release.sh`.
 
@@ -198,6 +201,11 @@ Needed once, by the repository owner; the workflow cannot do them.
 2. **After the first release, make the image public.** GitHub → the `nebulactrl` organisation → Packages → `nebulactrl` → Package settings → Danger zone → Change visibility → **Public**. A package a workflow creates is private until you do this, and until then every `docker pull` from a server fails with "denied". Later tags inherit it. Check with `docker logout ghcr.io; docker pull ghcr.io/nebulactrl/nebulactrl:latest`.
 3. **Redirect www to the apex.** `wrangler.jsonc` attaches both `nebulactrl.com` and `www.nebulactrl.com` to the Worker (Cloudflare creates the DNS records), but a Worker custom domain cannot redirect. In the Cloudflare dashboard, zone `nebulactrl.com` → Rules → Redirect Rules → **Redirect from WWW to root** (a single redirect): when `http.host eq "www.nebulactrl.com"`, redirect with status 301 to `concat("https://nebulactrl.com", http.request.uri.path)` and preserve the query string.
 4. **After the first deploy**, open `https://nebulactrl.com/install.sh` (it shows the release version in `NC_DEFAULT_VERSION=`), `https://nebulactrl.com/releases/latest.json` (the release feed, with the same version) and `https://www.nebulactrl.com/` (it redirects to the apex).
+5. **Auto-merge of Dependabot updates** (`dependabot-automerge`):
+   - Settings → General → Pull Requests → tick **Allow auto-merge**.
+   - Create a GitHub App owned by the `nebulactrl` organisation (Settings → Developer settings → GitHub Apps → New), webhook off, repository permissions **Contents: Read and write** and **Pull requests: Read and write**, nothing else. Install it on this repository only. A merge it enables starts the push workflows on `main`; one enabled with the `GITHUB_TOKEN` would not.
+   - Settings → Secrets and variables → **Dependabot** (not Actions: a run that Dependabot starts gets only Dependabot secrets): `AUTOMERGE_APP_CLIENT_ID` (the App's Client ID) and `AUTOMERGE_APP_PRIVATE_KEY` (a private key generated on the App's page, the whole `.pem`).
+   - Until all three are done, the workflow fails at "Create a token" on an eligible pull request and nothing is merged.
 
 ### Going to 1.0
 

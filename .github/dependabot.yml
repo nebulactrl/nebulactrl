@@ -1,11 +1,22 @@
 version: 2
 
-# Daily and grouped, so updates arrive as at most one pull request per ecosystem.
-# The workflows pin actions to commit SHAs; dependabot rewrites the SHA and the
+# Daily and grouped, so updates arrive as a few pull requests per ecosystem. The
+# workflows pin actions to commit SHAs; dependabot rewrites the SHA and the
 # trailing version comment together. The Dockerfile base images are pinned as
 # tag@digest and bumped the same way. The cooldown keeps a release that was
 # published minutes ago (and may be pulled again) out of the pull request;
 # security updates ignore it.
+#
+# Auto-merge (.github/workflows/dependabot-automerge.yml) takes the *-patch groups
+# below, except Go modules, which have none: GitHub Actions, Docker and Compose
+# images and Bun development dependencies. A dependency lands in the first group
+# it matches, so each *-patch group must stay above its catch-all group. Renaming
+# a *-patch group means changing AUTOMERGE_GROUPS in that workflow too. Security
+# updates carry no group and are always reviewed by hand.
+#
+# Commit prefixes decide the release (CONTRIBUTING.md, "Commits and versions"):
+# what ships in the image, the binaries or the installer is fix(deps), a patch
+# release; CI, development and test dependencies are chore(deps), no release.
 updates:
   - package-ecosystem: github-actions
     directory: /
@@ -14,11 +25,21 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
     groups:
+      github-actions-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
       github-actions:
         patterns:
           - "*"
 
+  # Reviewed by hand: the module graph is compiled into the server, the CLI and the
+  # agent, which drives Docker (root on the host) on every enrolled server.
   - package-ecosystem: gomod
     directory: /
     schedule:
@@ -26,6 +47,9 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: fix
+      include: scope
     # pgxstore has no release tags (go.mod pins a pseudo-version). Dependabot
     # takes the repository's tags (v1.4.1, …) for it, cannot resolve them, and
     # the failure drops the whole grouped update. Bump it by hand with
@@ -37,6 +61,8 @@ updates:
         patterns:
           - "*"
 
+  # Runtime dependencies end up in the web app of the image and are reviewed by
+  # hand; development dependencies (build, lint, test) get auto-merged patches.
   - package-ecosystem: bun
     directory: /
     schedule:
@@ -44,15 +70,50 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: fix
+      prefix-development: chore
+      include: scope
     groups:
-      bun-workspace:
+      bun-dev-patch:
+        dependency-type: development
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      bun-dev:
+        dependency-type: development
+        patterns:
+          - "*"
+      bun-runtime:
+        dependency-type: production
         patterns:
           - "*"
 
-  # The shipped image (Dockerfile), the dev agent image and the test git server.
+  # The shipped image (Dockerfile).
+  - package-ecosystem: docker
+    directory: /
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: fix
+      include: scope
+    groups:
+      docker-image-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      docker-image:
+        patterns:
+          - "*"
+
+  # The dev agent image and the test git server.
   - package-ecosystem: docker
     directories:
-      - /
       - /deploy/agent
       - /tests/fixtures/git-server
     schedule:
@@ -60,22 +121,57 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
     groups:
-      docker:
+      docker-dev-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      docker-dev:
         patterns:
           - "*"
 
-  # The installer's compose file (every image is pinned by digest) and the dev stack.
+  # The installer's compose file (every image is pinned by digest).
   - package-ecosystem: docker-compose
-    directories:
-      - /deploy/install
-      - /deploy/dev
+    directory: /deploy/install
     schedule:
       interval: daily
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    commit-message:
+      prefix: fix
+      include: scope
     groups:
-      compose:
+      compose-install-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      compose-install:
+        patterns:
+          - "*"
+
+  # The dev stack.
+  - package-ecosystem: docker-compose
+    directory: /deploy/dev
+    schedule:
+      interval: daily
+    cooldown:
+      default-days: 7
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore
+      include: scope
+    groups:
+      compose-dev-patch:
+        patterns:
+          - "*"
+        update-types:
+          - patch
+      compose-dev:
         patterns:
           - "*"
