@@ -7,6 +7,6 @@
 		"js-yaml": "4.3.2"
 	},
 	"devDependencies": {
-		"knip": "6.44.1"
+		"knip": "6.44.2"
 	}
 }
