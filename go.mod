@@ -25,7 +25,7 @@ require (
 	github.com/go-webauthn/webauthn v0.18.2
 	github.com/google/jsonschema-go v0.4.3
 	github.com/google/uuid v1.6.0
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 	github.com/medama-io/go-useragent v1.2.5
 	github.com/moby/moby/api v1.56.1
 	github.com/moby/moby/client v0.6.2
