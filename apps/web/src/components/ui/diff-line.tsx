@@ -80,6 +80,8 @@ export function DiffLine({
 			<span
 				className={cn(
 					"w-3 shrink-0",
+					// A wrapped line keeps its sign beside its first row.
+					wrap && "self-start",
 					variant === "plain" ? signTone[sign] : undefined,
 				)}
 			>
