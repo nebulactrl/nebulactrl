@@ -28,18 +28,28 @@ export function ChangeList({
 		.map((change) => changeRow(change, slug));
 	if (rows.length === 0) return null;
 	return (
-		<ul aria-label={label} className="surface-well rounded-ctl py-1">
+		<ul
+			aria-label={label}
+			className="surface-well divide-y divide-line rounded-ctl py-1"
+		>
 			{rows.map((row) => (
-				<li key={row.key} className="flex items-center gap-2 pr-3">
+				// The path and its values wrap rather than ellipsise (a dialog row
+				// has no hover for the rest); the badges drop under the line when
+				// both do not fit side by side.
+				<li
+					key={row.key}
+					className="flex flex-wrap items-center gap-x-2 gap-y-0.5 py-0.5 pr-3"
+				>
 					<DiffLine
 						sign={row.sign}
 						value={row.value}
 						note={FILE_NOTE}
-						className="min-w-0 flex-1"
+						wrap
+						className="min-w-[min(100%,22rem)] flex-1"
 					>
 						{row.label}
 					</DiffLine>
-					<span className="flex shrink-0 items-center gap-1.5">
+					<span className="ml-auto flex shrink-0 items-center gap-1.5">
 						<Badge
 							variant={row.applies === "applies at once" ? "accent" : "outline"}
 						>

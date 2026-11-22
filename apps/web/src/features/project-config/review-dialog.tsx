@@ -366,16 +366,15 @@ export function ReviewDialog({
 							) : null}
 						</>
 					) : null}
+					{current && !outcome ? (
+						// Where the file came from, in full: a long repository or file
+						// path wraps instead of being cut off.
+						<p className="break-words font-mono text-2xs text-ink-4">
+							{planFooter(current).join(" · ")}
+						</p>
+					) : null}
 				</DialogBody>
 				<DialogFooter className="items-center">
-					{current && !outcome ? (
-						<span
-							className="mr-auto min-w-0 truncate font-mono text-2xs text-ink-4"
-							title={planFooter(current).join(" · ")}
-						>
-							{planFooter(current).join(" · ")}
-						</span>
-					) : null}
 					<Button variant="secondary" onClick={() => onOpenChange(false)}>
 						{outcome ? "Close" : "Cancel"}
 					</Button>
