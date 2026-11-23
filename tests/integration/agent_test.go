@@ -129,6 +129,13 @@ type AgentOptions struct {
 	// agent does. A test that shortens OrphanMinAge needs it: the daemon also runs
 	// the developer's own NebulaCtrl workloads.
 	ScopeEnv string
+	// GuardBinary is a Linux build of the agent for the edge guard container
+	// (GuardBinaryID identifies it); without one a firewall that needs the
+	// guard (country rules) cannot be enforced.
+	GuardBinary, GuardBinaryID string
+	// GeoDBIPBase, when set, turns on the agent's GeoIP database manager with
+	// this DB-IP download base (a local server in a test); empty: no geolocation.
+	GeoDBIPBase string
 }
 
 // envScopedDocker is the daemon as a ScopeEnv agent sees it: only the
@@ -196,6 +203,21 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	a := &Agent{opt: opt, done: make(chan struct{})}
 	cleanupEarly := func() { _ = st.Close(); _ = eng.Close() }
 
+	// Geolocation exists only for a test that names a download source
+	// (GeoDBIPBase): with the server default (on) every test would otherwise
+	// download the real database.
+	var (
+		geo       *traffic.GeoManager
+		geoApply  engine.GeoApplier
+		geoDB     traffic.GeoLocator
+		geoDBPath func() string
+		geoStatus func() *agentprotocol.GeoStatus
+	)
+	if opt.GeoDBIPBase != "" {
+		geo = traffic.NewGeoManager(filepath.Join(opt.StateDir, "geoip"), log)
+		geo.DBIPBase = opt.GeoDBIPBase
+		geoApply, geoDB, geoDBPath, geoStatus = geo, geo.DB(), geo.DatabasePath, geo.Status
+	}
 	px, err := proxy.NewManager(proxy.Config{
 		Engine:    eng,
 		Store:     st,
@@ -204,6 +226,8 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 		HTTPSPort: proxyPorts.HTTPS,
 		Logger:    log,
 		Pages:     true,
+		// The edge guard runs the agent's own Linux binary in a container.
+		GuardBinary: opt.GuardBinary, GuardBinaryID: opt.GuardBinaryID, GeoDatabase: geoDBPath,
 	})
 	if err != nil {
 		cleanupEarly()
@@ -218,7 +242,7 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	collector := stats.New(stats.Options{
 		Engine: eng, StateDir: opt.StateDir,
 		HTTPPort: proxyPorts.HTTP, HTTPSPort: proxyPorts.HTTPS, ProxyStatus: px.Status,
-		ComposeVersion: composeRunner.Version, MeshStatus: meshMgr.Status,
+		ComposeVersion: composeRunner.Version, MeshStatus: meshMgr.Status, GeoStatus: geoStatus,
 	})
 	// The daemon the engine sees. ScopeEnv narrows it to one environment's
 	// containers and makes the agent report its managed services in the hello, as
@@ -301,7 +325,7 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	uptimeEvery := harnessTimers().UptimeInterval
 	uptimeCollector := agentuptime.NewCollector(agentuptime.Config{Buffer: st, Sender: client, Logger: log, Interval: uptimeEvery})
 	deployer, err := engine.New(engine.Config{
-		Logs:   logHistory,
+		Logs: logHistory, Geo: geoApply,
 		Docker: dk, Proxy: faultProxy{Manager: px, fault: opt.Fault},
 		Builder: &build.Builder{StateDir: opt.StateDir}, Sender: client, Logger: log,
 		Uptime: uptimeCollector, UptimeInterval: uptimeEvery,
@@ -320,12 +344,24 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 	}
 	client.SetHandler(deployer)
 	client.SetReconciler(deployer)
-	tc := traffic.NewCollector(traffic.Config{Engine: eng, Buffer: st, Sender: client, Container: agentprotocol.ProxyContainer, Logger: log})
+	tc := traffic.NewCollector(traffic.Config{
+		Engine: eng, Buffer: st, Sender: client, Container: agentprotocol.ProxyContainer, Logger: log,
+		// Request logs, wired like cmd/agent: one line per routed request.
+		Requests: logHistory.Requests, RequestLogs: logHistory.RequestLogs, Routes: px.Current, RequestsResume: logHistory.RequestsResume,
+		Geo: geoDB,
+	})
 	client.SetTrafficAckHandler(tc.Ack)
+	// The request writer inside the collector must finish before the log
+	// history closes its stores (Hold orders the two).
+	releaseRequests := logHistory.Hold()
 	client.SetProbesAckHandler(uptimeCollector.Ack)
 
 	var wg sync.WaitGroup
-	for _, fn := range []func(context.Context){px.Run, deployer.Run, tc.Run, logHistory.Run, uptimeCollector.Run} {
+	runs := []func(context.Context){px.Run, deployer.Run, func(c context.Context) { defer releaseRequests(); tc.Run(c) }, logHistory.Run, uptimeCollector.Run}
+	if geo != nil {
+		runs = append(runs, geo.Run)
+	}
+	for _, fn := range runs {
 		wg.Add(1)
 		go func() { defer wg.Done(); fn(rctx) }()
 	}

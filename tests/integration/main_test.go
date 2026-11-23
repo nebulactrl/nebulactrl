@@ -158,6 +158,7 @@ func run(m *testing.M) (int, error) {
 	defer ccancel()
 	_ = eng.ContainerRemove(cctx, agentprotocol.ProxyContainer, true, false)
 	_ = eng.ContainerRemove(cctx, agentprotocol.PagesContainer, true, false)
+	_ = eng.ContainerRemove(cctx, agentprotocol.GuardContainer, true, false)
 	sweepEnvNetworks(cctx)
 	teardownFixtures(cctx)
 	return code, nil

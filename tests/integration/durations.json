@@ -20,6 +20,7 @@
     "TestEnvExampleKeysArePrefilledBeforeTheFirstDeploy": {"seconds":208.9,"parallel":true},
     "TestFailedHealthKeepsOldServing": {"seconds":401.7,"parallel":true},
     "TestFilesExecHealthAndOneShot": {"seconds":218.3,"parallel":true},
+    "TestFirewallBlocksAreAttributed": {"seconds":140},
     "TestGitDeploy": {"seconds":71.7,"parallel":true},
     "TestGitDeployOverSSH": {"seconds":48.9,"parallel":true},
     "TestGiteaPushDeploysAndReportsStatus": {"seconds":29.6},
