@@ -90,7 +90,7 @@ func (f *fixtureState) buildApp() error {
 	if err != nil {
 		return err
 	}
-	if err := goBuildLinux(ctx, root, f.arch, filepath.Join(f.appDir, "app")); err != nil {
+	if err := goBuildLinux(ctx, root, f.arch, "./tests/fixtures/app", filepath.Join(f.appDir, "app")); err != nil {
 		return err
 	}
 	// The image's /app keeps this file's mode, and the hardened tests run it as
@@ -134,11 +134,13 @@ func (f *fixtureState) buildApp() error {
 	return nil
 }
 
-func goBuildLinux(ctx context.Context, root, arch, out string) error {
-	cmd := newCmd(ctx, root, "go", "build", "-trimpath", "-o", out, "./tests/fixtures/app")
+// goBuildLinux builds the main package pkg (a path below root, "./cmd/...")
+// into out for linux/arch.
+func goBuildLinux(ctx context.Context, root, arch, pkg, out string) error {
+	cmd := newCmd(ctx, root, "go", "build", "-trimpath", "-o", out, pkg)
 	cmd.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH="+arch)
 	if b, err := cmd.CombinedOutput(); err != nil {
-		return fmt.Errorf("go build fixture app: %w: %s", err, b)
+		return fmt.Errorf("go build %s: %w: %s", pkg, err, b)
 	}
 	return nil
 }

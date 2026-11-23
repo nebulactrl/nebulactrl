@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/nebulactrl/nebulactrl/internal/agent/docker"
@@ -246,6 +247,9 @@ func (m *Manager) syncGuardGeo(ctx context.Context, id string) (string, error) {
 }
 
 // copyGuardBinary places the agent's own binary in a created guard container.
+// The container's image does not have the guard directory, and Docker copies
+// only into a directory that exists: it is created first (the rules and the
+// GeoIP database go into it after the binary).
 func (m *Manager) copyGuardBinary(ctx context.Context, id string) error {
 	f, err := os.Open(m.cfg.GuardBinary)
 	if err != nil {
@@ -255,6 +259,9 @@ func (m *Manager) copyGuardBinary(ctx context.Context, id string) error {
 	fi, err := f.Stat()
 	if err != nil {
 		return err
+	}
+	if err := m.cfg.Engine.CopyToContainer(ctx, id, "/", dirTar(strings.TrimPrefix(guard.Dir, "/"), 0o755)); err != nil {
+		return fmt.Errorf("create the edge guard directory: %w", err)
 	}
 	if err := m.cfg.Engine.CopyToContainer(ctx, id, guard.Dir, streamTar(path.Base(guard.Binary), 0o755, fi.Size(), f)); err != nil {
 		return fmt.Errorf("copy agent binary into the edge guard: %w", err)
@@ -288,6 +295,15 @@ func tarOf(name string, mode int64, content []byte) io.Reader {
 	tw := tar.NewWriter(&buf)
 	_ = tw.WriteHeader(&tar.Header{Name: name, Mode: mode, Size: int64(len(content)), ModTime: time.Now()})
 	_, _ = tw.Write(content)
+	_ = tw.Close()
+	return &buf
+}
+
+// dirTar is a tar archive holding one empty directory.
+func dirTar(dir string, mode int64) io.Reader {
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	_ = tw.WriteHeader(&tar.Header{Name: dir + "/", Typeflag: tar.TypeDir, Mode: mode, ModTime: time.Now()})
 	_ = tw.Close()
 	return &buf
 }

@@ -5,9 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -40,8 +42,10 @@ type guardEngine struct {
 	created []docker.ContainerSpec
 	removed []string
 	copies  []guardCopy
-	starts  []string
-	execs   [][]string
+	// dirs are the directories archives created, as "<container>|<path>".
+	dirs   map[string]bool
+	starts []string
+	execs  [][]string
 	// execCodes are the exit codes of the next execs; empty: 0.
 	execCodes []int
 }
@@ -78,9 +82,14 @@ func (g *guardEngine) ContainerCreate(_ context.Context, spec docker.ContainerSp
 	return id, nil
 }
 
+// CopyToContainer behaves like Docker: the destination directory must exist in
+// the container (the root does; others only once an archive created them).
 func (g *guardEngine) CopyToContainer(_ context.Context, id, dir string, r io.Reader) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
+	if dir != "/" && !g.dirs[id+"|"+dir] {
+		return fmt.Errorf("%w: copy to container %s: Could not find the file %s in container %s", docker.ErrNotFound, id, dir, id)
+	}
 	tr := tar.NewReader(r)
 	for {
 		h, err := tr.Next()
@@ -89,6 +98,12 @@ func (g *guardEngine) CopyToContainer(_ context.Context, id, dir string, r io.Re
 		}
 		if err != nil {
 			return err
+		}
+		if h.Typeflag == tar.TypeDir {
+			if g.dirs == nil {
+				g.dirs = map[string]bool{}
+			}
+			g.dirs[id+"|"+path.Join(dir, h.Name)] = true
 		}
 		body, err := io.ReadAll(tr)
 		if err != nil {
@@ -230,6 +245,10 @@ func TestEnsureGuardCreatesStartsAndWaitsForTheRules(t *testing.T) {
 	require.EqualValues(t, 0o755, binary[0].mode)
 	require.Equal(t, guard.Dir, binary[0].dir)
 	require.Equal(t, "guard1", binary[0].container)
+	// Docker copies only into a directory that exists, and the pages image has
+	// no guard directory: it is created first, from the root.
+	require.NotEmpty(t, eng.copies)
+	require.Equal(t, guardCopy{container: "guard1", dir: "/", name: strings.TrimPrefix(guard.Dir, "/") + "/", mode: 0o755, content: []byte{}}, eng.copies[0])
 
 	rules := eng.copiesOf(guard.RulesFile)
 	require.Len(t, rules, 1)
@@ -360,12 +379,12 @@ func TestEnsureGuardCopiesTheGeoIPDatabaseOnce(t *testing.T) {
 
 	// Unchanged database: not copied again, rules unchanged.
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
-	require.Len(t, eng.copies, 3)
+	require.Len(t, eng.copies, 4, "directory, binary, database, rules")
 
 	// A newer database is copied under a new name and the rules switch to it.
 	require.NoError(t, os.WriteFile(db, []byte("mmdb-22"), 0o644))
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
-	require.Len(t, eng.copies, 5)
+	require.Len(t, eng.copies, 6, "directory, binary, database, rules, then the new database and rules")
 	require.NoError(t, json.Unmarshal(eng.copiesOf(guard.RulesFile)[1].content, &doc))
 	require.NotEqual(t, geoCopies[0].name, doc.Geo)
 	require.Regexp(t, `^geo-[0-9a-f]{12}\.mmdb$`, doc.Geo)

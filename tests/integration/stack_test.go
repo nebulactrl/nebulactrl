@@ -76,6 +76,9 @@ type StackOptions struct {
 	CleanupTune engine.CleanupTuner
 	// DecommissionTune scopes the agent's decommission to the test's resources.
 	DecommissionTune func(*decommission.Config)
+	// Agent adjusts the options of the stack's agent (the edge guard binary, a
+	// geolocation source).
+	Agent func(*AgentOptions)
 }
 
 // Stack is a test's view of a control plane, a server and one project.
@@ -271,7 +274,11 @@ func (s *Stack) StartAgent() *Agent {
 	if s.Net != nil {
 		url = s.Net.URL()
 	}
-	s.Agent = MustStartAgent(s.t, AgentOptions{StateDir: s.StateDir, URL: url, Token: s.EnrollTok, Fault: s.Fault, CleanupTune: s.Opts.CleanupTune, DecommissionTune: s.Opts.DecommissionTune})
+	ao := AgentOptions{StateDir: s.StateDir, URL: url, Token: s.EnrollTok, Fault: s.Fault, CleanupTune: s.Opts.CleanupTune, DecommissionTune: s.Opts.DecommissionTune}
+	if s.Opts.Agent != nil {
+		s.Opts.Agent(&ao)
+	}
+	s.Agent = MustStartAgent(s.t, ao)
 	return s.Agent
 }
 
