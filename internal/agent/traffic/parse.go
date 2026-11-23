@@ -11,6 +11,7 @@ import (
 	"errors"
 	"math"
 	"net"
+	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -27,6 +28,7 @@ type Event struct {
 	Time        time.Time // request start (Traefik's StartUTC)
 	End         time.Time // Time + Duration: when the response ended and Traefik wrote the line
 	ServiceID   string    // from the router name nc-<serviceId>-https; empty when no service router matched
+	BlockedBy   string    // id of the firewall rule that blocked the request (a user rule's or std…); empty when none did
 	Host        string    // lowercase, no port
 	Path        string    // query stripped
 	Query       string    // raw query string of the request URI without '?'; empty when there is none
@@ -40,11 +42,16 @@ type Event struct {
 	UserAgent   string
 	Referer     string
 	ContentType string
+	// Country is the client's country (ISO 3166-1 alpha-2). ParseLine leaves it
+	// empty; the request writer fills it from the client address while
+	// geolocation is on, for the stored line only.
+	Country string
 }
 
 // accessLine mirrors the fields of Traefik's JSON access log the agent reads
 // (static flags: --accesslog.format=json, defaultmode=keep, headers dropped
-// except User-Agent, Referer and Content-Type); everything else is ignored.
+// except User-Agent, Referer, Content-Type and X-Nebula-Firewall-Rule);
+// everything else is ignored.
 type accessLine struct {
 	StartUTC              string  `json:"StartUTC"`
 	RouterName            string  `json:"RouterName"`
@@ -63,6 +70,9 @@ type accessLine struct {
 	UserAgent             string  `json:"request_User-Agent"`
 	Referer               string  `json:"request_Referer"`
 	ContentType           string  `json:"downstream_Content-Type"`
+	// FirewallRule is the response header the edge guard sets on a request it
+	// blocks (agentprotocol.FirewallRuleHeader); forwardAuth passes it on.
+	FirewallRule string `json:"downstream_X-Nebula-Firewall-Rule"`
 }
 
 var accessMarker = []byte(`"DownstreamStatus"`)
@@ -77,40 +87,68 @@ const (
 	routerPrefix = "nc-"
 	uuidLen      = 36
 	domainIDLen  = 8
+	// firewallRouterInfix precedes the rule id in the name of a compiled
+	// firewall router: nc-<serviceId>-https-fw<ruleId> (proxy firewallRouters).
+	firewallRouterInfix = "-fw"
+	maxRuleIDLen        = 16
 )
 
 // serviceFromRouter extracts the service ID from a router name of the form
 // nc-<uuid>-https@rest or nc-<uuid>-d<id8>-https@rest (-tunnel for a domain
 // served through a Cloudflare Tunnel). The redirect routers (-http, -redir,
-// with or without the per-domain part) report redirect=true. Other names
-// (api@internal, foreign routers, probe routers) yield ok=false.
-func serviceFromRouter(name string) (id string, redirect, ok bool) {
+// with or without the per-domain part) report redirect=true. A compiled
+// firewall router carries the id of its rule after the router it copies
+// (nc-<uuid>-https-fw<ruleId>): it names the same service, and fw is the rule
+// id (the router may allow or block; the log line's service tells which).
+// Other names (api@internal, foreign routers, probe routers) yield ok=false.
+func serviceFromRouter(name string) (id string, redirect bool, fw string, ok bool) {
 	if at := strings.IndexByte(name, '@'); at >= 0 {
 		name = name[:at]
 	}
 	if !strings.HasPrefix(name, routerPrefix) || len(name) < len(routerPrefix)+uuidLen {
-		return "", false, false
+		return "", false, "", false
 	}
 	id = name[len(routerPrefix) : len(routerPrefix)+uuidLen]
 	if !isUUID(id) {
-		return "", false, false
+		return "", false, "", false
 	}
 	suffix := name[len(routerPrefix)+uuidLen:]
+	if i := strings.LastIndex(suffix, firewallRouterInfix); i >= 0 {
+		if fw = suffix[i+len(firewallRouterInfix):]; !validRuleID(fw) {
+			return "", false, "", false
+		}
+		suffix = suffix[:i]
+	}
 	perDomain := false
 	if strings.HasPrefix(suffix, "-d") && len(suffix) >= 2+domainIDLen && isAlnum(suffix[2:2+domainIDLen]) {
 		suffix, perDomain = suffix[2+domainIDLen:], true
 	}
 	switch suffix {
 	case "":
-		if !perDomain { // nc-<uuid>: the service name itself
-			return id, false, true
+		if !perDomain && fw == "" { // nc-<uuid>: the service name itself
+			return id, false, "", true
 		}
 	case "-https", "-https-local", "-tunnel", "-tcp", "-udp":
-		return id, false, true
+		return id, false, fw, true
 	case "-http", "-http-local", "-redir":
-		return id, true, true
+		return id, true, fw, true
 	}
-	return "", false, false
+	return "", false, "", false
+}
+
+// validRuleID reports whether s has the shape of a firewall rule id
+// (agentprotocol.Firewall: [a-z0-9]{1,16}). A header a service's own response
+// sets is not trusted beyond this.
+func validRuleID(s string) bool {
+	if s == "" || len(s) > maxRuleIDLen {
+		return false
+	}
+	for i := range len(s) {
+		if c := s[i]; (c < '0' || c > '9') && (c < 'a' || c > 'z') {
+			return false
+		}
+	}
+	return true
 }
 
 func isAlnum(s string) bool {
@@ -156,17 +194,32 @@ func ParseLine(line []byte) (Event, error) {
 	if strings.HasPrefix(path, "/.well-known/acme-challenge/") {
 		return Event{}, ErrIgnored
 	}
-	svc, redirect, routed := serviceFromRouter(l.RouterName)
+	svc, redirect, fw, routed := serviceFromRouter(l.RouterName)
+	blockedBy := ""
 	if !routed {
 		// Fall back to the service name (nc-<uuid>@rest) for the odd router
 		// that does not follow the naming contract.
-		svc, _, routed = serviceFromRouter(l.ServiceName)
-	} else if redirect {
-		// An http router that serves the service itself (forceHttps off, or
-		// tlsMode none) shares the redirect router's name but answers with the
-		// service; only a router that ends at noop@internal redirects.
-		if _, _, served := serviceFromRouter(l.ServiceName); served {
+		svc, _, _, routed = serviceFromRouter(l.ServiceName)
+	} else {
+		_, _, _, served := serviceFromRouter(l.ServiceName)
+		switch {
+		case fw != "" && l.DownstreamStatus == http.StatusForbidden && !served:
+			// A compiled firewall router that does not end at the service
+			// blocked the request (the pages server's 403 page, or noop@internal
+			// behind the deny middleware); the copy of an allow rule keeps the
+			// service, and the copy of a redirect router answers 3xx. Blocks
+			// are visits even on the http router, which would redirect.
+			blockedBy, redirect = fw, false
+		case redirect && served:
+			// An http router that serves the service itself (forceHttps off, or
+			// tlsMode none) shares the redirect router's name but answers with the
+			// service; only a router that ends at noop@internal redirects.
 			redirect = false
+		}
+		if blockedBy == "" && !redirect && l.DownstreamStatus == http.StatusForbidden && validRuleID(l.FirewallRule) {
+			// The edge guard blocked the request: it answers 403 with the rule
+			// in a header, which forwardAuth passes on.
+			blockedBy = l.FirewallRule
 		}
 	}
 	// The explicit http→https redirect is not a visit.
@@ -180,6 +233,7 @@ func ParseLine(line []byte) (Event, error) {
 		Time:        ts.UTC(),
 		End:         ts.UTC().Add(time.Duration(min(max(l.Duration, 0), maxDurationNs))),
 		ServiceID:   svc,
+		BlockedBy:   blockedBy,
 		Host:        cleanHost(l.RequestHost),
 		Path:        path,
 		Query:       requestQuery(l.RequestPath),

@@ -21,12 +21,18 @@ type StandardRule struct {
 }
 
 // secretFiles matches a path segment that names a secret dotfile or folder:
-// environment files, version control metadata, cloud and package-manager
-// credentials. No application serves these on purpose; scanners request them
-// from every public address within minutes. The segment must end there (or
-// continue with "." or "/"), so .github, .gitignore, .well-known and
-// repo.git stay untouched.
-const secretFiles = `(?i)/\.(env|envrc|git|git-credentials|svn|hg|bzr|aws|ssh|docker|npmrc|pypirc|netrc|htpasswd|ds_store)(/|\.|$)`
+// environment files, version control metadata, cloud, database and
+// package-manager credentials, AI coding tool configuration (which holds API
+// keys and MCP tokens) and shell histories. No application serves these on
+// purpose; scanners request them from every public address within minutes.
+// The segment must end there (or continue with "." or "/"), so .github,
+// .gitignore, .well-known, .cursorrules and repo.git stay untouched. Folders
+// apps do serve or that hold no secret (.vscode, .idea) and dotfiles that
+// hold none (.htaccess, .bashrc, .profile) are not listed.
+const secretFiles = `(?i)/\.(env|envrc|git|git-credentials|svn|hg|bzr|aws|ssh|docker|npmrc|pypirc|netrc|htpasswd|ds_store` +
+	`|claude|cursor|continue|aider|roo|windsurf|codex|gemini|mcp|litellm` +
+	`|kube|azure|boto|s3cfg|pgpass|my\.cnf|vault-token|terraform` +
+	`|bash_history|zsh_history|psql_history)(/|\.|$)`
 
 // standard is the standard protection, in evaluation order.
 var standard = []StandardRule{{
@@ -34,8 +40,8 @@ var standard = []StandardRule{{
 		ID: StandardRuleIDPrefix + "secrets", Name: "Secret files", Action: agentprotocol.FirewallBlock,
 		Conditions: []agentprotocol.FirewallCondition{{Field: agentprotocol.FirewallFieldPath, Op: agentprotocol.FirewallOpRegex, Values: []string{secretFiles}}},
 	},
-	Description: "Requests for environment files, version control folders and credentials, which scanners probe on every public address.",
-	Examples:    []string{"/.env", "/.env.production", "/.git/config", "/.svn/entries", "/.aws/credentials", "/.ssh/id_rsa", "/.npmrc", "/.DS_Store"},
+	Description: "Requests for environment files, version control folders, cloud and database credentials, AI tool configuration and shell histories, which scanners probe on every public address.",
+	Examples:    []string{"/.env", "/.env.production", "/.git/config", "/.svn/entries", "/.aws/credentials", "/.ssh/id_rsa", "/.npmrc", "/.DS_Store", "/.claude/mcp.json", "/.cursor/mcp.json", "/.kube/config", "/.pgpass", "/.bash_history"},
 }}
 
 // StandardRules returns the standard protection NebulaCtrl applies to every

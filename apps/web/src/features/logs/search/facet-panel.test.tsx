@@ -348,3 +348,83 @@ describe("FacetPanel requests group", () => {
 		expect(screen.queryByRole("region", { name: "Requests" })).toBeNull();
 	});
 });
+
+function BlockedPanel({ stats }: { stats: FacetStats }) {
+	const [text, setText] = useState("");
+	return (
+		<div>
+			<output aria-label="query">{text}</output>
+			<FacetPanel
+				stats={stats}
+				statsVersion={1}
+				keys={["status"]}
+				query={text}
+				onQueryChange={setText}
+				requests
+			/>
+		</div>
+	);
+}
+
+describe("FacetPanel blocked requests", () => {
+	function blockedStats() {
+		const stats = new FacetStats();
+		const request = (extra: Record<string, unknown>) =>
+			stats.add(
+				parseLine({
+					line: JSON.stringify({
+						method: "GET",
+						path: "/wp-login.php",
+						status: 403,
+						kind: "api",
+						...extra,
+					}),
+				}),
+			);
+		request({ blocked_by: "stdsecrets", country: "DE", ip: "203.0.113.0/24" });
+		request({ blocked_by: "stdsecrets", country: "DE", ip: "203.0.113.0/24" });
+		request({ blocked_by: "r1a2b3", country: "US", ua: "curl/8.4.0" });
+		return stats;
+	}
+
+	test("lists the rule, country, network and user agent of the lines", () => {
+		render(
+			<FacetPanel
+				stats={blockedStats()}
+				statsVersion={1}
+				keys={["status"]}
+				query=""
+				onQueryChange={() => {}}
+				requests
+			/>,
+		);
+		const requests = within(screen.getByRole("region", { name: "Requests" }));
+		const blockedBy = within(
+			requests.getByRole("region", { name: "Blocked by" }),
+		);
+		expect(blockedBy.getByText("stdsecrets")).toBeInTheDocument();
+		expect(blockedBy.getByText("r1a2b3")).toBeInTheDocument();
+		expect(
+			within(requests.getByRole("region", { name: "Country" })).getByText("DE"),
+		).toBeInTheDocument();
+		expect(
+			within(
+				requests.getByRole("region", { name: "Client network" }),
+			).getByText("203.0.113.0/24"),
+		).toBeInTheDocument();
+		expect(
+			within(requests.getByRole("region", { name: "User agent" })).getByText(
+				"curl/8.4.0",
+			),
+		).toBeInTheDocument();
+	});
+
+	test("a rule value edits the query with the blocked_by key", async () => {
+		const user = userEvent.setup();
+		render(<BlockedPanel stats={blockedStats()} />);
+		await user.click(
+			screen.getByRole("button", { name: "Include @blocked_by:stdsecrets" }),
+		);
+		expect(query()).toBe("@blocked_by:stdsecrets");
+	});
+});

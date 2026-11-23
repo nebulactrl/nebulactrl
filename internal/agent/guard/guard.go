@@ -242,7 +242,10 @@ func (s *Server) check(w http.ResponseWriter, r *http.Request, route string) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	if _, action := m.Decide(req); action == agentprotocol.FirewallBlock {
+	if ruleID, action := m.Decide(req); action == agentprotocol.FirewallBlock {
+		// The rule rides the 403 to the access log (forwardAuth passes the
+		// header of a refusal on), where the agent counts blocks by it.
+		w.Header().Set(agentprotocol.FirewallRuleHeader, ruleID)
 		for k, v := range pages.SecurityHeaders() {
 			w.Header().Set(k, v)
 		}

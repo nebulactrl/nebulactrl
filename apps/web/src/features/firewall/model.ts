@@ -3,12 +3,15 @@
 // firewall.go), and the decision the proxy makes for a request, so the
 // "Try a request" panel answers before anything is applied.
 import type {
+	FirewallBlocks,
 	FirewallCondition,
+	FirewallRuleCount,
 	FirewallView,
 	FirewallRule as RuleBody,
 	StandardRule,
 } from "#/api/gen/types.gen";
 import { parseNetwork, validateEntry } from "#/features/access-rules/rules";
+import { formatValue } from "#/features/logs/search/facets";
 
 export type { FirewallCondition, FirewallView, StandardRule };
 /** A rule in the editor: always has its id (the API fills in a missing one). */
@@ -631,87 +634,571 @@ export function moveRule<T>(list: readonly T[], from: number, to: number): T[] {
 
 // --- recipes --------------------------------------------------------------------
 
+export type RecipeGroup = "probes" | "bots" | "access";
+
+/** The headings recipes are listed under, in display order. */
+export const RECIPE_GROUPS: readonly { id: RecipeGroup; title: string }[] = [
+	{ id: "probes", title: "Probes and exploits" },
+	{ id: "bots", title: "Bots and crawlers" },
+	{ id: "access", title: "Access" },
+];
+
 export interface Recipe {
 	id: string;
 	title: string;
-	/** What it does, in one line. */
+	/** What it blocks, in one line. */
 	description: string;
-	/** The rule; values a person must fill in are left empty. */
-	build(): FirewallRule;
+	group: RecipeGroup;
+	/** Who should not use it, in one short line. */
+	caution?: string;
+	/**
+	 * The rules, with fresh ids. A signature that spans fields, or a list over
+	 * the values-per-condition limit, takes several; values a person must fill
+	 * in are left empty.
+	 */
+	rules(): FirewallRule[];
 	/** It matches countries: the server needs geolocation. */
 	geo?: boolean;
 }
 
+const block = (
+	name: string,
+	...conditions: FirewallCondition[]
+): FirewallRule => ({
+	id: newRuleId(),
+	name,
+	action: "block",
+	conditions,
+});
+
+const pathRegex = (...values: string[]): FirewallCondition => ({
+	field: "path",
+	op: "regex",
+	values,
+});
+
+const uaContains = (...values: string[]): FirewallCondition => ({
+	field: "userAgent",
+	op: "contains",
+	values,
+});
+
+const uaRegex = (...values: string[]): FirewallCondition => ({
+	field: "userAgent",
+	op: "regex",
+	values,
+});
+
+const headerRegex = (name: string, ...values: string[]): FirewallCondition => ({
+	field: "header",
+	op: "regex",
+	name,
+	values,
+});
+
+/** `${jndi:`, `${lower:` and nested `${${`: the Log4Shell lookups. */
+const LOG4SHELL = [
+	String.raw`(?i)\$\{\s*(jndi|ctx|lower|upper|env|sys|java|date|base64|::-|[a-z]{0,10}:-)`,
+	String.raw`(?i)\$\{[^}]{0,40}\$\{`,
+];
+
+/** `() {` at the start of a function definition: Shellshock. */
+const SHELLSHOCK = String.raw`\(\)\s*\{\s*[:;]`;
+
+/**
+ * Every recipe, listed within its group in the order the picker shows. Regular
+ * expressions are Go (RE2) and unanchored: the ones that must match from the
+ * start say so with ^.
+ */
 export const RECIPES: readonly Recipe[] = [
+	{
+		id: "php-files",
+		title: "Block PHP file probes",
+		description:
+			"Scanners request random .php files and web shells at the site root.",
+		group: "probes",
+		caution: "Not for apps written in PHP.",
+		rules: () => [
+			block(
+				"Block PHP file probes",
+				pathRegex(
+					String.raw`(?i)^/[^/]+\.(php[0-9s]?|phtml|phar)(/.*)?$`,
+					String.raw`(?i)^/\.well-known/.*\.php[0-9s]?$`,
+					String.raw`(?i)^/(wp-content|wp-admin|wp-includes|vendor|uploads|assets|images|admin|administrator|includes|plugins|themes|modules|storage|cgi-bin)/.*\.php[0-9s]?(/.*)?$`,
+				),
+			),
+		],
+	},
+	{
+		id: "php-framework",
+		title: "Block PHP framework and debug probes",
+		description:
+			"PHPUnit, Laravel Ignition, Symfony profiler and other leftovers no app should serve.",
+		group: "probes",
+		rules: () => [
+			block(
+				"Block PHP framework and debug probes",
+				pathRegex(
+					"(?i)/vendor/(phpunit|composer|laravel|symfony|guzzlehttp|monolog|doctrine|twig|psr|mockery|yiisoft|bin)/",
+					String.raw`(?i)/vendor/autoload\.php$`,
+					String.raw`(?i)/eval-stdin\.php$`,
+					String.raw`(?i)^/(_ignition|_profiler|_wdt|_debugbar|_fragment|app_dev\.php|app_test\.php|debug/default)(/|$)`,
+				),
+			),
+			block("Block ThinkPHP exploits", {
+				field: "query",
+				op: "regex",
+				name: "s",
+				values: [
+					String.raw`(?i)(\\think\\|invokefunction|call_user_func|think\\app)`,
+				],
+			}),
+		],
+	},
 	{
 		id: "wordpress",
 		title: "Block WordPress probes",
 		description:
-			"For apps that are not WordPress: wp-login.php, xmlrpc.php, wp-admin and phpMyAdmin.",
-		build: () => ({
-			id: newRuleId(),
-			name: "Block WordPress probes",
-			action: "block",
-			conditions: [
-				{
-					field: "path",
-					op: "contains",
-					values: [
-						"wp-login.php",
-						"xmlrpc.php",
-						"/wp-admin",
-						"/wp-includes",
-						"phpmyadmin",
-					],
-				},
-			],
-		}),
+			"wp-login.php, xmlrpc.php, wp-admin, wp-content, phpMyAdmin and other WordPress targets.",
+		group: "probes",
+		caution: "Not for WordPress sites.",
+		rules: () => [
+			block("Block WordPress probes", {
+				field: "path",
+				op: "contains",
+				values: [
+					"wp-login.php",
+					"xmlrpc.php",
+					"/wp-admin",
+					"/wp-includes",
+					"phpmyadmin",
+					"/wp-content",
+					"/wp-json",
+					"wp-cron.php",
+					"wp-config",
+					"wp-signup.php",
+					"wp-trackback.php",
+					"wp-comments-post.php",
+					"wp-links-opml.php",
+					"wlwmanifest.xml",
+					"xmrlpc.php",
+					"wp-conflg.php",
+					"/adminer.php",
+					"/pma/",
+					"/myadmin/",
+					"/mysqladmin",
+				],
+			}),
+		],
+	},
+	{
+		id: "exposed-services",
+		title: "Block exposed-service probes",
+		description:
+			"server-status, Docker and Elasticsearch APIs, Vite dev endpoints, phpinfo pages.",
+		group: "probes",
+		caution: "Not for dev servers or Docker and Kubernetes API hosts.",
+		rules: () => [
+			block(
+				"Block exposed-service probes",
+				pathRegex(
+					"(?i)^/(server-status|server-info|nginx_status|stub_status|_all_dbs|_cat|_cluster|_nodes|containers/json|images/json|api/v1/(pods|namespaces|secrets)|@fs|@vite/env|jolokia|heapdump)(/|$)",
+					String.raw`(?i)^/(phpinfo|php_info)(\.php)?$`,
+					String.raw`(?i)^/(info|test)\.php$`,
+				),
+			),
+		],
+	},
+	{
+		id: "java",
+		title: "Block Java and Spring probes",
+		description:
+			"Spring actuator, Tomcat manager, Jenkins, JSP and other server-script pages.",
+		group: "probes",
+		caution: "Not for Java, Spring, ASP.NET or ColdFusion apps.",
+		rules: () => [
+			block(
+				"Block Java and Spring probes",
+				pathRegex(
+					"(?i)^/(actuator|jolokia|heapdump|threaddump|h2-console|jmx-console|web-console|invoker|manager/html|manager/text|host-manager|axis2|struts|solr|jenkins|hudson|nacos|druid|geoserver|console/login|WEB-INF|META-INF)(/|$|;)",
+					"(?i)^(/[a-z0-9_-]+)?/actuator(/|$)",
+					String.raw`(?i)\.(jsp|jspx|jspa|do|action|aspx?|ashx|asmx|axd|cfm|cfc)$`,
+				),
+			),
+		],
+	},
+	{
+		id: "cms",
+		title: "Block CMS and admin-panel probes",
+		description:
+			"Joomla, Drupal, Magento, TYPO3, phpMyAdmin, Adminer and file-manager paths.",
+		group: "probes",
+		caution: "Not for Joomla, Drupal, Magento, TYPO3 or phpMyAdmin.",
+		rules: () => [
+			block(
+				"Block CMS and admin-panel probes",
+				pathRegex(
+					String.raw`(?i)^/(administrator|joomla|typo3|typo3conf|fileadmin|umbraco|sitecore|bitrix|ckeditor|fckeditor|kcfinder|elfinder|filemanager|ueditor|magmi|downloader|webalizer|awstats|phpmyadmin[0-9.-]*|pma|myadmin|mysqladmin|dbadmin|sqladmin|websql|adminer(\.php)?)(/|$)`,
+					String.raw`(?i)^/(sites/default|core/install\.php|misc/drupal\.js|rest/V1|app/etc|components/com_|language/en-GB|customer/account/create|checkout/cart/add)`,
+				),
+			),
+		],
+	},
+	{
+		id: "backups",
+		title: "Block backup and database dumps",
+		description:
+			"Requests for backup.sql, site.zip, wp-config.php.bak and similar leftovers.",
+		group: "probes",
+		caution: "Not if you serve downloads named like backup.zip or dump.sql.",
+		rules: () => [
+			block(
+				"Block backup and database dumps",
+				pathRegex(
+					String.raw`(?i)^(/[^/]+)?/[^/]+\.(sql|sql\.gz|sql\.zip|sql\.bz2|sqlite3?|bak|old|orig|swp|save)$`,
+					String.raw`(?i)^/(backup|backups|bak|db|database|dump|site|sitebackup|www|wwwroot|web|website|public_html|htdocs|old)[-_.0-9a-z]*\.(zip|tar|tar\.gz|tgz|gz|7z|rar|bz2)$`,
+				),
+			),
+		],
+	},
+	{
+		id: "routers",
+		title: "Block router, camera and VPN probes",
+		description:
+			"Home-router, camera and VPN-appliance exploits, plus /cgi-bin/ scripts.",
+		group: "probes",
+		caution: "Not if you serve real CGI scripts or an Axis camera.",
+		rules: () => [
+			block(
+				"Block router, camera and VPN probes",
+				pathRegex(
+					String.raw`(?i)^/(boaform|hnap1|gponform|sdk/weblanguage|isapi|goform|cgi-bin|dana-na|dana-ws|global-protect|mgmt/tm|tmui|sslvpn|\+cscoe\+|stalker_portal|setup\.cgi|login\.cgi|ssi\.cgi|remote/(logincheck|fgt_lang))(/|$)`,
+				),
+			),
+		],
+	},
+	{
+		id: "exchange",
+		title: "Block Exchange and Outlook probes",
+		description:
+			"Autodiscover, OWA, ECP and ProxyShell paths that only an Exchange server answers.",
+		group: "probes",
+		caution: "Not for mail servers (Exchange, Mailcow, Mailu, Zimbra).",
+		rules: () => [
+			block(
+				"Block Exchange and Outlook probes",
+				pathRegex(
+					String.raw`(?i)^(/[a-z]{2}(-[a-z]{2})?)?/autodiscover/autodiscover\.(xml|json)$`,
+					"(?i)^/(owa|ecp|ews|mapi|rpc|oab|powershell|aspnet_client|microsoft-server-activesync)(/|$)",
+				),
+			),
+		],
+	},
+	{
+		id: "signatures",
+		title: "Block attack signatures",
+		description:
+			"Log4Shell and Shellshock strings in headers or paths, and requests for OS files.",
+		group: "probes",
+		rules: () => [
+			block("Block Log4Shell in user agents", uaRegex(...LOG4SHELL)),
+			block(
+				"Block Log4Shell in referers",
+				headerRegex("Referer", ...LOG4SHELL),
+			),
+			block(
+				"Block Log4Shell in forwarded addresses",
+				headerRegex("X-Forwarded-For", ...LOG4SHELL),
+			),
+			block("Block Log4Shell in paths", pathRegex(...LOG4SHELL)),
+			block("Block Shellshock in user agents", uaRegex(SHELLSHOCK)),
+			block("Block Shellshock in referers", headerRegex("Referer", SHELLSHOCK)),
+			block(
+				"Block requests for OS files",
+				pathRegex(
+					String.raw`(?i)^/(etc/(passwd|shadow|group|hosts|issue|os-release)|proc/(self|version|cpuinfo|\d+)|bin/(ba|da)?sh|usr/bin/|windows/(win|system)\.ini|winnt/|boot\.ini|var/(log|run)/)`,
+				),
+			),
+		],
 	},
 	{
 		id: "tools",
 		title: "Block attack tools",
 		description:
-			"Scanners that name themselves: sqlmap, Nikto, Nuclei, masscan, zgrab.",
-		build: () => ({
-			id: newRuleId(),
-			name: "Block attack tools",
-			action: "block",
-			conditions: [
-				{
-					field: "userAgent",
-					op: "contains",
-					values: ["sqlmap", "nikto", "nuclei", "masscan", "zgrab"],
-				},
-			],
-		}),
+			"Scanners and exploit tools that name themselves: sqlmap, Nikto, Nuclei, masscan, ffuf.",
+		group: "bots",
+		rules: () => [
+			block(
+				"Block attack tools",
+				uaContains(
+					"sqlmap",
+					"nikto",
+					"nuclei",
+					"masscan",
+					"zgrab",
+					"nmap",
+					"whatweb",
+					"whatwaf",
+					"dirbuster",
+					"gobuster",
+					"feroxbuster",
+					"fuzz faster u fool",
+					"wfuzz",
+					"commix",
+					"havij",
+					"sqlninja",
+					"jsql",
+					"ghauri",
+					"libwhisker",
+					"dotdotpwn",
+					"xsstrike",
+					"xsser",
+					"lfisuite",
+					"trufflehog",
+					"libredtail",
+					"muhstik",
+					"jorgee",
+					"zmeu",
+					"morfeus",
+					"l9explore",
+					"l9tcpid",
+					"l9scan",
+					"leakix",
+					"censysinspect",
+					"internetmeasurement",
+					"sysscan",
+				),
+			),
+			block(
+				"Block vulnerability scanners",
+				uaContains(
+					"wpscan",
+					"wpprobe",
+					"wprecon",
+					"joomscan",
+					"droopescan",
+					"cmsmap",
+					"acunetix",
+					"netsparker",
+					"nessus",
+					"openvas",
+					"arachni",
+					"w3af",
+					"skipfish",
+					"wapiti",
+					"detectify",
+					"appscan",
+					"webinspect",
+					"qualysguard",
+					"ironwasp",
+					"tsunamisecurityscanner",
+				),
+			),
+			block(
+				"Block fake browser agents",
+				uaRegex(
+					"(?i)^(Mozlila|Mozila)/",
+					String.raw`^Mozilla/[6-9]\.[0-9]`,
+					String.raw`(?i)^user-?agent:?\s`,
+					String.raw`\(Hydra\)`,
+					"(?i)fuzz faster u fool",
+				),
+			),
+		],
+	},
+	{
+		id: "ai-training",
+		title: "Block AI training crawlers",
+		description:
+			"GPTBot, ClaudeBot, CCBot, Bytespider and other AI data collectors.",
+		group: "bots",
+		caution: "Not if you want to appear in AI training data.",
+		rules: () => [
+			block(
+				"Block AI training crawlers",
+				uaContains(
+					"gptbot",
+					"claudebot",
+					"anthropic-ai",
+					"claude-web",
+					"ccbot",
+					"bytespider",
+					"tiktokspider",
+					"amazonbot",
+					"meta-externalagent",
+					"facebookbot",
+					"cohere-ai",
+					"cohere-training-data-crawler",
+					"diffbot",
+					"imagesiftbot",
+					"timpibot",
+					"omgili",
+					"pangubot",
+					"ai2bot",
+					"chatglm-spider",
+					"friendlycrawler",
+					"img2dataset",
+					"sbintuitionsbot",
+					"kangaroo bot",
+					"brightbot",
+					"crawl4ai",
+					"deepseekbot",
+					"webzio",
+					"icc-crawler",
+					"laiondownloader",
+					"googleother",
+				),
+			),
+		],
+	},
+	{
+		id: "ai-answers",
+		title: "Block AI answer and search bots",
+		description:
+			"ChatGPT-User, Claude-User, PerplexityBot and other AI search fetchers.",
+		group: "bots",
+		caution: "Not if you want AI assistants to cite or open your pages.",
+		rules: () => [
+			block(
+				"Block AI answer and search bots",
+				uaContains(
+					"oai-searchbot",
+					"chatgpt-user",
+					"claude-user",
+					"claude-searchbot",
+					"perplexitybot",
+					"perplexity-user",
+					"duckassistbot",
+					"amzn-searchbot",
+					"amzn-user",
+					"meta-externalfetcher",
+					"meta-webindexer",
+					"mistralai-user",
+					"manus-user",
+					"kimi-user",
+					"diffbot-user",
+					"gemini-deep-research",
+					"google-notebooklm",
+				),
+			),
+		],
+	},
+	{
+		id: "seo",
+		title: "Block SEO crawlers",
+		description:
+			"AhrefsBot, SemrushBot, MJ12bot, DotBot, PetalBot and similar backlink crawlers.",
+		group: "bots",
+		caution: "Not if you track backlinks with Ahrefs, Semrush or Majestic.",
+		rules: () => [
+			block(
+				"Block SEO crawlers",
+				uaContains(
+					"ahrefsbot",
+					"semrushbot",
+					"mj12bot",
+					"dotbot",
+					"blexbot",
+					"dataforseobot",
+					"petalbot",
+					"serpstatbot",
+					"barkrowler",
+					"megaindex",
+					"seekportbot",
+					"seokicks",
+					"sistrix",
+					"linkdexbot",
+					"rogerbot",
+					"zoominfobot",
+					"spbot",
+					"mauibot",
+					"mediatoolkitbot",
+					"awariobot",
+					"oncrawl",
+					"cognitiveseo",
+					"majestic",
+				),
+			),
+		],
+	},
+	{
+		id: "scripts",
+		title: "Block script-library user agents",
+		description:
+			"curl, python-requests, Go-http-client and similar tools that name themselves.",
+		group: "bots",
+		caution:
+			"Websites only: breaks APIs, webhooks, health checks and monitors.",
+		rules: () => [
+			block(
+				"Block script-library user agents",
+				uaRegex(
+					String.raw`(?i)^(python-requests|python-urllib|python-httpx|aiohttp|Go-http-client|okhttp|Java/|Apache-HttpClient|libwww-perl|lwp-|curl/|Wget|node-fetch|axios|undici|scrapy|PHP/|Ruby|Faraday|reqwest|http\.rb|fasthttp|HTTPie)`,
+				),
+			),
+		],
+	},
+	{
+		id: "empty-user-agent",
+		title: "Block empty user agents",
+		description: "Requests that send no User-Agent header, or a blank one.",
+		group: "bots",
+		caution: "Not for APIs, webhooks or health checks.",
+		rules: () => [
+			block("Block empty user agents", {
+				field: "userAgent",
+				op: "regex",
+				not: true,
+				values: [String.raw`\S`],
+			}),
+		],
 	},
 	{
 		id: "admin",
 		title: "Lock a path to your network",
 		description: "Only your addresses reach /admin; everyone else gets 403.",
-		build: () => ({
-			id: newRuleId(),
-			name: "Admin from our network only",
-			action: "block",
-			conditions: [
+		group: "access",
+		rules: () => [
+			block(
+				"Admin from our network only",
 				{ field: "path", op: "prefix", values: ["/admin"] },
 				{ field: "ip", op: "in", not: true, values: [] },
-			],
-		}),
+			),
+		],
 	},
 	{
 		id: "countries",
 		title: "Block countries",
 		description: "Refuse visitors from the countries you pick.",
+		group: "access",
 		geo: true,
-		build: () => ({
-			id: newRuleId(),
-			name: "Block countries",
-			action: "block",
-			conditions: [{ field: "country", op: "in", values: [] }],
-		}),
+		rules: () => [
+			block("Block countries", { field: "country", op: "in", values: [] }),
+		],
+	},
+	{
+		id: "trace-connect",
+		title: "Block TRACE and CONNECT",
+		description:
+			"Refuse the TRACE debugging and CONNECT proxy-tunnel HTTP methods.",
+		group: "access",
+		rules: () => [
+			block("Block TRACE and CONNECT", {
+				field: "method",
+				op: "in",
+				values: ["TRACE", "CONNECT"],
+			}),
+		],
 	},
 ];
+
+/** How many rules each recipe adds, by id (rules() makes fresh ids, so count once). */
+const RECIPE_SIZE = new Map(RECIPES.map((r) => [r.id, r.rules().length]));
+
+/** The recipe's rules fit next to count rules without passing the limit. */
+export function recipeFits(recipe: Recipe, count: number): boolean {
+	return count + (RECIPE_SIZE.get(recipe.id) ?? 1) <= MAX_RULES;
+}
 
 // --- the state line -------------------------------------------------------------
 
@@ -735,4 +1222,65 @@ export function usesCountry(rules: readonly FirewallRule[]): boolean {
 		(r) =>
 			!r.disabled && (r.conditions ?? []).some((c) => c.field === "country"),
 	);
+}
+
+// --- blocked requests -----------------------------------------------------------
+
+/** The windows the block counts can be read over, shortest first. */
+export const BLOCK_RANGES = [
+	"24h",
+	"7d",
+	"30d",
+] as const satisfies readonly FirewallBlocks["range"][];
+export type BlockRange = (typeof BLOCK_RANGES)[number];
+
+/** The window as a phrase: "the last 24 hours". */
+export const BLOCK_RANGE_PHRASE: Record<BlockRange, string> = {
+	"24h": "the last 24 hours",
+	"7d": "the last 7 days",
+	"30d": "the last 30 days",
+};
+
+/** Blocked requests per rule id; a rule with no blocks is absent. */
+export function blockedCounts(
+	blocks: FirewallBlocks | undefined,
+): ReadonlyMap<string, number> {
+	const counts = new Map<string, number>();
+	for (const row of blocks?.byRule ?? []) {
+		if (row.requests > 0) counts.set(row.id, row.requests);
+	}
+	return counts;
+}
+
+/** Rules that blocked requests in the window and are gone now, largest first. */
+export function removedBlocks(
+	blocks: FirewallBlocks | undefined,
+): FirewallRuleCount[] {
+	return (blocks?.byRule ?? []).filter(
+		(row) => row.kind === "removed" && row.requests > 0,
+	);
+}
+
+/** What a rule is called next to its count: its name, or "Removed rule <id>" once it is gone. */
+export function blockedRuleLabel(row: FirewallRuleCount): string {
+	return row.kind === "removed" ? `Removed rule ${row.id}` : row.name;
+}
+
+/** A count as the rows print it: "—" for none, else grouped digits ("1,204"). */
+export function blockedCountText(count: number | undefined): string {
+	if (!count || count <= 0) return "—";
+	return count.toLocaleString("en-US");
+}
+
+/**
+ * The Logs explorer query for the blocked request lines of one service:
+ * every rule's, or just `ruleId`'s. Request lines carry the rule in
+ * `blocked_by` (docs/operations/firewall.md).
+ */
+export function blockedLogsQuery(serviceName: string, ruleId?: string): string {
+	return [
+		"stream:requests",
+		`service:${formatValue(serviceName)}`,
+		`@blocked_by:${ruleId ?? "*"}`,
+	].join(" ");
 }

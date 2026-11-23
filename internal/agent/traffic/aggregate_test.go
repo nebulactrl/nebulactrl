@@ -273,3 +273,49 @@ func TestDocumentDetectionFallsBackToPathExtension(t *testing.T) {
 	require.True(t, isDocument(get("/index.html", "", 200)))
 	require.False(t, isDocument(get("/assets/app.js", "", 200)))
 }
+
+func TestAggregatorCountsFirewallBlocksPerRule(t *testing.T) {
+	a := newAgg()
+	at := time.Unix(1761500000, 0).UTC()
+	ev := func(svc, rule string, status int) Event {
+		return Event{Time: at, End: at, ServiceID: svc, BlockedBy: rule, Host: "app.example.com", Path: "/.env", Method: "GET", Status: status, ClientIP: "203.0.113.9", UserAgent: "curl/8"}
+	}
+	for range 3 {
+		a.Add(ev(svcA, "stdsecrets", 403))
+	}
+	a.Add(ev(svcA, "office", 403))
+	a.Add(ev(svcA, "", 200))
+	a.Add(ev(svcA, "", 403)) // the service's own 403 is not a firewall block
+	a.Add(ev("", "stdsecrets", 403))
+
+	out := a.Flush(at.Add(2 * time.Minute))
+	b := bucketFor(out, svcA, "app.example.com")
+	require.NotNil(t, b)
+	require.EqualValues(t, 6, b.Requests, "blocked requests are requests of the service")
+	require.EqualValues(t, 5, b.S4xx)
+	require.Equal(t, map[string]int64{"stdsecrets": 3, "office": 1}, b.Blocked)
+
+	u := bucketFor(out, "", "app.example.com")
+	require.NotNil(t, u)
+	require.Nil(t, u.Blocked, "an unrouted request has no firewall")
+
+	// A bucket without blocks carries no map.
+	a.Add(Event{Time: at, End: at, ServiceID: svcA, Host: "other.example.com", Path: "/", Method: "GET", Status: 200})
+	out = a.Flush(at.Add(2 * time.Minute))
+	require.Nil(t, bucketFor(out, svcA, "other.example.com").Blocked)
+	raw, err := json.Marshal(bucketFor(out, svcA, "other.example.com"))
+	require.NoError(t, err)
+	require.NotContains(t, string(raw), "blocked")
+}
+
+func TestAggregatorBoundsDistinctBlockedRules(t *testing.T) {
+	a := newAgg()
+	at := time.Unix(1761500000, 0).UTC()
+	for i := range maxBlockedRules + 50 {
+		a.Add(Event{Time: at, End: at, ServiceID: svcA, BlockedBy: fmt.Sprintf("r%d", i), Host: "app.example.com", Path: "/", Method: "GET", Status: 403})
+	}
+	a.Add(Event{Time: at, End: at, ServiceID: svcA, BlockedBy: "r0", Host: "app.example.com", Path: "/", Method: "GET", Status: 403})
+	b := bucketFor(a.Flush(at.Add(2*time.Minute)), svcA, "app.example.com")
+	require.Len(t, b.Blocked, maxBlockedRules)
+	require.EqualValues(t, 2, b.Blocked["r0"], "a rule already counted keeps counting past the cap")
+}

@@ -27,6 +27,8 @@ const (
 	maxKeyLen       = 200
 	maxTopEntries   = agentprotocol.TopN + 1 // + "Other"
 	maxStatusCodes  = 64
+	maxBlockedRules = 128
+	maxRuleIDLen    = 16
 	maxCounterValue = int64(1) << 50
 )
 
@@ -150,6 +152,16 @@ func sanitize(b agentprotocol.TrafficBucket, now time.Time, geoLevel string) (db
 		}
 	}
 	statusJSON, _ := json.Marshal(codes)
+	blocked := map[string]int64{}
+	for k, v := range b.Blocked {
+		if len(blocked) >= maxBlockedRules {
+			break
+		}
+		if validRuleID(k) {
+			blocked[k] = clampCounter(v)
+		}
+	}
+	blockedJSON, _ := json.Marshal(blocked)
 	topJSON, _ := json.Marshal(cleanTop(b.Top))
 	return db.InsertTraffic1mParams{
 		Host: host, Bucket: bucket,
@@ -159,8 +171,22 @@ func sanitize(b agentprotocol.TrafficBucket, now time.Time, geoLevel string) (db
 		S4xx: clampCounter(b.S4xx), S5xx: clampCounter(b.S5xx), SOther: clampCounter(b.SOther),
 		LatHist: hist, LatSumMs: min(max(b.LatSumMs, 0), float64(maxCounterValue)),
 		Visitors: clampCounter(b.Visitors), Hll: hll, StatusCodes: statusJSON, Top: topJSON,
-		Geo: marshalGeo(cleanGeo(b.Geo, geoLevel)),
+		Geo: marshalGeo(cleanGeo(b.Geo, geoLevel)), Blocked: blockedJSON,
 	}, true
+}
+
+// validRuleID reports whether id has the shape of a firewall rule id
+// ([a-z0-9]{1,16}); the agent's counts of blocked requests are keyed by it.
+func validRuleID(id string) bool {
+	if id == "" || len(id) > maxRuleIDLen {
+		return false
+	}
+	for i := range len(id) {
+		if c := id[i]; (c < '0' || c > '9') && (c < 'a' || c > 'z') {
+			return false
+		}
+	}
+	return true
 }
 
 func cleanList(in []agentprotocol.TopEntry) []agentprotocol.TopEntry {

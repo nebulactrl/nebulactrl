@@ -1151,6 +1151,8 @@ func (b *builder) firewallRouters(rules []agentprotocol.FirewallRule, names, hos
 			if r.Action == agentprotocol.FirewallBlock {
 				fr.Service, fr.Middlewares = b.blocked()
 			}
+			// The name is a contract: the traffic collector reads the rule id after
+			// "-fw" to count blocked requests for the service (traffic.serviceFromRouter).
 			b.cfg.HTTP.Routers[base+"-fw"+r.ID] = &fr
 		}
 	}

@@ -26,6 +26,10 @@ const (
 	OtherHost = "(other)"
 	// maxStatusCodes caps exact status codes per bucket.
 	maxStatusCodes = 64
+	// maxBlockedRules caps the distinct firewall rules counted per bucket (a
+	// service has at most agentprotocol.MaxFirewallRules rules plus the standard
+	// protection).
+	maxBlockedRules = 128
 	// liveTopCap is the live key cap of a top-N map before it is compacted.
 	liveTopCap = 2000
 )
@@ -58,6 +62,7 @@ type acc struct {
 	bytesIn, bytesOut         int64
 	s                         [6]int64 // 1xx..5xx, other
 	codes                     map[int]int64
+	blocked                   map[string]int64 // requests the firewall blocked, by rule id
 	hist                      [agentprotocol.LatencyBuckets]int64
 	latSum                    float64
 	hll                       *hyperloglog.Sketch
@@ -128,6 +133,12 @@ func (a *Aggregator) Add(ev Event) {
 	}
 	if len(c.codes) < maxStatusCodes || c.codes[ev.Status] > 0 {
 		c.codes[ev.Status]++
+	}
+	if ev.BlockedBy != "" && ev.ServiceID != "" && (len(c.blocked) < maxBlockedRules || c.blocked[ev.BlockedBy] > 0) {
+		if c.blocked == nil {
+			c.blocked = map[string]int64{}
+		}
+		c.blocked[ev.BlockedBy]++
 	}
 	c.hist[agentprotocol.LatencyBucket(ev.DurationMs)]++
 	c.latSum += ev.DurationMs
@@ -265,6 +276,12 @@ func (c *acc) bucket(k accKey) agentprotocol.TrafficBucket {
 		b.StatusCodes = make(map[string]int64, len(c.codes))
 		for code, n := range c.codes {
 			b.StatusCodes[strconv.Itoa(code)] = n
+		}
+	}
+	if len(c.blocked) > 0 {
+		b.Blocked = make(map[string]int64, len(c.blocked))
+		for id, n := range c.blocked {
+			b.Blocked[id] = n
 		}
 	}
 	b.Top = agentprotocol.TrafficTop{

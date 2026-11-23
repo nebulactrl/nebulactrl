@@ -105,6 +105,14 @@ const TopN = 20
 // OtherKey labels the remainder entry of a top-N list.
 const OtherKey = "Other"
 
+// FirewallRuleHeader is the response header the edge guard sets on a request
+// it blocks, with the id of the rule that decided. Traefik's forwardAuth
+// passes it on to the client's response and the access log keeps it
+// (static flag, traffic analytics on), which is how the agent attributes the
+// block. Compiled firewall routers need no header: the rule id is in the
+// router's name.
+const FirewallRuleHeader = "X-Nebula-Firewall-Rule"
+
 // TrafficTop holds the top-N lists of a bucket. paths counts every request,
 // pages only documents (GET/HEAD text/html 2xx/3xx).
 type TrafficTop struct {
@@ -147,7 +155,12 @@ type TrafficBucket struct {
 	HLL         []byte           `json:"hll,omitempty"`
 	Visitors    int64            `json:"visitors"`
 	StatusCodes map[string]int64 `json:"statusCodes,omitempty"`
-	Top         TrafficTop       `json:"top"`
+	// Blocked counts the requests the service firewall blocked in the bucket,
+	// by rule id (a service rule's or a standard protection's, std…). They are
+	// also part of Requests and of the 4xx counters. Only counts leave the
+	// host: the blocked request lines stay in its request store.
+	Blocked map[string]int64 `json:"blocked,omitempty"`
+	Top     TrafficTop       `json:"top"`
 	// Geo counts where the bucket's requests came from; nil while geolocation is off.
 	Geo *GeoBucket `json:"geo,omitempty"`
 }

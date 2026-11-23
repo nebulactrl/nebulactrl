@@ -23,6 +23,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/nebulactrl/nebulactrl/internal/analytics"
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/audit"
 	"github.com/nebulactrl/nebulactrl/internal/db"
@@ -49,12 +50,19 @@ type RoutePusher interface {
 	PushRoutes(ctx context.Context, tx pgx.Tx, serverID uuid.UUID) error
 }
 
+// BlocksReader counts the requests a service's firewall blocked
+// (*analytics.Service).
+type BlocksReader interface {
+	ServiceFirewallBlocks(ctx context.Context, serviceID uuid.UUID, rng string) (analytics.FirewallBlocks, error)
+}
+
 // Service implements the firewall use cases.
 type Service struct {
 	pool   *pgxpool.Pool
 	q      *db.Queries
 	bus    *events.Bus
 	routes RoutePusher
+	blocks BlocksReader
 	log    *slog.Logger
 }
 
@@ -68,6 +76,18 @@ func NewService(pool *pgxpool.Pool, bus *events.Bus, routes RoutePusher, logger 
 		s.q = db.New(pool)
 	}
 	return s
+}
+
+// SetBlocks wires the reader of the blocked-request counts (wire.go).
+func (s *Service) SetBlocks(b BlocksReader) { s.blocks = b }
+
+// Blocks returns how many requests the firewall of a service blocked over the
+// range (24h, 7d or 30d), per rule (scope projects:read).
+func (s *Service) Blocks(ctx context.Context, id uuid.UUID, rng string) (analytics.FirewallBlocks, error) {
+	if s.blocks == nil {
+		return analytics.FirewallBlocks{}, fmt.Errorf("firewall blocks: no reader wired")
+	}
+	return s.blocks.ServiceFirewallBlocks(ctx, id, rng)
 }
 
 // FirewallView is a service's firewall and where it applies.
@@ -184,6 +204,24 @@ func (s *Service) view(ctx context.Context, t target) (FirewallView, error) {
 	return v, nil
 }
 
+// CheckPlacement reports why fw cannot run on srv, with the errors Put answers with: agent_too_old
+// when the server's agent predates firewalls, geo_required when an active rule matches countries and
+// the server places no visitors by country. A firewall with no rules runs anywhere. The config
+// planner calls it so the plan is blocked instead of the apply failing.
+func CheckPlacement(srv db.Server, fw agentprotocol.Firewall) error {
+	if len(fw.Rules) == 0 {
+		return nil
+	}
+	if !supportsFirewall(srv) {
+		return apierr.Unprocessable("agent_too_old", "the agent on "+srv.Name+" is too old for firewalls; update the agent first")
+	}
+	if fw.UsesCountry() && !(srv.GeoEnabled && srv.TrafficAnalyticsEnabled) {
+		return apierr.Unprocessable("geo_required", "Country rules need geolocation on "+srv.Name+
+			": turn on traffic analytics and geolocation in the server's settings (the free DB-IP country database needs no account).")
+	}
+	return nil
+}
+
 // supportsFirewall reports whether the server's agent advertised
 // agentprotocol.CapFirewall. A server that never connected is assumed to
 // enroll with a current agent.
@@ -233,13 +271,9 @@ func (s *Service) Put(ctx context.Context, id uuid.UUID, in PutInput) (FirewallV
 	if err := fw.Validate(); err != nil {
 		return FirewallView{}, apierr.Unprocessable("invalid_firewall", err.Error())
 	}
-	if t.server != nil && len(fw.Rules) > 0 {
-		if !supportsFirewall(*t.server) {
-			return FirewallView{}, apierr.Unprocessable("agent_too_old", "the agent on "+t.server.Name+" is too old for firewalls; update the agent first")
-		}
-		if fw.UsesCountry() && !(t.server.GeoEnabled && t.server.TrafficAnalyticsEnabled) {
-			return FirewallView{}, apierr.Unprocessable("geo_required", "Country rules need geolocation on "+t.server.Name+
-				": turn on traffic analytics and geolocation in the server's settings (the free DB-IP country database needs no account).")
+	if t.server != nil {
+		if err := CheckPlacement(*t.server, fw); err != nil {
+			return FirewallView{}, err
 		}
 	}
 	var raw json.RawMessage
