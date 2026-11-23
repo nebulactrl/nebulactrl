@@ -356,6 +356,7 @@ func exRichEnv() *liveEnv {
 		panic(err)
 	}
 	web.Row.Firewall = fwRaw
+	web.Row.Autoban = []byte(`{"enabled":true,"threshold":5,"windowSeconds":120,"durationSeconds":3600,"allow":["203.0.113.0/24"]}`)
 	eta := time.Date(2030, 12, 1, 6, 0, 0, 0, time.UTC)
 	web.Row.MaintenanceEnabled, web.Row.MaintenanceTitle, web.Row.MaintenanceMessage, web.Row.MaintenanceEta = true, "Back soon", "Upgrading.", &eta
 	web.Owned["generate_domain"] = "x"

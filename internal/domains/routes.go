@@ -256,7 +256,7 @@ func serverRoutesWith(ctx context.Context, q *db.Queries, serverID uuid.UUID, ex
 				Upstreams:  Upstreams(r.ServiceSlug, r.DeploymentID.String(), n, int(r.Domain.TargetPort)),
 				HealthPath: healthPath(r.ReleaseConfig),
 				Networks:   services.RouteNetworks(r.EnvironmentID, services.ReleaseBlocksEgress(r.ReleaseConfig)),
-				RouteExt:   agentprotocol.RouteExt{Maintenance: maintenanceFrom(r.MaintenanceEnabled, r.MaintenanceTitle, r.MaintenanceMessage, r.MaintenanceEta), Firewall: RouteFirewall(r.Firewall)},
+				RouteExt:   agentprotocol.RouteExt{Maintenance: maintenanceFrom(r.MaintenanceEnabled, r.MaintenanceTitle, r.MaintenanceMessage, r.MaintenanceEta), Firewall: RouteFirewall(r.Firewall), AutoBan: RouteAutoBan(r.Autoban)},
 			}
 			if r.Domain.Component != "" {
 				if rt, ok = processRoute(r); !ok {
@@ -319,6 +319,7 @@ func serverRoutesWith(ctx context.Context, q *db.Queries, serverID uuid.UUID, ex
 			if !rt.IsL4() {
 				rt.Maintenance = maintenanceFrom(r.MaintenanceEnabled, r.MaintenanceTitle, r.MaintenanceMessage, r.MaintenanceEta)
 				rt.Firewall = RouteFirewall(r.Firewall)
+				rt.AutoBan = RouteAutoBan(r.Autoban)
 			}
 			routes = append(routes, rt)
 		}

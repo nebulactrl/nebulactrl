@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
+	"github.com/nebulactrl/nebulactrl/internal/agent/autoban"
 	"github.com/nebulactrl/nebulactrl/internal/agent/build"
 	"github.com/nebulactrl/nebulactrl/internal/agent/compose"
 	"github.com/nebulactrl/nebulactrl/internal/agent/conn"
@@ -270,6 +271,15 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 		return err
 	}
 
+	// Auto-ban: the engine holds the bans (bbolt), the proxy manager hands them to
+	// the edge guard and tells the engine which routes have a policy. Set before
+	// the first Apply.
+	bans := autoban.New(autoban.Config{
+		Store: st, Logger: log,
+		Log: func(serviceID, line string) { log.Info(line, "service_id", serviceID) },
+	})
+	px.SetBanSource(bans)
+
 	// The Cloudflare Tunnel connector: observed by heartbeats, driven by the engine.
 	tun := tunnel.New(eng, log)
 
@@ -443,6 +453,7 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 		Tunnel:    tun,
 		Mesh:      meshMgr,
 		Logs:      logHistory,
+		AutoBan:   bans,
 		Uptime:    uptimeCollector,
 		// UptimeInterval (--uptime-interval): the probe period.
 		UptimeInterval: o.UptimeInterval,
@@ -503,8 +514,16 @@ func run(parent context.Context, log *slog.Logger, o options) error {
 		Engine: eng, Buffer: st, Sender: client, Container: agentprotocol.ProxyContainer, Logger: log, Geo: geo.DB(),
 		// Request logs: one line per routed request, on this host only.
 		Requests: logHistory.Requests, RequestLogs: logHistory.RequestLogs, Routes: px.Current, RequestsResume: logHistory.RequestsResume,
+		// Strikes: blocked requests counted under the aggregation's replay gate.
+		Observe: func(ev traffic.Event) {
+			bans.Observe(autoban.Hit{RouteID: ev.ServiceID, BlockedBy: ev.BlockedBy, ClientIP: ev.ClientIP, Status: ev.Status, Time: ev.Time})
+		},
 	})
 	client.SetTrafficAckHandler(tc.Ack)
+	// Auto-ban: ban events are delivered to the control plane, which acknowledges them.
+	bans.SetSender(client)
+	client.SetBansAckHandler(bans.Ack)
+	go bans.Run(ctx)
 	go func() { defer releaseRequests(); tc.Run(ctx) }()
 	client.SetProbesAckHandler(uptimeCollector.Ack)
 	go uptimeCollector.Run(ctx)

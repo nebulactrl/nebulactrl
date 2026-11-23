@@ -45,6 +45,7 @@ import { Spinner } from "#/components/ui/spinner";
 import { Switch } from "#/components/ui/switch";
 import { toast } from "#/components/ui/toast";
 import { Section, SectionBody } from "#/features/service-settings/fields";
+import { AutoBanSection } from "./autoban-section";
 import { BlockedSummary, RuleBlockCount } from "./blocked-summary";
 import {
 	type BlockRange,
@@ -347,6 +348,7 @@ export function FirewallSection({ service }: { service: Service }) {
 					</SectionBody>
 				</Section>
 			) : null}
+			<AutoBanSection service={service} />
 		</>
 	);
 }

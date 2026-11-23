@@ -1475,6 +1475,7 @@ type Service struct {
 	MaintenanceEta      *time.Time      `json:"maintenanceEta"`
 	MaintenanceSince    *time.Time      `json:"maintenanceSince"`
 	Firewall            json.RawMessage `json:"firewall"`
+	Autoban             json.RawMessage `json:"autoban"`
 }
 
 type ServiceAlertSetting struct {
@@ -1489,6 +1490,24 @@ type ServiceAlertSetting struct {
 	BackupGraceMinutes    int32     `json:"backupGraceMinutes"`
 	LogLines              int32     `json:"logLines"`
 	UpdatedAt             time.Time `json:"updatedAt"`
+}
+
+type ServiceBan struct {
+	ID         uuid.UUID       `json:"id"`
+	ServerID   uuid.UUID       `json:"serverId"`
+	ServiceID  uuid.UUID       `json:"serviceId"`
+	RouteID    string          `json:"routeId"`
+	Prefix     string          `json:"prefix"`
+	Address    *string         `json:"address"`
+	StartedAt  time.Time       `json:"startedAt"`
+	ExpiresAt  time.Time       `json:"expiresAt"`
+	EndedAt    *time.Time      `json:"endedAt"`
+	EndReason  *string         `json:"endReason"`
+	Strikes    int32           `json:"strikes"`
+	Rules      json.RawMessage `json:"rules"`
+	Source     string          `json:"source"`
+	NotifiedAt *time.Time      `json:"notifiedAt"`
+	CreatedAt  time.Time       `json:"createdAt"`
 }
 
 type ServiceCombine struct {

@@ -631,6 +631,7 @@ func (x *exporter) service(slug string, ls *liveService, serverName, rootServer 
 	}
 	s.uptime()
 	s.firewall()
+	s.autoban()
 	s.maintenance()
 
 	return &projectconfig.ResolvedService{
@@ -1509,6 +1510,35 @@ func (s *exService) firewall() {
 		fw.Rules = append(fw.Rules, e)
 	}
 	s.def.Firewall = fw
+}
+
+// autoban writes the policy while the service has one (anything but off with the default limits and
+// no allow list), and `enabled = false` where the file owns it. Keys at their default are left out,
+// as the table owns them as defaults, unless defaults are asked for.
+func (s *exService) autoban() {
+	if !s.servesHTTP() {
+		return
+	}
+	v := liveAutoBan(s.ls.Row)
+	d := liveAutoBan(db.Service{})
+	set := v.Enabled || v.Threshold != d.Threshold || v.WindowSeconds != d.WindowSeconds || v.DurationSeconds != d.DurationSeconds || len(v.Allow) > 0
+	if !s.emit("autoban", set) {
+		return
+	}
+	a := &projectconfig.AutoBan{Enabled: new(v.Enabled)}
+	if v.Threshold != d.Threshold || s.x.defaults {
+		a.Threshold = new(v.Threshold)
+	}
+	if v.WindowSeconds != d.WindowSeconds || s.x.defaults {
+		a.WindowSeconds = new(v.WindowSeconds)
+	}
+	if v.DurationSeconds != d.DurationSeconds || s.x.defaults {
+		a.DurationSeconds = new(v.DurationSeconds)
+	}
+	if len(v.Allow) > 0 {
+		a.Allow = exStrings(v.Allow)
+	}
+	s.def.AutoBan = a
 }
 
 // maintenance writes maintenance mode while it is on (the page text and time with it), and

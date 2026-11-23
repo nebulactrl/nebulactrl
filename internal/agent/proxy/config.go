@@ -237,6 +237,10 @@ func StaticFlags(o StaticOptions) []string {
 			// The edge guard names the rule that blocked a request in this
 			// response header; the agent counts blocks by it.
 			"--accesslog.fields.headers.names."+agentprotocol.FirewallRuleHeader+"=keep",
+			// A tunnelled domain's visitor reaches the origin in this request
+			// header only (the peer is cloudflared); the traffic parser reads it
+			// on tunnel routers, and the auto-ban counts strikes by that address.
+			"--accesslog.fields.headers.names.Cf-Connecting-Ip=keep",
 		)
 	}
 	if o.ACMEEmail != "" {

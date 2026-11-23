@@ -127,7 +127,7 @@ func (q *Queries) GetPlatformServiceInternal(ctx context.Context, id uuid.UUID) 
 }
 
 const getServiceForUpdateByID = `-- name: GetServiceForUpdateByID :one
-SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall FROM services WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
+SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall, autoban FROM services WHERE id = $1 AND deleted_at IS NULL FOR UPDATE
 `
 
 func (q *Queries) GetServiceForUpdateByID(ctx context.Context, id uuid.UUID) (Service, error) {
@@ -167,6 +167,7 @@ func (q *Queries) GetServiceForUpdateByID(ctx context.Context, id uuid.UUID) (Se
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
 		&i.Firewall,
+		&i.Autoban,
 	)
 	return i, err
 }
@@ -269,7 +270,7 @@ func (q *Queries) ListPlatformServices(ctx context.Context, workspaceID uuid.UUI
 }
 
 const listServicesIncludingDeleted = `-- name: ListServicesIncludingDeleted :many
-SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall FROM services WHERE id = ANY($1::uuid[]) ORDER BY created_at, id
+SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall, autoban FROM services WHERE id = ANY($1::uuid[]) ORDER BY created_at, id
 `
 
 func (q *Queries) ListServicesIncludingDeleted(ctx context.Context, ids []uuid.UUID) ([]Service, error) {
@@ -315,6 +316,7 @@ func (q *Queries) ListServicesIncludingDeleted(ctx context.Context, ids []uuid.U
 			&i.MaintenanceEta,
 			&i.MaintenanceSince,
 			&i.Firewall,
+			&i.Autoban,
 		); err != nil {
 			return nil, err
 		}

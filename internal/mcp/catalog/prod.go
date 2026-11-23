@@ -311,6 +311,7 @@ var prodExempt = map[string]ProdExemption{
 	"generateDomain":                  ExemptStaged,
 	"installTemplate":                 ExemptCreates,
 	"planComposeImport":               ExemptProbe,
+	"unbanServiceAddress":             ExemptNoRuntime, // lifts a block on one address; it never takes a service down
 	"planDatabaseUpgrade":             ExemptProbe,
 	"planDeployment":                  ExemptProbe,
 	"planTemplate":                    ExemptProbe,

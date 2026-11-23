@@ -25,6 +25,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/tasks"
 	"github.com/nebulactrl/nebulactrl/internal/uptime"
 	"github.com/nebulactrl/nebulactrl/internal/variables"
+	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
 // The immediate-kind use cases apply runs after the staged transaction commits.
@@ -55,9 +56,10 @@ type MonitorStore interface {
 	UpdateMonitor(ctx context.Context, serviceID uuid.UUID, v uptime.MonitorView) (uptime.MonitorView, error)
 }
 
-// FirewallStore replaces a service's firewall rules (firewall.Service).
+// FirewallStore replaces a service's firewall rules and auto-ban policy (firewall.Service).
 type FirewallStore interface {
 	Put(ctx context.Context, serviceID uuid.UUID, in firewall.PutInput) (firewall.FirewallView, error)
+	PutAutoBan(ctx context.Context, serviceID uuid.UUID, in agentprotocol.AutoBan) (firewall.AutoBanView, error)
 }
 
 // MaintenanceStore switches a service's maintenance mode (maintenance.Service).

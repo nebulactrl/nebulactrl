@@ -39,27 +39,66 @@ const (
 // guardState is what the manager last put into the guard container (applyMu).
 type guardState struct {
 	// container is the guard container's ID; rules the hash of its rules
-	// file; geo the GeoIP file it holds ("" none) and geoStamp the source
-	// file's size and modification time.
+	// file and bans the hash of its bans file; geo the GeoIP file it holds
+	// ("" none) and geoStamp the source file's size and modification time.
 	container string
 	rules     string
+	bans      string
 	geo       string
 	geoStamp  string
 	// checked is set once the manager knows whether a guard container exists.
 	checked bool
 }
 
-// GuardFirewalls returns the firewalls of routes that the edge guard
-// evaluates, by route id (see agentprotocol.Firewall.NeedsGuard).
-func GuardFirewalls(routes []agentprotocol.Route) map[string]*agentprotocol.Firewall {
-	out := map[string]*agentprotocol.Firewall{}
+// GuardRoute is what the edge guard evaluates for one route.
+type GuardRoute struct {
+	// Firewall holds the active rules the guard evaluates (none for a route
+	// that is guarded for its auto-ban only).
+	Firewall *agentprotocol.Firewall
+	// AutoBan is the route's enabled auto-ban policy; nil without one.
+	AutoBan *agentprotocol.AutoBan
+}
+
+// autoBanOn reports whether r has an enabled auto-ban policy. Such a route
+// always goes through the guard, which decides allow list, bans and firewall
+// rules in that order, so none of its firewall is compiled into routers.
+func autoBanOn(r agentprotocol.Route) bool {
+	return !r.IsL4() && r.AutoBan != nil && r.AutoBan.Enabled
+}
+
+// needsGuard reports whether the edge guard serves r: it has an enabled
+// auto-ban policy, or a firewall the routers cannot express (see
+// agentprotocol.Firewall.NeedsGuard).
+func needsGuard(r agentprotocol.Route) bool {
+	if r.IsL4() {
+		return false
+	}
+	return autoBanOn(r) || (len(r.Firewall.Active()) > 0 && r.Firewall.NeedsGuard(headerClientIP(r)))
+}
+
+// GuardRoutes returns what the edge guard evaluates, by route id: the routes
+// that need it for either reason (needsGuard).
+func GuardRoutes(routes []agentprotocol.Route) map[string]GuardRoute {
+	out := map[string]GuardRoute{}
 	for _, r := range routes {
-		if r.IsL4() || len(r.Firewall.Active()) == 0 {
+		if !needsGuard(r) {
 			continue
 		}
-		if r.Firewall.NeedsGuard(headerClientIP(r)) {
-			out[r.ServiceID] = &agentprotocol.Firewall{Rules: r.Firewall.Active()}
+		gr := GuardRoute{Firewall: &agentprotocol.Firewall{Rules: r.Firewall.Active()}}
+		if autoBanOn(r) {
+			ab := *r.AutoBan
+			gr.AutoBan = &ab
 		}
+		out[r.ServiceID] = gr
+	}
+	return out
+}
+
+// guardFirewalls is the rules document's content: the firewall of every route.
+func guardFirewalls(routes map[string]GuardRoute) map[string]*agentprotocol.Firewall {
+	out := make(map[string]*agentprotocol.Firewall, len(routes))
+	for id, gr := range routes {
+		out[id] = gr.Firewall
 	}
 	return out
 }
@@ -90,16 +129,16 @@ func (m *Manager) guardSpec(netnsID string) docker.ContainerSpec {
 // the push is done. Without guarded routes it does nothing (finishGuard
 // removes a guard nothing needs).
 func (m *Manager) prepareGuard(ctx context.Context, routes []agentprotocol.Route) error {
-	want := GuardFirewalls(routes)
+	want := GuardRoutes(routes)
 	if len(want) == 0 {
 		return nil
 	}
 	if m.cfg.GuardBinary == "" {
-		return errors.New("a firewall that matches countries (or visitor addresses behind Cloudflare) needs the edge guard, which this agent cannot run: it is not a Linux binary")
+		return errors.New("a firewall that matches countries (or visitor addresses behind Cloudflare), or auto-ban, needs the edge guard, which this agent cannot run: it is not a Linux binary")
 	}
-	union := GuardFirewalls(m.Current())
-	for id, fw := range want {
-		union[id] = fw
+	union := GuardRoutes(m.Current())
+	for id, gr := range want {
+		union[id] = gr
 	}
 	return m.ensureGuard(ctx, union)
 }
@@ -108,7 +147,7 @@ func (m *Manager) prepareGuard(ctx context.Context, routes []agentprotocol.Route
 // table's firewalls, or is removed when no route needs it. Failures are
 // logged: the table is live, and the guard still holds a superset.
 func (m *Manager) finishGuard(ctx context.Context, routes []agentprotocol.Route) {
-	want := GuardFirewalls(routes)
+	want := GuardRoutes(routes)
 	if len(want) == 0 {
 		if m.guard.container != "" || !m.guard.checked {
 			// Once after a start (a guard left by an earlier agent), then only
@@ -130,17 +169,100 @@ func (m *Manager) finishGuard(ctx context.Context, routes []agentprotocol.Route)
 // stopped or lost the proxy's network namespace, and hand it a GeoIP database
 // that was downloaded since the last route push.
 func (m *Manager) checkGuard(ctx context.Context) {
-	if want := GuardFirewalls(m.Current()); len(want) > 0 && m.cfg.GuardBinary != "" {
+	if want := GuardRoutes(m.Current()); len(want) > 0 && m.cfg.GuardBinary != "" {
 		if err := m.ensureGuard(ctx, want); err != nil {
 			m.log.Warn("edge guard", "err", err)
 		}
 	}
 }
 
+// BanSource is the auto-ban engine as the manager sees it
+// (internal/agent/autoban).
+type BanSource interface {
+	// SetRoutes hands the engine the route table that went live.
+	SetRoutes(routes []agentprotocol.Route)
+	// Bans returns the active bans by route id; only the bans are read (the
+	// allow lists come from the routes).
+	Bans() agentprotocol.GuardBans
+	// OnChange registers the function the engine calls, debounced, when
+	// Bans() may have changed.
+	OnChange(fn func())
+}
+
+// pushBansTimeout bounds the guard update a ban change triggers.
+const pushBansTimeout = 30 * time.Second
+
+// SetBanSource attaches the auto-ban engine: its bans are written to the
+// guard next to the rules, a change of them is pushed (PushBans), and every
+// route table that goes live is handed to it. Call it before the first Apply.
+func (m *Manager) SetBanSource(src BanSource) {
+	m.mu.Lock()
+	m.banSource = src
+	m.mu.Unlock()
+	src.OnChange(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), pushBansTimeout)
+		defer cancel()
+		if err := m.PushBans(ctx); err != nil {
+			m.log.Warn("edge guard: push bans", "err", err)
+		}
+	})
+}
+
+// guardBans is the bans document for routes: the allow list of each auto-ban
+// route and the engine's active bans of it.
+func (m *Manager) guardBans(routes map[string]GuardRoute) agentprotocol.GuardBans {
+	m.mu.RLock()
+	src := m.banSource
+	m.mu.RUnlock()
+	var have agentprotocol.GuardBans
+	if src != nil {
+		have = src.Bans()
+	}
+	out := agentprotocol.GuardBans{Services: map[string]agentprotocol.GuardRouteBans{}}
+	for id, gr := range routes {
+		if gr.AutoBan != nil {
+			out.Services[id] = agentprotocol.GuardRouteBans{Allow: gr.AutoBan.Allow, Bans: have.Services[id].Bans}
+		}
+	}
+	return out
+}
+
+// PushBans writes the current bans to the running guard, and only them: the
+// rules, the GeoIP database and the container stay as they are. The auto-ban
+// engine calls it when a ban started or ended. It does nothing while no guard
+// runs (ensureGuard writes the bans with the next route table).
+func (m *Manager) PushBans(ctx context.Context) error {
+	m.applyMu.Lock()
+	defer m.applyMu.Unlock()
+	if m.guard.container == "" {
+		return nil
+	}
+	routes := GuardRoutes(m.Current())
+	if len(routes) == 0 {
+		return nil
+	}
+	raw, err := guard.EncodeBans(m.guardBans(routes))
+	if err != nil {
+		return err
+	}
+	hash := guard.Hash(raw)
+	if hash == m.guard.bans {
+		return nil
+	}
+	if err := m.cfg.Engine.CopyToContainer(ctx, m.guard.container, guard.Dir, tarOf(guard.BansFile, 0o644, raw)); err != nil {
+		return fmt.Errorf("write edge guard bans: %w", err)
+	}
+	if err := m.waitGuard(ctx, m.guard.rules, hash); err != nil {
+		return err
+	}
+	m.guard.bans = hash
+	return nil
+}
+
 // ensureGuard makes the guard container run, attached to the current proxy
-// container, holding firewalls and the server's GeoIP database; after a change
-// it waits until the guard serves them.
-func (m *Manager) ensureGuard(ctx context.Context, firewalls map[string]*agentprotocol.Firewall) error {
+// container, holding the routes' firewalls and bans and the server's GeoIP
+// database; after a change it waits until the guard serves them.
+func (m *Manager) ensureGuard(ctx context.Context, routes map[string]GuardRoute) error {
 	eng := m.cfg.Engine
 	px, err := eng.ContainerInspect(ctx, agentprotocol.ProxyContainer)
 	if err != nil {
@@ -189,15 +311,25 @@ func (m *Manager) ensureGuard(ctx context.Context, firewalls map[string]*agentpr
 	if err != nil {
 		m.log.Warn("edge guard: copy geoip database; country rules wait for it", "err", err)
 	}
-	raw, err := guard.Encode(guard.Rules{Routes: firewalls, Geo: geo})
+	raw, err := guard.Encode(guard.Rules{Routes: guardFirewalls(routes), Geo: geo})
 	if err != nil {
 		return err
 	}
 	hash := guard.Hash(raw)
-	changed := fresh || !info.Running || hash != m.guard.rules
+	bansRaw, err := guard.EncodeBans(m.guardBans(routes))
+	if err != nil {
+		return err
+	}
+	bansHash := guard.Hash(bansRaw)
+	changed := fresh || !info.Running || hash != m.guard.rules || bansHash != m.guard.bans
 	if fresh || hash != m.guard.rules {
 		if err := eng.CopyToContainer(ctx, m.guard.container, guard.Dir, tarOf(guard.RulesFile, 0o644, raw)); err != nil {
 			return fmt.Errorf("write edge guard rules: %w", err)
+		}
+	}
+	if fresh || bansHash != m.guard.bans {
+		if err := eng.CopyToContainer(ctx, m.guard.container, guard.Dir, tarOf(guard.BansFile, 0o644, bansRaw)); err != nil {
+			return fmt.Errorf("write edge guard bans: %w", err)
 		}
 	}
 	if fresh || !info.Running {
@@ -206,11 +338,11 @@ func (m *Manager) ensureGuard(ctx context.Context, firewalls map[string]*agentpr
 		}
 	}
 	if changed {
-		if err := m.waitGuard(ctx, hash); err != nil {
+		if err := m.waitGuard(ctx, hash, bansHash); err != nil {
 			return err
 		}
 	}
-	m.guard.rules = hash
+	m.guard.rules, m.guard.bans = hash, bansHash
 	return nil
 }
 
@@ -269,17 +401,18 @@ func (m *Manager) copyGuardBinary(ctx context.Context, id string) error {
 	return nil
 }
 
-// waitGuard polls the guard until it serves the rules with hash.
-func (m *Manager) waitGuard(ctx context.Context, hash string) error {
+// waitGuard polls the guard until it serves the rules with hash and the bans
+// with bansHash.
+func (m *Manager) waitGuard(ctx context.Context, hash, bansHash string) error {
 	deadline := time.Now().Add(guardReadyTimeout)
-	argv := []string{"wget", "-q", "-O", "/dev/null", "http://127.0.0.1:" + strconv.Itoa(agentprotocol.GuardPort) + "/v1/ready?rules=" + hash}
+	argv := []string{"wget", "-q", "-O", "/dev/null", "http://127.0.0.1:" + strconv.Itoa(agentprotocol.GuardPort) + "/v1/ready?rules=" + hash + "&bans=" + bansHash}
 	for {
 		code, err := m.cfg.Engine.ContainerExec(ctx, m.guard.container, argv, docker.ExecSpec{}, nil, nil)
 		if err == nil && code == 0 {
 			return nil
 		}
 		if time.Now().After(deadline) {
-			return fmt.Errorf("edge guard did not load its rules within %s (exit %d, %v)", guardReadyTimeout, code, err)
+			return fmt.Errorf("edge guard did not load its rules and bans within %s (exit %d, %v)", guardReadyTimeout, code, err)
 		}
 		select {
 		case <-ctx.Done():

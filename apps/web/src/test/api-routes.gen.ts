@@ -38,6 +38,7 @@ export type ApiRouteKey =
 	| `DELETE /servers/${string}/dns01/resolvers/${string}`
 	| `DELETE /servers/${string}/tunnel`
 	| `DELETE /services/${string}`
+	| `DELETE /services/${string}/bans/${string}`
 	| `DELETE /services/${string}/database/public-port`
 	| `DELETE /services/${string}/database/replica`
 	| `DELETE /services/${string}/git`
@@ -176,9 +177,11 @@ export type ApiRouteKey =
 	| `GET /servers/${string}/unrestricted`
 	| `GET /services/${string}`
 	| `GET /services/${string}/analytics`
+	| `GET /services/${string}/autoban`
 	| `GET /services/${string}/backup-restores`
 	| `GET /services/${string}/backup-schedules`
 	| `GET /services/${string}/backups`
+	| `GET /services/${string}/bans`
 	| `GET /services/${string}/config-source`
 	| `GET /services/${string}/database`
 	| `GET /services/${string}/database/public-port`
@@ -475,6 +478,7 @@ export type ApiRouteKey =
 	| `PUT /servers/${string}/mesh`
 	| `PUT /servers/${string}/patches/auto`
 	| `PUT /servers/${string}/unrestricted`
+	| `PUT /services/${string}/autoban`
 	| `PUT /services/${string}/database/public-port`
 	| `PUT /services/${string}/deploy-hook`
 	| `PUT /services/${string}/firewall`

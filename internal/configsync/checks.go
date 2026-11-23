@@ -29,7 +29,7 @@ func (p *planned) useCaseError(err error, path string, pos projectconfig.Pos) {
 			code = "docker_unrestricted"
 		case "license_not_accepted":
 			code = "license_not_accepted"
-		case "upstream_denied", "invalid_upstream", "agent_too_old", "geo_required", "firewall_unsupported", "maintenance_unsupported":
+		case "upstream_denied", "invalid_upstream", "agent_too_old", "geo_required", "firewall_unsupported", "maintenance_unsupported", "analytics_required", "autoban_unsupported":
 			code = ae.Code
 		case "domain_conflict":
 			code = "hostname_in_use"
@@ -201,6 +201,8 @@ func (s *Service) checkService(p *planned, sp *svcPlan) {
 			p.checkReferences(f)
 		case f.fv.ID == "firewall":
 			p.checkFirewall(sp, f, cfg)
+		case f.fv.ID == "autoban":
+			p.checkAutoBan(sp, f, cfg)
 		case f.fv.ID == "maintenance":
 			p.checkMaintenance(f, cfg)
 		}
@@ -546,6 +548,26 @@ func (p *planned) checkFirewall(sp *svcPlan, f *fieldPlan, cfg services.Config) 
 		return
 	}
 	if err := firewall.CheckPlacement(*sp.server, agentprotocol.Firewall{Rules: v.FirewallRules()}); err != nil {
+		p.useCaseError(err, f.fv.Path, f.fv.Pos)
+	}
+}
+
+// checkAutoBan applies what firewall.Service.PutAutoBan would refuse for a policy that changes: a tcp or udp
+// route, and, for an enabled policy, an agent too old for auto-ban or traffic analytics off on the server.
+// A policy the apply leaves alone is not checked: it is not written.
+func (p *planned) checkAutoBan(sp *svcPlan, f *fieldPlan, cfg services.Config) {
+	v, ok := f.fv.Value.(projectconfig.AutoBanValue)
+	if !ok || !f.changed {
+		return
+	}
+	if err := httpRouteOnly(cfg, "autoban_unsupported", "auto-ban only applies to HTTP services, not tcp/udp routes"); err != nil {
+		p.useCaseError(err, f.fv.Path, f.fv.Pos)
+		return
+	}
+	if sp.server == nil {
+		return
+	}
+	if err := firewall.CheckAutoBanPlacement(*sp.server, v.Policy()); err != nil {
 		p.useCaseError(err, f.fv.Path, f.fv.Pos)
 	}
 }

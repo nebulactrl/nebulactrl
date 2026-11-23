@@ -198,14 +198,15 @@ func TestGuardFirewallsSelectsTheRoutesTheGuardEvaluates(t *testing.T) {
 	}
 	none := agentprotocol.Route{ServiceID: "66666666-6666-6666-6666-666666666666", Hosts: []string{"x.example.com"}, Upstreams: []string{"a:1"}}
 
-	got := GuardFirewalls([]agentprotocol.Route{country, pathOnly, ipOnly, ipTunnel, disabledGeo, none})
+	got := GuardRoutes([]agentprotocol.Route{country, pathOnly, ipOnly, ipTunnel, disabledGeo, none})
 	require.Len(t, got, 2)
 	require.Contains(t, got, country.ServiceID)
 	require.Contains(t, got, ipTunnel.ServiceID)
-	require.Equal(t, []string{"geo"}, []string{got[country.ServiceID].Rules[0].ID}, "the guard gets the active rules only")
-	require.Len(t, got[country.ServiceID].Rules, 1)
+	require.Equal(t, []string{"geo"}, []string{got[country.ServiceID].Firewall.Rules[0].ID}, "the guard gets the active rules only")
+	require.Len(t, got[country.ServiceID].Firewall.Rules, 1)
+	require.Nil(t, got[country.ServiceID].AutoBan)
 
-	require.Empty(t, GuardFirewalls(nil))
+	require.Empty(t, GuardRoutes(nil))
 }
 
 func TestPrepareGuardNeedsTheAgentBinary(t *testing.T) {
@@ -222,7 +223,7 @@ func TestPrepareGuardNeedsTheAgentBinary(t *testing.T) {
 
 func TestEnsureGuardCreatesStartsAndWaitsForTheRules(t *testing.T) {
 	m, eng, bin := newGuardManager(t, nil)
-	fws := GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)})
+	fws := GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)})
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
 
 	require.Len(t, eng.created, 1)
@@ -254,19 +255,22 @@ func TestEnsureGuardCreatesStartsAndWaitsForTheRules(t *testing.T) {
 	require.Len(t, rules, 1)
 	var doc guard.Rules
 	require.NoError(t, json.Unmarshal(rules[0].content, &doc))
-	require.Equal(t, guard.Rules{Routes: fws}, doc)
+	require.Equal(t, guard.Rules{Routes: guardFirewalls(fws)}, doc)
+	bans := eng.copiesOf(guard.BansFile)
+	require.Len(t, bans, 1, "the fresh guard gets its bans file with the rules")
+	require.Equal(t, guard.Dir, bans[0].dir)
 	require.Equal(t, 1, len(eng.starts))
 
 	require.Len(t, eng.execs, 1)
 	ready := eng.execs[0]
 	require.Equal(t, "wget", ready[0])
-	require.Equal(t, "http://127.0.0.1:83/v1/ready?rules="+guard.Hash(rules[0].content), ready[len(ready)-1], "it waits for exactly the document it wrote")
+	require.Equal(t, "http://127.0.0.1:83/v1/ready?rules="+guard.Hash(rules[0].content)+"&bans="+guard.Hash(bans[0].content), ready[len(ready)-1], "it waits for exactly the documents it wrote")
 }
 
 func TestEnsureGuardIsIdempotentAndRewritesOnlyChangedRules(t *testing.T) {
 	m, eng, _ := newGuardManager(t, nil)
 	a := countryRoute(svcApp)
-	fws := GuardFirewalls([]agentprotocol.Route{a})
+	fws := GuardRoutes([]agentprotocol.Route{a})
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
 	require.Len(t, eng.created, 1)
@@ -276,20 +280,21 @@ func TestEnsureGuardIsIdempotentAndRewritesOnlyChangedRules(t *testing.T) {
 
 	// More firewalls: the rules file is rewritten and awaited, the container stays.
 	b := countryRoute(svcWhoami)
-	fws2 := GuardFirewalls([]agentprotocol.Route{a, b})
+	fws2 := GuardRoutes([]agentprotocol.Route{a, b})
 	require.NoError(t, m.ensureGuard(context.Background(), fws2))
 	require.Len(t, eng.created, 1)
 	rules := eng.copiesOf(guard.RulesFile)
 	require.Len(t, rules, 2)
 	require.Len(t, eng.copiesOf("nebulactrl-agent"), 1, "the binary is copied once")
 	require.Len(t, eng.execs, 2)
-	require.Equal(t, "http://127.0.0.1:83/v1/ready?rules="+guard.Hash(rules[1].content), eng.execs[1][len(eng.execs[1])-1])
+	require.Len(t, eng.copiesOf(guard.BansFile), 1, "the bans did not change")
+	require.Equal(t, "http://127.0.0.1:83/v1/ready?rules="+guard.Hash(rules[1].content)+"&bans="+guard.Hash(eng.copiesOf(guard.BansFile)[0].content), eng.execs[1][len(eng.execs[1])-1])
 	require.Len(t, eng.starts, 1)
 }
 
 func TestEnsureGuardRecreatesAGuardOutsideTheProxyNamespace(t *testing.T) {
 	m, eng, _ := newGuardManager(t, nil)
-	fws := GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)})
+	fws := GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)})
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
 	require.Len(t, eng.created, 1)
 
@@ -316,7 +321,7 @@ func TestEnsureGuardRecreatesAGuardOutsideTheProxyNamespace(t *testing.T) {
 
 func TestEnsureGuardAdoptsARunningGuardAfterAnAgentRestart(t *testing.T) {
 	m, eng, _ := newGuardManager(t, nil)
-	fws := GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)})
+	fws := GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)})
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
 
 	// A new manager (the agent restarted) finds the guard and keeps it, but
@@ -332,7 +337,7 @@ func TestEnsureGuardAdoptsARunningGuardAfterAnAgentRestart(t *testing.T) {
 
 func TestEnsureGuardStartsAStoppedGuard(t *testing.T) {
 	m, eng, _ := newGuardManager(t, nil)
-	fws := GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)})
+	fws := GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)})
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
 	eng.guard.Running = false // it crashed
 
@@ -345,14 +350,14 @@ func TestEnsureGuardStartsAStoppedGuard(t *testing.T) {
 func TestEnsureGuardRetriesNotReadyUntilItServes(t *testing.T) {
 	m, eng, _ := newGuardManager(t, nil)
 	eng.execCodes = []int{1, 1, 0}
-	require.NoError(t, m.ensureGuard(context.Background(), GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)})))
+	require.NoError(t, m.ensureGuard(context.Background(), GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)})))
 	require.Len(t, eng.execs, 3)
 }
 
 func TestEnsureGuardFailsWithoutTheProxyContainer(t *testing.T) {
 	m, eng, _ := newGuardManager(t, nil)
 	eng.proxyID = ""
-	err := m.ensureGuard(context.Background(), GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)}))
+	err := m.ensureGuard(context.Background(), GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)}))
 	require.ErrorContains(t, err, "needs the proxy container")
 	require.Empty(t, eng.created)
 }
@@ -361,7 +366,7 @@ func TestEnsureGuardCopiesTheGeoIPDatabaseOnce(t *testing.T) {
 	db := filepath.Join(t.TempDir(), "dbip-country-2026-10.mmdb")
 	require.NoError(t, os.WriteFile(db, []byte("mmdb-1"), 0o644))
 	m, eng, _ := newGuardManager(t, func() string { return db })
-	fws := GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)})
+	fws := GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)})
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
 
 	var geoCopies []guardCopy
@@ -379,12 +384,12 @@ func TestEnsureGuardCopiesTheGeoIPDatabaseOnce(t *testing.T) {
 
 	// Unchanged database: not copied again, rules unchanged.
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
-	require.Len(t, eng.copies, 4, "directory, binary, database, rules")
+	require.Len(t, eng.copies, 5, "directory, binary, database, rules, bans")
 
 	// A newer database is copied under a new name and the rules switch to it.
 	require.NoError(t, os.WriteFile(db, []byte("mmdb-22"), 0o644))
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
-	require.Len(t, eng.copies, 6, "directory, binary, database, rules, then the new database and rules")
+	require.Len(t, eng.copies, 7, "directory, binary, database, rules, bans, then the new database and rules")
 	require.NoError(t, json.Unmarshal(eng.copiesOf(guard.RulesFile)[1].content, &doc))
 	require.NotEqual(t, geoCopies[0].name, doc.Geo)
 	require.Regexp(t, `^geo-[0-9a-f]{12}\.mmdb$`, doc.Geo)
@@ -392,7 +397,7 @@ func TestEnsureGuardCopiesTheGeoIPDatabaseOnce(t *testing.T) {
 
 func TestEnsureGuardWithAMissingDatabaseFileWritesRulesWithoutGeo(t *testing.T) {
 	m, eng, _ := newGuardManager(t, func() string { return filepath.Join(t.TempDir(), "gone.mmdb") })
-	require.NoError(t, m.ensureGuard(context.Background(), GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)})))
+	require.NoError(t, m.ensureGuard(context.Background(), GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)})))
 	var doc guard.Rules
 	require.NoError(t, json.Unmarshal(eng.copiesOf(guard.RulesFile)[0].content, &doc))
 	require.Empty(t, doc.Geo, "country rules wait for a database (the guard drops them meanwhile)")
@@ -401,7 +406,7 @@ func TestEnsureGuardWithAMissingDatabaseFileWritesRulesWithoutGeo(t *testing.T) 
 
 func TestFinishGuardRemovesAGuardNothingNeeds(t *testing.T) {
 	m, eng, _ := newGuardManager(t, nil)
-	fws := GuardFirewalls([]agentprotocol.Route{countryRoute(svcApp)})
+	fws := GuardRoutes([]agentprotocol.Route{countryRoute(svcApp)})
 	require.NoError(t, m.ensureGuard(context.Background(), fws))
 
 	// The table still needs it: kept, with exactly the table's firewalls.
@@ -439,4 +444,173 @@ func TestGuardFirewallsFollowTheTableToTheGuard(t *testing.T) {
 	require.Len(t, doc.Routes, 1)
 	require.Contains(t, doc.Routes, svcApp)
 	require.Equal(t, "geo", doc.Routes[svcApp].Rules[0].ID)
+}
+
+// fakeBanSource is the auto-ban engine as the manager sees it.
+type fakeBanSource struct {
+	mu     sync.Mutex
+	routes [][]agentprotocol.Route
+	bans   agentprotocol.GuardBans
+	fn     func()
+}
+
+func (f *fakeBanSource) SetRoutes(r []agentprotocol.Route) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.routes = append(f.routes, r)
+}
+
+func (f *fakeBanSource) Bans() agentprotocol.GuardBans {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.bans
+}
+
+func (f *fakeBanSource) OnChange(fn func()) { f.fn = fn }
+
+func (f *fakeBanSource) set(b agentprotocol.GuardBans) {
+	f.mu.Lock()
+	f.bans = b
+	f.mu.Unlock()
+}
+
+func autoBanRoute(id string, allow ...string) agentprotocol.Route {
+	r := countryRoute(id)
+	r.AutoBan = &agentprotocol.AutoBan{Enabled: true, Threshold: 10, WindowSeconds: 600, DurationSeconds: 3600, Allow: allow}
+	return r
+}
+
+func banDoc(t *testing.T, c guardCopy) agentprotocol.GuardBans {
+	t.Helper()
+	var doc agentprotocol.GuardBans
+	require.NoError(t, json.Unmarshal(c.content, &doc))
+	return doc
+}
+
+func TestEnsureGuardWritesTheBansWithTheRules(t *testing.T) {
+	m, eng, _ := newGuardManager(t, nil)
+	exp := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
+	src := &fakeBanSource{bans: agentprotocol.GuardBans{Services: map[string]agentprotocol.GuardRouteBans{
+		svcApp:     {Allow: []string{"ignored"}, Bans: []agentprotocol.GuardBan{{Prefix: "203.0.113.7/32", ExpiresAt: exp}}},
+		svcWhoami:  {Bans: []agentprotocol.GuardBan{{Prefix: "198.51.100.1/32", ExpiresAt: exp}}},
+		"gone-one": {Bans: []agentprotocol.GuardBan{{Prefix: "198.51.100.2/32", ExpiresAt: exp}}},
+	}}}
+	m.SetBanSource(src)
+	require.NotNil(t, src.fn, "the manager registers for changes")
+
+	routes := []agentprotocol.Route{autoBanRoute(svcApp, "192.0.2.0/24"), countryRoute(svcWhoami)}
+	require.NoError(t, m.prepareGuard(context.Background(), routes))
+
+	bans := eng.copiesOf(guard.BansFile)
+	require.Len(t, bans, 1)
+	doc := banDoc(t, bans[0])
+	require.Len(t, doc.Services, 1, "only auto-ban routes hold bans")
+	require.Equal(t, []string{"192.0.2.0/24"}, doc.Services[svcApp].Allow, "the allow list comes from the route")
+	require.Equal(t, []agentprotocol.GuardBan{{Prefix: "203.0.113.7/32", ExpiresAt: exp}}, doc.Services[svcApp].Bans)
+
+	var rules guard.Rules
+	require.NoError(t, json.Unmarshal(eng.copiesOf(guard.RulesFile)[0].content, &rules))
+	require.Contains(t, rules.Routes, svcApp)
+	require.Contains(t, rules.Routes, svcWhoami)
+}
+
+func TestPushBansWritesOnlyTheBansFile(t *testing.T) {
+	m, eng, _ := newGuardManager(t, nil)
+	src := &fakeBanSource{}
+	m.SetBanSource(src)
+	ctx := context.Background()
+
+	// No guard yet: nothing to push to.
+	require.NoError(t, m.PushBans(ctx))
+	require.Empty(t, eng.copies)
+
+	routes := []agentprotocol.Route{autoBanRoute(svcApp, "192.0.2.0/24")}
+	m.routes = routes
+	require.NoError(t, m.ensureGuard(ctx, GuardRoutes(routes)))
+	rules := eng.copiesOf(guard.RulesFile)
+	require.Len(t, rules, 1)
+	copies, starts, execs, created := len(eng.copies), len(eng.starts), len(eng.execs), len(eng.created)
+
+	// Nothing changed: nothing written.
+	require.NoError(t, m.PushBans(ctx))
+	require.Len(t, eng.copies, copies)
+
+	// The engine reports a ban.
+	exp := time.Date(2026, 11, 23, 12, 0, 0, 0, time.UTC)
+	src.set(agentprotocol.GuardBans{Services: map[string]agentprotocol.GuardRouteBans{
+		svcApp: {Bans: []agentprotocol.GuardBan{{Prefix: "203.0.113.7/32", ExpiresAt: exp}}},
+	}})
+	src.fn()
+	require.Len(t, eng.copies, copies+1, "one file written")
+	last := eng.copies[len(eng.copies)-1]
+	require.Equal(t, guard.BansFile, last.name)
+	require.Equal(t, guard.Dir, last.dir)
+	require.Equal(t, "guard1", last.container)
+	require.EqualValues(t, 0o644, last.mode)
+	doc := banDoc(t, last)
+	require.Equal(t, []string{"192.0.2.0/24"}, doc.Services[svcApp].Allow)
+	require.Equal(t, []agentprotocol.GuardBan{{Prefix: "203.0.113.7/32", ExpiresAt: exp}}, doc.Services[svcApp].Bans)
+	require.Len(t, eng.copiesOf(guard.RulesFile), 1, "the rules are not rewritten")
+	require.Len(t, eng.copiesOf("nebulactrl-agent"), 1)
+	require.Len(t, eng.starts, starts)
+	require.Len(t, eng.created, created)
+	require.Empty(t, eng.removed)
+
+	// It waits for exactly the file it wrote (and the rules it holds).
+	require.Len(t, eng.execs, execs+1)
+	got := eng.execs[len(eng.execs)-1]
+	require.Equal(t, "http://127.0.0.1:83/v1/ready?rules="+guard.Hash(rules[0].content)+"&bans="+guard.Hash(last.content), got[len(got)-1])
+
+	// The same state again writes nothing; an ended ban writes the file again.
+	require.NoError(t, m.PushBans(ctx))
+	require.Len(t, eng.copies, copies+1)
+	src.set(agentprotocol.GuardBans{})
+	require.NoError(t, m.PushBans(ctx))
+	require.Len(t, eng.copies, copies+2)
+	require.Empty(t, banDoc(t, eng.copies[len(eng.copies)-1]).Services[svcApp].Bans)
+}
+
+func TestPushBansKeepsTheHashWhenTheGuardDoesNotServeTheFile(t *testing.T) {
+	m, eng, _ := newGuardManager(t, nil)
+	src := &fakeBanSource{}
+	m.SetBanSource(src)
+	ctx := context.Background()
+	routes := []agentprotocol.Route{autoBanRoute(svcApp)}
+	m.routes = routes
+	require.NoError(t, m.ensureGuard(ctx, GuardRoutes(routes)))
+
+	src.set(agentprotocol.GuardBans{Services: map[string]agentprotocol.GuardRouteBans{
+		svcApp: {Bans: []agentprotocol.GuardBan{{Prefix: "203.0.113.7/32", ExpiresAt: time.Now().Add(time.Hour)}}},
+	}})
+	eng.execCodes = []int{1}
+	ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer cancel()
+	require.Error(t, m.PushBans(ctx))
+	n := len(eng.copiesOf(guard.BansFile))
+	require.NoError(t, m.PushBans(context.Background()), "retried: written again and served this time")
+	require.Len(t, eng.copiesOf(guard.BansFile), n+1)
+}
+
+func TestPushBansDoesNothingWithoutAutoBanRoutes(t *testing.T) {
+	m, eng, _ := newGuardManager(t, nil)
+	m.SetBanSource(&fakeBanSource{})
+	routes := []agentprotocol.Route{countryRoute(svcApp)}
+	m.routes = routes
+	require.NoError(t, m.ensureGuard(context.Background(), GuardRoutes(routes)))
+	n := len(eng.copies)
+	require.NoError(t, m.PushBans(context.Background()))
+	require.Len(t, eng.copies, n)
+}
+
+func TestApplyHandsTheLiveTableToTheBanSource(t *testing.T) {
+	m, _, tr := newTestManager(t, &memRouteStore{})
+	src := &fakeBanSource{}
+	m.SetBanSource(src)
+
+	require.NoError(t, m.Apply(oneRoute("nc-app-1:80")))
+	require.Equal(t, [][]agentprotocol.Route{oneRoute("nc-app-1:80")}, src.routes)
+
+	tr.rejectPUT = http.StatusBadRequest
+	require.Error(t, m.Apply(oneRoute("nc-app-2:80")))
+	require.Len(t, src.routes, 1, "a rejected table is not handed over")
 }

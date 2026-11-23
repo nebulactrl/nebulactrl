@@ -69,7 +69,7 @@ func OpenFile(path string) (*Store, error) {
 		return nil, fmt.Errorf("open %s: %w", path, err)
 	}
 	err = db.Update(func(tx *bolt.Tx) error {
-		for _, b := range [][]byte{bucketIdentity, bucketCommands, bucketResults, bucketRoutes, bucketTrafficPending, bucketTrafficMeta, bucketTrafficSalt, bucketProbesPending} {
+		for _, b := range [][]byte{bucketIdentity, bucketCommands, bucketResults, bucketRoutes, bucketTrafficPending, bucketTrafficMeta, bucketTrafficSalt, bucketProbesPending, bucketAutobanBans, bucketAutobanOutbox} {
 			if _, err := tx.CreateBucketIfNotExists(b); err != nil {
 				return err
 			}

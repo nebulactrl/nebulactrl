@@ -101,7 +101,7 @@ const cronScheduleID = "config.cron.schedule"
 // as the marker of the whole [cron] table: removing it turns the schedule off (the
 // other cron keys are only released with it).
 func prunable(id string) bool {
-	if id == "uptime" || strings.HasPrefix(id, "uptime.") || id == cronScheduleID || id == "firewall" || id == "maintenance" {
+	if id == "uptime" || strings.HasPrefix(id, "uptime.") || id == cronScheduleID || id == "firewall" || id == "autoban" || id == "maintenance" {
 		return true
 	}
 	for _, p := range prunablePrefixes {

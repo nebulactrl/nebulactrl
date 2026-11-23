@@ -49,6 +49,7 @@ var t2keys = []struct{ key, scalar, table string }{
 	{"backups", "", "[services.x.backups.nightly]\ndestination = \"d\"\ncron = \"0 2 * * *\"\n\n"},
 	{"uptime", "", "[services.x.uptime]\nenabled = true\n\n"},
 	{"firewall", "", "[services.x.firewall]\n\n[[services.x.firewall.rules]]\nname = \"n\"\naction = \"block\"\n\n[[services.x.firewall.rules.conditions]]\nfield = \"path\"\nop = \"prefix\"\nvalues = [\"/a\"]\n\n"},
+	{"autoban", "", "[services.x.autoban]\nenabled = true\nthreshold = 5\n\n"},
 	{"maintenance", "", "[services.x.maintenance]\nenabled = false\n\n"},
 	{"depends_on", "depends_on = [\"other\"]\n", ""},
 	{"networks", "networks = [\"backplane\"]\n", ""},
@@ -70,7 +71,7 @@ var t2matrix = map[string]map[string]string{
 		"build": mxNotAllo, "port": mxDerive, "command": mxDerive, "health_check": mxDerive, "one_shot": mxDerive,
 		"pre_deploy": mxNotAllo, "post_deploy": mxNotAllo, "files": mxNotAllo, "volumes": mxEither,
 		"domains": mxNotAllo, "scale": mxNotAllo, "processes": mxNotAllo, "process_name": mxNotAllo, "singleton": mxNotAllo,
-		"restart_policy": mxNotAllo, "restart_max_retries": mxNotAllo, "cron": mxNotAllo, "firewall": mxNotAllo, "maintenance": mxNotAllo,
+		"restart_policy": mxNotAllo, "restart_max_retries": mxNotAllo, "cron": mxNotAllo, "firewall": mxNotAllo, "autoban": mxNotAllo, "maintenance": mxNotAllo,
 	},
 	"route": {
 		"build": mxNotAllo, "port": mxNotAllo, "command": mxNotAllo, "health_check": mxNotAllo, "one_shot": mxNotAllo,
@@ -86,7 +87,7 @@ var t2matrix = map[string]map[string]string{
 		"pre_deploy": mxNotAllo, "post_deploy": mxNotAllo, "files": mxNotAllo,
 		"volumes": mxNotAllo, "docker": mxNotAllo, "tailnet": mxNotAllo, "scale": mxNotAllo, "tasks": mxNotAllo, "backups": mxNotAllo,
 		"processes": mxNotAllo, "process_name": mxNotAllo, "singleton": mxNotAllo,
-		"restart_policy": mxNotAllo, "restart_max_retries": mxNotAllo, "cron": mxNotAllo, "firewall": mxNotAllo, "maintenance": mxNotAllo,
+		"restart_policy": mxNotAllo, "restart_max_retries": mxNotAllo, "cron": mxNotAllo, "firewall": mxNotAllo, "autoban": mxNotAllo, "maintenance": mxNotAllo,
 	},
 }
 

@@ -49,6 +49,63 @@
       "maxItems": 64,
       "type": "array"
     },
+    "autoban": {
+      "additionalProperties": false,
+      "properties": {
+        "allow": {
+          "description": "Addresses and networks that are never banned: CIDRs or single addresses. Adding one lifts its active bans.",
+          "examples": [
+            [
+              "203.0.113.0/24"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 200,
+          "type": "array"
+        },
+        "duration_seconds": {
+          "default": 3600,
+          "description": "How long, in seconds, a ban lasts (5 minutes to 7 days).",
+          "examples": [
+            3600
+          ],
+          "maximum": 604800,
+          "minimum": 300,
+          "type": "integer"
+        },
+        "enabled": {
+          "default": false,
+          "description": "Switch auto-ban on. A table without enabled leaves it off.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "threshold": {
+          "default": 10,
+          "description": "Blocked requests from one address, within window_seconds, that start a ban. Only requests the standard protection or a block rule with a condition other than ip or country blocked count.",
+          "examples": [
+            10
+          ],
+          "maximum": 1000,
+          "minimum": 3,
+          "type": "integer"
+        },
+        "window_seconds": {
+          "default": 600,
+          "description": "How far back, in seconds, blocked requests count toward a ban (60 to 24 hours).",
+          "examples": [
+            600
+          ],
+          "maximum": 86400,
+          "minimum": 60,
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
     "autoscaling": {
       "additionalProperties": false,
       "properties": {
@@ -2176,6 +2233,11 @@
                 },
                 {
                   "required": [
+                    "autoban"
+                  ]
+                },
+                {
+                  "required": [
                     "maintenance"
                   ]
                 }
@@ -2483,6 +2545,11 @@
                 },
                 {
                   "required": [
+                    "autoban"
+                  ]
+                },
+                {
+                  "required": [
                     "maintenance"
                   ]
                 }
@@ -2513,6 +2580,15 @@
     "serviceBody": {
       "additionalProperties": false,
       "properties": {
+        "autoban": {
+          "$ref": "#/$defs/autoban",
+          "description": "Auto-ban: an address that trips the standard protection or a block rule (other than ip or country rules) again and again is banned for a while by the edge guard. The whole table is owned as one unit: a key you leave out takes its default (off, 10 blocked requests in 10 minutes ban an address for 1 hour, empty allow list). Needs traffic analytics on the service's server. Applied immediately. HTTP services only.",
+          "examples": [
+            {
+              "enabled": true
+            }
+          ]
+        },
         "backups": {
           "additionalProperties": {
             "$ref": "#/$defs/backup"

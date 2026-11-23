@@ -123,6 +123,9 @@ var catalog = []ChannelEventType{
 		Description: "A service failed its uptime checks (health probes run from the server every 30 seconds) several times in a row. Sent once per outage, and again as a reminder every few minutes while it lasts if the service's monitor sets a reminder interval; maintenance and deployments are not outages."},
 	{Type: TypeUptimeUp, Label: "Service up (uptime)", Group: GroupServices, Severity: SeverityInfo, DefaultOn: true, tone: toneOK,
 		Description: "A service that was announced as down passes its uptime checks again. Includes how long the outage lasted. Sent with the severity of the alert it closes."},
+
+	{Type: TypeServiceAutoBan, Label: "Auto-ban", Group: GroupServices, Severity: SeverityWarning, tone: toneWarn,
+		Description: "Auto-ban banned addresses on a service for tripping the firewall again and again. One message per service per 10 minutes with the number of addresses and the rule that struck most; never an address. Off by default: a public service can be scanned all day."},
 }
 
 // Catalog returns the event types in display order.

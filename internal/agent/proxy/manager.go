@@ -171,6 +171,8 @@ type Manager struct {
 	edge edgeState
 	// guard is what the edge guard container holds (applyMu).
 	guard guardState
+	// banSource is the auto-ban engine (SetBanSource; mu).
+	banSource BanSource
 }
 
 // NewManager builds a Manager and loads any persisted route table, settings
@@ -478,6 +480,15 @@ func (m *Manager) applyLocked(ctx context.Context, routes []agentprotocol.Route)
 		}
 	}
 	m.log.Info("applied routes", "routes", len(routes), "generation", m.generation(), "recreated", recreated)
+	// The auto-ban engine follows the table that went live (its policies, and
+	// the bans of routes that are gone lifted). It runs under applyMu, so it
+	// must not call back into the manager synchronously (PushBans waits).
+	m.mu.RLock()
+	bans := m.banSource
+	m.mu.RUnlock()
+	if bans != nil {
+		bans.SetRoutes(routes)
+	}
 
 	// The tailnet node last: it shares the (possibly new) proxy container's
 	// network namespace, and a tailnet failure must not undo a good route table.

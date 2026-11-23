@@ -729,6 +729,10 @@ type DeployPayload struct {
 	// builds from this payload when the service has no live route yet; a live
 	// route keeps the live table's firewall (sync_routes is the authority).
 	Firewall *Firewall `json:"firewall,omitempty"`
+	// AutoBan is the service's auto-ban policy (nil = off), for the route the
+	// agent builds from this payload when the service has no live route yet; a
+	// live route keeps the live table's policy (sync_routes is the authority).
+	AutoBan *AutoBan `json:"autoBan,omitempty"`
 	// Proxy replaces the server-level proxy configuration (nil = unchanged).
 	Proxy *ProxyConfig `json:"proxy,omitempty"`
 	// Tailnet is the service's desired per-service tailnet node (nil = none and

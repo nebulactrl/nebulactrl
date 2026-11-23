@@ -88,6 +88,7 @@ type Client struct {
 	connected    atomic.Bool
 	onTrafficAck func(seq uint64)
 	onProbesAck  func(seq uint64)
+	onBansAck    func(seq uint64)
 
 	inflight sync.Map       // command ID -> struct{}
 	handlers sync.WaitGroup // running command handlers; Run waits for them
@@ -152,6 +153,13 @@ func (c *Client) SetTrafficAckHandler(fn func(seq uint64)) {
 func (c *Client) SetProbesAckHandler(fn func(seq uint64)) {
 	c.mu.Lock()
 	c.onProbesAck = fn
+	c.mu.Unlock()
+}
+
+// SetBansAckHandler installs the callback for bans_ack frames.
+func (c *Client) SetBansAckHandler(fn func(seq uint64)) {
+	c.mu.Lock()
+	c.onBansAck = fn
 	c.mu.Unlock()
 }
 
@@ -430,6 +438,17 @@ func (c *Client) readLoop(ctx context.Context, ws *websocket.Conn) error {
 			if fn != nil {
 				fn(ack.Seq)
 			}
+		case agentprotocol.TypeBansAck:
+			var ack agentprotocol.BanAck
+			if err := f.Into(&ack); err != nil {
+				continue
+			}
+			c.mu.RLock()
+			fn := c.onBansAck
+			c.mu.RUnlock()
+			if fn != nil {
+				fn(ack.Seq)
+			}
 		case agentprotocol.TypeProbesAck:
 			var ack agentprotocol.ProbesAck
 			if err := f.Into(&ack); err != nil {
@@ -616,6 +635,10 @@ func (c *Client) Traffic(t agentprotocol.Traffic)   { c.send(agentprotocol.TypeT
 // Probes queues a Probes frame. Like Traffic it is neither superseded nor
 // dropped by the outbox: the collector buffers results and waits for the ack.
 func (c *Client) Probes(p agentprotocol.Probes) { c.send(agentprotocol.TypeProbes, "", p) }
+
+// AutoBans queues a BanFrame. The auto-ban engine keeps unacknowledged events
+// durably and resends them, so the frame is a plain droppable one.
+func (c *Client) AutoBans(f agentprotocol.BanFrame) { c.send(agentprotocol.TypeBans, "", f) }
 
 // Stream queues an interactive stream frame (exec_*, fs_*, stream_ack) whose
 // envelope ID is id. Unlike other frames it is dropped when the control plane

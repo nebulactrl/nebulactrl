@@ -52,3 +52,22 @@ func TestInheritFirewallFollowsTheLiveTableAndKeepsANewRoutesOwn(t *testing.T) {
 	require.Nil(t, got[1].Firewall, "a firewall removed after dispatch stays removed")
 	require.Equal(t, "own", got[2].Firewall.Rules[0].ID, "a first deploy is protected by the firewall it carries")
 }
+
+func TestInheritAutoBanFollowsTheLiveTableAndKeepsANewRoutesOwn(t *testing.T) {
+	policy := func(threshold int) *agentprotocol.AutoBan {
+		return &agentprotocol.AutoBan{Enabled: true, Threshold: threshold, WindowSeconds: 600, DurationSeconds: 3600}
+	}
+	live := []agentprotocol.Route{
+		{ServiceID: "changed", RouteExt: agentprotocol.RouteExt{AutoBan: policy(20)}},
+		{ServiceID: "removed"},
+	}
+	payload := []agentprotocol.Route{
+		{ServiceID: "changed", RouteExt: agentprotocol.RouteExt{AutoBan: policy(5)}},
+		{ServiceID: "removed", RouteExt: agentprotocol.RouteExt{AutoBan: policy(5)}},
+		{ServiceID: "first", RouteExt: agentprotocol.RouteExt{AutoBan: policy(7)}},
+	}
+	got := inheritOperational(payload, live)
+	require.Equal(t, 20, got[0].AutoBan.Threshold, "a policy changed after dispatch is kept")
+	require.Nil(t, got[1].AutoBan, "a policy removed after dispatch stays removed")
+	require.Equal(t, 7, got[2].AutoBan.Threshold, "a first deploy keeps the policy it carries")
+}

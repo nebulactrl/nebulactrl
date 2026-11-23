@@ -12,6 +12,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/services"
+	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
 // Kinds of FirewallRuleCount.
@@ -64,6 +65,9 @@ func newRuleBook(raw json.RawMessage) ruleBook {
 	for _, s := range domains.StandardRules() {
 		book[s.Rule.ID] = ruleInfo{s.Rule.Name, FirewallKindStandard, s.Rule.Action}
 	}
+	// Requests the edge guard blocked for a banned address carry the reserved
+	// rule id autoban; no rule of the service can have it.
+	book[agentprotocol.FirewallRuleAutoBan] = ruleInfo{"Auto-ban", FirewallKindRule, agentprotocol.FirewallBlock}
 	if fw := domains.DecodeFirewall(raw); fw != nil {
 		for _, r := range fw.Rules {
 			name := r.Name

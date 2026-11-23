@@ -52,6 +52,10 @@ const (
 	TypeBackupMissed       = "backup.missed"
 )
 
+// TypeServiceAutoBan: addresses auto-ban banned on a service, one digest per
+// service per 10 minutes (internal/firewall). It carries no address.
+const TypeServiceAutoBan = "service.autoban"
+
 // Built-in backup storage (internal/instsvc): a team's slice of the instance S3
 // crossed 80% of its quota, or is full. Each is sent once per crossing.
 const (

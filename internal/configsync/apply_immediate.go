@@ -12,6 +12,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/backups"
 	"github.com/nebulactrl/nebulactrl/internal/db"
+	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/firewall"
 	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/integrations/cloudflare"
@@ -113,6 +114,14 @@ func (a *applier) planImmediate(sp *svcPlan) {
 	for _, f := range sp.removesWith("firewall") {
 		f := f
 		add(&immStep{name: stepName("firewall", slug, "reset"), drop: []string{f.fv.ID}, run: func(ctx context.Context) error { return a.runFirewall(ctx, sp, id, f, true) }})
+	}
+	for _, f := range imm("autoban") {
+		f := f
+		add(&immStep{name: stepName("autoban", slug), fields: []*fieldPlan{f}, run: func(ctx context.Context) error { return a.runAutoBan(ctx, id, f, false) }})
+	}
+	for _, f := range sp.removesWith("autoban") {
+		f := f
+		add(&immStep{name: stepName("autoban", slug, "reset"), drop: []string{f.fv.ID}, run: func(ctx context.Context) error { return a.runAutoBan(ctx, id, f, true) }})
 	}
 	for _, f := range imm("maintenance") {
 		f := f
@@ -505,6 +514,27 @@ func (a *applier) runFirewall(ctx context.Context, sp *svcPlan, id uuid.UUID, f 
 		// base without them would never match the live list, so a later change would read as a conflict.
 		v := projectconfig.FirewallValueOf(stored.Rules)
 		f.desired = view(v, firewallDisplay(v))
+	}
+	return nil
+}
+
+// runAutoBan replaces the service's auto-ban policy with the file's; reset switches it off and back to its defaults.
+func (a *applier) runAutoBan(ctx context.Context, id uuid.UUID, f *fieldPlan, reset bool) error {
+	pol := domains.DefaultAutoBan()
+	if !reset {
+		v, ok := f.fv.Value.(projectconfig.AutoBanValue)
+		if !ok {
+			return refErr("wrong_type", "autoban has an unexpected value")
+		}
+		pol = v.Policy()
+	}
+	stored, err := a.s.Firewall.PutAutoBan(ctx, id, pol)
+	if err != nil {
+		return err
+	}
+	if !reset {
+		v := projectconfig.AutoBanValueOf(stored.Policy)
+		f.desired = view(v, autobanDisplay(v))
 	}
 	return nil
 }

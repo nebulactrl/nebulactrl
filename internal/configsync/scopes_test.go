@@ -67,7 +67,7 @@ func TestScopeOfFieldEveryCatalogIDNeedsAValidScope(t *testing.T) {
 			want = policy.ScopeDeploymentsWrite
 		case strings.HasPrefix(id, "uptime."):
 			want = policy.ScopeAdmin
-		case id == "firewall", strings.HasPrefix(id, "config.route."):
+		case id == "firewall", id == "autoban", strings.HasPrefix(id, "config.route."):
 			want = policy.ScopeProxyWrite
 		case id == "maintenance":
 			want = policy.ScopeDeploymentsWrite

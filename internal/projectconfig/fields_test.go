@@ -51,7 +51,7 @@ func TestCatalogSanity(t *testing.T) {
 		}
 		sort.Strings(got)
 		want := []string{
-			"backups.*", "domains.*.cloudflare", "firewall", "git.auto_deploy", "git.link", "git.poll", "git.poll_deploy", "git.wait_for_ci", "git.watch_paths", "maintenance", "name",
+			"autoban", "backups.*", "domains.*.cloudflare", "firewall", "git.auto_deploy", "git.link", "git.poll", "git.poll_deploy", "git.wait_for_ci", "git.watch_paths", "maintenance", "name",
 			"processes.*.scale.autoscaling.enabled", "processes.*.scale.autoscaling.max", "processes.*.scale.autoscaling.min",
 			"processes.*.scale.autoscaling.targetCpuPercent", "processes.*.scale.replicas",
 			"scale.autoscaling.enabled", "scale.autoscaling.max", "scale.autoscaling.min", "scale.autoscaling.targetCpuPercent",
@@ -620,6 +620,12 @@ field = "ip"
 op = "in"
 values = ["203.0.113.0/24"]
 
+[services.img.autoban]
+enabled = true
+threshold = 5
+window_seconds = 120
+allow = ["203.0.113.7", "198.51.100.0/24", "203.0.113.7/32"]
+
 [services.img.maintenance]
 enabled = true
 title = "  Back soon "
@@ -672,7 +678,7 @@ func TestFieldsPerKind(t *testing.T) {
 			"domains.shop.acme.com", "domains.shop.acme.com.cloudflare", "domains.shop.acme.com/api", "domains.plain.acme.com",
 			"scale.replicas", "scale.autoscaling.enabled", "scale.autoscaling.min", "scale.autoscaling.max", "scale.autoscaling.targetCpuPercent",
 			"uptime.enabled", "uptime.alerts", "uptime.failureThreshold", "uptime.recoveryThreshold", "uptime.reminderMinutes",
-			"tasks.digest", "tasks.minimal", "tasks.restarter", "firewall", "maintenance",
+			"tasks.digest", "tasks.minimal", "tasks.restarter", "firewall", "autoban", "maintenance",
 		),
 		"ex": {"server", "config.image", "config.healthcheck.type", "config.healthcheck.command"},
 		"cr": {
@@ -910,6 +916,7 @@ func TestFieldValuesOfTheImageService(t *testing.T) {
 				{Field: "ip", Op: "in", Values: []string{"203.0.113.0/24"}},
 			}},
 		}}, val("firewall"))
+		require.Equal(t, AutoBanValue{Enabled: true, Threshold: 5, WindowSeconds: 120, DurationSeconds: 3600, Allow: []string{"203.0.113.7/32", "198.51.100.0/24"}}, val("autoban"), "a key left out is its default; the allow list is canonical")
 		require.Equal(t, MaintenanceValue{Enabled: true, Title: "Back soon", Message: "Upgrading.", ETA: "2026-12-01T06:00:00Z"}, val("maintenance"))
 		require.Equal(t, MaintenanceValue{}, t2field(t, t2KindsResolved(t), "rt", "maintenance").Value, "a disabled value carries no page text")
 	})

@@ -117,6 +117,9 @@ type Config struct {
 	// Logs serves log history queries and drain tests and receives the log
 	// configuration (nil: those commands fail).
 	Logs LogsService
+	// AutoBan holds the active auto-bans; autoban_unban commands end one
+	// (nil: they fail). *autoban.Engine implements it.
+	AutoBan AutoBanService
 	// CleanupTune, when set, adjusts the Docker cleanup before each run. Tests
 	// use it to move the clock and to scope the cleanup to their own images on
 	// a daemon they share; the agent leaves it nil.
@@ -428,6 +431,8 @@ func (e *Engine) HandleCommand(ctx context.Context, cmd agentprotocol.Command) a
 		return e.handleRemove(ctx, cmd)
 	case agentprotocol.KindSyncRoutes:
 		return e.handleSyncRoutes(ctx, cmd)
+	case agentprotocol.KindAutoBanUnban:
+		return e.handleAutoBanUnban(cmd)
 	case agentprotocol.KindWorkloadInventory:
 		return e.handleWorkloadInventory(ctx, cmd)
 	case agentprotocol.KindProxyConfigure:

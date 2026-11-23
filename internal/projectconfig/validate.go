@@ -190,6 +190,7 @@ func (v *view) validateService(c *svcCtx) {
 	c.checkScale()
 	c.checkUptime()
 	c.checkFirewall()
+	c.checkAutoBan()
 	c.checkMaintenance()
 	c.checkProcesses()
 	c.checkTasks()
@@ -274,6 +275,7 @@ func (c *svcCtx) checkKind() {
 	forbid("domains", d.Domains != nil)
 	forbid("scale", d.Scale != nil)
 	forbid("firewall", d.Firewall != nil)
+	forbid("autoban", d.AutoBan != nil)
 	forbid("maintenance", d.Maintenance != nil)
 	forbid("processes", d.Processes != nil)
 	forbid("process_name", d.ProcessName != nil)
@@ -348,7 +350,7 @@ func matrix(kind, key string) int {
 		if kind != KindDatabase {
 			return mxForbidden
 		}
-	case "firewall", "maintenance":
+	case "firewall", "autoban", "maintenance":
 		if kind == KindDatabase || kind == KindStack {
 			return mxForbidden
 		}

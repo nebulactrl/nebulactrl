@@ -35,6 +35,7 @@ type blocksOutput struct{ Body analytics.FirewallBlocks }
 
 // Register attaches the firewall endpoints.
 func Register(h huma.API, s *Service) {
+	registerAutoBan(h, s)
 	errs := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound}
 	huma.Register(h, api.WithScopes(huma.Operation{
 		OperationID: "getServiceFirewall", Method: http.MethodGet, Path: "/services/{serviceId}/firewall", Tags: []string{"services"},
@@ -84,5 +85,95 @@ func Register(h huma.API, s *Service) {
 			return nil, err
 		}
 		return &viewOutput{Body: v}, nil
+	})
+}
+
+type autoBanPutInput struct {
+	ID   uuid.UUID `path:"serviceId"`
+	Body agentprotocol.AutoBan
+}
+
+type autoBanViewOutput struct{ Body AutoBanView }
+
+type listBansInput struct {
+	ID    uuid.UUID `path:"serviceId"`
+	State string    `query:"state" default:"active" enum:"active,ended" doc:"active: the bans in force now, with the banned address. ended: past bans, prefix only"`
+	api.PageQuery
+}
+
+type listBansOutput struct{ Body BansPage }
+
+type unbanInput struct {
+	ID    uuid.UUID `path:"serviceId"`
+	BanID uuid.UUID `path:"banId"`
+}
+
+type unbanOutput struct{ Body UnbanView }
+
+// registerAutoBan attaches the auto-ban endpoints (Register calls it).
+func registerAutoBan(h huma.API, s *Service) {
+	errs := []int{http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound}
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "getServiceAutoBan", Method: http.MethodGet, Path: "/services/{serviceId}/autoban", Tags: []string{"services"},
+		Summary: "Get a service's auto-ban policy",
+		Description: "Auto-ban bans an address that trips the service's firewall again and again: `threshold` blocked requests within " +
+			"`windowSeconds` ban it for `durationSeconds`. Only requests blocked by the standard protection or by a block rule with a condition " +
+			"other than `ip` or `country` count; allow rules, private and Cloudflare addresses and the `allow` list never do. " +
+			"`supported` is false when the server's agent is too old, `analytics` false while traffic analytics is off on the server " +
+			"(auto-ban needs it), `warnings` lists conditions that keep some visitors from being banned.",
+		Errors: errs,
+	}, policy.ScopeProjectsRead), func(ctx context.Context, in *firewallPath) (*autoBanViewOutput, error) {
+		v, err := s.GetAutoBan(ctx, in.ID)
+		if err != nil {
+			return nil, err
+		}
+		return &autoBanViewOutput{Body: v}, nil
+	})
+
+	huma.Register(h, api.WithScopes(api.WithIdempotency(huma.Operation{
+		OperationID: "setServiceAutoBan", Method: http.MethodPut, Path: "/services/{serviceId}/autoban", Tags: []string{"services"},
+		Summary: "Replace a service's auto-ban policy",
+		Description: "Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 " +
+			"CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned " +
+			"address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). " +
+			"The change is operational: it applies at once, without a deployment, is never staged and never rolled back. " +
+			"422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic " +
+			"analytics is off on the server, `autoban_unsupported` for a tcp/udp route.",
+		Errors: append(errs, http.StatusUnprocessableEntity),
+	}), policy.ScopeProjectsWrite, policy.ScopeProxyWrite), func(ctx context.Context, in *autoBanPutInput) (*autoBanViewOutput, error) {
+		v, err := s.PutAutoBan(ctx, in.ID, in.Body)
+		if err != nil {
+			return nil, err
+		}
+		return &autoBanViewOutput{Body: v}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "listServiceBans", Method: http.MethodGet, Path: "/services/{serviceId}/bans", Tags: []string{"services"},
+		Summary: "List a service's bans",
+		Description: "Bans auto-ban decided for the service, newest first. An active ban shows the banned `address`; an ended one keeps only the `prefix` " +
+			"(the address is forgotten when the ban ends) and is listed for 90 days.",
+		Errors: errs,
+	}, policy.ScopeProjectsRead), func(ctx context.Context, in *listBansInput) (*listBansOutput, error) {
+		p, err := s.ListBans(ctx, in.ID, in.State, in.PageQuery)
+		if err != nil {
+			return nil, err
+		}
+		return &listBansOutput{Body: p}, nil
+	})
+
+	huma.Register(h, api.WithScopes(api.WithIdempotency(huma.Operation{
+		OperationID: "unbanServiceAddress", Method: http.MethodDelete, Path: "/services/{serviceId}/bans/{banId}", Tags: []string{"services"},
+		Summary: "Lift a ban",
+		Description: "Tells the server's agent to lift an active ban; it ends when the agent confirms. The address can be banned again if it keeps tripping the " +
+			"firewall: add it to the policy's `allow` list to keep it out of auto-ban. 409 `ban_not_active` when the ban already ended.",
+		Errors:        append(errs, http.StatusConflict),
+		DefaultStatus: http.StatusAccepted,
+	}), policy.ScopeProjectsWrite, policy.ScopeProxyWrite), func(ctx context.Context, in *unbanInput) (*unbanOutput, error) {
+		v, err := s.Unban(ctx, in.ID, in.BanID)
+		if err != nil {
+			return nil, err
+		}
+		return &unbanOutput{Body: v}, nil
 	})
 }

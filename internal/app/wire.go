@@ -284,6 +284,8 @@ func wire(c *Core) Modules {
 	scalingSvc := scaling.NewService(c.Pool, c.Bus, hub, serviceSvc, c.Logger)
 	maintenanceSvc := maintenance.NewService(c.Pool, c.Bus, hub, serviceSvc, c.Logger)
 	firewallSvc := firewall.NewService(c.Pool, c.Bus, proxySvc, c.Logger)
+	firewallSvc.SetDispatcher(hub)
+	firewallSvc.SetNotifier(notifySvc)
 	networkSvc := networks.NewService(c.Pool, c.Bus)
 
 	// One-click template catalog (embedded, validated at startup; a bad template is
@@ -390,6 +392,7 @@ func wire(c *Core) Modules {
 
 	// The hub calls back into the domain for secrets, results and redaction.
 	handler := &agentHandler{deps: deploymentSvc, rec: reconcilerSvc, svcs: serviceSvc, scal: scalingSvc, bk: backupSvc, dbs: databaseSvc, proxy: proxySvc, reg: registrySvc}
+	handler.fw = firewallSvc
 	handler.tasks = taskSvc
 	handler.tn = tailnetSvc
 	handler.tunnel = tunnelSvc
@@ -424,6 +427,7 @@ func wire(c *Core) Modules {
 	hub.SetRedactor(handler)
 	hub.SetTrafficSink(analyticsSvc)
 	hub.SetProbeSink(uptimeSvc)
+	hub.SetBanSink(firewallSvc)
 	hub.AddSourceScanSink(variableSvc)
 	hub.SetNotifier(notifySvc)
 	scalingSvc.SetNotifier(notifySvc)
@@ -498,6 +502,7 @@ func wire(c *Core) Modules {
 	sysupdate.RegisterJobs(c.Jobs, updateSvc)
 	serverpatching.RegisterJobs(c.Jobs, patchingSvc)
 	proxyserver.RegisterJobs(c.Jobs, notifySvc)
+	firewall.RegisterJobs(c.Jobs, firewallSvc)
 	analytics.RegisterJobs(c.Jobs, analyticsSvc)
 	uptime.RegisterJobs(c.Jobs, uptimeSvc)
 	deployments.RegisterJobs(c.Jobs, deploymentSvc)
