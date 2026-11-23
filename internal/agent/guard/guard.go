@@ -43,6 +43,8 @@ const (
 	Binary = Dir + "/nebulactrl-agent"
 	// RulesFile is the JSON Rules document.
 	RulesFile = "rules.json"
+	// BansFile is the JSON agentprotocol.GuardBans document.
+	BansFile = "bans.json"
 )
 
 // reloadEvery is how often the server looks for changed files.

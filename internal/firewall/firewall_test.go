@@ -276,6 +276,7 @@ func TestPutRejectsInvalidRules(t *testing.T) {
 		"path no slash":                   {rule("a", agentprotocol.FirewallBlock, cond("path", "prefix", "admin"))},
 		"values emptied by normalization": {rule("a", agentprotocol.FirewallBlock, cond("path", "contains", "  "))},
 		"reserved standard id":            {rule("stdsecrets", agentprotocol.FirewallAllow, cond("path", "prefix", "/"))},
+		"reserved autoban id":             {rule(agentprotocol.FirewallRuleAutoBan, agentprotocol.FirewallBlock, cond("path", "prefix", "/"))},
 		"more than 50 rules": func() []agentprotocol.FirewallRule {
 			out := make([]agentprotocol.FirewallRule, agentprotocol.MaxFirewallRules+1)
 			for i := range out {

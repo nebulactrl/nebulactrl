@@ -266,6 +266,10 @@ func (s *Service) Put(ctx context.Context, id uuid.UUID, in PutInput) (FirewallV
 			return FirewallView{}, apierr.Unprocessable("invalid_firewall",
 				fmt.Sprintf("rule %d: ids starting with %q are reserved for the standard protection", i+1, domains.StandardRuleIDPrefix))
 		}
+		if strings.TrimSpace(r.ID) == agentprotocol.FirewallRuleAutoBan {
+			return FirewallView{}, apierr.Unprocessable("invalid_firewall",
+				fmt.Sprintf("rule %d: the id %q is reserved for auto-ban", i+1, agentprotocol.FirewallRuleAutoBan))
+		}
 	}
 	fw := normalize(in.Rules)
 	if err := fw.Validate(); err != nil {

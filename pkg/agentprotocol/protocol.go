@@ -54,6 +54,7 @@ const (
 	TypeStats     = "stats"
 	TypeObserved  = "observed"
 	TypeTraffic   = "traffic"
+	TypeBans      = "bans"
 
 	// Control plane → agent.
 	TypeChallenge  = "challenge"
@@ -61,6 +62,7 @@ const (
 	TypeResultAck  = "result_ack"
 	TypeReconcile  = "reconcile"
 	TypeTrafficAck = "traffic_ack"
+	TypeBansAck    = "bans_ack"
 )
 
 // Command kinds. The agent rejects any kind not in this set.
@@ -73,12 +75,13 @@ const (
 	KindSyncRoutes      = "sync_routes"
 	KindLogsSubscribe   = "logs_subscribe"
 	KindLogsUnsubscribe = "logs_unsubscribe"
+	KindAutoBanUnban    = "autoban_unban"
 )
 
 // AllowedKinds lists every command kind an agent accepts.
 var AllowedKinds = map[string]bool{
 	KindDeploy: true, KindScaleService: true, KindRestartService: true, KindStopService: true, KindRemoveService: true,
-	KindSyncRoutes: true, KindLogsSubscribe: true, KindLogsUnsubscribe: true,
+	KindSyncRoutes: true, KindLogsSubscribe: true, KindLogsUnsubscribe: true, KindAutoBanUnban: true,
 }
 
 // Deploy steps reported via EventFrame.Step.

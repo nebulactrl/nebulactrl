@@ -675,6 +675,10 @@ func (c *svcCtx) checkFirewall() {
 			c.err(CodeInvalidValue, rp("firewall", "rules", "["+itoa(i)+"]", "id"), "ids starting with %q are reserved for the standard protection", domains.StandardRuleIDPrefix)
 			return
 		}
+		if v.Rules[i].ID == agentprotocol.FirewallRuleAutoBan {
+			c.err(CodeInvalidValue, rp("firewall", "rules", "["+itoa(i)+"]", "id"), "the id %q is reserved for auto-ban", agentprotocol.FirewallRuleAutoBan)
+			return
+		}
 	}
 	err := agentprotocol.Firewall{Rules: v.FirewallRules()}.Validate()
 	if err == nil {
