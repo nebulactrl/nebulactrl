@@ -28,26 +28,6 @@ func ValidPackageName(name string) bool {
 	return len(name) <= MaxPackageNameLen && packageNamePattern.MatchString(name)
 }
 
-// IsHeld reports whether a scheduled upgrade leaves package name alone: a
-// built-in hold or one of the extra holds.
-func IsHeld(name string, extra []string) bool {
-	for _, h := range BuiltinHolds {
-		if prefix, ok := strings.CutSuffix(h, "*"); ok {
-			if strings.HasPrefix(name, prefix) {
-				return true
-			}
-		} else if name == h {
-			return true
-		}
-	}
-	for _, h := range extra {
-		if name == h {
-			return true
-		}
-	}
-	return false
-}
-
 // holdPatterns is the built-in and extra holds as one POSIX shell case pattern
 // list ("docker-ce|runc|moby-*|vim"). Extra holds are validated first, so none
 // can carry shell syntax.

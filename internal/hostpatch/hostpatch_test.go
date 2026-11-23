@@ -312,14 +312,7 @@ func TestScheduledUpgradeScripts(t *testing.T) {
 	require.Contains(t, dnf, "dnf -y upgrade --security --exclude='docker-ce,docker-ce-cli,docker-ce-rootless-extras,docker-buildx-plugin,docker-compose-plugin,containerd.io,docker.io,containerd,runc,moby-*,vim'")
 }
 
-func TestIsHeld(t *testing.T) {
-	for _, n := range []string{"docker-ce", "docker-ce-cli", "containerd.io", "containerd", "runc", "moby-engine", "moby-cli", "docker.io", "docker-compose-plugin", "vim"} {
-		require.True(t, IsHeld(n, []string{"vim"}), n)
-	}
-	for _, n := range []string{"docker-cex", "containerd-shim", "openssl", "libseccomp2", "xmoby-engine"} {
-		require.False(t, IsHeld(n, nil), n)
-	}
-	require.False(t, IsHeld("vim", nil))
+func TestValidPackageName(t *testing.T) {
 	require.True(t, ValidPackageName("libstdc++6"))
 	require.True(t, ValidPackageName("python3.11"))
 	require.False(t, ValidPackageName(""))
