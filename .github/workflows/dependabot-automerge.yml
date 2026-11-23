@@ -2,9 +2,14 @@
 # from the groups in AUTOMERGE_GROUPS (.github/dependabot.yml): GitHub Actions, Docker
 # and Compose images and Bun development dependencies, each released at least 7 days
 # ago (the cooldown). GitHub squash-merges it once the required checks of the main
-# ruleset pass. Everything else stays for a human: Go modules, Bun runtime
-# dependencies, minor and major updates, and security updates (they skip the
-# cooldown and carry no group).
+# ruleset pass. An ungrouped patch update counts too when the pull request's ecosystem
+# and directory have their *-patch group in AUTOMERGE_GROUPS: Dependabot leaves an
+# update out of the group when the group's update-types do not match, as for a
+# digest-only bump of a pinned image. Everything else stays for a human: Go modules,
+# Bun runtime dependencies, minor and major updates, and security updates (they skip
+# the cooldown and carry no group; the pull request body says which they are).
+# The rule lives in scripts/ci/dependabot-automerge-check.sh, tested by
+# scripts/ci/test-dependabot-automerge.sh.
 #
 # The pull request must be opened by Dependabot and hold exactly one commit, by
 # Dependabot and verified, so a push by anyone else to the branch stops it.
@@ -38,44 +43,24 @@ jobs:
       contents: read
       pull-requests: read # the commits of the pull request
     steps:
+      # The base commit, not the pull request: the rule that judges the pull request
+      # must not be changeable by it.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts/ci
+
       - name: Check the updates
         id: check
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          BODY: ${{ github.event.pull_request.body }}
           AUTOMERGE_GROUPS: github-actions-patch docker-image-patch docker-dev-patch compose-install-patch compose-dev-patch bun-dev-patch
-        run: |
-          eligible() {
-            echo "eligible=$1" >>"$GITHUB_OUTPUT"
-            [ "$1" = true ] || echo "::notice::not auto-merged: $2"
-            exit 0
-          }
-
-          commits="$(gh api "repos/$REPO/pulls/$PR/commits")"
-          jq -e 'length == 1 and .[0].author.login == "dependabot[bot]" and .[0].commit.verification.verified' \
-            <<<"$commits" >/dev/null || eligible false "the branch must hold exactly one verified commit by Dependabot"
-
-          # Dependabot's metadata block at the end of the commit message, one line
-          # "<group> <update-type>" per dependency, "-" for a missing field.
-          updates="$(jq -r '.[0].commit.message' <<<"$commits" | awk '
-            /^updated-dependencies:$/ { block = 1; next }
-            block && /^\.\.\.$/ { exit }
-            block && /^- dependency-name:/ { n++ }
-            block && /^  update-type:/ { type[n] = $2 }
-            block && /^  dependency-group:/ { group[n] = $2 }
-            END { for (i = 1; i <= n; i++) print (i in group ? group[i] : "-") " " (i in type ? type[i] : "-") }
-          ')"
-          [ -n "$updates" ] || eligible false "no updated-dependencies metadata in the commit message"
-
-          while read -r group type; do
-            case " $AUTOMERGE_GROUPS " in
-            *" $group "*) ;;
-            *) eligible false "group '$group' is not in AUTOMERGE_GROUPS" ;;
-            esac
-            [ "$type" = version-update:semver-patch ] || eligible false "'$type' in group '$group' is not a patch update"
-          done <<<"$updates"
-          eligible true
+        run: scripts/ci/dependabot-automerge-check.sh
 
       - name: Create a token of the auto-merge App
         id: app-token

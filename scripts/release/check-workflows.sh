@@ -125,5 +125,8 @@ if [ "${#zizmor[@]}" -gt 0 ]; then
 	"${zizmor[@]}" "${args[@]}" .github || fail=1
 fi
 
+# The auto-merge rule of dependabot-automerge.yml, a table of branches and metadata.
+scripts/ci/test-dependabot-automerge.sh || fail=1
+
 [ "$fail" -eq 0 ] && echo "workflows follow the rules"
 exit "$fail"
