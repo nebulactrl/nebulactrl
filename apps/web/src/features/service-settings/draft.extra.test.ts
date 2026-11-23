@@ -26,19 +26,24 @@ describe("validateDraft: image and git sources", () => {
 		expect(validateDraft(baseline, "image").image).toBeUndefined();
 	});
 
-	test("a git service needs a repository URL, with an http(s) or git scheme", () => {
+	test("a git service needs a repository URL: http(s), git, or SSH (deploy key)", () => {
 		const git = { ...baseline, gitBranch: "main" };
 		expect(validateDraft({ ...git, gitUrl: "" }, "git").gitUrl).toBe(
 			"A repository URL is required.",
 		);
-		expect(
-			validateDraft({ ...git, gitUrl: "git@github.com:a/b.git" }, "git").gitUrl,
-		).toBe("Use an https://, http:// or git:// URL.");
+		for (const url of ["ftp://x/y.git", "nope", "/srv/repo.git"]) {
+			expect(validateDraft({ ...git, gitUrl: url }, "git").gitUrl).toBe(
+				"Use an https://, http://, git:// or ssh:// URL, or git@host:org/repo.git.",
+			);
+		}
 		for (const url of [
 			"https://x/y.git",
 			"http://x/y.git",
 			"git://x/y.git",
 			"  https://x/y.git ",
+			"ssh://git@github.com/a/b.git",
+			"git@github.com:a/b.git",
+			"git@[2001:db8::1]:a/b.git",
 		]) {
 			expect(
 				validateDraft({ ...git, gitUrl: url }, "git").gitUrl,

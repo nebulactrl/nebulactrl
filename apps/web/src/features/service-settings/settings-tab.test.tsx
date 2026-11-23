@@ -82,7 +82,7 @@ const tab = (name: string) =>
 	screen.getByRole("tab", { name: new RegExp(`^${name}`) });
 
 describe("SettingsTab saving", () => {
-	test("editing the name stages Save; saving PATCHes the minimal body with If-Match and resets the bar", async () => {
+	test("editing the name stages Save; saving PATCHes the minimal body with If-Match, says it applies at once and resets the bar", async () => {
 		const user = userEvent.setup();
 		const service = makeService({ id: "s1", name: "api", generation: 7 });
 		const { api } = await mount(service, {
@@ -100,10 +100,8 @@ describe("SettingsTab saving", () => {
 
 		await user.click(saveButton());
 
-		expect(await screen.findByText("Settings saved")).toBeInTheDocument();
-		expect(
-			screen.getByText("Staged until the next deploy."),
-		).toBeInTheDocument();
+		expect(await screen.findByText("Name changed")).toBeInTheDocument();
+		expect(screen.getByText("Applies at once.")).toBeInTheDocument();
 		const patches = patchCalls(api);
 		expect(patches).toHaveLength(1);
 		expect(patches[0]?.path).toBe("/services/s1");
@@ -127,7 +125,7 @@ describe("SettingsTab saving", () => {
 		});
 		enter(await screen.findByLabelText("Name"), "apix");
 		await user.click(saveButton());
-		await screen.findByText("Settings saved");
+		await screen.findByText("Name changed");
 		expect(seen.ifMatch).toBe('"7"');
 	});
 
@@ -143,6 +141,9 @@ describe("SettingsTab saving", () => {
 		expect(within(tab("Deploy")).getByText("edited")).toBeInTheDocument();
 		await user.click(saveButton());
 		await screen.findByText("Settings saved");
+		expect(
+			screen.getByText("Staged until the next deploy."),
+		).toBeInTheDocument();
 		const body = patchCalls(api)[0]?.body as {
 			name?: string;
 			config?: { stopGraceSeconds?: number; image?: string };
@@ -236,7 +237,7 @@ describe("SettingsTab failures", () => {
 		expect(screen.getByText("All changes saved")).toBeInTheDocument();
 		expect(screen.queryByText("stale")).toBeNull();
 		expect(changes).toEqual([]);
-		expect(screen.queryByText("Settings saved")).toBeNull();
+		expect(screen.queryByText("Name changed")).toBeNull();
 	});
 
 	test("process_in_use lands on Deploy and the message stays in the bar", async () => {
@@ -336,7 +337,7 @@ describe("SettingsTab failures", () => {
 		).toBeInTheDocument();
 		expect(changes).toEqual([]);
 		expect(screen.getByLabelText("Name")).toHaveValue("apix");
-		expect(screen.queryByText("Settings saved")).toBeNull();
+		expect(screen.queryByText("Name changed")).toBeNull();
 	});
 
 	test("a failed save can be retried and then succeeds", async () => {
@@ -358,7 +359,7 @@ describe("SettingsTab failures", () => {
 		await user.click(saveButton());
 		await screen.findByText("Try again later.");
 		await user.click(saveButton());
-		expect(await screen.findByText("Settings saved")).toBeInTheDocument();
+		expect(await screen.findByText("Name changed")).toBeInTheDocument();
 		expect(attempts).toBe(2);
 		expect(screen.queryByText("Try again later.")).toBeNull();
 	});

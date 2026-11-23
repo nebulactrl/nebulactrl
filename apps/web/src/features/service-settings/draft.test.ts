@@ -7,6 +7,7 @@ import {
 	buildConfig,
 	buildPatch,
 	isDirty,
+	saveNotice,
 	splitCommand,
 	toDraft,
 	validateDraft,
@@ -1014,5 +1015,23 @@ describe("processes in the settings draft", () => {
 	test("the singleton flag alone never blocks saving", () => {
 		const bare = toDraft(plain);
 		expect(validateDraft({ ...bare, singleton: true }, "image")).toEqual({});
+	});
+});
+
+describe("saveNotice", () => {
+	test("a rename applies at once; everything else waits for the next deploy", () => {
+		expect(saveNotice({ name: "api" })).toEqual({
+			title: "Name changed",
+			description: "Applies at once.",
+		});
+		expect(saveNotice({ name: "api", config: {} })).toEqual({
+			title: "Settings saved",
+			description:
+				"The name applies at once; the rest is staged until the next deploy.",
+		});
+		expect(saveNotice({ serverId: "s2" })).toEqual({
+			title: "Settings saved",
+			description: "Staged until the next deploy.",
+		});
 	});
 });
