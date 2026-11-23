@@ -4,7 +4,7 @@
 # the pull request cannot change the rule it is judged by. Tested by
 # scripts/ci/test-dependabot-automerge.sh (also run by check-workflows.sh).
 #
-#   BRANCH, BODY, REPO, PR, GH_TOKEN, AUTOMERGE_GROUPS, GITHUB_OUTPUT set   # the workflow
+#   BRANCH, TITLE, BODY, REPO, PR, GH_TOKEN, AUTOMERGE_GROUPS, GITHUB_OUTPUT set   # the workflow
 #   source scripts/ci/dependabot-automerge-check.sh                         # the functions only
 #
 # The pull request is eligible when it holds one verified commit by Dependabot and
@@ -15,8 +15,13 @@
 #     AUTOMERGE_GROUPS. Dependabot leaves an update outside the group when the
 #     group's update-types do not match, as for a digest-only update of a pinned
 #     image (a "3.1.2 -> 3.1.2" bump is semver-patch with no group), and the same
-#     goes for a security update, which the pull request body gives away and which
-#     is always reviewed by hand.
+#     goes for a security update, which is always reviewed by hand. Dependabot
+#     marks one in the pull request (dependabot-core: message_builder.rb and
+#     pr_name_prefixer.rb): a "[Security]" prefix (or 🔒) on the title, the sentence
+#     "**This update includes a security fix.**" ("security fixes.**" for several)
+#     and a <summary>Vulnerabilities fixed</summary> section in the body. The
+#     commit metadata and the branch name carry no mark, and the "security" label
+#     is no mark either: dependabot.yml can put a label on every pull request.
 # Go modules and Bun have no entry in group_of_branch on purpose: Go modules have no
 # patch group and an ungrouped Bun update does not say whether it is a runtime
 # dependency.
@@ -46,10 +51,10 @@ parse_updates() {
 	' <<<"$1"
 }
 
-# decide <branch> <pull request body> <updates>: prints why not and returns 1, or
-# returns 0. Reads AUTOMERGE_GROUPS.
+# decide <branch> <pull request title and body> <updates>: prints why not and
+# returns 1, or returns 0. Reads AUTOMERGE_GROUPS.
 decide() {
-	local branch="$1" body="$2" updates="$3" ungrouped group type
+	local branch="$1" text="$2" updates="$3" ungrouped group type
 	[ -n "$updates" ] || {
 		echo "no updated-dependencies metadata in the commit message"
 		return 1
@@ -61,7 +66,7 @@ decide() {
 				echo "ungrouped update on branch '$branch', whose ecosystem and directory stay manual"
 				return 1
 			}
-			if grep -qiE 'includes security fixes|vulnerabilities fixed' <<<"$body"; then
+			if grep -qiE '\[security\]|🔒|\*\*this update includes (a )?security fix(es)?\.\*\*|<summary>vulnerabilities fixed</summary>' <<<"$text"; then
 				echo "a security update is always reviewed by hand"
 				return 1
 			fi
@@ -94,7 +99,7 @@ main() {
 		<<<"$commits" >/dev/null || eligible false "the branch must hold exactly one verified commit by Dependabot"
 
 	updates="$(parse_updates "$(jq -r '.[0].commit.message' <<<"$commits")")"
-	why="$(decide "$BRANCH" "$BODY" "$updates")" || eligible false "$why"
+	why="$(decide "$BRANCH" "$TITLE"$'\n'"$BODY" "$updates")" || eligible false "$why"
 	eligible true
 }
 

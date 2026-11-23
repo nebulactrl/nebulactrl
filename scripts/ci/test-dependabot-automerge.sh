@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Checks the auto-merge rule of scripts/ci/dependabot-automerge-check.sh against a
-# table of (branch, updates, pull request body) -> eligible. Needs only bash and awk.
+# table of (branch, updates, pull request title and body) -> eligible. Needs only bash and awk.
 #
 #   scripts/ci/test-dependabot-automerge.sh    # also run by scripts/release/check-workflows.sh
 #
@@ -38,9 +38,9 @@ fail=0
 n=0
 # expect <true|false> <branch> <updates> [body]
 expect() {
-	local want="$1" branch="$2" spec="$3" body="${4:-Bumps dep from 1.0.0 to 1.0.1.}" got why=""
+	local want="$1" branch="$2" spec="$3" text="${4:-Bump dep from 1.0.0 to 1.0.1}" got why=""
 	n=$((n + 1))
-	if why="$(decide "$branch" "$body" "$(parse_updates "$(message "$spec")")")"; then got=true; else got=false; fi
+	if why="$(decide "$branch" "$text" "$(parse_updates "$(message "$spec")")")"; then got=true; else got=false; fi
 	if [ "$got" != "$want" ]; then
 		echo "FAIL: $branch [$spec] want eligible=$want, got $got ($why)" >&2
 		fail=1
@@ -75,9 +75,15 @@ expect false dependabot/docker_compose/redis-8.0.1 patch
 expect false dependabot/npm_and_yarn/foo-1.0.1 patch
 expect false not-dependabot/github_actions/foo-1.0.1 patch
 expect false dependabot/github_actions/actions/checkout-7.0.2 ""
-# A security update has no group; its body says so.
-expect false dependabot/github_actions/actions/checkout-7.0.2 patch $'Bumps checkout.\n**This update includes security fixes.**'
-expect false dependabot/docker/golang-1.26.1 patch $'### Vulnerabilities fixed\n- CVE-2026-0001'
+# A security update has no group; Dependabot marks it in the title and the body
+# (dependabot-core: message_builder.rb, pr_name_prefixer.rb).
+expect false dependabot/github_actions/actions/checkout-7.0.2 patch $'chore(deps): [Security] bump actions/checkout from 7.0.1 to 7.0.2\nBumps checkout.'
+expect false dependabot/github_actions/actions/checkout-7.0.2 patch $'🔒 Bump checkout\nBumps checkout.'
+expect false dependabot/github_actions/actions/checkout-7.0.2 patch $'chore(deps): bump checkout\nBumps checkout from 7.0.1 to 7.0.2. **This update includes a security fix.**'
+expect false dependabot/github_actions/actions/checkout-7.0.2 patch $'chore(deps): bump checkout\nBumps checkout. **This update includes security fixes.**'
+expect false dependabot/github_actions/actions/checkout-7.0.2 patch $'chore(deps): bump checkout\n<details>\n<summary>Vulnerabilities fixed</summary>\n<p>GHSA</p>'
+# ... but the boilerplate every pull request carries is not a mark.
+expect true dependabot/github_actions/actions/checkout-7.0.2 patch $'chore(deps): bump checkout\nBumps checkout.\nYou can disable automated security fix PRs for this repo from the [Security Alerts page](https://example.invalid/network/alerts).'
 
 [ "$fail" -eq 0 ] && echo "dependabot auto-merge rule: $n cases pass"
 exit "$fail"

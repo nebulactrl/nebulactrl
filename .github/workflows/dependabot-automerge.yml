@@ -58,6 +58,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
+          TITLE: ${{ github.event.pull_request.title }}
           BODY: ${{ github.event.pull_request.body }}
           AUTOMERGE_GROUPS: github-actions-patch docker-image-patch docker-dev-patch compose-install-patch compose-dev-patch bun-dev-patch
         run: scripts/ci/dependabot-automerge-check.sh
