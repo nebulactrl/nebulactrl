@@ -1349,6 +1349,24 @@ type ServerMesh struct {
 	UpdatedAt        time.Time       `json:"updatedAt"`
 }
 
+type ServerPatchAutoSetting struct {
+	ServerID            uuid.UUID  `json:"serverId"`
+	WorkspaceID         uuid.UUID  `json:"workspaceId"`
+	Enabled             bool       `json:"enabled"`
+	Scope               string     `json:"scope"`
+	WindowStart         string     `json:"windowStart"`
+	WindowMinutes       int32      `json:"windowMinutes"`
+	Timezone            string     `json:"timezone"`
+	Reboot              string     `json:"reboot"`
+	HoldPackages        []string   `json:"holdPackages"`
+	ConsecutiveFailures int32      `json:"consecutiveFailures"`
+	DisabledReason      string     `json:"disabledReason"`
+	NativeHandoff       bool       `json:"nativeHandoff"`
+	SettingsChangedAt   time.Time  `json:"settingsChangedAt"`
+	UpdatedBy           *uuid.UUID `json:"updatedBy"`
+	UpdatedAt           time.Time  `json:"updatedAt"`
+}
+
 type ServerPatchRun struct {
 	ID              uuid.UUID  `json:"id"`
 	ServerID        uuid.UUID  `json:"serverId"`
@@ -1371,22 +1389,24 @@ type ServerPatchRun struct {
 	Error           string     `json:"error"`
 	CreatedAt       time.Time  `json:"createdAt"`
 	FinishedAt      *time.Time `json:"finishedAt"`
+	SlotStart       *time.Time `json:"slotStart"`
 }
 
 type ServerPatchState struct {
-	ServerID        uuid.UUID       `json:"serverId"`
-	WorkspaceID     uuid.UUID       `json:"workspaceId"`
-	Manager         string          `json:"manager"`
-	Supported       bool            `json:"supported"`
-	Updates         int32           `json:"updates"`
-	SecurityUpdates int32           `json:"securityUpdates"`
-	Packages        json.RawMessage `json:"packages"`
-	RebootRequired  bool            `json:"rebootRequired"`
-	RebootPackages  []string        `json:"rebootPackages"`
-	BootID          string          `json:"bootId"`
-	Message         string          `json:"message"`
-	CheckedAt       *time.Time      `json:"checkedAt"`
-	UpdatedAt       time.Time       `json:"updatedAt"`
+	ServerID          uuid.UUID       `json:"serverId"`
+	WorkspaceID       uuid.UUID       `json:"workspaceId"`
+	Manager           string          `json:"manager"`
+	Supported         bool            `json:"supported"`
+	Updates           int32           `json:"updates"`
+	SecurityUpdates   int32           `json:"securityUpdates"`
+	Packages          json.RawMessage `json:"packages"`
+	RebootRequired    bool            `json:"rebootRequired"`
+	RebootPackages    []string        `json:"rebootPackages"`
+	BootID            string          `json:"bootId"`
+	Message           string          `json:"message"`
+	CheckedAt         *time.Time      `json:"checkedAt"`
+	UpdatedAt         time.Time       `json:"updatedAt"`
+	NativeAutoUpdates string          `json:"nativeAutoUpdates"`
 }
 
 type ServerRouteTable struct {
@@ -1874,6 +1894,7 @@ type Traffic1d struct {
 	StatusCodes json.RawMessage `json:"statusCodes"`
 	Top         json.RawMessage `json:"top"`
 	Geo         json.RawMessage `json:"geo"`
+	Blocked     json.RawMessage `json:"blocked"`
 }
 
 type Traffic1h struct {
@@ -1899,6 +1920,7 @@ type Traffic1h struct {
 	StatusCodes json.RawMessage `json:"statusCodes"`
 	Top         json.RawMessage `json:"top"`
 	Geo         json.RawMessage `json:"geo"`
+	Blocked     json.RawMessage `json:"blocked"`
 }
 
 type Traffic1m struct {
@@ -1924,6 +1946,7 @@ type Traffic1m struct {
 	StatusCodes json.RawMessage `json:"statusCodes"`
 	Top         json.RawMessage `json:"top"`
 	Geo         json.RawMessage `json:"geo"`
+	Blocked     json.RawMessage `json:"blocked"`
 }
 
 type Uptime1d struct {

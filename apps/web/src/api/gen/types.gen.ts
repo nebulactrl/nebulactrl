@@ -422,6 +422,41 @@ export type AuthorizeOutputBody = {
     authorizeUrl: string;
 };
 
+export type AutoUpdateInputBody = {
+    /**
+     * Required to enable when production services or the control plane run on the server
+     */
+    acknowledgeProduction?: boolean;
+    /**
+     * Apply updates automatically every night
+     */
+    enabled: boolean;
+    /**
+     * Package names a scheduled run never upgrades, at most 20, extra to the built-in holds (Docker and containerd)
+     */
+    holdPackages: Array<string>;
+    /**
+     * whenRequired: reboot after an upgrade that asks for it, inside the window, with guards
+     */
+    reboot: 'never' | 'whenRequired';
+    /**
+     * security: only the packages with a security update (apt and dnf); all: every package
+     */
+    scope: 'security' | 'all';
+    /**
+     * IANA time zone of windowStart, for example Europe/Berlin; UTC when empty
+     */
+    timezone: string;
+    /**
+     * Length of the window in minutes, 60-240. Nothing starts in its last 15 minutes
+     */
+    windowMinutes: number;
+    /**
+     * Start of the nightly window as HH:MM (24-hour) in timezone, for example 03:00. Avoid 01:00-02:59 where clocks change
+     */
+    windowStart: string;
+};
+
 export type Autoscaling = {
     enabled: boolean;
     max: number;
@@ -4312,12 +4347,51 @@ export type FileWritePolicy = {
     reason?: string;
 };
 
+export type FirewallBlocks = {
+    /**
+     * Blocked requests per rule, largest first
+     */
+    byRule: Array<FirewallRuleCount> | null;
+    from: string;
+    /**
+     * Logs explorer query for the blocked request lines (kept on the host, only the matching page or counts come back). Its facets list the blocked paths, client networks, countries and user agents; request logs must be on for the server
+     */
+    logsQuery: string;
+    range: '24h' | '7d' | '30d';
+    to: string;
+    /**
+     * Requests blocked in the window
+     */
+    total: number;
+    trafficAnalytics: boolean;
+};
+
 export type FirewallCondition = {
     field: 'ip' | 'country' | 'path' | 'method' | 'header' | 'userAgent' | 'query';
     name?: string;
     not?: boolean;
     op: 'in' | 'prefix' | 'exact' | 'equals' | 'contains' | 'regex' | 'present';
     values?: Array<string> | null;
+};
+
+export type FirewallPoint = {
+    blocked: number;
+    ts: string;
+};
+
+export type FirewallReport = {
+    /**
+     * Requests blocked by the firewall (own rules and standard protection); they are also part of requests and of the 4xx count
+     */
+    blocked: number;
+    /**
+     * Blocked requests per rule, largest first. Service reports name every rule; server and workspace reports name only the standard protection and list the other rules by id
+     */
+    byRule: Array<FirewallRuleCount> | null;
+    /**
+     * Blocked requests per chart step, on the same x axis as the report's series
+     */
+    series: Array<FirewallPoint> | null;
 };
 
 export type FirewallRule = {
@@ -4329,6 +4403,20 @@ export type FirewallRule = {
      */
     id?: string;
     name: string;
+};
+
+export type FirewallRuleCount = {
+    action?: 'block' | 'allow';
+    /**
+     * The rule's id; ids starting with std belong to the standard protection
+     */
+    id: string;
+    kind: 'standard' | 'rule' | 'removed';
+    /**
+     * The rule's name; the id for a removed rule
+     */
+    name: string;
+    requests: number;
 };
 
 export type FirewallView = {
@@ -6130,6 +6218,74 @@ export type PasswordResetStatusOutputBody = {
     available: boolean;
 };
 
+export type PatchAuto = {
+    /**
+     * Packages always excluded from scheduled runs (Docker and containerd); upgrade them with Apply updates
+     */
+    builtinHolds: Array<string>;
+    /**
+     * Scheduled runs that failed in a row; three switch the schedule off
+     */
+    consecutiveFailures: number;
+    /**
+     * Why NebulaCtrl switched the schedule off after repeated failures
+     */
+    disabledReason: string | null;
+    enabled: boolean;
+    /**
+     * Packages a scheduled run never upgrades, extra to builtinHolds
+     */
+    holdPackages: Array<string>;
+    lastScheduledRun: PatchAutoRun | null;
+    /**
+     * The host's own automatic update mechanism the last check found active; empty when none is (including after NebulaCtrl switched it off)
+     */
+    nativeAutoUpdates: 'unattended-upgrades' | 'dnf-automatic' | '';
+    /**
+     * Start of the next window; null while the schedule is off
+     */
+    nextWindowStart: string | null;
+    /**
+     * whenRequired: reboot after an upgrade that asks for it, inside the window, with guards (see the server patching docs)
+     */
+    reboot: 'never' | 'whenRequired';
+    /**
+     * Enabling needs acknowledgeProduction: production services or the control plane run on this server
+     */
+    requiresAcknowledgement: boolean;
+    /**
+     * security: only the packages with a security update (apt and dnf); all: every package
+     */
+    scope: 'security' | 'all';
+    /**
+     * The host's package manager can limit an upgrade to security updates
+     */
+    securityOnlySupported: boolean;
+    /**
+     * Start of the quietest window in the last 14 days of traffic, in timezone (HH:MM); null with less than 3 days of data
+     */
+    suggestedStart: string | null;
+    /**
+     * IANA time zone of windowStart
+     */
+    timezone: string;
+    /**
+     * Length of the window, 60-240. Nothing starts in its last 15 minutes
+     */
+    windowMinutes: number;
+    /**
+     * Start of the nightly maintenance window as HH:MM in timezone
+     */
+    windowStart: string;
+};
+
+export type PatchAutoRun = {
+    finishedAt: string | null;
+    id: string;
+    startedAt: string;
+    status: 'pending' | 'rebooting' | 'succeeded' | 'failed';
+};
+
 export type PatchChannelInputBody = {
     /**
      * Replaces the non-secret settings.
@@ -6385,6 +6541,7 @@ export type PatchView = {
      * The agent advertised patching support; false means update the agent first
      */
     agentSupported: boolean;
+    auto: PatchAuto;
     /**
      * The run in flight, if any
      */
@@ -7902,6 +8059,7 @@ export type Report = {
      */
     comparison?: Summary;
     deployments: Array<DeploymentMarker> | null;
+    firewall?: FirewallReport;
     geo?: Geo;
     /**
      * Why geo is absent
@@ -26410,6 +26568,61 @@ export type ApplyServerPatchesResponses = {
 
 export type ApplyServerPatchesResponse = ApplyServerPatchesResponses[keyof ApplyServerPatchesResponses];
 
+export type UpdateServerPatchAutoData = {
+    body: AutoUpdateInputBody;
+    path: {
+        serverId: string;
+    };
+    query?: never;
+    url: '/servers/{serverId}/patches/auto';
+};
+
+export type UpdateServerPatchAutoErrors = {
+    /**
+     * Bad Request
+     */
+    400: Error;
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Conflict
+     */
+    409: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type UpdateServerPatchAutoError = UpdateServerPatchAutoErrors[keyof UpdateServerPatchAutoErrors];
+
+export type UpdateServerPatchAutoResponses = {
+    /**
+     * OK
+     */
+    200: PatchAuto;
+};
+
+export type UpdateServerPatchAutoResponse = UpdateServerPatchAutoResponses[keyof UpdateServerPatchAutoResponses];
+
 export type CheckServerPatchesData = {
     body?: never;
     headers?: {
@@ -29820,6 +30033,58 @@ export type SetServiceFirewallResponses = {
 };
 
 export type SetServiceFirewallResponse = SetServiceFirewallResponses[keyof SetServiceFirewallResponses];
+
+export type GetServiceFirewallBlocksData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: {
+        /**
+         * Window to count
+         */
+        range?: '24h' | '7d' | '30d';
+    };
+    url: '/services/{serviceId}/firewall/blocks';
+};
+
+export type GetServiceFirewallBlocksErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type GetServiceFirewallBlocksError = GetServiceFirewallBlocksErrors[keyof GetServiceFirewallBlocksErrors];
+
+export type GetServiceFirewallBlocksResponses = {
+    /**
+     * OK
+     */
+    200: FirewallBlocks;
+};
+
+export type GetServiceFirewallBlocksResponse = GetServiceFirewallBlocksResponses[keyof GetServiceFirewallBlocksResponses];
 
 export type UnlinkServiceGitData = {
     body?: never;

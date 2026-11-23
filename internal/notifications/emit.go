@@ -18,9 +18,12 @@ const (
 	TypeServerDiskAlert      = "server.disk_alert"
 	TypeServerCleanup        = "server.cleanup"
 	TypeServerRebootRequired = "server.reboot_required"
-	TypeBackupFailed         = "backup.failed"
-	TypeBackupSucceeded      = "backup.succeeded"
-	TypeTaskFailed           = "task.failed"
+	// TypeServerAutoUpdateFailed: a scheduled automatic update (or the reboot after
+	// it) of a server failed; the third failure in a row switches the schedule off.
+	TypeServerAutoUpdateFailed = "server.auto_update_failed"
+	TypeBackupFailed           = "backup.failed"
+	TypeBackupSucceeded        = "backup.succeeded"
+	TypeTaskFailed             = "task.failed"
 	// Read replicas of a PostgreSQL database (internal/databases).
 	TypeDatabaseReplicaBroken  = "database.replica.broken"
 	TypeDatabaseReplicaLagging = "database.replica.lagging"

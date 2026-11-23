@@ -20,6 +20,8 @@ POST https://<your control plane>/hooks/deploy/<service id>/<secret>
 The hook is **off** until you turn it on. It needs no login: the secret in the
 URL is the credential.
 
+**Not in `nebula.toml`.** The URL contains the secret, so a deploy hook is not a key of the file: the file can neither turn it on nor carry the URL, and an apply never touches a service's hook. Turn it on, rotate it or turn it off in **Settings → Deploy → Deploy hook**, with `nebulactrl services deploy-hook`, or through the [API](#api).
+
 ## Turn it on
 
 **Service → Settings → Deploy → Deploy hook** (or the CLI):

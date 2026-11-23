@@ -190,31 +190,33 @@ WHERE d.hostname = ANY(sqlc.arg(hostnames)::text[]) AND sv.deleted_at IS NULL AN
 
 -- name: InsertTraffic1m :exec
 INSERT INTO traffic_1m (server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out,
-                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 ON CONFLICT (server_id, host, bucket) DO NOTHING;
 
 -- name: UpsertTraffic1h :exec
 INSERT INTO traffic_1h (server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out,
-                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 ON CONFLICT (server_id, host, bucket) DO UPDATE SET
     service_id = EXCLUDED.service_id, requests = EXCLUDED.requests, documents = EXCLUDED.documents,
     bot_requests = EXCLUDED.bot_requests, bytes_in = EXCLUDED.bytes_in, bytes_out = EXCLUDED.bytes_out,
     s1xx = EXCLUDED.s1xx, s2xx = EXCLUDED.s2xx, s3xx = EXCLUDED.s3xx, s4xx = EXCLUDED.s4xx, s5xx = EXCLUDED.s5xx,
     s_other = EXCLUDED.s_other, lat_hist = EXCLUDED.lat_hist, lat_sum_ms = EXCLUDED.lat_sum_ms,
-    visitors = EXCLUDED.visitors, hll = EXCLUDED.hll, status_codes = EXCLUDED.status_codes, top = EXCLUDED.top, geo = EXCLUDED.geo;
+    visitors = EXCLUDED.visitors, hll = EXCLUDED.hll, status_codes = EXCLUDED.status_codes, top = EXCLUDED.top, geo = EXCLUDED.geo,
+    blocked = EXCLUDED.blocked;
 
 -- name: UpsertTraffic1d :exec
 INSERT INTO traffic_1d (server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out,
-                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 ON CONFLICT (server_id, host, bucket) DO UPDATE SET
     service_id = EXCLUDED.service_id, requests = EXCLUDED.requests, documents = EXCLUDED.documents,
     bot_requests = EXCLUDED.bot_requests, bytes_in = EXCLUDED.bytes_in, bytes_out = EXCLUDED.bytes_out,
     s1xx = EXCLUDED.s1xx, s2xx = EXCLUDED.s2xx, s3xx = EXCLUDED.s3xx, s4xx = EXCLUDED.s4xx, s5xx = EXCLUDED.s5xx,
     s_other = EXCLUDED.s_other, lat_hist = EXCLUDED.lat_hist, lat_sum_ms = EXCLUDED.lat_sum_ms,
-    visitors = EXCLUDED.visitors, hll = EXCLUDED.hll, status_codes = EXCLUDED.status_codes, top = EXCLUDED.top, geo = EXCLUDED.geo;
+    visitors = EXCLUDED.visitors, hll = EXCLUDED.hll, status_codes = EXCLUDED.status_codes, top = EXCLUDED.top, geo = EXCLUDED.geo,
+    blocked = EXCLUDED.blocked;
 
 -- name: RollupSourceTraffic1m :many
 SELECT * FROM traffic_1m WHERE bucket >= sqlc.arg(from_ts)::timestamptz AND bucket < sqlc.arg(to_ts)::timestamptz;

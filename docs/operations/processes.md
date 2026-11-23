@@ -41,6 +41,8 @@ A domain keeps its process for its lifetime; to move it, remove it and add it ag
 
 Renaming a process is a staged change like any other edit of the processes: the running release keeps the old name, with its replica count and its domains, until the next deploy. The new name starts with a copy of the replica settings, and the deploy moves the domains over to it. Discarding the change restores the old name.
 
+**In `nebula.toml` a rename is a remove and an add.** The file has no rename: `renameProcesses` is an API operation that keeps the replica settings and moves the domains, and nothing in an apply does that. Changing the table name from `processes.old` to `processes.new` adds `new` as a new process (its own `scale`, one replica when the table has none; nothing is copied from `old`) and releases `old`. Without `--prune` the old process stays in the service's config and keeps running; with `--prune` the apply removes it, together with its replica settings, after the domains were applied. Change `process = "old"` to `process = "new"` on each domain in the same edit, or the domain still routes to `old`. To keep replicas and domains, rename through the dashboard, `nebulactrl services processes rename` or the API instead.
+
 ## Singleton processes
 
 `singleton = true` makes a process run exactly one instance, and stop the old container **before** the new one starts. Use it for anything that must not run twice: a scheduler, a leader-elected consumer. A singleton cannot be scaled (`replicas_require_stateless`) and has a short gap during each deploy, which is the price of never overlapping.

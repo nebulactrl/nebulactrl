@@ -293,6 +293,7 @@ func TestDenyListMinimum(t *testing.T) {
 		"applyServerHardening":           ReasonHostRoot,
 		"applyServerPatches":             ReasonHostRoot,
 		"rebootServer":                   ReasonHostRoot,
+		"updateServerPatchAuto":          ReasonHostRoot,
 		"upgradeServerAgent":             ReasonHostRoot,
 		"upgradeServerAgents":            ReasonHostRoot,
 		"updateInstanceUpgrade":          ReasonInstanceAdmin,

@@ -27,6 +27,15 @@ func TestStandardProtectionBlocksSecretFilesOnly(t *testing.T) {
 		"/.svn/entries", "/.hg/store", "/.bzr/branch",
 		"/.aws/credentials", "/.ssh/id_rsa", "/.docker/config.json",
 		"/.npmrc", "/.pypirc", "/.netrc", "/static/.htpasswd", "/.DS_Store",
+		// AI coding tools, which keep API keys and MCP tokens in dot folders.
+		"/.claude/mcp.json", "/.claude/.credentials.json", "/.cursor/mcp.json", "/.continue/config.json",
+		"/.aider.conf.yml", "/.roo/mcp.json", "/.windsurf/mcp.json", "/.codex/config.toml",
+		"/.gemini/settings.json", "/.mcp.json", "/.litellm", "/app/.CLAUDE/settings.json",
+		// Cloud and database credentials.
+		"/.kube/config", "/.azure/accessTokens.json", "/.boto", "/.s3cfg", "/.pgpass", "/.my.cnf",
+		"/.vault-token", "/.terraform/terraform.tfstate", "/.terraform.lock.hcl",
+		// Shell histories.
+		"/.bash_history", "/.zsh_history", "/home/.psql_history",
 	} {
 		require.Equal(t, agentprotocol.FirewallBlock, decide(path), path)
 	}
@@ -35,6 +44,11 @@ func TestStandardProtectionBlocksSecretFilesOnly(t *testing.T) {
 		"/.github/workflows/ci.yml", "/.gitignore", "/.gitlab-ci.yml", "/repo.git/info/refs",
 		"/environment", "/env", "/.envoy/config", "/.dockerignore", "/dockerfile",
 		"/docs/aws/setup", "/user/.profile", "/wp-login.php",
+		// A name must end at the segment: longer names and names without the dot stay open.
+		"/.cursorrules", "/.mcpserver", "/.kubernetes", "/.azure-pipelines.yml", "/.terraformrc",
+		"/.rooms", "/.continued", "/.mycnf", "/claude/mcp.json", "/docs/kube/config", "/bash_history",
+		// Folders and dotfiles that hold no secret or that apps serve.
+		"/.vscode/settings.json", "/.idea/workspace.xml", "/.htaccess", "/.bashrc", "/.zshrc", "/.user.ini",
 	} {
 		require.Empty(t, decide(path), path)
 	}

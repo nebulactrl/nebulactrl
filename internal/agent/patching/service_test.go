@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/nebulactrl/nebulactrl/internal/agent/hardening"
+	"github.com/nebulactrl/nebulactrl/internal/hostpatch"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
@@ -263,4 +264,109 @@ func TestReboot(t *testing.T) {
 func TestUnknownAction(t *testing.T) {
 	_, err := newSvc(&fakeRunner{}).Handle(context.Background(), agentprotocol.PatchingPayload{Action: "nuke"})
 	require.ErrorContains(t, err, "unknown patching action")
+}
+
+const (
+	nativeMarker     = "99nebulactrl-auto-updates"
+	containersMarker = "@@CONTAINERS"
+)
+
+func lastStart(r *fakeRunner) string {
+	start := ""
+	for _, s := range r.ran {
+		if strings.Contains(s, startMarker) {
+			start = s
+		}
+	}
+	return start
+}
+
+func TestScheduledApplyHoldsPackagesAndReportsContainers(t *testing.T) {
+	r := &fakeRunner{steps: []step{
+		{match: nativeMarker, out: "@@APPLIED disable\n"},
+		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},
+		{match: checkMarker, out: checkOut("", "b", true)},
+		{match: startMarker, out: "@@STARTED\n"},
+		{match: statusMarker, out: "@@RC 0\n@@LOG\nUpgrading: libssl3\n"},
+		{match: containersMarker, out: "@@DOCKER ok\n@@CONTAINERS\n/web always\n/db unless-stopped\n@@END\n"},
+	}}
+	res, err := newSvc(r).Handle(context.Background(), agentprotocol.PatchingPayload{
+		RunID: "0b1c2d3e-aaaa", Action: agentprotocol.PatchingActionApply, Trigger: agentprotocol.PatchingTriggerScheduled,
+		SecurityOnly: true, HoldPackages: []string{"vim"}, Native: agentprotocol.PatchNativeDisable, CheckContainers: true,
+	})
+	require.NoError(t, err)
+	require.Equal(t, agentprotocol.PatchNativeDisable, res.NativeApplied)
+	start := lastStart(r)
+	require.Contains(t, start, "|vim)", "the extra hold is part of the hold list")
+	require.Contains(t, start, "docker-ce", "the built-in holds are always there")
+	require.Contains(t, start, "--with-new-pkgs")
+	require.NotNil(t, res.Containers)
+	require.True(t, res.Containers.Known)
+	require.Equal(t, 2, res.Containers.Running)
+	require.Empty(t, res.Containers.Unsafe)
+}
+
+func TestManualApplyIgnoresScheduledOptions(t *testing.T) {
+	r := &fakeRunner{steps: []step{
+		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},
+		{match: checkMarker, out: checkOut("", "b", true)},
+		{match: startMarker, out: "@@STARTED\n"},
+		{match: statusMarker, out: "@@RC 0\n@@LOG\nok\n"},
+	}}
+	res, err := newSvc(r).Handle(context.Background(), agentprotocol.PatchingPayload{
+		RunID: "0b1c2d3e-aaaa", Action: agentprotocol.PatchingActionApply, Trigger: agentprotocol.PatchingTriggerManual, HoldPackages: []string{"vim"},
+	})
+	require.NoError(t, err)
+	start := lastStart(r)
+	require.NotContains(t, start, "vim")
+	require.NotContains(t, start, "docker-ce")
+	require.NotContains(t, start, hostpatch.SkipMarker)
+	require.Nil(t, res.Containers, "containers are only read when asked for")
+	require.Empty(t, res.NativeApplied)
+}
+
+func TestScheduledApplyReportsASkippedRun(t *testing.T) {
+	r := &fakeRunner{steps: []step{
+		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},
+		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},
+		{match: startMarker, out: "@@STARTED\n"},
+		{match: statusMarker, out: "@@RC 75\n@@LOG\nnebulactrl: skipped: less than 1 GiB free on /var\n"},
+	}}
+	res, err := newSvc(r).Handle(context.Background(), agentprotocol.PatchingPayload{
+		RunID: "0b1c2d3e-aaaa", Action: agentprotocol.PatchingActionApply, Trigger: agentprotocol.PatchingTriggerScheduled,
+	})
+	require.NoError(t, err)
+	require.Equal(t, hostpatch.ExitSkipped, res.ExitCode)
+	require.Equal(t, "Skipped: less than 1 GiB free on /var.", res.Message)
+}
+
+func TestScheduledApplyWithoutDockerAnswerReportsWhy(t *testing.T) {
+	r := &fakeRunner{steps: []step{
+		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},
+		{match: checkMarker, out: checkOut("", "b", true)},
+		{match: startMarker, out: "@@STARTED\n"},
+		{match: statusMarker, out: "@@RC 0\n@@LOG\nok\n"},
+		{match: containersMarker, out: "@@DOCKER the Docker daemon did not answer\n@@END\n"},
+	}}
+	res, err := newSvc(r).Handle(context.Background(), agentprotocol.PatchingPayload{
+		RunID: "0b1c2d3e-aaaa", Action: agentprotocol.PatchingActionApply, Trigger: agentprotocol.PatchingTriggerScheduled, CheckContainers: true,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, res.Containers)
+	require.False(t, res.Containers.Known)
+	require.Contains(t, res.Containers.Reason, "did not answer")
+}
+
+func TestHostUpdatesSwitchFailureDoesNotFailTheCheck(t *testing.T) {
+	r := &fakeRunner{steps: []step{
+		{match: nativeMarker, out: "@@FAILED cannot write /etc/apt/apt.conf.d\n"},
+		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},
+	}}
+	res, err := newSvc(r).Handle(context.Background(), agentprotocol.PatchingPayload{
+		Action: agentprotocol.PatchingActionCheck, Native: agentprotocol.PatchNativeDisable,
+	})
+	require.NoError(t, err)
+	require.Empty(t, res.NativeApplied)
+	require.Contains(t, res.Message, "cannot write")
+	require.Equal(t, 2, res.State.Updates)
 }

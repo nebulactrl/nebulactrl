@@ -114,6 +114,8 @@ type target struct {
 	// geoServerIDs are the servers whose geolocation setting applies to the
 	// report (the service's current server); nil means serverIDs.
 	geoServerIDs []uuid.UUID
+	// rules names the firewall rules of the one service reported; nil otherwise.
+	rules ruleBook
 }
 
 // retentionFor derives the effective retention of a set of servers (the
@@ -199,6 +201,7 @@ func (s *Service) ServiceTraffic(ctx context.Context, serviceID uuid.UUID, q Que
 	}
 	t := target{
 		serverIDs: serverIDs, serviceIDs: []uuid.UUID{serviceID}, host: cleanHost(q.Host), marker: &serviceID, retention: ret,
+		rules: newRuleBook(sc.Service.Firewall),
 	}
 	if sc.Service.ServerID != nil {
 		t.geoServerIDs = []uuid.UUID{*sc.Service.ServerID}
@@ -279,10 +282,11 @@ func (s *Service) WorkspaceTraffic(ctx context.Context, f Filter, q Query) (Repo
 
 	switch {
 	case f.ServiceID != nil:
-		if _, err := services.LoadScope(ctx, s.q, policy.ScopeProjectsRead, *f.ServiceID); err != nil {
+		sc, err := services.LoadScope(ctx, s.q, policy.ScopeProjectsRead, *f.ServiceID)
+		if err != nil {
 			return Report{}, err
 		}
-		t.serviceIDs, t.marker = []uuid.UUID{*f.ServiceID}, f.ServiceID
+		t.serviceIDs, t.marker, t.rules = []uuid.UUID{*f.ServiceID}, f.ServiceID, newRuleBook(sc.Service.Firewall)
 	case f.EnvironmentID != nil:
 		if _, err := services.LoadEnvironment(ctx, s.q, policy.ScopeProjectsRead, *f.EnvironmentID); err != nil {
 			return Report{}, err
@@ -344,7 +348,7 @@ func (s *Service) report(ctx context.Context, t target, q Query) (Report, error)
 
 	in := reportInput{
 		from: from, to: now, step: plan.step, tier: plan.tier, retention: t.retention, truncated: truncated,
-		allPaths: q.AllPaths, compare: q.Compare, withUnrouted: t.withUnrouted, now: now,
+		allPaths: q.AllPaths, compare: q.Compare, withUnrouted: t.withUnrouted, now: now, rules: t.rules,
 	}
 	end := now.Add(time.Minute)
 	geoIDs := t.geoServerIDs

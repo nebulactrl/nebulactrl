@@ -129,6 +129,8 @@ func newRequestRecord(ev Event, keepQuery bool, kind string, b backend) (logstor
 		IP:         IPPrefix(ev.ClientIP),
 		Process:    capBytes(b.process, maxRequestLabel),
 		Component:  capBytes(b.component, maxRequestLabel),
+		BlockedBy:  ev.BlockedBy,
+		Country:    ev.Country,
 	}
 	if keepQuery {
 		rec.Query = capBytes(ev.Query, maxRequestQuery)
@@ -290,6 +292,10 @@ type requestWriter struct {
 	// the store cannot tell a duplicate from a twin cheaply).
 	resume map[string]time.Time
 
+	// geo, when set and active, adds the client's country to a stored line
+	// (the address is used for the lookup only). Set before Run.
+	geo GeoLocator
+
 	queue   chan queuedRequest
 	dropped atomic.Int64
 }
@@ -320,6 +326,18 @@ func (w *requestWriter) Add(ev Event) {
 	}
 }
 
+// country places a client address while geolocation is on; "" otherwise.
+func (w *requestWriter) country(ip string) string {
+	if w.geo == nil || w.geo.Level() == "" {
+		return ""
+	}
+	loc, ok := w.geo.Locate(ip)
+	if !ok {
+		return ""
+	}
+	return loc.Country
+}
+
 // Run writes queued requests until ctx ends, then writes what is left.
 func (w *requestWriter) Run(ctx context.Context) {
 	flush := time.NewTicker(requestFlushEvery)
@@ -345,6 +363,7 @@ func (w *requestWriter) Run(ctx context.Context) {
 		if !q.ev.End.After(w.resume[owner]) {
 			return // stored by an earlier run
 		}
+		q.ev.Country = w.country(q.ev.ClientIP)
 		rec, err := newRequestRecord(q.ev, q.keepQuery, q.kind, b)
 		if err != nil {
 			w.log.Warn("request logs: encode", "err", err)

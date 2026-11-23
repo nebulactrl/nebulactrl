@@ -83,8 +83,8 @@ func (q *Queries) DownsampleMetrics1m(ctx context.Context, since time.Time) (int
 
 const insertTraffic1m = `-- name: InsertTraffic1m :exec
 INSERT INTO traffic_1m (server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out,
-                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 ON CONFLICT (server_id, host, bucket) DO NOTHING
 `
 
@@ -111,6 +111,7 @@ type InsertTraffic1mParams struct {
 	StatusCodes json.RawMessage `json:"statusCodes"`
 	Top         json.RawMessage `json:"top"`
 	Geo         json.RawMessage `json:"geo"`
+	Blocked     json.RawMessage `json:"blocked"`
 }
 
 func (q *Queries) InsertTraffic1m(ctx context.Context, arg InsertTraffic1mParams) error {
@@ -137,6 +138,7 @@ func (q *Queries) InsertTraffic1m(ctx context.Context, arg InsertTraffic1mParams
 		arg.StatusCodes,
 		arg.Top,
 		arg.Geo,
+		arg.Blocked,
 	)
 	return err
 }
@@ -444,7 +446,7 @@ func (q *Queries) PruneTraffic1m(ctx context.Context, cutoff time.Time) (int64, 
 }
 
 const rollupSourceTraffic1h = `-- name: RollupSourceTraffic1h :many
-SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo FROM traffic_1h WHERE bucket >= $1::timestamptz AND bucket < $2::timestamptz
+SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked FROM traffic_1h WHERE bucket >= $1::timestamptz AND bucket < $2::timestamptz
 `
 
 type RollupSourceTraffic1hParams struct {
@@ -484,6 +486,7 @@ func (q *Queries) RollupSourceTraffic1h(ctx context.Context, arg RollupSourceTra
 			&i.StatusCodes,
 			&i.Top,
 			&i.Geo,
+			&i.Blocked,
 		); err != nil {
 			return nil, err
 		}
@@ -496,7 +499,7 @@ func (q *Queries) RollupSourceTraffic1h(ctx context.Context, arg RollupSourceTra
 }
 
 const rollupSourceTraffic1m = `-- name: RollupSourceTraffic1m :many
-SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo FROM traffic_1m WHERE bucket >= $1::timestamptz AND bucket < $2::timestamptz
+SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked FROM traffic_1m WHERE bucket >= $1::timestamptz AND bucket < $2::timestamptz
 `
 
 type RollupSourceTraffic1mParams struct {
@@ -536,6 +539,7 @@ func (q *Queries) RollupSourceTraffic1m(ctx context.Context, arg RollupSourceTra
 			&i.StatusCodes,
 			&i.Top,
 			&i.Geo,
+			&i.Blocked,
 		); err != nil {
 			return nil, err
 		}
@@ -548,7 +552,7 @@ func (q *Queries) RollupSourceTraffic1m(ctx context.Context, arg RollupSourceTra
 }
 
 const selectTraffic1d = `-- name: SelectTraffic1d :many
-SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo FROM traffic_1d
+SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked FROM traffic_1d
 WHERE server_id = ANY($1::uuid[])
   AND bucket >= $2::timestamptz AND bucket < $3::timestamptz
   AND ($4::uuid[] IS NULL OR service_id = ANY($4::uuid[]))
@@ -602,6 +606,7 @@ func (q *Queries) SelectTraffic1d(ctx context.Context, arg SelectTraffic1dParams
 			&i.StatusCodes,
 			&i.Top,
 			&i.Geo,
+			&i.Blocked,
 		); err != nil {
 			return nil, err
 		}
@@ -614,7 +619,7 @@ func (q *Queries) SelectTraffic1d(ctx context.Context, arg SelectTraffic1dParams
 }
 
 const selectTraffic1h = `-- name: SelectTraffic1h :many
-SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo FROM traffic_1h
+SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked FROM traffic_1h
 WHERE server_id = ANY($1::uuid[])
   AND bucket >= $2::timestamptz AND bucket < $3::timestamptz
   AND ($4::uuid[] IS NULL OR service_id = ANY($4::uuid[]))
@@ -668,6 +673,7 @@ func (q *Queries) SelectTraffic1h(ctx context.Context, arg SelectTraffic1hParams
 			&i.StatusCodes,
 			&i.Top,
 			&i.Geo,
+			&i.Blocked,
 		); err != nil {
 			return nil, err
 		}
@@ -680,7 +686,7 @@ func (q *Queries) SelectTraffic1h(ctx context.Context, arg SelectTraffic1hParams
 }
 
 const selectTraffic1m = `-- name: SelectTraffic1m :many
-SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo FROM traffic_1m
+SELECT server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out, s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked FROM traffic_1m
 WHERE server_id = ANY($1::uuid[])
   AND bucket >= $2::timestamptz AND bucket < $3::timestamptz
   AND ($4::uuid[] IS NULL OR service_id = ANY($4::uuid[]))
@@ -734,6 +740,7 @@ func (q *Queries) SelectTraffic1m(ctx context.Context, arg SelectTraffic1mParams
 			&i.StatusCodes,
 			&i.Top,
 			&i.Geo,
+			&i.Blocked,
 		); err != nil {
 			return nil, err
 		}
@@ -1167,14 +1174,15 @@ func (q *Queries) SetServerDiskAlert(ctx context.Context, arg SetServerDiskAlert
 
 const upsertTraffic1d = `-- name: UpsertTraffic1d :exec
 INSERT INTO traffic_1d (server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out,
-                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 ON CONFLICT (server_id, host, bucket) DO UPDATE SET
     service_id = EXCLUDED.service_id, requests = EXCLUDED.requests, documents = EXCLUDED.documents,
     bot_requests = EXCLUDED.bot_requests, bytes_in = EXCLUDED.bytes_in, bytes_out = EXCLUDED.bytes_out,
     s1xx = EXCLUDED.s1xx, s2xx = EXCLUDED.s2xx, s3xx = EXCLUDED.s3xx, s4xx = EXCLUDED.s4xx, s5xx = EXCLUDED.s5xx,
     s_other = EXCLUDED.s_other, lat_hist = EXCLUDED.lat_hist, lat_sum_ms = EXCLUDED.lat_sum_ms,
-    visitors = EXCLUDED.visitors, hll = EXCLUDED.hll, status_codes = EXCLUDED.status_codes, top = EXCLUDED.top, geo = EXCLUDED.geo
+    visitors = EXCLUDED.visitors, hll = EXCLUDED.hll, status_codes = EXCLUDED.status_codes, top = EXCLUDED.top, geo = EXCLUDED.geo,
+    blocked = EXCLUDED.blocked
 `
 
 type UpsertTraffic1dParams struct {
@@ -1200,6 +1208,7 @@ type UpsertTraffic1dParams struct {
 	StatusCodes json.RawMessage `json:"statusCodes"`
 	Top         json.RawMessage `json:"top"`
 	Geo         json.RawMessage `json:"geo"`
+	Blocked     json.RawMessage `json:"blocked"`
 }
 
 func (q *Queries) UpsertTraffic1d(ctx context.Context, arg UpsertTraffic1dParams) error {
@@ -1226,20 +1235,22 @@ func (q *Queries) UpsertTraffic1d(ctx context.Context, arg UpsertTraffic1dParams
 		arg.StatusCodes,
 		arg.Top,
 		arg.Geo,
+		arg.Blocked,
 	)
 	return err
 }
 
 const upsertTraffic1h = `-- name: UpsertTraffic1h :exec
 INSERT INTO traffic_1h (server_id, service_id, host, bucket, requests, documents, bot_requests, bytes_in, bytes_out,
-                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                        s1xx, s2xx, s3xx, s4xx, s5xx, s_other, lat_hist, lat_sum_ms, visitors, hll, status_codes, top, geo, blocked)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
 ON CONFLICT (server_id, host, bucket) DO UPDATE SET
     service_id = EXCLUDED.service_id, requests = EXCLUDED.requests, documents = EXCLUDED.documents,
     bot_requests = EXCLUDED.bot_requests, bytes_in = EXCLUDED.bytes_in, bytes_out = EXCLUDED.bytes_out,
     s1xx = EXCLUDED.s1xx, s2xx = EXCLUDED.s2xx, s3xx = EXCLUDED.s3xx, s4xx = EXCLUDED.s4xx, s5xx = EXCLUDED.s5xx,
     s_other = EXCLUDED.s_other, lat_hist = EXCLUDED.lat_hist, lat_sum_ms = EXCLUDED.lat_sum_ms,
-    visitors = EXCLUDED.visitors, hll = EXCLUDED.hll, status_codes = EXCLUDED.status_codes, top = EXCLUDED.top, geo = EXCLUDED.geo
+    visitors = EXCLUDED.visitors, hll = EXCLUDED.hll, status_codes = EXCLUDED.status_codes, top = EXCLUDED.top, geo = EXCLUDED.geo,
+    blocked = EXCLUDED.blocked
 `
 
 type UpsertTraffic1hParams struct {
@@ -1265,6 +1276,7 @@ type UpsertTraffic1hParams struct {
 	StatusCodes json.RawMessage `json:"statusCodes"`
 	Top         json.RawMessage `json:"top"`
 	Geo         json.RawMessage `json:"geo"`
+	Blocked     json.RawMessage `json:"blocked"`
 }
 
 func (q *Queries) UpsertTraffic1h(ctx context.Context, arg UpsertTraffic1hParams) error {
@@ -1291,6 +1303,7 @@ func (q *Queries) UpsertTraffic1h(ctx context.Context, arg UpsertTraffic1hParams
 		arg.StatusCodes,
 		arg.Top,
 		arg.Geo,
+		arg.Blocked,
 	)
 	return err
 }

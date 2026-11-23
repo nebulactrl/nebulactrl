@@ -282,6 +282,8 @@ func absentOnKind(id string, c services.Config) bool {
 		return c.Stack == nil
 	case strings.HasPrefix(id, "config.database."):
 		return c.Database == nil
+	case strings.HasPrefix(id, "config.cron."):
+		return c.Cron == nil
 	case strings.HasPrefix(id, "config.processes."):
 		return !hasProcess(c, strings.TrimPrefix(id, "config.processes."))
 	}

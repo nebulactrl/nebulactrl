@@ -91,23 +91,23 @@ func TestParseLineUnroutedAndErrors(t *testing.T) {
 }
 
 func TestServiceFromRouter(t *testing.T) {
-	id, redirect, ok := serviceFromRouter("nc-" + svcA + "-https@file")
+	id, redirect, _, ok := serviceFromRouter("nc-" + svcA + "-https@file")
 	require.True(t, ok)
 	require.False(t, redirect)
 	require.Equal(t, svcA, id)
 
-	id, redirect, ok = serviceFromRouter("nc-" + svcA + "-http@rest")
+	id, redirect, _, ok = serviceFromRouter("nc-" + svcA + "-http@rest")
 	require.True(t, ok)
 	require.True(t, redirect)
 	require.Equal(t, svcA, id)
 
-	id, redirect, ok = serviceFromRouter("nc-" + svcA + "-https-local@rest")
+	id, redirect, _, ok = serviceFromRouter("nc-" + svcA + "-https-local@rest")
 	require.True(t, ok)
 	require.False(t, redirect)
 	require.Equal(t, svcA, id)
 
 	for _, bad := range []string{"", "api@internal", "dashboard@internal", "nc-gen@rest", "nc-notauuid-https@file", "nc-" + svcA + "-probe@rest"} {
-		_, _, ok := serviceFromRouter(bad)
+		_, _, _, ok := serviceFromRouter(bad)
 		require.False(t, ok, bad)
 	}
 }

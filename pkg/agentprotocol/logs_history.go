@@ -218,6 +218,13 @@ type RequestRecord struct {
 	IP         string  `json:"ip,omitempty"`
 	Process    string  `json:"process,omitempty"`
 	Component  string  `json:"component,omitempty"`
+	// BlockedBy is the id of the firewall rule that blocked the request (a
+	// service rule's id, or a standard protection's, std…); absent for every
+	// other request, so `@blocked_by:*` finds the blocked ones.
+	BlockedBy string `json:"blocked_by,omitempty"`
+	// Country is the ISO 3166-1 code of the client's country; absent while the
+	// server's geolocation is off or the address is not located.
+	Country string `json:"country,omitempty"`
 }
 
 // Request kinds (RequestRecord.Kind), from the response's Content-Type and,

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import { useState } from "react";
+import type { FirewallReport } from "#/api/gen/types.gen";
 import { serviceQuery, servicesQuery } from "#/api/hooks";
 import type { Service } from "#/api/models";
 import { CopyButton } from "#/components/common/copy-button";
@@ -11,6 +12,9 @@ import { Alert, AlertDescription } from "#/components/ui/alert";
 import { Button } from "#/components/ui/button";
 import { CheckLabel } from "#/components/ui/check-label";
 import { Skeleton, SkeletonReveal } from "#/components/ui/skeleton";
+import { compactNumber } from "#/features/metrics/chart-format";
+import { EYEBROW } from "#/features/metrics/ui/eyebrow";
+import { blockedRuleLabel } from "../firewall/model";
 import { isDelayed } from "../metrics/model";
 import {
 	isLiveRange,
@@ -68,6 +72,76 @@ function Notice({
 		>
 			<AlertDescription>{children}</AlertDescription>
 		</Alert>
+	);
+}
+
+/**
+ * What the firewall blocked in the range, in total and per rule (the top
+ * three), with a link to the service's Firewall settings. Not shown while
+ * nothing was blocked: the settings page says "nothing" for that.
+ */
+function BlockedByFirewall({
+	service,
+	firewall,
+	range,
+}: {
+	service: Service;
+	firewall: FirewallReport;
+	range: TrafficRange;
+}) {
+	const envSlug = useParams({ strict: false }).envSlug;
+	if (firewall.blocked <= 0) return null;
+	const top = (firewall.byRule ?? [])
+		.filter((row) => row.requests > 0)
+		.slice(0, 3);
+	return (
+		<section
+			aria-label="Blocked by firewall"
+			className="surface-raised mb-4 flex flex-col gap-2 rounded-card px-4 py-3"
+		>
+			<header className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+				<h3 className={EYEBROW}>Blocked by firewall</h3>
+				{envSlug !== undefined ? (
+					<Link
+						to="/p/$projectId/$envSlug"
+						params={{ projectId: service.projectId, envSlug }}
+						search={{
+							service: service.id,
+							tab: "settings",
+							section: "firewall",
+						}}
+						className="text-accent-ink text-xs underline"
+					>
+						Firewall settings
+					</Link>
+				) : null}
+			</header>
+			<p className="m-0 text-ink-2 text-sm">
+				<span className="font-medium font-mono text-ink-1 tabular-nums">
+					{compactNumber(firewall.blocked)}
+				</span>{" "}
+				{firewall.blocked === 1 ? "request" : "requests"} blocked in the last{" "}
+				{range}
+			</p>
+			{top.length > 0 ? (
+				<ul
+					aria-label="Rules that blocked the most"
+					className="m-0 flex list-none flex-col gap-1 p-0"
+				>
+					{top.map((row) => (
+						<li
+							key={row.id}
+							className="flex items-baseline justify-between gap-3 text-ink-3 text-xs"
+						>
+							<span className="min-w-0 truncate">{blockedRuleLabel(row)}</span>
+							<span className="shrink-0 font-mono text-ink-2 tabular-nums">
+								{compactNumber(row.requests)}
+							</span>
+						</li>
+					))}
+				</ul>
+			) : null}
+		</section>
 	);
 }
 
@@ -260,6 +334,13 @@ export function TrafficPanel({
 					offline ? "opacity-70 transition-opacity duration-quick" : undefined
 				}
 			>
+				{"serviceId" in scope && service.data && report.firewall ? (
+					<BlockedByFirewall
+						service={service.data}
+						firewall={report.firewall}
+						range={range}
+					/>
+				) : null}
 				<TrafficView
 					report={report}
 					range={range}

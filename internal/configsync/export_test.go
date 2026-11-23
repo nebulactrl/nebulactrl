@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -342,6 +343,21 @@ func exRichEnv() *liveEnv {
 	web.Vars["API_TOKEN"] = liveVar{Key: "API_TOKEN", Secret: true, Opaque: true}
 	web.Tasks["digest"] = db.ServiceTask{Name: "digest", Schedule: "0 7 * * 1-5", Timezone: "Europe/Berlin", Command: json.RawMessage(`["bun","run","digest"]`), Enabled: true, TimeoutSeconds: 900, Concurrency: "forbid"}
 	web.Monitor = &db.UptimeMonitor{Enabled: true, Alerts: true, FailureThreshold: 3, RecoveryThreshold: 2, ReminderMinutes: 60}
+	fwRaw, err := json.Marshal(agentprotocol.Firewall{Rules: []agentprotocol.FirewallRule{
+		{ID: "admin1", Name: "Block admin", Action: agentprotocol.FirewallBlock, Conditions: []agentprotocol.FirewallCondition{
+			{Field: agentprotocol.FirewallFieldPath, Op: agentprotocol.FirewallOpPrefix, Values: []string{"/admin"}},
+			{Field: agentprotocol.FirewallFieldCountry, Op: agentprotocol.FirewallOpIn, Values: []string{"DE"}, Not: true},
+		}},
+		{ID: "hdr2", Name: "Allow monitor", Action: agentprotocol.FirewallAllow, Disabled: true, Conditions: []agentprotocol.FirewallCondition{
+			{Field: agentprotocol.FirewallFieldHeader, Op: agentprotocol.FirewallOpPresent, Name: "X-Monitor"},
+		}},
+	}})
+	if err != nil {
+		panic(err)
+	}
+	web.Row.Firewall = fwRaw
+	eta := time.Date(2030, 12, 1, 6, 0, 0, 0, time.UTC)
+	web.Row.MaintenanceEnabled, web.Row.MaintenanceTitle, web.Row.MaintenanceMessage, web.Row.MaintenanceEta = true, "Back soon", "Upgrading.", &eta
 	web.Owned["generate_domain"] = "x"
 	serve := db.Domain{ID: uuid.New(), ServiceID: web.Row.ID, Hostname: "shop.example.com", TargetPort: 3000, Kind: "serve", RedirectCode: 308, PreservePath: true, TlsMode: "auto", CfZoneID: "z1", CfProxied: false, CfOriginLock: true}
 	www := db.Domain{ID: uuid.New(), ServiceID: web.Row.ID, Hostname: "www.shop.example.com", Kind: "redirect", RedirectTo: new("shop.example.com"), RedirectCode: 308, PreservePath: true, TlsMode: "auto"}
@@ -1294,10 +1310,11 @@ func (f *exFixture) production() {
 	})
 	require.NoError(f.t, err)
 
-	// Scale, uptime, tasks.
-	_, err = f.pool.Exec(bg, "UPDATE services SET replicas = 2 WHERE id = $1", worker.ID)
+	// Scale, uptime, tasks. The site has a port and no volumes or files: the platform runs a
+	// service without a port, or with either, as a single instance.
+	_, err = f.pool.Exec(bg, "UPDATE services SET replicas = 2 WHERE id = $1", site.ID)
 	require.NoError(f.t, err)
-	_, err = f.q.SetServiceAutoscaling(bg, db.SetServiceAutoscalingParams{ID: worker.ID, Autoscaling: json.RawMessage(`{"enabled":true,"min":2,"max":5,"targetCpuPercent":60}`)})
+	_, err = f.q.SetServiceAutoscaling(bg, db.SetServiceAutoscalingParams{ID: site.ID, Autoscaling: json.RawMessage(`{"enabled":true,"min":2,"max":5,"targetCpuPercent":60}`)})
 	require.NoError(f.t, err)
 	_, err = f.q.UpsertUptimeMonitor(bg, db.UpsertUptimeMonitorParams{
 		ServiceID: web.ID, WorkspaceID: f.ws.ID, Enabled: true, Alerts: true, FailureThreshold: 5, RecoveryThreshold: 2, ReminderMinutes: 60,
@@ -1585,4 +1602,31 @@ func TestExportProcessesPlansToZero(t *testing.T) {
 	require.Greater(t, len(all.File), len(plain.File))
 	pl = f.plansToZero(all.File, "production")
 	require.Equal(t, 1, pl.Summary.Unchanged)
+}
+
+// A stack exports its stop grace period and egress switch, a database its tasks: both kinds take the
+// keys in the file.
+func TestExportStackGraceAndDatabaseTasks(t *testing.T) {
+	stack := exSvc("shop", services.KindStack, services.SourceCompose, services.Config{
+		Stack: &services.StackConfig{Compose: exCompose}, StopGraceSeconds: 90, BlockEgress: true, MemoryMB: 512,
+	})
+	stack.Row.ServerID = new(exID(1))
+	dbs := exSvc("db", services.KindDatabase, services.SourceImage, services.Config{Database: &engines.Spec{Engine: "postgres"}, BlockEgress: true})
+	dbs.Row.ServerID = new(exID(1))
+	dbs.Tasks["vacuum"] = db.ServiceTask{Name: "vacuum", Schedule: "0 4 * * *", Timezone: "UTC", Command: json.RawMessage(`["psql","-c","VACUUM"]`), Enabled: true, TimeoutSeconds: 1800, Concurrency: "forbid"}
+
+	text, v := exExport(t, exLiveEnv(exTestRefs(), stack, dbs), false)
+	shop := v.Res.Services["shop"].Def
+	require.NotNil(t, shop.StopGraceSeconds)
+	require.Equal(t, 90, *shop.StopGraceSeconds)
+	require.NotNil(t, shop.BlockEgress)
+	require.True(t, *shop.BlockEgress)
+	require.Nil(t, shop.MemoryMB, "a stack takes no memory limit key")
+	pg := v.Res.Services["db"].Def
+	require.Contains(t, pg.Tasks, "vacuum")
+	require.Equal(t, "0 4 * * *", *pg.Tasks["vacuum"].Schedule)
+
+	_, res := exParseResolve(t, text, "production")
+	require.Contains(t, res.Services, "shop")
+	require.Contains(t, res.Services, "db")
 }

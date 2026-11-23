@@ -116,7 +116,12 @@ func fold(srcs []db.Traffic1m, width time.Duration) []db.UpsertTraffic1hParams {
 			OS: s.ranked(dimOS), Devices: s.ranked(dimDevices),
 			NotFound: s.ranked(dimNotFound),
 		}
+		blocked := map[string]int64{}
+		for id, n := range s.blocked {
+			blocked[id] = n
+		}
 		codesJSON, _ := json.Marshal(codes)
+		blockedJSON, _ := json.Marshal(blocked)
 		topJSON, _ := json.Marshal(top)
 		out = append(out, db.UpsertTraffic1hParams{
 			ServerID: k.server, ServiceID: g.service, Host: k.host, Bucket: time.Unix(k.bucket, 0).UTC(),
@@ -124,6 +129,7 @@ func fold(srcs []db.Traffic1m, width time.Duration) []db.UpsertTraffic1hParams {
 			S1xx: s.S[0], S2xx: s.S[1], S3xx: s.S[2], S4xx: s.S[3], S5xx: s.S[4], SOther: s.S[5],
 			LatHist: append([]int64(nil), s.Hist[:]...), LatSumMs: s.LatSum, Visitors: visitors, Hll: hll,
 			StatusCodes: codesJSON, Top: topJSON, Geo: marshalGeo(s.geo.bucket(maxRolledCities)),
+			Blocked: blockedJSON,
 		})
 	}
 	return out

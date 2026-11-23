@@ -40,7 +40,7 @@ The trust rule: **nobody below the instance admin can gain root on a host unless
 | Init | `init` | run Docker's init (tini) as PID 1: reaps zombies and forwards signals |
 | Stop signal | `stopSignal` | one of `SIGTERM`, `SIGINT`, `SIGQUIT`, `SIGHUP`, `SIGUSR1`, `SIGUSR2`, `SIGWINCH`, `SIGKILL`; the grace period (`stopGraceSeconds`) is unchanged |
 | Entrypoint | `entrypoint` | replaces the image's `ENTRYPOINT`; an exec-form argv of up to 32 elements (each at most 4096 bytes, no NUL), the first one the program. The start command (`startCommand`) is passed to it as arguments. Like `docker run --entrypoint`, overriding the entrypoint **drops the image's default command**, so set `startCommand` when the program needs arguments. No shell is involved unless the first element is one. An empty entrypoint (clearing the image's) is not supported |
-| tmpfs | `tmpfs` | up to 10 in-memory mounts: absolute, clean `path` (not `/`, not under `/proc`, `/sys`, `/dev`, `/run/docker`, not colliding with a config file mount), `sizeMb` (default 64, at most 65536), optional octal `mode` such as `1777` |
+| tmpfs | `tmpfs` | up to 10 in-memory mounts: absolute, clean `path` (no spaces, commas or colons; not `/`, not under `/proc`, `/sys`, `/dev`, `/run/docker` or `/var/run/docker`, not colliding with a config file mount), `sizeMb` (default 64, at most 65536), optional octal `mode` such as `1777` |
 
 **Hardening is opt-in.** Nothing is switched on by default except the hostname: `no-new-privileges` breaks images that rely on setuid helpers and `capDrop: [ALL]` breaks images that chown their data directory at start, so you choose them per service. The Docker options section offers a one-click **Hardened** preset (`capDrop: [ALL]`, `noNewPrivileges`, `readOnlyRootfs`, `pidsLimit: 512` and a `/tmp` tmpfs) that you then adjust to what the image needs.
 
@@ -106,6 +106,55 @@ One switch per server controls both these options and [unrestricted Compose stac
 ## What is never possible
 
 Not configurable on any server, not on any list: `--ip`/`--ip6` (rolling deploys start the new container while the old one runs, so two containers would need the same address; use the private DNS name), host networking on a plain service (routes dial the container on the environment network; a [stack](compose-stacks.md) on an unrestricted server can use it), the restart policy and log options (the platform owns them; see [logs](logs.md)), the host IPC namespace (use `shmSizeMb`), host bind mounts and the Docker socket, `--device-cgroup-rule`, and the host user, UTS or cgroup namespaces. Each container still joins only its environment network (and shared networks you attach); memory and CPU limits stay under NebulaCtrl's control.
+
+## In `nebula.toml`
+
+The options are the table `[services.<s>.docker]` of an app, worker or database service ([`nebula.toml` reference](../reference/nebula-toml.md)). They are staged like in the UI, and **each key is owned on its own**: a key you leave out is not touched. The file uses snake_case names:
+
+| API field | `nebula.toml` key | API field | `nebula.toml` key |
+|---|---|---|---|
+| `capAdd` | `cap_add` | `init` | `init` |
+| `capDrop` | `cap_drop` | `stopSignal` | `stop_signal` |
+| `noNewPrivileges` | `no_new_privileges` | `tmpfs` | `tmpfs` |
+| `readOnlyRootfs` | `read_only_rootfs` | `entrypoint` | `entrypoint` |
+| `pidsLimit` | `pids_limit` | `devices` | `devices` |
+| `hostname` | `hostname` | `gpus` | `gpus` |
+| `dns` | `dns` | `runtime` | `runtime` |
+| `sysctls` | `sysctls` | `privileged` | `privileged` |
+| `hostSysctls` | `host_sysctls` | `pidHost` | `pid_host` |
+| `user` | `user` | `seccompUnconfined` | `seccomp_unconfined` |
+| `groupAdd` | `group_add` | `apparmorUnconfined` | `apparmor_unconfined` |
+| `ulimits` | `ulimits` | `labels` | `labels` |
+| `shmSizeMb` | `shm_size_mb` | `extraHosts` | `extra_hosts` |
+
+Keys whose API value is a list of objects are tables in the file:
+
+- `ulimits` is keyed by name, `nofile` or `memlock`, and each entry needs both `soft` and `hard`: `nofile = { soft = 65536, hard = 65536 }`. A name can only appear once, and `nproc` is refused.
+- `tmpfs` is keyed by the absolute path: `"/tmp" = { size_mb = 64, mode = "1777" }`. `size_mb` is at most 65536 and 64 when left out; `mode` is octal (3 or 4 digits).
+- `devices` is an array of tables with `host_path` (required) and optional `container_path` and `permissions`; `gpus` is a table with `count` and `driver` (both required) and optional `capabilities`.
+- `sysctls`, `host_sysctls` and `labels` are plain tables of name to value; `sysctls` and `labels` values are strings, `host_sysctls` values are numbers.
+
+```toml
+[services.web.docker]
+cap_drop          = ["ALL"]
+cap_add           = ["NET_BIND_SERVICE"]
+no_new_privileges = true
+read_only_rootfs  = true
+pids_limit        = 512
+dns               = ["1.1.1.1", "9.9.9.9"]
+labels            = { "team" = "shop" }
+
+[services.web.docker.sysctls]
+"net.core.somaxconn" = "1024"
+
+[services.web.docker.ulimits]
+nofile = { soft = 65536, hard = 65536 }
+
+[services.web.docker.tmpfs]
+"/tmp" = { size_mb = 64, mode = "1777" }
+```
+
+The file is checked with the same rules as the UI and the API, so the limits and names in [the table above](#options-on-every-server) hold: at most 30 `labels` (the prefixes `com.docker.`, `nebulactrl.` and `traefik.` are reserved), 10 `tmpfs` mounts (an absolute, clean path without spaces, commas or colons that is not `/`, not under `/proc`, `/sys`, `/dev`, `/run/docker` or `/var/run/docker`, and not the path of a config file), 3 `dns` addresses (IPs, no hostnames), 16 `sysctls` from the [curated list](#sysctls), 8 `group_add` IDs, 20 `extra_hosts`, 16 `devices` and an `entrypoint` of at most 32 elements. With `read_only_rootfs = true` every `files` path must sit under a `volumes` mount. A violation is a validation error at `services.<s>.docker`. Whether the server is unrestricted is only known at plan time: the options in [the second tier](#options-on-unrestricted-servers-only) pass validation and the plan then fails with `docker_unrestricted` on any other server.
 
 ## Interactions
 

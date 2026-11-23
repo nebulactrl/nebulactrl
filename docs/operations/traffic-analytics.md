@@ -11,6 +11,15 @@ NebulaCtrl counts requests at each host's proxy. The agent reads the Traefik acc
 
 Views: service inspector → Analytics, server page → Traffic (the Overview shows the last 24 hours in four numbers), environment → Observability. The individual requests are on the environment's [Logs page](logs.md#the-logs-page) (`stream:requests`).
 
+## Blocked by the firewall
+
+The agent counts the requests the [service firewall](firewall.md) blocked, per rule, next to the status codes. The same minute aggregate carries one more map, `blocked` (rule id → requests), for the service's own rules and the standard protection (`std…` ids). The control plane stores it in the same minute, hour and day tiers (`blocked` column) and rolls it up by addition like `statusCodes`. Nothing but those counts is sent: the paths, client networks and countries of the blocked requests stay in the host's [request logs](logs.md#request-logs) (`@blocked_by:*`).
+
+- A blocked request is attributed to its **service** and counted in its requests and 4xx, with the rule. Before this, a request blocked by a rule compiled into the proxy's routers was counted under the server's *unrouted* requests, and a guard block was an ordinary 403 without a rule; both are now the service's and name the rule. Earlier minutes are not changed.
+- Reports gain a `firewall` section: `blocked`, `byRule` (`id`, `name`, `kind` `standard`, `rule` or `removed`, `action`, `requests`; service reports name every rule, server and workspace reports name the standard protection only) and `series` (`ts`, `blocked`) on the report's own x axis. `GET /api/v1/services/{serviceId}/firewall/blocks` answers the 24 hour, 7 and 30 day totals per rule. See [Seeing what was blocked](firewall.md#seeing-what-was-blocked).
+- It needs traffic analytics on the server, and it counts only what the agent has reported since it was updated. A guard-enforced rule is counted once the proxy has been recreated with the new access-log header setting (the agent does this by itself, once, after the update).
+- The agent keeps at most 2000 live counters per minute (a flood of different hosts can exceed that) and 128 distinct rules per counter, so the counts can fall short under attack.
+
 ## Where requests come from
 
 The "Where requests come from" card shows a dot map with the busiest places marked (size and brightness follow their share of requests), beside the top countries and, at the city level, the top cities. It appears in the service, server and environment views, and in the Observability summary.

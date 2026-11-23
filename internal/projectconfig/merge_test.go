@@ -526,7 +526,7 @@ port = 80
 ONLY = "1"
 
 [services.web.scale]
-replicas = 2
+replicas = 1
 
 [services.web.files."/etc/a.conf"]
 content = "x"

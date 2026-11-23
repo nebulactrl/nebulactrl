@@ -96,6 +96,8 @@ Secret variable values are never returned by any read endpoint, appear in logs o
 
 A service volume is a named Docker volume mounted at a path in the container (**Settings → Volumes**, `POST /services/{id}/volumes`, `[services.<slug>.volumes]` in nebula.toml). Adding or removing one is staged like any setting. Detaching a volume never deletes its data.
 
+**Removing a volume from nebula.toml** only **releases** it: the file stops managing the volume and it stays attached to the service. An apply with `--prune` detaches it (a staged change, shipped by the next deploy). Either way the Docker volume and its data stay on the server ([ownership and prune](project-config.md#ownership-and-drift)).
+
 **Owner.** Docker creates a new volume's root directory as `root:root` with mode 0755. When the mount path exists in the image, Docker copies that directory's owner and mode into the new, empty volume, so an app that runs as a non-root user can write to it. When the path does **not** exist in the image, nothing is copied and a non-root process gets "permission denied". That is what the optional **owner** is for: `uid` or `uid:gid`, numbers only (0-2147483647). Names such as `app:app` are refused with `422 invalid_config`, because the agent sets the owner in a helper container that does not know the image's `/etc/passwd`.
 
 ```toml

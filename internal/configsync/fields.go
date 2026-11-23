@@ -99,6 +99,10 @@ func opsFor(id string) fieldOps {
 		return gitOps{}
 	case strings.HasPrefix(id, "uptime."):
 		return uptimeOps{}
+	case id == "firewall":
+		return firewallOps{}
+	case id == "maintenance":
+		return maintenanceOps{}
 	case strings.HasPrefix(id, "tasks."):
 		return taskOps{}
 	case strings.HasPrefix(id, "backups."):

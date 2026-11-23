@@ -702,6 +702,14 @@ func (g *ftGen) mutate(d *Service) {
 	}
 }
 
+// ftSingleInstance keeps a generated service valid: the platform runs a service with config
+// files as a single instance, so the file refuses more than one replica for it.
+func ftSingleInstance(d *Service) {
+	if len(d.Files) > 0 && d.Scale != nil && d.Scale.Replicas != nil && *d.Scale.Replicas > 1 {
+		d.Scale.Replicas = new(1)
+	}
+}
+
 func (g *ftGen) environments() map[string]*Resolved {
 	slugs := []string{"production", "staging", "preview"}[:2+g.rng.IntN(2)]
 	names := []string{"web", "worker", "api"}
@@ -729,6 +737,7 @@ func (g *ftGen) environments() map[string]*Resolved {
 					g.mutate(d)
 				}
 			}
+			ftSingleInstance(d)
 			svcs[n] = d
 		}
 		r := rtView(e, svcs)

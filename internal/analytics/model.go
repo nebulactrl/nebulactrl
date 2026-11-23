@@ -73,8 +73,10 @@ type row struct {
 	LatSum float64
 	HLL    []byte
 	Codes  map[string]int64
-	Top    agentprotocol.TrafficTop
-	Geo    agentprotocol.GeoBucket
+	// Blocked counts the requests the service firewall blocked, by rule id.
+	Blocked map[string]int64
+	Top     agentprotocol.TrafficTop
+	Geo     agentprotocol.GeoBucket
 }
 
 func rowFrom(t db.Traffic1m) row {
@@ -87,6 +89,9 @@ func rowFrom(t db.Traffic1m) row {
 	copy(r.Hist[:], t.LatHist)
 	if len(t.StatusCodes) > 0 {
 		_ = json.Unmarshal(t.StatusCodes, &r.Codes)
+	}
+	if len(t.Blocked) > 0 {
+		_ = json.Unmarshal(t.Blocked, &r.Blocked)
 	}
 	if len(t.Top) > 0 {
 		_ = json.Unmarshal(t.Top, &r.Top)
@@ -128,17 +133,21 @@ type sum struct {
 	S                                            [6]int64
 	Hist                                         [agentprotocol.LatencyBuckets]int64
 	LatSum                                       float64
+	// Blocked is the number of requests the firewall blocked.
+	Blocked int64
 
-	hll   *hyperloglog.Sketch
-	codes map[string]int64
-	tops  map[string]map[string]*agentprotocol.TopEntry
-	geo   *geoSum // request origins; only in detailed sums
+	hll     *hyperloglog.Sketch
+	codes   map[string]int64
+	blocked map[string]int64 // Blocked by rule id; only in detailed sums
+	tops    map[string]map[string]*agentprotocol.TopEntry
+	geo     *geoSum // request origins; only in detailed sums
 }
 
 func newSum(detail bool) *sum {
 	s := &sum{}
 	if detail {
 		s.codes = map[string]int64{}
+		s.blocked = map[string]int64{}
 		s.geo = &geoSum{}
 		s.tops = map[string]map[string]*agentprotocol.TopEntry{}
 		for _, d := range dimensions {
@@ -179,6 +188,9 @@ func (s *sum) add(r *row, sk *hyperloglog.Sketch) {
 		s.Hist[i] += r.Hist[i]
 	}
 	s.LatSum += r.LatSum
+	for _, n := range r.Blocked {
+		s.Blocked += n
+	}
 	if sk != nil {
 		if s.hll == nil {
 			s.hll = newSketch()
@@ -188,6 +200,9 @@ func (s *sum) add(r *row, sk *hyperloglog.Sketch) {
 	if s.tops != nil {
 		for k, n := range r.Codes {
 			s.codes[k] += n
+		}
+		for k, n := range r.Blocked {
+			s.blocked[k] += n
 		}
 		s.geo.add(&r.Geo)
 		for dim, list := range map[string][]agentprotocol.TopEntry{
@@ -225,6 +240,7 @@ func (s *sum) merge(o *sum) {
 		s.Hist[i] += o.Hist[i]
 	}
 	s.LatSum += o.LatSum
+	s.Blocked += o.Blocked
 	if o.hll != nil {
 		if s.hll == nil {
 			s.hll = newSketch()

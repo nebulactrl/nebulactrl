@@ -63,11 +63,14 @@ func (s *Service) Handle(ctx context.Context, p agentprotocol.PatchingPayload) (
 	res := agentprotocol.PatchingResult{Action: p.Action, Mode: s.runner.Mode()}
 	switch p.Action {
 	case agentprotocol.PatchingActionCheck:
+		var note string
+		res.NativeApplied, note = s.native(ctx, p.Native)
 		st, err := s.check(ctx)
 		if err != nil {
 			return res, err
 		}
 		res.State = st
+		res.Message = note
 	case agentprotocol.PatchingActionApply:
 		return s.apply(ctx, p, res)
 	case agentprotocol.PatchingActionReboot:
@@ -76,6 +79,39 @@ func (s *Service) Handle(ctx context.Context, p agentprotocol.PatchingPayload) (
 		return res, fmt.Errorf("unknown patching action %q", p.Action)
 	}
 	return res, nil
+}
+
+// native switches the host's own automatic updates as asked (empty: leave
+// them). It never fails the command: it returns what it applied, or a note
+// saying why it could not.
+func (s *Service) native(ctx context.Context, directive string) (applied, note string) {
+	if directive == "" {
+		return "", ""
+	}
+	script, err := hostpatch.NativeScript(directive)
+	if err == nil {
+		var out hardening.Output
+		if out, err = s.runner.Run(ctx, script); err == nil {
+			applied, err = hostpatch.ParseNative(out.Stdout)
+		}
+	}
+	if err != nil {
+		s.log.Warn("host automatic updates not switched", "directive", directive, "err", err)
+		return "", "Could not switch the host's own automatic updates: " + err.Error()
+	}
+	s.log.Info("host automatic updates switched", "directive", directive)
+	return applied, ""
+}
+
+// containers reads the restart policies of the running containers, for the
+// decision to reboot after a scheduled upgrade.
+func (s *Service) containers(ctx context.Context) *agentprotocol.PatchContainers {
+	out, err := s.runner.Run(ctx, hostpatch.ContainersScript)
+	if err != nil {
+		return &agentprotocol.PatchContainers{Reason: err.Error()}
+	}
+	c := hostpatch.ParseContainers(out.Stdout)
+	return &c
 }
 
 func (s *Service) check(ctx context.Context) (agentprotocol.PatchState, error) {
@@ -112,6 +148,7 @@ func (s *Service) reboot(ctx context.Context, res agentprotocol.PatchingResult) 
 // again so the new state is known. A start that finds the run already
 // started (the agent restarted mid-upgrade) attaches to it.
 func (s *Service) apply(ctx context.Context, p agentprotocol.PatchingPayload, res agentprotocol.PatchingResult) (agentprotocol.PatchingResult, error) {
+	res.NativeApplied, _ = s.native(ctx, p.Native)
 	before, err := s.check(ctx)
 	if err != nil {
 		return res, err
@@ -119,7 +156,10 @@ func (s *Service) apply(ctx context.Context, p agentprotocol.PatchingPayload, re
 	if !before.Supported {
 		return res, errors.New(before.Message)
 	}
-	start, err := hostpatch.StartScript(p.RunID, before.Manager, p.SecurityOnly)
+	scheduled := p.Trigger == agentprotocol.PatchingTriggerScheduled
+	start, err := hostpatch.StartScript(p.RunID, before.Manager, hostpatch.UpgradeOptions{
+		SecurityOnly: p.SecurityOnly, Scheduled: scheduled, Holds: p.HoldPackages,
+	})
 	if err != nil {
 		return res, err
 	}
@@ -131,7 +171,7 @@ func (s *Service) apply(ctx context.Context, p agentprotocol.PatchingPayload, re
 	if err != nil {
 		return res, fmt.Errorf("start the upgrade: %w", err)
 	}
-	s.log.Info("host upgrade", "run_id", p.RunID, "manager", before.Manager, "security_only", p.SecurityOnly, "start", st)
+	s.log.Info("host upgrade", "run_id", p.RunID, "manager", before.Manager, "security_only", p.SecurityOnly, "scheduled", scheduled, "start", st)
 
 	status, err := s.wait(ctx, p.RunID)
 	if err != nil {
@@ -147,7 +187,12 @@ func (s *Service) apply(ctx context.Context, p agentprotocol.PatchingPayload, re
 		res.ExitCode = -1
 		res.Message = "The host has no record of this upgrade."
 	case hostpatch.UpgradeFinished:
-		if status.ExitCode != 0 {
+		if status.ExitCode == hostpatch.ExitSkipped {
+			if reason := skipReason(status.Log); reason != "" {
+				res.Message = "Skipped: " + reason + "."
+			}
+		}
+		if status.ExitCode != 0 && res.Message == "" {
 			res.Message = fmt.Sprintf("The package manager exited with status %d.", status.ExitCode)
 		}
 	}
@@ -162,7 +207,21 @@ func (s *Service) apply(ctx context.Context, p agentprotocol.PatchingPayload, re
 	} else {
 		res.State = after
 	}
+	if p.CheckContainers && res.ExitCode == 0 && res.State.RebootRequired {
+		res.Containers = s.containers(ctx)
+	}
 	return res, nil
+}
+
+// skipReason is the reason the preflight of a scheduled upgrade printed.
+func skipReason(log string) string {
+	reason := ""
+	for _, line := range strings.Split(log, "\n") {
+		if r, ok := strings.CutPrefix(strings.TrimSpace(line), hostpatch.SkipMarker); ok {
+			reason = r
+		}
+	}
+	return reason
 }
 
 // wait polls the host until the detached upgrade ends. A runner that cannot

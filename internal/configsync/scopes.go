@@ -24,6 +24,10 @@ func scopeOfField(id string) string {
 		return policy.ScopeDeploymentsWrite // backups schedule use cases
 	case strings.HasPrefix(id, "uptime."):
 		return policy.ScopeAdmin // uptime.Service.UpdateMonitor
+	case id == "firewall":
+		return policy.ScopeProxyWrite // firewall.Service.Put (which also needs projects:write, held by every apply)
+	case id == "maintenance":
+		return policy.ScopeDeploymentsWrite // maintenance.Service.Set
 	case strings.HasPrefix(id, "config.route."):
 		return policy.ScopeProxyWrite // proxyroutes create/update
 	}

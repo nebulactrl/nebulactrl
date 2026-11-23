@@ -249,23 +249,23 @@ func (f *planFixture) database(env db.Environment) services.ServiceView {
 	return v
 }
 
-// route creates an http route to one upstream address with the health path "/".
-func (f *planFixture) route(env db.Environment, slug, upstream string) services.ServiceView {
+// route creates the "printer" http route to the upstream 192.168.1.20:631 with the health path "/".
+func (f *planFixture) route(env db.Environment) services.ServiceView {
 	f.t.Helper()
-	ups := []proxyroutes.UpstreamInput{{Address: upstream}}
+	ups := []proxyroutes.UpstreamInput{{Address: "192.168.1.20:631"}}
 	v, err := f.routes.Create(f.ctx, env.ID, proxyroutes.CreateInput{
-		Name: slug, Slug: slug, ServerID: f.server.ID, Protocol: "http",
+		Name: "printer", Slug: "printer", ServerID: f.server.ID, Protocol: "http",
 		RouteFields: proxyroutes.RouteFields{Upstreams: &ups, HealthPath: new("/")},
 	})
 	require.NoError(f.t, err)
 	return v
 }
 
-// stack creates a compose stack service (planCompose).
-func (f *planFixture) stack(env db.Environment, name string, wait int) services.ServiceView {
+// stack creates the "shop" compose stack service (planCompose).
+func (f *planFixture) stack(env db.Environment, wait int) services.ServiceView {
 	f.t.Helper()
 	v, err := f.svcs.Create(f.ctx, env.ID, services.CreateInput{
-		Name: name, Kind: services.KindStack, SourceType: services.SourceCompose, ServerID: &f.server.ID,
+		Name: "shop", Kind: services.KindStack, SourceType: services.SourceCompose, ServerID: &f.server.ID,
 		Config: services.Config{Stack: &services.StackConfig{Compose: planCompose, WaitSeconds: wait}},
 	})
 	require.NoError(f.t, err)
@@ -775,8 +775,8 @@ func (f *planFixture) allKinds() {
 	f.image(f.staging, "web", 8080)
 	f.gitService(f.staging, "api")
 	f.database(f.staging)
-	f.route(f.staging, "printer", "192.168.1.20:631")
-	f.stack(f.staging, "shop", 120)
+	f.route(f.staging)
+	f.stack(f.staging, 120)
 }
 
 func TestPlanDB_ExistingServicesUnchangedPerKind(t *testing.T) {
@@ -892,7 +892,7 @@ func TestPlanDB_GitServiceDeclaredAsImageIsAStagedSourceSwitch(t *testing.T) {
 func TestPlanDB_BlockedServicesContributeNoChanges(t *testing.T) {
 	f := newPlanFixture(t)
 	f.image(f.staging, "web", 8080)
-	f.stack(f.staging, "shop", 120)
+	f.stack(f.staging, 120)
 	// Two servers and two connections whose names differ only in case: a name must be unique.
 	for range 2 {
 		_, err := f.q.CreateServer(context.Background(), db.CreateServerParams{WorkspaceID: f.ws.ID, Name: "twin"})
@@ -954,7 +954,7 @@ func planCheckCases(f *planFixture) []struct {
 	_, err = f.svcs.AddVolume(f.ctx, store.ID, "data", "/data", "")
 	require.NoError(f.t, err)
 	f.database(f.staging)
-	f.route(f.staging, "printer", "192.168.1.20:631")
+	f.route(f.staging)
 
 	return []struct{ name, file, slug, code, pathHas string }{
 		{"docker_unrestricted on a restricted server", planHead + "\n[services.web]\nimage = \"nginx:1.27\"\n[services.web.docker]\nprivileged = true\n", "web", "docker_unrestricted", "services.web.docker.privileged"},
@@ -1099,7 +1099,7 @@ func TestPlanDB_MovingAServiceToAnotherServerIsAStagedChange(t *testing.T) {
 func TestPlanDB_ImmutableFieldsOfExistingServices(t *testing.T) {
 	f := newPlanFixture(t)
 	f.database(f.staging)
-	f.route(f.staging, "printer", "192.168.1.20:631")
+	f.route(f.staging)
 	for name, c := range map[string]struct{ file, path string }{
 		"database engine": {
 			planHeadServer + "\n[services.db.database]\nengine = \"mysql\"\nversion = \"8.4\"\nname = \"shop\"\nusername = \"shop\"\n",
@@ -1245,6 +1245,31 @@ func planDriftCases() []planDriftCase {
 			a: "30", b: "45", c: "60",
 			setup: func(f *planFixture, id uuid.UUID) { f.setUptime(id, 30) },
 			edit:  func(f *planFixture, id uuid.UUID) { f.setUptime(id, 45) },
+		},
+		{
+			name: "firewall", field: "firewall", path: "services.web.firewall", applies: AppliesImmediate,
+			file: func(v string) string {
+				return planWebHead("8080") + "\n[[services.web.firewall.rules]]\nname = \"" + v + "\"\naction = \"block\"\n\n[[services.web.firewall.rules.conditions]]\nfield = \"path\"\nop = \"prefix\"\nvalues = [\"/admin\"]\n"
+			},
+			a: "alpha", b: "bravo", c: "charlie",
+			show: func(v string) string { return `block "` + v + `"` },
+			setup: func(f *planFixture, id uuid.UUID) {
+				f.firewallServer(false)
+				f.setFirewall(id, planFirewallRule("r1", "alpha", agentprotocol.FirewallBlock, agentprotocol.FirewallCondition{Field: agentprotocol.FirewallFieldPath, Op: agentprotocol.FirewallOpPrefix, Values: []string{"/admin"}}))
+			},
+			edit: func(f *planFixture, id uuid.UUID) {
+				f.setFirewall(id, planFirewallRule("r1", "bravo", agentprotocol.FirewallBlock, agentprotocol.FirewallCondition{Field: agentprotocol.FirewallFieldPath, Op: agentprotocol.FirewallOpPrefix, Values: []string{"/admin"}}))
+			},
+		},
+		{
+			name: "maintenance", field: "maintenance", path: "services.web.maintenance", applies: AppliesImmediate,
+			file: func(v string) string {
+				return planWebHead("8080") + "\n[services.web.maintenance]\nenabled = true\ntitle = \"" + v + "\"\n"
+			},
+			a: "alpha", b: "bravo", c: "charlie",
+			show:  func(v string) string { return `on: "` + v + `"` },
+			setup: func(f *planFixture, id uuid.UUID) { f.setMaintenance(id, true, "alpha", "", nil) },
+			edit:  func(f *planFixture, id uuid.UUID) { f.setMaintenance(id, true, "bravo", "", nil) },
 		},
 		{
 			name: "scale", field: "scale.replicas", path: "services.web.scale.replicas", applies: AppliesImmediate,

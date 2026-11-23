@@ -118,6 +118,8 @@ type Report struct {
 	// ActiveHours is requests by weekday (0 = Sunday) and UTC hour; only for
 	// ranges of 7 days or more.
 	ActiveHours [][]int64 `json:"activeHours,omitempty"`
+	// Firewall counts the requests the service firewall blocked, per rule.
+	Firewall *FirewallReport `json:"firewall,omitempty"`
 	// Unrouted is set on server reports.
 	Unrouted *Unrouted `json:"unrouted,omitempty"`
 	// Geo says where the window's requests came from (country, and city at the
@@ -146,6 +148,9 @@ type reportInput struct {
 	markers      []DeploymentMarker
 	now          time.Time
 	geo          geoSettings
+	// rules names the firewall rules of the one service the report covers; nil
+	// for a report over several services.
+	rules ruleBook
 }
 
 func toItems(in []agentprotocol.TopEntry) []TopItem {
@@ -280,6 +285,7 @@ func build(in reportInput) Report {
 		}
 	}
 	rep.Sparklines = sparklines(steps)
+	rep.Firewall = firewallReport(sc.total, steps, first, in.step, in.rules)
 
 	rep.StatusCodes = sc.total.statusCodes()
 	rep.TopPathsKind = "pages"

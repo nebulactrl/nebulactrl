@@ -3,6 +3,8 @@ package projectconfig
 import (
 	"slices"
 	"sort"
+	"strings"
+	"time"
 
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/internal/tailnet/tailnetcfg"
@@ -190,6 +192,131 @@ type TaskValue struct {
 	Enabled        bool     `json:"enabled"`        // default true
 	TimeoutSeconds int      `json:"timeoutSeconds"` // default 1800
 	Concurrency    string   `json:"concurrency"`    // forbid | allow
+}
+
+// FirewallValue is the value of firewall: the whole ordered rule list is one unit
+// (the first match decides, so a rule has no meaning outside its position). Rules are
+// canonical as the platform stores them: names and values trimmed, countries and methods
+// upper-case, duplicate values dropped. A rule the file gives no id has ID "" until the
+// planner takes the id of the live rule at its position.
+type FirewallValue struct {
+	Rules []FirewallRuleValue `json:"rules"`
+}
+
+// FirewallRuleValue is one rule of a FirewallValue.
+type FirewallRuleValue struct {
+	ID         string                   `json:"id"`
+	Name       string                   `json:"name"`
+	Action     string                   `json:"action"`
+	Disabled   bool                     `json:"disabled"`
+	Conditions []FirewallConditionValue `json:"conditions"`
+}
+
+// FirewallConditionValue is one condition of a FirewallRuleValue.
+type FirewallConditionValue struct {
+	Field  string   `json:"field"`
+	Op     string   `json:"op"`
+	Name   string   `json:"name"`
+	Values []string `json:"values"`
+	Not    bool     `json:"not"`
+}
+
+// FirewallRules converts the value to the platform's rules.
+func (v FirewallValue) FirewallRules() []agentprotocol.FirewallRule {
+	out := make([]agentprotocol.FirewallRule, len(v.Rules))
+	for i, r := range v.Rules {
+		conds := make([]agentprotocol.FirewallCondition, len(r.Conditions))
+		for j, c := range r.Conditions {
+			conds[j] = agentprotocol.FirewallCondition{Field: c.Field, Op: c.Op, Name: c.Name, Values: slices.Clone(c.Values), Not: c.Not}
+		}
+		out[i] = agentprotocol.FirewallRule{ID: r.ID, Name: r.Name, Action: r.Action, Disabled: r.Disabled, Conditions: conds}
+	}
+	return out
+}
+
+// FirewallValueOf is the comparable form of platform rules (as stored: already canonical).
+func FirewallValueOf(rules []agentprotocol.FirewallRule) FirewallValue {
+	v := FirewallValue{Rules: make([]FirewallRuleValue, len(rules))}
+	for i, r := range rules {
+		conds := make([]FirewallConditionValue, len(r.Conditions))
+		for j, c := range r.Conditions {
+			conds[j] = FirewallConditionValue{Field: c.Field, Op: c.Op, Name: c.Name, Values: nonNilStrings(c.Values), Not: c.Not}
+		}
+		v.Rules[i] = FirewallRuleValue{ID: r.ID, Name: r.Name, Action: r.Action, Disabled: r.Disabled, Conditions: conds}
+	}
+	return v
+}
+
+func nonNilStrings(s []string) []string {
+	if s == nil {
+		return []string{}
+	}
+	return slices.Clone(s)
+}
+
+// firewallValue is the value of a [firewall] table, canonicalised like the platform does when it
+// stores rules.
+func firewallValue(f *Firewall) FirewallValue {
+	v := FirewallValue{Rules: make([]FirewallRuleValue, len(f.Rules))}
+	for i, r := range f.Rules {
+		conds := make([]FirewallConditionValue, len(r.Conditions))
+		for j, c := range r.Conditions {
+			cv := FirewallConditionValue{Field: derefStr(c.Field), Op: derefStr(c.Op), Name: strings.TrimSpace(derefStr(c.Name)), Not: derefBool(c.Not), Values: []string{}}
+			upper := cv.Field == agentprotocol.FirewallFieldCountry || cv.Field == agentprotocol.FirewallFieldMethod
+			for _, x := range c.Values {
+				x = strings.TrimSpace(x)
+				if upper {
+					x = strings.ToUpper(x)
+				}
+				if x != "" && !slices.Contains(cv.Values, x) {
+					cv.Values = append(cv.Values, x)
+				}
+			}
+			conds[j] = cv
+		}
+		v.Rules[i] = FirewallRuleValue{
+			ID: strings.TrimSpace(derefStr(r.ID)), Name: strings.TrimSpace(derefStr(r.Name)), Action: derefStr(r.Action),
+			Disabled: derefBool(r.Disabled), Conditions: conds,
+		}
+	}
+	return v
+}
+
+// MaintenanceValue is the value of maintenance: the whole table is one unit. The page text and
+// the expected-back time only count while enabled, so a disabled value carries none of them
+// (switching off keeps the stored text, which a file neither sets nor compares). ETA is the UTC
+// RFC 3339 text truncated to seconds, "" for none.
+type MaintenanceValue struct {
+	Enabled bool   `json:"enabled"`
+	Title   string `json:"title"`
+	Message string `json:"message"`
+	ETA     string `json:"eta"`
+}
+
+// MaintenanceETA parses the eta key: an RFC 3339 time, as UTC truncated to seconds.
+func MaintenanceETA(s string) (time.Time, error) {
+	t, err := time.Parse(time.RFC3339, strings.TrimSpace(s))
+	if err != nil {
+		return time.Time{}, err
+	}
+	return t.UTC().Truncate(time.Second), nil
+}
+
+// maintenanceValue is the value of a [maintenance] table.
+func maintenanceValue(m *Maintenance) MaintenanceValue {
+	v := MaintenanceValue{Enabled: derefBool(m.Enabled)}
+	if !v.Enabled {
+		return v
+	}
+	v.Title, v.Message = strings.TrimSpace(derefStr(m.Title)), strings.TrimSpace(derefStr(m.Message))
+	if m.ETA != nil {
+		if t, err := MaintenanceETA(*m.ETA); err == nil {
+			v.ETA = t.Format(time.RFC3339)
+		} else {
+			v.ETA = strings.TrimSpace(*m.ETA) // invalid: validation reports it
+		}
+	}
+	return v
 }
 
 // ProcessValue is the value of config.processes.<name>: the whole process is

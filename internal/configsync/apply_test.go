@@ -39,8 +39,10 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/deployments"
 	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/events"
+	"github.com/nebulactrl/nebulactrl/internal/firewall"
 	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/jobs"
+	"github.com/nebulactrl/nebulactrl/internal/maintenance"
 	"github.com/nebulactrl/nebulactrl/internal/networks"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
@@ -352,6 +354,7 @@ func newApplyFixture(t *testing.T) *applyFixture {
 		Pool: pool, Bus: bus, Box: box, Logger: logger, PublicURL: "https://nebula.example.com",
 		Services: svcs, Variables: vars, Domains: doms, Databases: dbs, Routes: routes, Networks: nets,
 		Scaling: scaler, Tasks: tsk, Backups: bkp, Uptime: upt, Git: git, Deploy: deploy,
+		Firewall: firewall.NewService(pool, bus, nil, logger), Maintenance: maintenance.NewService(pool, bus, disp, svcs, logger),
 	})
 
 	admin := auth.WithPrincipal(bg, &auth.Principal{

@@ -2,12 +2,16 @@ package configsync
 
 import (
 	"encoding/json"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/nebulactrl/nebulactrl/internal/db"
+	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
 	"github.com/nebulactrl/nebulactrl/internal/services"
+	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
 // scaleOps handles scale.replicas and scale.autoscaling.* (immediate).
@@ -78,6 +82,114 @@ func (uptimeOps) desired(_ *planCtx, _ *liveService, fv projectconfig.FieldValue
 		return fieldView{}, refErr("wrong_type", "%s must be a number", fv.ID)
 	}
 	return view(n, display(n)), nil
+}
+
+// firewallOps handles firewall (immediate): the whole ordered rule list is one unit.
+type firewallOps struct{}
+
+// liveFirewallRules are the rules stored on the service, in order.
+func liveFirewallRules(row db.Service) []agentprotocol.FirewallRule {
+	if fw := domains.DecodeFirewall(row.Firewall); fw != nil {
+		return fw.Rules
+	}
+	return nil
+}
+
+// resolveFirewallIDs gives a rule the file declares no id for the id of the live rule at its
+// position, so a file without ids does not look changed on every plan and an apply keeps the ids of
+// rules that did not move. A live id the file declares for another rule, or already handed out, is
+// not reused: the rule then has no id and the platform makes one.
+func resolveFirewallIDs(v projectconfig.FirewallValue, live []agentprotocol.FirewallRule) projectconfig.FirewallValue {
+	taken := map[string]bool{}
+	for _, r := range v.Rules {
+		if r.ID != "" {
+			taken[r.ID] = true
+		}
+	}
+	out := projectconfig.FirewallValue{Rules: slices.Clone(v.Rules)}
+	for i, r := range out.Rules {
+		if r.ID == "" && i < len(live) && !taken[live[i].ID] {
+			out.Rules[i].ID = live[i].ID
+			taken[live[i].ID] = true
+		}
+	}
+	return out
+}
+
+func firewallDisplay(v projectconfig.FirewallValue) string {
+	if len(v.Rules) == 0 {
+		return "no rules"
+	}
+	parts := make([]string, len(v.Rules))
+	for i, r := range v.Rules {
+		parts[i] = r.Action + " " + strconv.Quote(r.Name)
+		if r.Disabled {
+			parts[i] += " (disabled)"
+		}
+	}
+	return strings.Join(parts, "; ")
+}
+
+func (firewallOps) live(_ *planCtx, ls *liveService, _, _ string) (fieldView, bool) {
+	v := projectconfig.FirewallValueOf(liveFirewallRules(ls.Row))
+	return view(v, firewallDisplay(v)), true
+}
+
+func (firewallOps) desired(_ *planCtx, ls *liveService, fv projectconfig.FieldValue) (fieldView, error) {
+	v, ok := fv.Value.(projectconfig.FirewallValue)
+	if !ok {
+		return fieldView{}, refErr("wrong_type", "the firewall has an unexpected value")
+	}
+	var live []agentprotocol.FirewallRule
+	if ls != nil {
+		live = liveFirewallRules(ls.Row)
+	}
+	v = resolveFirewallIDs(v, live)
+	return view(v, firewallDisplay(v)), nil
+}
+
+// maintenanceOps handles maintenance (immediate): enabled, title, message and eta are one unit.
+type maintenanceOps struct{}
+
+func maintenanceDisplay(v projectconfig.MaintenanceValue) string {
+	if !v.Enabled {
+		return "off"
+	}
+	s := "on"
+	if v.Title != "" {
+		s += ": " + strconv.Quote(v.Title)
+	}
+	if v.ETA != "" {
+		s += " until " + v.ETA
+	}
+	return s
+}
+
+// liveMaintenance is the stored maintenance as a file states it: the page text and the time only
+// count while enabled (switching off keeps them stored, which a file neither sets nor compares).
+func liveMaintenance(row db.Service) projectconfig.MaintenanceValue {
+	v := projectconfig.MaintenanceValue{Enabled: row.MaintenanceEnabled}
+	if !v.Enabled {
+		return v
+	}
+	v.Title, v.Message = row.MaintenanceTitle, row.MaintenanceMessage
+	if row.MaintenanceEta != nil {
+		v.ETA = row.MaintenanceEta.UTC().Truncate(time.Second).Format(time.RFC3339)
+	}
+	return v
+}
+
+func (maintenanceOps) live(_ *planCtx, ls *liveService, _, _ string) (fieldView, bool) {
+	v := liveMaintenance(ls.Row)
+	return view(v, maintenanceDisplay(v)), true
+}
+
+func (maintenanceOps) desired(_ *planCtx, _ *liveService, fv projectconfig.FieldValue) (fieldView, error) {
+	v, ok := fv.Value.(projectconfig.MaintenanceValue)
+	if !ok {
+		return fieldView{}, refErr("wrong_type", "maintenance has an unexpected value")
+	}
+	return view(v, maintenanceDisplay(v)), nil
 }
 
 // gitOps handles git.link, git.auto_deploy, git.wait_for_ci, git.poll, git.poll_deploy and git.watch_paths (immediate).

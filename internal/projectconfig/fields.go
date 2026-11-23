@@ -38,6 +38,9 @@ type FieldSpec struct {
 var (
 	rtKinds = []string{KindImage, KindGit}
 	dbKinds = []string{KindDatabase}
+	// httpKinds are the kinds that serve HTTP through the proxy and can carry a firewall and
+	// maintenance mode (a route only when its protocol is http).
+	httpKinds = []string{KindImage, KindGit, KindRoute}
 )
 
 func fs(id, key, goField, applies, typ string, kinds []string) FieldSpec {
@@ -94,13 +97,13 @@ func buildCatalog() []FieldSpec {
 	add(fs("config.oneshot", "one_shot", "OneShot", AppliesStaged, "bool", rtKinds))
 	add(fs("config.processName", "process_name", "ProcessName", AppliesStaged, "string", rtKinds))
 	add(fs("config.singleton", "singleton", "Singleton", AppliesStaged, "bool", rtKinds))
-	add(fs("config.stopGraceSeconds", "stop_grace_seconds", "StopGraceSeconds", AppliesStaged, "int", append(append([]string(nil), rtKinds...), KindDatabase)))
+	add(fs("config.stopGraceSeconds", "stop_grace_seconds", "StopGraceSeconds", AppliesStaged, "int", append(append([]string(nil), rtKinds...), KindDatabase, KindStack)))
 	add(fs("config.restartPolicy", "restart_policy", "RestartPolicy", AppliesStaged, "string", rtKinds))
 	add(fs("config.restartMaxRetries", "restart_max_retries", "RestartMaxRetries", AppliesStaged, "int", rtKinds))
 	add(fs("config.memoryMb", "memory_mb", "MemoryMB", AppliesStaged, "int", append(append([]string(nil), rtKinds...), KindDatabase)))
 	add(fs("config.cpus", "cpus", "CPUs", AppliesStaged, "float64", append(append([]string(nil), rtKinds...), KindDatabase)))
 	add(fs("config.imageRetention", "image_retention", "ImageRetention", AppliesStaged, "int", append(append([]string(nil), rtKinds...), KindDatabase)))
-	add(fs("config.blockEgress", "block_egress", "BlockEgress", AppliesStaged, "bool", append(append([]string(nil), rtKinds...), KindDatabase)))
+	add(fs("config.blockEgress", "block_egress", "BlockEgress", AppliesStaged, "bool", append(append([]string(nil), rtKinds...), KindDatabase, KindStack)))
 
 	for _, h := range []struct{ id, key, typ string }{
 		{"type", "type", "string"}, {"path", "path", "string"}, {"port", "port", "int"},
@@ -213,7 +216,9 @@ func buildCatalog() []FieldSpec {
 	} {
 		add(fs("uptime."+u.id, "uptime."+u.key, "uptime.MonitorView."+strings.ToUpper(u.id[:1])+u.id[1:], AppliesImmediate, u.typ, nil))
 	}
-	t := fs("tasks.*", "tasks.*", "tasks.TaskInput", AppliesImmediate, "TaskValue", rtKinds)
+	add(fs("firewall", "firewall", "firewall.PutInput.Rules", AppliesImmediate, "FirewallValue", httpKinds))
+	add(fs("maintenance", "maintenance", "maintenance.SetInput", AppliesImmediate, "MaintenanceValue", httpKinds))
+	t := fs("tasks.*", "tasks.*", "tasks.TaskInput", AppliesImmediate, "TaskValue", append(append([]string(nil), rtKinds...), KindDatabase))
 	t.Collection = true
 	add(t)
 	b := fs("backups.*", "backups.*", "backups.ScheduleInput", AppliesImmediate, "BackupValue", dbKinds)
@@ -796,6 +801,12 @@ func (c *svcCtx) assembleCollections() {
 		if u.ReminderMinutes != nil {
 			c.addField("uptime.reminderMinutes", rp("uptime", "reminder_minutes"), *u.ReminderMinutes, im)
 		}
+	}
+	if f := d.Firewall; f != nil {
+		c.addField("firewall", rp("firewall"), firewallValue(f), im)
+	}
+	if m := d.Maintenance; m != nil {
+		c.addField("maintenance", rp("maintenance"), maintenanceValue(m), im)
 	}
 	for _, name := range sortedKeys(d.Tasks) {
 		t := d.Tasks[name]
