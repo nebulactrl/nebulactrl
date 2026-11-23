@@ -129,6 +129,7 @@ func NewCollector(cfg Config) *Collector {
 			})
 		}
 		c.reqs = newRequestWriter(cfg.Requests, cfg.RequestLogs, newRouteResolver(cfg.Routes, list, cfg.Now, c.log), c.log)
+		c.reqs.geo = cfg.Geo
 	}
 	return c
 }

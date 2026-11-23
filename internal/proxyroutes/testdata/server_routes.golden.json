@@ -55,7 +55,7 @@
               "field": "path",
               "op": "regex",
               "values": [
-                "(?i)/\\.(env|envrc|git|git-credentials|svn|hg|bzr|aws|ssh|docker|npmrc|pypirc|netrc|htpasswd|ds_store)(/|\\.|$)"
+                "(?i)/\\.(env|envrc|git|git-credentials|svn|hg|bzr|aws|ssh|docker|npmrc|pypirc|netrc|htpasswd|ds_store|claude|cursor|continue|aider|roo|windsurf|codex|gemini|mcp|litellm|kube|azure|boto|s3cfg|pgpass|my\\.cnf|vault-token|terraform|bash_history|zsh_history|psql_history)(/|\\.|$)"
               ]
             }
           ]
@@ -97,7 +97,7 @@
               "field": "path",
               "op": "regex",
               "values": [
-                "(?i)/\\.(env|envrc|git|git-credentials|svn|hg|bzr|aws|ssh|docker|npmrc|pypirc|netrc|htpasswd|ds_store)(/|\\.|$)"
+                "(?i)/\\.(env|envrc|git|git-credentials|svn|hg|bzr|aws|ssh|docker|npmrc|pypirc|netrc|htpasswd|ds_store|claude|cursor|continue|aider|roo|windsurf|codex|gemini|mcp|litellm|kube|azure|boto|s3cfg|pgpass|my\\.cnf|vault-token|terraform|bash_history|zsh_history|psql_history)(/|\\.|$)"
               ]
             }
           ]

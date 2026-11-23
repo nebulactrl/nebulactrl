@@ -67,7 +67,8 @@ func Register(h huma.API, svc *Service) {
 		OperationID: "getServiceAnalytics", Method: http.MethodGet, Path: "/services/{serviceId}/analytics", Tags: tags,
 		Summary: "Traffic analytics of a service",
 		Description: "Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), " +
-			"latency percentiles from merged histograms, status codes and top lists. Raw access logs, IPs and user agents are never stored. " + rangeDoc,
+			"latency percentiles from merged histograms, status codes and top lists, and `firewall`: the requests the service firewall blocked, per rule " +
+			"(own rules and standard protection; counted only while traffic analytics is on, from the moment an agent first reports them). Raw access logs, IPs and user agents are never stored. " + rangeDoc,
 		Errors: errs,
 	}, policy.ScopeProjectsRead), func(ctx context.Context, in *serviceAnalyticsInput) (*reportOutput, error) {
 		rep, err := svc.ServiceTraffic(ctx, in.ID, query(in.Range, in.Compare, in.Host, in.Pages))

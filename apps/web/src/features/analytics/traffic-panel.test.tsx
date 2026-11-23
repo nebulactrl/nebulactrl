@@ -6,7 +6,7 @@ import {
 	setDefaultTimeout,
 	test,
 } from "bun:test";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import type { Server } from "#/api/gen/types.gen";
 import { type ApiReply, stubApi } from "#/test/api";
@@ -238,6 +238,71 @@ describe("TrafficPanel for a service", () => {
 		expect(
 			screen.queryByRole("button", { name: /www\.example\.com/ }),
 		).not.toBeInTheDocument();
+	});
+
+	describe("blocked by the firewall", () => {
+		const firewall = {
+			blocked: 1_530,
+			byRule: [
+				{
+					id: "stdsecrets",
+					name: "Secret files",
+					kind: "standard" as const,
+					requests: 1_200,
+				},
+				{ id: "r1", name: "Office only", kind: "rule" as const, requests: 300 },
+				{ id: "gone", name: "gone", kind: "removed" as const, requests: 20 },
+				{ id: "r2", name: "Tiny", kind: "rule" as const, requests: 10 },
+			],
+			series: null,
+		};
+
+		test("shows the total and the top three rules, with a link to the Firewall settings", async () => {
+			stubApi(routes({ report: { body: makeReport({ firewall }) } }));
+			await renderWithProviders(
+				<TrafficPanel scope={{ serviceId: "svc-1" }} />,
+				{ path: "/p/p1/prod", routePath: "/p/$projectId/$envSlug" },
+			);
+			const card = within(
+				await screen.findByRole("region", { name: "Blocked by firewall" }),
+			);
+			expect(card.getByText("1.5k")).toBeInTheDocument();
+			const rules = within(
+				card.getByRole("list", { name: "Rules that blocked the most" }),
+			);
+			expect(
+				rules.getAllByRole("listitem").map((li) => li.textContent),
+			).toEqual(["Secret files1.2k", "Office only300", "Removed rule gone20"]);
+			const href = new URL(
+				card
+					.getByRole("link", { name: "Firewall settings" })
+					.getAttribute("href") ?? "",
+				"http://nebula.test",
+			);
+			expect(href.pathname).toMatch(/^\/p\/[^/]+\/prod$/);
+			expect(href.searchParams.get("service")).toBe("svc-1");
+			expect(href.searchParams.get("tab")).toBe("settings");
+			expect(href.searchParams.get("section")).toBe("firewall");
+		});
+
+		test("is absent when nothing was blocked", async () => {
+			stubApi(
+				routes({
+					report: {
+						body: makeReport({
+							firewall: { blocked: 0, byRule: [], series: null },
+						}),
+					},
+				}),
+			);
+			await renderWithProviders(
+				<TrafficPanel scope={{ serviceId: "svc-1" }} />,
+			);
+			await screen.findByText("12.4k");
+			expect(
+				screen.queryByRole("region", { name: "Blocked by firewall" }),
+			).not.toBeInTheDocument();
+		});
 	});
 });
 

@@ -234,6 +234,9 @@ func StaticFlags(o StaticOptions) []string {
 			"--accesslog.fields.headers.names.User-Agent=keep",
 			"--accesslog.fields.headers.names.Referer=keep",
 			"--accesslog.fields.headers.names.Content-Type=keep",
+			// The edge guard names the rule that blocked a request in this
+			// response header; the agent counts blocks by it.
+			"--accesslog.fields.headers.names."+agentprotocol.FirewallRuleHeader+"=keep",
 		)
 	}
 	if o.ACMEEmail != "" {

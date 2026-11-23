@@ -340,6 +340,73 @@ func TestRouteResolverMapsRouteIDsToTheOwningService(t *testing.T) {
 	require.Equal(t, 2, listCalls)
 }
 
+type stubGeo struct {
+	level string
+	by    map[string]string
+}
+
+func (g stubGeo) Level() string { return g.level }
+
+func (g stubGeo) Locate(ip string) (Location, bool) {
+	c, ok := g.by[ip]
+	return Location{Country: c}, ok
+}
+
+func TestNewRequestRecordCarriesTheFirewallRuleAndCountry(t *testing.T) {
+	at := time.Unix(1761500000, 0).UTC()
+	ev := Event{
+		Time: at, End: at, ServiceID: svcA, Host: "app.example.com", Path: "/.env", Query: "x=1", Method: "GET", Status: 403,
+		ClientIP: "203.0.113.77", UserAgent: "curl/8", BlockedBy: "stdsecrets", Country: "DE",
+	}
+	rec, err := newRequestRecord(ev, false, agentprotocol.RequestKindPage, backend{})
+	require.NoError(t, err)
+	got := decodeRecord(t, rec)
+	require.Equal(t, "stdsecrets", got.BlockedBy)
+	require.Equal(t, "DE", got.Country)
+	require.Equal(t, "/.env", got.Path)
+	require.Equal(t, "203.0.113.0/24", got.IP, "the address is still only its /24")
+	require.Contains(t, rec.Text, `"blocked_by":"stdsecrets","country":"DE"`)
+	require.NotContains(t, rec.Text, "203.0.113.77")
+
+	// An ordinary request has neither key, so `@blocked_by:*` finds only blocked ones.
+	ev.BlockedBy, ev.Country = "", ""
+	rec, err = newRequestRecord(ev, false, agentprotocol.RequestKindPage, backend{})
+	require.NoError(t, err)
+	require.NotContains(t, rec.Text, "blocked_by")
+	require.NotContains(t, rec.Text, "country")
+}
+
+func TestRequestWriterStoresBlockedRequestsWithRuleAndCountry(t *testing.T) {
+	at := time.Unix(1761500000, 0).UTC()
+	cfg := &agentprotocol.RequestLogsConfig{}
+	res := newRouteResolver(processRoutes, func(context.Context) ([]docker.ContainerInfo, error) { return nil, nil }, func() time.Time { return at }, slog.Default())
+	run := func(geo GeoLocator) agentprotocol.RequestRecord {
+		sink := &memSink{}
+		w := newRequestWriter(sink, func() *agentprotocol.RequestLogsConfig { return cfg }, res, slog.Default())
+		w.geo = geo
+		w.Add(Event{
+			Time: at, End: at, ServiceID: agentprotocol.ProcessRouteID(svcA, "worker"), Host: "a.example.com", Method: "GET",
+			Path: "/.env", ContentType: "text/html", Status: 403, ClientIP: "203.0.113.9", BlockedBy: "stdsecrets",
+		})
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		w.Run(ctx)
+		require.Len(t, sink.recs[svcA], 1)
+		return decodeRecord(t, sink.recs[svcA][0])
+	}
+
+	rec := run(stubGeo{level: agentprotocol.GeoLevelCountry, by: map[string]string{"203.0.113.9": "NL"}})
+	require.Equal(t, "stdsecrets", rec.BlockedBy)
+	require.Equal(t, "NL", rec.Country)
+	require.Equal(t, "warn", rec.Level)
+
+	// Geolocation off, no database or an address it cannot place: no country.
+	require.Empty(t, run(nil).Country)
+	require.Empty(t, run(stubGeo{}).Country)
+	require.Empty(t, run(stubGeo{level: agentprotocol.GeoLevelCountry}).Country)
+	require.Equal(t, "stdsecrets", run(nil).BlockedBy)
+}
+
 func TestRequestWriterStoresRoutedRequestsPerOwningService(t *testing.T) {
 	at := time.Unix(1761500000, 0).UTC()
 	sink := &memSink{}

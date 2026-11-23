@@ -62,6 +62,10 @@ const REQUEST_ATTRS = [
 	{ path: "kind", title: "Kind" },
 	{ path: "method", title: "Method" },
 	{ path: "path", title: "Path" },
+	{ path: "blocked_by", title: "Blocked by" },
+	{ path: "country", title: "Country" },
+	{ path: "ip", title: "Client network" },
+	{ path: "ua", title: "User agent" },
 ] as const;
 
 type Counts = Pick<FacetStats, "facets"> & Partial<Pick<FacetStats, "attrs">>;

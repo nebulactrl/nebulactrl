@@ -1,4 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+	keepPreviousData,
+	useMutation,
+	useQuery,
+	useQueryClient,
+} from "@tanstack/react-query";
 import { cn } from "cn";
 import {
 	ArrowDownIcon,
@@ -11,9 +16,10 @@ import {
 	ShieldCheckIcon,
 	Trash2Icon,
 } from "lucide-react";
-import { useId, useMemo, useState } from "react";
+import { Fragment, useId, useMemo, useState } from "react";
 import { errorMessage } from "#/api/client-config";
 import {
+	getServiceFirewallBlocksOptions,
 	getServiceFirewallOptions,
 	getServiceFirewallQueryKey,
 } from "#/api/gen/@tanstack/react-query.gen";
@@ -28,7 +34,9 @@ import { DisclosureChevron, DisclosurePanel } from "#/components/ui/disclosure";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
+	DropdownMenuLabel,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "#/components/ui/dropdown-menu";
@@ -37,17 +45,22 @@ import { Spinner } from "#/components/ui/spinner";
 import { Switch } from "#/components/ui/switch";
 import { toast } from "#/components/ui/toast";
 import { Section, SectionBody } from "#/features/service-settings/fields";
+import { BlockedSummary, RuleBlockCount } from "./blocked-summary";
 import {
+	type BlockRange,
 	blankRule,
+	blockedCounts,
 	type FirewallRule,
 	type FirewallView,
 	listPhrase,
 	MAX_RULES,
 	moveRule,
 	newRuleId,
+	RECIPE_GROUPS,
 	RECIPES,
 	type Recipe,
 	type RuleErrors,
+	recipeFits,
 	ruleSentence,
 	rulesEqual,
 	rulesOf,
@@ -71,6 +84,18 @@ export function FirewallSection({ service }: { service: Service }) {
 		path: { serviceId: service.id },
 	});
 	const query = useQuery(options);
+	const [range, setRange] = useState<BlockRange>("24h");
+	// What the firewall blocked, per rule, for the summary and the rows. The
+	// last answer stays on screen while another range loads.
+	const blocks = useQuery({
+		...getServiceFirewallBlocksOptions({
+			path: { serviceId: service.id },
+			query: { range },
+		}),
+		enabled: query.isSuccess && query.data.enforcement !== "none",
+		placeholderData: keepPreviousData,
+	});
+	const counts = useMemo(() => blockedCounts(blocks.data), [blocks.data]);
 	const live = useMemo(() => rulesOf(query.data), [query.data]);
 	// `null` means untouched: the editor follows the server as it refetches.
 	const [edited, setEdited] = useState<FirewallRule[] | null>(null);
@@ -117,6 +142,11 @@ export function FirewallSection({ service }: { service: Service }) {
 		change([...rules, rule]);
 		setOpen(rule.id);
 	};
+	const addRecipe = (recipe: Recipe) => {
+		const added = recipe.rules();
+		change([...rules, ...added]);
+		setOpen(added[0]?.id ?? null);
+	};
 
 	if (query.isPending) {
 		return (
@@ -153,12 +183,21 @@ export function FirewallSection({ service }: { service: Service }) {
 				<SectionBody className="flex flex-col gap-3">
 					<Coverage view={view} rules={rules} />
 					<Problems view={view} rules={rules} />
+					{view.enforcement !== "none" ? (
+						<BlockedSummary
+							service={service}
+							blocks={blocks}
+							range={range}
+							onRangeChange={setRange}
+							serverName={view.server}
+						/>
+					) : null}
 				</SectionBody>
 				{rules.length === 0 ? (
 					<SectionBody>
 						<Recipes
 							geoAvailable={view.geoAvailable}
-							onPick={(recipe) => add(recipe.build())}
+							onPick={addRecipe}
 							onBlank={() => add(blankRule())}
 						/>
 					</SectionBody>
@@ -171,6 +210,8 @@ export function FirewallSection({ service }: { service: Service }) {
 							{rules.map((rule, index) => (
 								<RuleRow
 									key={rule.id}
+									service={service}
+									blocked={counts.get(rule.id)}
 									rule={rule}
 									index={index}
 									count={rules.length}
@@ -220,20 +261,34 @@ export function FirewallSection({ service }: { service: Service }) {
 										</Button>
 									}
 								/>
-								<DropdownMenuContent className="w-[19rem]">
-									{RECIPES.map((recipe) => (
-										<DropdownMenuItem
-											key={recipe.id}
-											className="min-h-0 items-start py-2"
-											onClick={() => add(recipe.build())}
-										>
-											<span className="flex flex-col gap-0.5">
-												<span className="text-ink-1">{recipe.title}</span>
-												<span className="text-ink-3 text-xs leading-[1.4]">
-													{recipe.description}
-												</span>
-											</span>
-										</DropdownMenuItem>
+								<DropdownMenuContent className="max-h-[min(28rem,var(--available-height))] w-[21rem]">
+									{RECIPES_BY_GROUP.map((group, i) => (
+										<Fragment key={group.id}>
+											{i > 0 ? <DropdownMenuSeparator /> : null}
+											<DropdownMenuGroup>
+												<DropdownMenuLabel>{group.title}</DropdownMenuLabel>
+												{group.recipes.map((recipe) => (
+													<DropdownMenuItem
+														key={recipe.id}
+														className="min-h-0 items-start py-2"
+														disabled={!recipeFits(recipe, rules.length)}
+														onClick={() => addRecipe(recipe)}
+													>
+														<span className="flex flex-col gap-0.5">
+															<span className="text-ink-1">{recipe.title}</span>
+															<span className="text-ink-3 text-xs leading-[1.4]">
+																{recipe.description}
+															</span>
+															{recipe.caution ? (
+																<span className="text-ink-4 text-2xs">
+																	{recipe.caution}
+																</span>
+															) : null}
+														</span>
+													</DropdownMenuItem>
+												))}
+											</DropdownMenuGroup>
+										</Fragment>
 									))}
 								</DropdownMenuContent>
 							</DropdownMenu>
@@ -247,7 +302,11 @@ export function FirewallSection({ service }: { service: Service }) {
 				)}
 				{(view.standard ?? []).length > 0 ? (
 					<SectionBody anchor="firewall-standard">
-						<StandardProtection standard={view.standard ?? []} />
+						<StandardProtection
+							service={service}
+							standard={view.standard ?? []}
+							counts={counts}
+						/>
 					</SectionBody>
 				) : null}
 				{dirty || apply.isError ? (
@@ -389,6 +448,12 @@ function Problems({
 	);
 }
 
+/** The recipes under their group headings, in display order. */
+const RECIPES_BY_GROUP = RECIPE_GROUPS.map((group) => ({
+	...group,
+	recipes: RECIPES.filter((r) => r.group === group.id),
+}));
+
 /** The empty state: only the standard protection applies; start from a recipe. */
 function Recipes({
 	geoAvailable,
@@ -405,30 +470,40 @@ function Recipes({
 				No rules of your own: only the standard protection below applies. Add a
 				common one, or write your own.
 			</p>
-			<ul className="m-0 grid list-none grid-cols-1 gap-2 p-0 @lg/section:grid-cols-2">
-				{RECIPES.map((recipe) => (
-					<li key={recipe.id}>
-						<button
-							type="button"
-							onClick={() => onPick(recipe)}
-							className="surface-raised pressable flex h-full w-full flex-col items-start gap-1 rounded-card px-3 py-2.5 text-left outline-none hover:border-line-control focus-visible:focus-ring"
-						>
-							<span className="flex items-center gap-1.5 font-medium text-ink-1 text-sm">
-								<BanIcon aria-hidden className="size-3.5 text-bad" />
-								{recipe.title}
-							</span>
-							<span className="text-ink-3 text-xs leading-[1.45]">
-								{recipe.description}
-							</span>
-							{recipe.geo && !geoAvailable ? (
-								<span className="text-ink-4 text-2xs">
-									Needs geolocation on the server.
-								</span>
-							) : null}
-						</button>
-					</li>
-				))}
-			</ul>
+			{RECIPES_BY_GROUP.map((group) => (
+				<div key={group.id} className="flex flex-col gap-2">
+					<h3 className="type-label m-0">{group.title}</h3>
+					<ul className="m-0 grid list-none grid-cols-1 gap-2 p-0 @lg/section:grid-cols-2">
+						{group.recipes.map((recipe) => (
+							<li key={recipe.id}>
+								<button
+									type="button"
+									onClick={() => onPick(recipe)}
+									className="surface-raised pressable flex h-full w-full flex-col items-start gap-1 rounded-card px-3 py-2.5 text-left outline-none hover:border-line-control focus-visible:focus-ring"
+								>
+									<span className="flex items-center gap-1.5 font-medium text-ink-1 text-sm">
+										<BanIcon aria-hidden className="size-3.5 text-bad" />
+										{recipe.title}
+									</span>
+									<span className="text-ink-3 text-xs leading-[1.45]">
+										{recipe.description}
+									</span>
+									{recipe.caution ? (
+										<span className="text-ink-4 text-2xs">
+											{recipe.caution}
+										</span>
+									) : null}
+									{recipe.geo && !geoAvailable ? (
+										<span className="text-ink-4 text-2xs">
+											Needs geolocation on the server.
+										</span>
+									) : null}
+								</button>
+							</li>
+						))}
+					</ul>
+				</div>
+			))}
 			<div>
 				<Button type="button" variant="secondary" size="sm" onClick={onBlank}>
 					<PlusIcon aria-hidden />
@@ -446,9 +521,13 @@ function Recipes({
  * path.
  */
 function StandardProtection({
+	service,
 	standard,
+	counts,
 }: {
+	service: Service;
 	standard: readonly StandardRule[];
+	counts: ReadonlyMap<string, number>;
 }) {
 	return (
 		<div className="flex flex-col gap-2">
@@ -486,6 +565,14 @@ function StandardProtection({
 								))}
 							</span>
 						</span>
+						<RuleBlockCount
+							service={service}
+							ruleId={s.rule.id ?? ""}
+							ruleName={s.rule.name}
+							count={
+								s.rule.id === undefined ? undefined : counts.get(s.rule.id)
+							}
+						/>
 						<Badge variant="outline">Block</Badge>
 					</li>
 				))}
@@ -499,6 +586,8 @@ function StandardProtection({
 }
 
 function RuleRow({
+	service,
+	blocked,
 	rule,
 	index,
 	count,
@@ -510,6 +599,8 @@ function RuleRow({
 	onDuplicate,
 	onDelete,
 }: {
+	service: Service;
+	blocked: number | undefined;
 	rule: FirewallRule;
 	index: number;
 	count: number;
@@ -577,6 +668,12 @@ function RuleRow({
 					/>
 				</button>
 				<div className="flex shrink-0 items-center gap-0.5">
+					<RuleBlockCount
+						service={service}
+						ruleId={rule.id}
+						ruleName={rule.name || "Untitled rule"}
+						count={blocked}
+					/>
 					<Switch
 						size="sm"
 						checked={!off}

@@ -146,9 +146,14 @@ func TestCheckBlocksWithThe403PageAndAllowsTheRest(t *testing.T) {
 	require.Contains(t, blocked.Body.String(), "<html")
 	require.Contains(t, blocked.Body.String(), "Access blocked", "the 403 page of the pages bundle")
 
+	require.Equal(t, "admin", blocked.Header().Get(agentprotocol.FirewallRuleHeader), "the rule that decided rides the 403 to the access log")
+
 	allowed := h.check(visit{route: "r1", client: "peer", method: "GET", uri: "/shop", forwardedFor: "198.51.100.9"})
 	require.Equal(t, http.StatusOK, allowed.Code)
 	require.Empty(t, allowed.Body.String())
+	require.Empty(t, allowed.Header().Get(agentprotocol.FirewallRuleHeader), "only a block names a rule")
+	require.Empty(t, h.check(visit{route: "r1", client: "peer", method: "GET", uri: "/admin", forwardedFor: "203.0.113.50"}).Header().Get(agentprotocol.FirewallRuleHeader),
+		"an allow rule that decides names no rule either")
 
 	require.Equal(t, http.StatusOK, h.status(visit{route: "r1", client: "peer", method: "GET", uri: "/admin", forwardedFor: "203.0.113.50"}),
 		"an allow rule above the block rule lets the office in")

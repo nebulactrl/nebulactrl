@@ -115,6 +115,8 @@ The text of a line is one JSON object, with the stream `requests`. The replica a
 | `ua` | the `User-Agent` header |
 | `ip` | the network of the peer the proxy trusts as the client, the **/24 of an IPv4 or the /48 of an IPv6 address** (`203.0.113.0/24`); never the full address. It is not always the visitor's network, see [below](#which-network-ip-is) |
 | `process`, `component` | the [process](processes.md) or Compose component that served it, when there is one |
+| `blocked_by` | the id of the [firewall](firewall.md#seeing-what-was-blocked) rule that blocked the request (`stdsecrets` for the standard protection, or the id of one of the service's own rules). Absent on every other request, so `@blocked_by:*` finds exactly the blocked ones. A blocked request is stored like any other of its service (status 403, level `warn`), with the path that was requested |
+| `country` | the visitor's ISO 3166-1 country, from the server's GeoIP database, **only while [geolocation](traffic-analytics.md#where-requests-come-from) is on** and the address is located; the address itself is not stored. Absent otherwise |
 
 The time of a request line is **when the response finished**: the request's start plus `duration_ms`. The list shows that time, and the Logs page histogram counts the request in the bucket where it ended, so a slow request lands where it completed, not where it began. [Traffic analytics](traffic-analytics.md) counts a request in the minute it **started**, so a long request can sit in different minutes in the two views.
 
@@ -190,6 +192,8 @@ Query keys for requests (`@` reads an attribute of the line):
 | `@duration_ms:>500` | requests slower than 500 ms |
 | `@bytes:>1000000` | responses larger than 1 MB |
 | `@ip:203.0.113.0/24` | the client network |
+| `@blocked_by:*`, `@blocked_by:stdsecrets` | requests the [firewall](firewall.md#seeing-what-was-blocked) blocked, or only those one rule blocked |
+| `@country:DE` | the visitor's country (needs geolocation on the server) |
 | `@process:worker`, `@component:web` | the process or Compose component |
 
 ```text
