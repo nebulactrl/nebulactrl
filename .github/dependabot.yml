@@ -11,8 +11,12 @@ version: 2
 # below, except Go modules, which have none: GitHub Actions, Docker and Compose
 # images and Bun development dependencies. A dependency lands in the first group
 # it matches, so each *-patch group must stay above its catch-all group. Renaming
-# a *-patch group means changing AUTOMERGE_GROUPS in that workflow too. Security
-# updates carry no group and are always reviewed by hand.
+# a *-patch group means changing AUTOMERGE_GROUPS in that workflow, and moving or
+# adding a directory means changing group_of_branch in
+# scripts/ci/dependabot-automerge-check.sh (it maps the branch dependabot/<ecosystem>/
+# <directory>/<name> to the *-patch group, for a patch update outside every group,
+# such as a digest-only bump). Security updates carry no group and are always
+# reviewed by hand.
 #
 # Commit prefixes decide the release (CONTRIBUTING.md, "Commits and versions"):
 # what ships in the image, the binaries or the installer is fix(deps), a patch
