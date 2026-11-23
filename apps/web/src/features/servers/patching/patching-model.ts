@@ -209,7 +209,7 @@ export function planCautions(plan: PatchPlan): string[] {
 }
 
 /** Window lengths the form offers, in minutes (the API takes 60-240). */
-export const WINDOW_LENGTHS: readonly number[] = [60, 120, 180, 240];
+const WINDOW_LENGTHS: readonly number[] = [60, 120, 180, 240];
 
 /** The most extra packages a schedule may hold back. */
 export const HOLD_LIMIT = 20;
