@@ -138,6 +138,10 @@ type Config struct {
 	// (the service's log history). nil skips it.
 	Log    func(serviceID, line string)
 	Limits Limits
+	// Exempt reports the addresses that are never counted or banned; nil is
+	// agentprotocol.ExemptAddr. Only a test whose visitor is a private address
+	// (a Docker gateway) replaces it.
+	Exempt func(netip.Addr) bool
 	// Debounce, SweepInterval, SendInterval and AckTimeout override the
 	// defaults (tests).
 	Debounce, SweepInterval, SendInterval, AckTimeout time.Duration
@@ -407,7 +411,7 @@ func (e *Engine) Observe(h Hit) {
 		return
 	}
 	addr = addr.WithZone("").Unmap()
-	if agentprotocol.ExemptAddr(addr) {
+	if e.exempt(addr) {
 		return
 	}
 	now := e.now()
@@ -417,6 +421,13 @@ func (e *Engine) Observe(h Hit) {
 	e.commitLocked(&bt)
 	e.mu.Unlock()
 	e.finish(&bt)
+}
+
+func (e *Engine) exempt(a netip.Addr) bool {
+	if e.cfg.Exempt != nil {
+		return e.cfg.Exempt(a)
+	}
+	return agentprotocol.ExemptAddr(a)
 }
 
 func (e *Engine) observeLocked(h Hit, addr netip.Addr, now time.Time, bt *batch) {

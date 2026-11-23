@@ -3,6 +3,7 @@ package autoban
 import (
 	"context"
 	"fmt"
+	"net/netip"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -230,6 +231,13 @@ func TestExemptAndAllowListedAddressesNeverStrike(t *testing.T) {
 	}
 	require.Empty(t, f.e.Active())
 	require.Empty(t, f.events())
+}
+
+func TestExemptCanBeReplaced(t *testing.T) {
+	f := newFixture(t, func(c *Config) { c.Exempt = func(netip.Addr) bool { return false } })
+	f.policies(policy(3))
+	f.hits(3, "192.168.65.1", "std1")
+	require.Len(t, f.e.Active(), 1, "a private visitor is banned once the exemption is lifted")
 }
 
 func TestOnlyStrikingRulesCount(t *testing.T) {
