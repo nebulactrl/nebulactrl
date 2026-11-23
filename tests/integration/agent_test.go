@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"log/slog"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"sync"
@@ -14,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/nebulactrl/nebulactrl/internal/agent/autoban"
 	"github.com/nebulactrl/nebulactrl/internal/agent/build"
 	"github.com/nebulactrl/nebulactrl/internal/agent/compose"
 	"github.com/nebulactrl/nebulactrl/internal/agent/conn"
@@ -136,6 +138,10 @@ type AgentOptions struct {
 	// GeoDBIPBase, when set, turns on the agent's GeoIP database manager with
 	// this DB-IP download base (a local server in a test); empty: no geolocation.
 	GeoDBIPBase string
+	// AutoBanVisitorsNotExempt lets the auto-ban engine count and ban any
+	// visitor address. The harness reaches Traefik through the Docker gateway, a
+	// private address that production never bans.
+	AutoBanVisitorsNotExempt bool
 }
 
 // envScopedDocker is the daemon as a ScopeEnv agent sees it: only the
@@ -233,6 +239,14 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 		cleanupEarly()
 		return nil, err
 	}
+	// Auto-ban, wired like cmd/agent: the engine holds the bans, the proxy manager
+	// hands them to the edge guard.
+	bansCfg := autoban.Config{Store: st, Logger: log}
+	if opt.AutoBanVisitorsNotExempt {
+		bansCfg.Exempt = func(netip.Addr) bool { return false }
+	}
+	bans := autoban.New(bansCfg)
+	px.SetBanSource(bans)
 	composeRunner := compose.New()
 	// The server mesh nodes, wired like cmd/agent: observed by heartbeats,
 	// driven by the engine. Link nodes need /dev/net/tun of the daemon's host
@@ -328,7 +342,7 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 		Logs: logHistory, Geo: geoApply,
 		Docker: dk, Proxy: faultProxy{Manager: px, fault: opt.Fault},
 		Builder: &build.Builder{StateDir: opt.StateDir}, Sender: client, Logger: log,
-		Uptime: uptimeCollector, UptimeInterval: uptimeEvery,
+		Uptime: uptimeCollector, UptimeInterval: uptimeEvery, AutoBan: bans,
 		OrphanMinAge:     opt.OrphanMinAge,
 		BackupDir:        filepath.Join(opt.StateDir, "backups"),
 		CleanupTune:      opt.CleanupTune,
@@ -349,15 +363,20 @@ func StartAgent(ctx context.Context, opt AgentOptions) (*Agent, error) {
 		// Request logs, wired like cmd/agent: one line per routed request.
 		Requests: logHistory.Requests, RequestLogs: logHistory.RequestLogs, Routes: px.Current, RequestsResume: logHistory.RequestsResume,
 		Geo: geoDB,
+		Observe: func(ev traffic.Event) {
+			bans.Observe(autoban.Hit{RouteID: ev.ServiceID, BlockedBy: ev.BlockedBy, ClientIP: ev.ClientIP, Status: ev.Status, Time: ev.Time})
+		},
 	})
 	client.SetTrafficAckHandler(tc.Ack)
+	bans.SetSender(client)
+	client.SetBansAckHandler(bans.Ack)
 	// The request writer inside the collector must finish before the log
 	// history closes its stores (Hold orders the two).
 	releaseRequests := logHistory.Hold()
 	client.SetProbesAckHandler(uptimeCollector.Ack)
 
 	var wg sync.WaitGroup
-	runs := []func(context.Context){px.Run, deployer.Run, func(c context.Context) { defer releaseRequests(); tc.Run(c) }, logHistory.Run, uptimeCollector.Run}
+	runs := []func(context.Context){px.Run, deployer.Run, bans.Run, func(c context.Context) { defer releaseRequests(); tc.Run(c) }, logHistory.Run, uptimeCollector.Run}
 	if geo != nil {
 		runs = append(runs, geo.Run)
 	}
