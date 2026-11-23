@@ -50,6 +50,9 @@ type SvgProps = Omit<
 	| "onDragStart"
 	| "onDragEnd"
 	| "values"
+	// motion 14.14 claims `fx` (a boolean) for its own; the SVG attribute of that
+	// name only means something on a radial gradient, never on the root `<svg>`.
+	| "fx"
 	| "style"
 >;
 
