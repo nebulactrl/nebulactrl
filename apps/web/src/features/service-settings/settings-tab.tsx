@@ -42,6 +42,7 @@ import { useDockerPolicy } from "./docker-policy";
 import {
 	buildPatch,
 	type SettingsDraft,
+	saveNotice,
 	toDraft,
 	validateDraft,
 } from "./draft";
@@ -176,17 +177,20 @@ export function SettingsTab({
 
 	const save = useMutation({
 		mutationFn: async () => {
-			if (!patch) return;
+			if (!patch) return null;
 			await updateService({
 				path: { serviceId: service.id },
 				headers: { "If-Match": `"${service.generation}"` },
 				body: patch,
 			});
+			return patch;
 		},
-		onSuccess: async () => {
+		onSuccess: async (sent) => {
 			await invalidateServices(queryClient);
 			setEdited(null);
-			toast.success("Settings saved", "Staged until the next deploy.");
+			if (!sent) return;
+			const notice = saveNotice(sent);
+			toast.success(notice.title, notice.description);
 		},
 		onError: (error) => {
 			// A lost race: the global handler has toasted and refetched; the

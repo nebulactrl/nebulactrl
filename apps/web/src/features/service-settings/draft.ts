@@ -32,6 +32,7 @@ import {
 	toDockerForm,
 } from "./docker-options";
 import { type FileDraft, validateFiles } from "./files";
+import { looksLikeSshUrl } from "./ssh-model";
 import {
 	buildTailnetConfig,
 	type TailnetDraft,
@@ -251,8 +252,12 @@ export function validateDraft(
 	if (sourceType === "git") {
 		if (draft.gitUrl.trim() === "")
 			errors.gitUrl = "A repository URL is required.";
-		else if (!/^(https?|git):\/\//.test(draft.gitUrl.trim())) {
-			errors.gitUrl = "Use an https://, http:// or git:// URL.";
+		else if (
+			!/^(https?|git):\/\//.test(draft.gitUrl.trim()) &&
+			!looksLikeSshUrl(draft.gitUrl)
+		) {
+			errors.gitUrl =
+				"Use an https://, http://, git:// or ssh:// URL, or git@host:org/repo.git.";
 		}
 		if (draft.gitBranch.trim() === "")
 			errors.gitBranch = "A branch is required.";
@@ -507,6 +512,30 @@ export function buildPatch(
 		};
 	}
 	return Object.keys(body).length === 0 ? null : body;
+}
+
+/**
+ * The toast after a save: the name applies at once (it is not part of the
+ * deployed config); everything else waits for the next deploy.
+ */
+export function saveNotice(patch: UpdateServiceInputBody): {
+	title: string;
+	description: string;
+} {
+	const renamed = patch.name !== undefined;
+	const staged = Object.keys(patch).some((key) => key !== "name");
+	if (renamed && !staged)
+		return { title: "Name changed", description: "Applies at once." };
+	if (renamed)
+		return {
+			title: "Settings saved",
+			description:
+				"The name applies at once; the rest is staged until the next deploy.",
+		};
+	return {
+		title: "Settings saved",
+		description: "Staged until the next deploy.",
+	};
 }
 
 export function isDirty(
