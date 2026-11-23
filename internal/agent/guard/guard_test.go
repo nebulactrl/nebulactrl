@@ -539,8 +539,9 @@ func (h *harness) loadBans(b agentprotocol.GuardBans) string {
 	return hash
 }
 
-func bansOf(route string, allow []string, bans ...agentprotocol.GuardBan) agentprotocol.GuardBans {
-	return agentprotocol.GuardBans{Services: map[string]agentprotocol.GuardRouteBans{route: {Allow: allow, Bans: bans}}}
+// bansOf is the bans file for route r1.
+func bansOf(allow []string, bans ...agentprotocol.GuardBan) agentprotocol.GuardBans {
+	return agentprotocol.GuardBans{Services: map[string]agentprotocol.GuardRouteBans{"r1": {Allow: allow, Bans: bans}}}
 }
 
 func TestAutoBanOrderIsAllowThenBanThenFirewall(t *testing.T) {
@@ -550,7 +551,7 @@ func TestAutoBanOrderIsAllowThenBanThenFirewall(t *testing.T) {
 		"r1": fw(rule("admin", agentprotocol.FirewallBlock, cond("path", "prefix", "/admin"))),
 		"r2": fw(), // an auto-ban route without firewall rules
 	}})
-	h.loadBans(bansOf("r1", []string{"198.51.100.0/24"},
+	h.loadBans(bansOf([]string{"198.51.100.0/24"},
 		agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp},
 		agentprotocol.GuardBan{Prefix: "198.51.100.9/32", ExpiresAt: exp},
 	))
@@ -581,7 +582,7 @@ func TestAutoBanOrderIsAllowThenBanThenFirewall(t *testing.T) {
 func TestAutoBanReadsTheVisitorFromTheCloudflareHeader(t *testing.T) {
 	h := newHarness(t)
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw()}})
-	h.loadBans(bansOf("r1", nil, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: time.Now().Add(time.Hour)}))
+	h.loadBans(bansOf(nil, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: time.Now().Add(time.Hour)}))
 	require.Equal(t, http.StatusForbidden, h.status(visit{route: "r1", client: "cf", method: "GET", uri: "/", cfIP: "203.0.113.7", forwardedFor: "172.20.0.2"}))
 	require.Equal(t, http.StatusOK, h.status(visit{route: "r1", client: "cf", method: "GET", uri: "/", cfIP: "203.0.113.8", forwardedFor: "203.0.113.7"}),
 		"the header, not the forwarded peer, names the visitor")
@@ -590,7 +591,7 @@ func TestAutoBanReadsTheVisitorFromTheCloudflareHeader(t *testing.T) {
 func TestAutoBanIPv6BansTheWholeSlash64(t *testing.T) {
 	h := newHarness(t)
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw()}})
-	h.loadBans(bansOf("r1", []string{"2001:db8:1:2::99"},
+	h.loadBans(bansOf([]string{"2001:db8:1:2::99"},
 		agentprotocol.GuardBan{Prefix: "2001:db8:1:2::/64", ExpiresAt: time.Now().Add(time.Hour)}))
 	v := func(ip string) visit {
 		return visit{route: "r1", client: "peer", method: "GET", uri: "/", forwardedFor: ip}
@@ -605,7 +606,7 @@ func TestAutoBanIPv6BansTheWholeSlash64(t *testing.T) {
 func TestAutoBanIPv4MappedVisitorUsesTheIPv4Ban(t *testing.T) {
 	h := newHarness(t)
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw()}})
-	h.loadBans(bansOf("r1", []string{"198.51.100.0/24"},
+	h.loadBans(bansOf([]string{"198.51.100.0/24"},
 		agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: time.Now().Add(time.Hour)}))
 	v := func(ip string) visit {
 		return visit{route: "r1", client: "peer", method: "GET", uri: "/", forwardedFor: ip}
@@ -619,7 +620,7 @@ func TestAutoBanExpires(t *testing.T) {
 	now := time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC)
 	h.s.now = func() time.Time { return now }
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw()}})
-	h.loadBans(bansOf("r1", nil,
+	h.loadBans(bansOf(nil,
 		agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: now.Add(time.Minute)},
 		agentprotocol.GuardBan{Prefix: "203.0.113.9/32", ExpiresAt: now.Add(-time.Second)},
 	))
@@ -649,7 +650,7 @@ func TestAutoBanReloadReportsTheBansHashAndKeepsStateOnBadFiles(t *testing.T) {
 	exp := time.Now().Add(time.Hour)
 
 	require.Equal(t, http.StatusServiceUnavailable, ready("?bans=0123456789abcdef"), "no bans file loaded")
-	hash := h.writeBans(bansOf("r1", nil, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp}))
+	hash := h.writeBans(bansOf(nil, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp}))
 	require.Equal(t, http.StatusServiceUnavailable, ready("?bans="+hash), "written but not loaded yet")
 	require.NoError(t, h.s.Reload())
 	require.Equal(t, http.StatusOK, ready("?rules="+rules+"&bans="+hash))
@@ -658,7 +659,7 @@ func TestAutoBanReloadReportsTheBansHashAndKeepsStateOnBadFiles(t *testing.T) {
 	require.Equal(t, http.StatusOK, ready("?bans="), "no bans hash asked for")
 
 	// Rules reload without touching the bans, and bans without touching the rules.
-	hash2 := h.loadBans(bansOf("r1", nil, agentprotocol.GuardBan{Prefix: "203.0.113.8/32", ExpiresAt: exp}))
+	hash2 := h.loadBans(bansOf(nil, agentprotocol.GuardBan{Prefix: "203.0.113.8/32", ExpiresAt: exp}))
 	require.NotEqual(t, hash, hash2)
 	require.Equal(t, http.StatusOK, ready("?rules="+rules+"&bans="+hash2))
 	require.Equal(t, http.StatusForbidden, h.status(visit{route: "r1", client: "peer", forwardedFor: "203.0.113.8"}))
@@ -671,7 +672,7 @@ func TestAutoBanReloadReportsTheBansHashAndKeepsStateOnBadFiles(t *testing.T) {
 	require.Equal(t, http.StatusForbidden, h.status(visit{route: "r1", client: "peer", forwardedFor: "203.0.113.8"}))
 
 	// Lifting every ban rewrites the file; the route stays an auto-ban route.
-	h.loadBans(bansOf("r1", nil))
+	h.loadBans(bansOf(nil))
 	require.Equal(t, http.StatusOK, h.status(visit{route: "r1", client: "peer", forwardedFor: "203.0.113.8"}))
 }
 
@@ -679,7 +680,7 @@ func TestAutoBanIgnoresEntriesThatAreNotBanKeys(t *testing.T) {
 	h := newHarness(t)
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw()}})
 	exp := time.Now().Add(time.Hour)
-	h.loadBans(bansOf("r1", []string{"bogus"},
+	h.loadBans(bansOf([]string{"bogus"},
 		agentprotocol.GuardBan{Prefix: "203.0.113.0/24", ExpiresAt: exp},
 		agentprotocol.GuardBan{Prefix: "2001:db8::/48", ExpiresAt: exp},
 		agentprotocol.GuardBan{Prefix: "nonsense", ExpiresAt: exp},
@@ -702,7 +703,7 @@ func TestAutoBanAllowListMatchesAgentprotocol(t *testing.T) {
 func TestAutoBanBansAppearOnceTheirRouteHasRules(t *testing.T) {
 	h := newHarness(t)
 	exp := time.Now().Add(time.Hour)
-	h.loadBans(bansOf("r1", nil, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp}))
+	h.loadBans(bansOf(nil, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp}))
 	require.Equal(t, http.StatusOK, h.status(visit{route: "r1", client: "peer", forwardedFor: "203.0.113.7"}), "a route the guard has no rules for goes through")
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw()}})
 	require.Equal(t, http.StatusForbidden, h.status(visit{route: "r1", client: "peer", forwardedFor: "203.0.113.7"}))
@@ -710,8 +711,8 @@ func TestAutoBanBansAppearOnceTheirRouteHasRules(t *testing.T) {
 
 func TestEncodeBansIsDeterministic(t *testing.T) {
 	exp := time.Date(2026, 11, 23, 10, 0, 0, 0, time.UTC)
-	a := bansOf("r1", []string{"198.51.100.0/24"}, agentprotocol.GuardBan{Prefix: "203.0.113.9/32", ExpiresAt: exp}, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp})
-	b := bansOf("r1", []string{"198.51.100.0/24"}, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp}, agentprotocol.GuardBan{Prefix: "203.0.113.9/32", ExpiresAt: exp})
+	a := bansOf([]string{"198.51.100.0/24"}, agentprotocol.GuardBan{Prefix: "203.0.113.9/32", ExpiresAt: exp}, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp})
+	b := bansOf([]string{"198.51.100.0/24"}, agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: exp}, agentprotocol.GuardBan{Prefix: "203.0.113.9/32", ExpiresAt: exp})
 	ra, err := EncodeBans(a)
 	require.NoError(t, err)
 	rb, err := EncodeBans(b)

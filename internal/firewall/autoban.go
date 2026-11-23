@@ -389,6 +389,7 @@ func (s *Service) HandleResult(ctx context.Context, serverID, commandID uuid.UUI
 	}
 	banID, err := uuid.Parse(p.BanID)
 	if err != nil {
+		s.log.WarnContext(ctx, "autoban_unban payload has no valid ban id", "command_id", commandID, "err", err)
 		return nil
 	}
 	if _, err := s.q.EndServiceBan(ctx, db.EndServiceBanParams{
