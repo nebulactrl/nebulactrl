@@ -41,8 +41,12 @@
 # a look at what the next release would be. Do one before a real release.
 #
 # If binaries, images, sign, publish or site fail after the version job succeeded, use
-# "Re-run failed jobs" on this run: the tag and the draft release already exist, and a
-# new dispatch would report "no new release".
+# "Re-run failed jobs" on this run: the tag and the draft release already exist.
+#
+# If `version` itself fails after it pushed the tag but before the draft release exists
+# (semantic-release pushes the tag, then a git note, then creates the draft), "Re-run
+# failed jobs" or a new dispatch recovers: a v* tag already at the released commit with
+# no published release is adopted and its draft is created (scripts/release/adopt-release.sh).
 name: release
 
 # Manual trigger only. One release at a time and a running release is never
@@ -103,9 +107,9 @@ jobs:
     permissions:
       contents: write # create the tag and the draft GitHub Release
     outputs:
-      released: ${{ steps.bootstrap.outputs.released || steps.semrel.outputs.released }}
-      version: ${{ steps.bootstrap.outputs.version || steps.semrel.outputs.version }}
-      tag: ${{ steps.bootstrap.outputs.tag || steps.semrel.outputs.tag }}
+      released: ${{ steps.recover.outputs.released || steps.bootstrap.outputs.released || steps.semrel.outputs.released }}
+      version: ${{ steps.recover.outputs.version || steps.bootstrap.outputs.version || steps.semrel.outputs.version }}
+      tag: ${{ steps.recover.outputs.tag || steps.bootstrap.outputs.tag || steps.semrel.outputs.tag }}
     steps:
       # Credentials stay in the checkout: this job pushes the tag.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -125,11 +129,25 @@ jobs:
             echo "exists=false" >>"$GITHUB_OUTPUT"
           fi
 
+      # An earlier run may have pushed the tag of this very commit and died before the
+      # draft release existed. The tag is protected (it cannot be deleted) and
+      # semantic-release sees nothing to release at a tagged commit, so adopt that tag:
+      # reuse its draft, create the draft when there is none, or report "already
+      # released" when it is published.
+      - name: Recover an interrupted release
+        id: recover
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          # Exit 3: no tag at this commit, a normal release follows.
+          scripts/release/adopt-release.sh || [ $? -eq 3 ]
+
       # No v* tag: semantic-release would make its first release 1.0.0 whatever
       # the commits say. We stay on 0.x, so the first release is v0.1.0, made here.
       - name: First release (v0.1.0, without semantic-release)
         id: bootstrap
-        if: steps.tags.outputs.exists == 'false'
+        if: steps.recover.outputs.recovered != 'true' && steps.tags.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -162,7 +180,7 @@ jobs:
 
       - name: semantic-release
         id: semrel
-        if: steps.tags.outputs.exists == 'true'
+        if: steps.recover.outputs.recovered != 'true' && steps.tags.outputs.exists == 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
           DRY_RUN: ${{ inputs.dry_run }}
@@ -170,7 +188,22 @@ jobs:
           set -euo pipefail
           args=()
           if [ "$DRY_RUN" = true ]; then args+=(--dry-run); fi
-          scripts/release/semantic-release.sh "${args[@]}" 2>&1 | tee semantic-release.log
+          rc=0
+          scripts/release/semantic-release.sh "${args[@]}" 2>&1 | tee semantic-release.log || rc=$?
+          if [ "$rc" -ne 0 ]; then
+            # semantic-release pushes the tag, then a git note (a push GitHub has
+            # rejected once, "missing necessary objects"), and only then creates the
+            # draft release. A failure after the tag is on the remote is not worth
+            # blocking the release: the note only records the (default) channel of the
+            # tag, which semantic-release assumes when it is missing. Adopt the tag and
+            # create the draft instead of leaving a protected tag without a release.
+            # Exit 3: no tag was pushed, the failure is real.
+            if [ "$DRY_RUN" != true ] && scripts/release/adopt-release.sh; then
+              echo "::warning::semantic-release failed after it pushed the tag (exit $rc); the draft release was created from that tag. See the log above."
+              exit 0
+            fi
+            exit "$rc"
+          fi
           version="$(sed -n 's/.*next release version is \([0-9][0-9.]*\).*/\1/p' semantic-release.log | head -n 1)"
           if [ -z "$version" ]; then
             echo "released=false" >>"$GITHUB_OUTPUT"
