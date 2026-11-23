@@ -12,12 +12,15 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/backups"
 	"github.com/nebulactrl/nebulactrl/internal/db"
+	"github.com/nebulactrl/nebulactrl/internal/firewall"
 	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/integrations/cloudflare"
+	"github.com/nebulactrl/nebulactrl/internal/maintenance"
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
 	"github.com/nebulactrl/nebulactrl/internal/scaling"
 	"github.com/nebulactrl/nebulactrl/internal/tasks"
 	"github.com/nebulactrl/nebulactrl/internal/uptime"
+	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
 )
 
 // immStep is one immediate-kind step of phase 2: it runs a use case after the staged part committed
@@ -102,6 +105,22 @@ func (a *applier) planImmediate(sp *svcPlan) {
 			ids = append(ids, f.fv.ID)
 		}
 		add(&immStep{name: stepName("uptime", slug, "reset"), drop: ids, run: func(ctx context.Context) error { return a.runUptime(ctx, sp, id, true) }})
+	}
+	for _, f := range imm("firewall") {
+		f := f
+		add(&immStep{name: stepName("firewall", slug), fields: []*fieldPlan{f}, run: func(ctx context.Context) error { return a.runFirewall(ctx, sp, id, f, false) }})
+	}
+	for _, f := range sp.removesWith("firewall") {
+		f := f
+		add(&immStep{name: stepName("firewall", slug, "reset"), drop: []string{f.fv.ID}, run: func(ctx context.Context) error { return a.runFirewall(ctx, sp, id, f, true) }})
+	}
+	for _, f := range imm("maintenance") {
+		f := f
+		add(&immStep{name: stepName("maintenance", slug), fields: []*fieldPlan{f}, run: func(ctx context.Context) error { return a.runMaintenance(ctx, id, f, false) }})
+	}
+	for _, f := range sp.removesWith("maintenance") {
+		f := f
+		add(&immStep{name: stepName("maintenance", slug, "off"), drop: []string{f.fv.ID}, run: func(ctx context.Context) error { return a.runMaintenance(ctx, id, f, true) }})
 	}
 	for _, f := range imm("tasks.") {
 		f := f
@@ -460,4 +479,53 @@ func (a *applier) deploy(ctx context.Context, res *ApplyResult) {
 	}
 	a.step("deploy", StepApplied, "")
 	res.Steps = a.out.Steps
+}
+
+// runFirewall replaces the rules of the service's firewall with the file's. A rule the file gives no id keeps the
+// id of the live rule at its position (the platform makes one for a new rule); an empty list removes the firewall.
+func (a *applier) runFirewall(ctx context.Context, sp *svcPlan, id uuid.UUID, f *fieldPlan, reset bool) error {
+	var rules []agentprotocol.FirewallRule
+	if !reset {
+		v, ok := f.fv.Value.(projectconfig.FirewallValue)
+		if !ok {
+			return refErr("wrong_type", "the firewall has an unexpected value")
+		}
+		var live []agentprotocol.FirewallRule
+		if sp.ls != nil {
+			live = liveFirewallRules(sp.ls.Row)
+		}
+		rules = resolveFirewallIDs(v, live).FirewallRules()
+	}
+	stored, err := a.s.Firewall.Put(ctx, id, firewall.PutInput{Rules: rules})
+	if err != nil {
+		return err
+	}
+	if !reset {
+		// The ownership base is the rules as stored: the platform made the ids the file left out, and a
+		// base without them would never match the live list, so a later change would read as a conflict.
+		v := projectconfig.FirewallValueOf(stored.Rules)
+		f.desired = view(v, firewallDisplay(v))
+	}
+	return nil
+}
+
+// runMaintenance switches maintenance mode as the file says; reset switches it off.
+func (a *applier) runMaintenance(ctx context.Context, id uuid.UUID, f *fieldPlan, reset bool) error {
+	in := maintenance.SetInput{}
+	if !reset {
+		v, ok := f.fv.Value.(projectconfig.MaintenanceValue)
+		if !ok {
+			return refErr("wrong_type", "maintenance has an unexpected value")
+		}
+		in = maintenance.SetInput{Enabled: v.Enabled, Title: v.Title, Message: v.Message}
+		if v.Enabled && v.ETA != "" {
+			t, err := projectconfig.MaintenanceETA(v.ETA)
+			if err != nil {
+				return refErr("invalid_value", "maintenance eta: %v", err)
+			}
+			in.ETA = &t
+		}
+	}
+	_, err := a.s.Maintenance.Set(ctx, id, in)
+	return err
 }

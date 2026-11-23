@@ -134,6 +134,8 @@ type Service struct {
 	Tailnet     *Tailnet     `toml:"tailnet" json:"tailnet,omitempty" doc:"Put the service on your Tailscale or Headscale tailnet through a per-service sidecar. The whole table is owned as one unit: a key you leave out takes its default. Removing the table releases it and leaves the live setting as it is; write enabled = false to switch it off. Funnel (public internet exposure) is not a file key: set it in the dashboard."`
 	Scale       *Scale       `toml:"scale" json:"scale,omitempty" doc:"Replicas and autoscaling. Applied immediately."`
 	Uptime      *Uptime      `toml:"uptime" json:"uptime,omitempty" doc:"Uptime monitor settings. Applied immediately."`
+	Firewall    *Firewall    `toml:"firewall" json:"firewall,omitempty" doc:"The service's firewall: ordered allow and block rules the proxy evaluates against every request to its domains. The whole table is owned as one unit: the rules you write replace the live ones, and an empty list removes the firewall. Applied immediately. HTTP services only. The standard protection NebulaCtrl adds to every HTTP service is not part of the file."`
+	Maintenance *Maintenance `toml:"maintenance" json:"maintenance,omitempty" doc:"Maintenance mode: while enabled the proxy answers every domain of the service with a 503 maintenance page. The whole table is owned as one unit: a key you leave out takes its default (default page text, no expected-back time). Applied immediately. HTTP services only."`
 	Secrets     *Secrets     `toml:"secrets" json:"secrets,omitempty" doc:"Names of secret variables of this service. Values are never written in the file."`
 
 	Variables map[string]Variable  `toml:"variables" json:"variables,omitempty" doc:"Variables of the service, keyed by name. A value is a string using the variable macro grammar, or a table with metadata."`
@@ -371,6 +373,37 @@ type Uptime struct {
 	ReminderMinutes   *int  `toml:"reminder_minutes" json:"reminder_minutes,omitempty" doc:"Minutes between reminders of an ongoing outage. 0 disables reminders." example:"60" minimum:"0" maximum:"1440" default:"0"`
 }
 
+// Firewall is [services.<slug>.firewall].
+type Firewall struct {
+	Rules []FirewallRule `toml:"rules" json:"rules,omitempty" doc:"Rules in evaluation order: the first enabled rule whose conditions all match decides, and a request no rule matches goes through. Written as [[services.<slug>.firewall.rules]]. Replaces the whole list; an empty list removes the firewall." example:"[{\"name\":\"Block admin from outside the office\",\"action\":\"block\",\"conditions\":[{\"field\":\"path\",\"op\":\"prefix\",\"values\":[\"/admin\"]}]}]" maxItems:"50"`
+}
+
+// FirewallRule is one [[services.<slug>.firewall.rules]] table: every condition must match.
+type FirewallRule struct {
+	ID         *string             `toml:"id" json:"id,omitempty" doc:"Stable identifier of the rule: 1 to 16 lowercase letters or digits, unique in the list. Absent keeps the id of the live rule at the same position, or generates one." example:"admin1" pattern:"^[a-z0-9]{1,16}$"`
+	Name       *string             `toml:"name" json:"name,omitempty" doc:"What the rule is for, shown in the dashboard and in the block log." example:"Block admin from outside the office" minLength:"1" maxLength:"80"`
+	Action     *string             `toml:"action" json:"action,omitempty" doc:"block answers matching requests with HTTP 403; allow lets them through and skips the rules below." example:"block" enum:"block,allow"`
+	Disabled   *bool               `toml:"disabled" json:"disabled,omitempty" doc:"Keep the rule but never evaluate it." example:"false" default:"false"`
+	Conditions []FirewallCondition `toml:"conditions" json:"conditions,omitempty" doc:"Tests of a request, 1 to 10. Every condition must match. Written as [[services.<slug>.firewall.rules.conditions]]." example:"[{\"field\":\"path\",\"op\":\"prefix\",\"values\":[\"/admin\"]}]" minItems:"1" maxItems:"10"`
+}
+
+// FirewallCondition is one test of a request: several values match when any does.
+type FirewallCondition struct {
+	Field  *string  `toml:"field" json:"field,omitempty" doc:"What is tested: ip (client address), country (ISO 3166 alpha-2, needs geolocation on the server), path, method, header, userAgent or query." example:"path" enum:"ip,country,path,method,header,userAgent,query"`
+	Op     *string  `toml:"op" json:"op,omitempty" doc:"How the value is compared. ip, country and method take in; path takes prefix, exact, contains or regex; header and query take equals, contains, regex or present; userAgent takes contains or regex." example:"prefix" enum:"in,prefix,exact,equals,contains,regex,present"`
+	Name   *string  `toml:"name" json:"name,omitempty" doc:"Header or query parameter name. Only for field header and query." example:"X-Api-Key" maxLength:"128"`
+	Values []string `toml:"values" json:"values,omitempty" doc:"Values to compare, 1 to 50 (ip: CIDRs or addresses; country: codes such as DE; method: GET, POST, ...). The condition matches when any value does. Absent for op present." example:"[\"/admin\"]" maxItems:"50"`
+	Not    *bool    `toml:"not" json:"not,omitempty" doc:"Invert the condition: it matches when the test fails." example:"false" default:"false"`
+}
+
+// Maintenance is [services.<slug>.maintenance].
+type Maintenance struct {
+	Enabled *bool   `toml:"enabled" json:"enabled,omitempty" doc:"true puts the service into maintenance, false takes it out. Writing false keeps the stored page text for the next time." example:"true"`
+	Title   *string `toml:"title" json:"title,omitempty" doc:"Page title. Absent or empty shows \"Down for maintenance\". Only used while enabled." example:"Back soon" maxLength:"80"`
+	Message *string `toml:"message" json:"message,omitempty" doc:"Page message, plain text (newlines allowed). Absent or empty shows the default copy. Only used while enabled." example:"We are upgrading the database." maxLength:"600"`
+	ETA     *string `toml:"eta" json:"eta,omitempty" doc:"When the service is expected back, an RFC 3339 time in the future (for example 2026-12-01T06:00:00Z), written as a string. Shown on the page and sent as Retry-After. Only used while enabled; stored in UTC, truncated to seconds." example:"2026-12-01T06:00:00Z" maxLength:"40"`
+}
+
 // Process is [services.<slug>.processes.<name>], an additional process of a
 // service. It shares the service's image, variables, volumes and release.
 type Process struct {
@@ -426,7 +459,7 @@ type Docker struct {
 	Init               *bool              `toml:"init" json:"init,omitempty" doc:"Run a minimal init as PID 1." example:"true"`
 	StopSignal         *string            `toml:"stop_signal" json:"stop_signal,omitempty" doc:"Signal used to stop the container." example:"SIGQUIT" maxLength:"32"`
 	Tmpfs              map[string]*Tmpfs  `toml:"tmpfs" json:"tmpfs,omitempty" doc:"In-memory filesystems keyed by absolute path." example:"\"/tmp\" = { size_mb = 64 }"`
-	Entrypoint         []string           `toml:"entrypoint" json:"entrypoint,omitempty" doc:"Replaces the image's ENTRYPOINT, as an argv array." example:"[\"/entrypoint.sh\"]" minItems:"1" maxItems:"64"`
+	Entrypoint         []string           `toml:"entrypoint" json:"entrypoint,omitempty" doc:"Replaces the image's ENTRYPOINT, as an argv array." example:"[\"/entrypoint.sh\"]" minItems:"1" maxItems:"32"`
 	Devices            []Device           `toml:"devices" json:"devices,omitempty" doc:"Host devices mapped into the container. Unrestricted servers only." example:"[{ host_path = \"/dev/dri/renderD128\" }]"`
 	GPUs               *GPUs              `toml:"gpus" json:"gpus,omitempty" doc:"GPU request. Unrestricted servers only."`
 	Runtime            *string            `toml:"runtime" json:"runtime,omitempty" doc:"OCI runtime configured in the daemon. Unrestricted servers only." example:"runsc"`
@@ -444,7 +477,7 @@ type Ulimit struct {
 
 // Tmpfs is docker.tmpfs.<path>.
 type Tmpfs struct {
-	SizeMB *int    `toml:"size_mb" json:"size_mb,omitempty" doc:"Size in MiB." example:"64" minimum:"1"`
+	SizeMB *int    `toml:"size_mb" json:"size_mb,omitempty" doc:"Size in MiB. 0 or absent means 64." example:"64" minimum:"0" maximum:"65536"`
 	Mode   *string `toml:"mode" json:"mode,omitempty" doc:"Octal mode." example:"1777" pattern:"^[0-7]{3,4}$"`
 }
 

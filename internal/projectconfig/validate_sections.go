@@ -15,6 +15,7 @@ import (
 
 	"github.com/nebulactrl/nebulactrl/internal/cronexpr"
 	"github.com/nebulactrl/nebulactrl/internal/databases/engines"
+	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/gitssh"
 	"github.com/nebulactrl/nebulactrl/internal/services"
@@ -592,6 +593,136 @@ func (c *svcCtx) checkUptime() {
 	c.intIn(rp("uptime", "failure_threshold"), u.FailureThreshold, 1, 20)
 	c.intIn(rp("uptime", "recovery_threshold"), u.RecoveryThreshold, 1, 20)
 	c.intIn(rp("uptime", "reminder_minutes"), u.ReminderMinutes, 0, 1440)
+}
+
+// httpOnly reports whether a firewall or maintenance table may be set on this service: a database
+// and a stack are refused by the kind matrix, a tcp or udp route here, and a one-shot job serves
+// no traffic. It reports the problem and returns false when the table cannot apply.
+func (c *svcCtx) httpOnly(key string) bool {
+	if c.kind == KindDatabase || c.kind == KindStack {
+		return false // the kind matrix reported it
+	}
+	if r := c.def.Route; c.kind == KindRoute && r != nil && r.Protocol != nil && *r.Protocol != "http" && *r.Protocol != "" {
+		c.err(CodeNotAllowedForKind, rp(key), "%q only applies to HTTP services, not to a %s route", key, *r.Protocol)
+		return false
+	}
+	if oneShotOf(c.def) {
+		c.err(CodeInvalidValue, rp(key), "a one-shot service serves no traffic, so %q does not apply", key)
+		return false
+	}
+	return true
+}
+
+// firewallErrAt locates a message of agentprotocol.Firewall.Validate: "rule N: ..." or "rule N, condition M: ...".
+var firewallErrAt = regexp.MustCompile(`^rule (\d+)(?:, condition (\d+))?: (.*)$`)
+
+func (c *svcCtx) checkFirewall() {
+	f := c.def.Firewall
+	if f == nil || !c.httpOnly("firewall") {
+		return
+	}
+	if len(f.Rules) > agentprotocol.MaxFirewallRules {
+		c.err(CodeLimitExceeded, rp("firewall", "rules"), "%d firewall rules; at most %d", len(f.Rules), agentprotocol.MaxFirewallRules)
+		return
+	}
+	complete := true
+	for i, r := range f.Rules {
+		at := func(k ...string) []string { return append(rp("firewall", "rules", "["+itoa(i)+"]"), k...) }
+		if r.Name == nil {
+			c.err(CodeMissingRequired, at("name"), "rule %d needs `name`", i+1)
+			complete = false
+		}
+		if r.Action == nil {
+			c.err(CodeMissingRequired, at("action"), "rule %d needs `action` (block or allow)", i+1)
+			complete = false
+		}
+		if len(r.Conditions) == 0 {
+			c.err(CodeMissingRequired, at("conditions"), "rule %d needs at least one condition", i+1)
+			complete = false
+		}
+		for j, cd := range r.Conditions {
+			ck := func(k string) []string { return at("conditions", "["+itoa(j)+"]", k) }
+			if cd.Field == nil {
+				c.err(CodeMissingRequired, ck("field"), "condition %d of rule %d needs `field`", j+1, i+1)
+				complete = false
+			}
+			if cd.Op == nil {
+				c.err(CodeMissingRequired, ck("op"), "condition %d of rule %d needs `op`", j+1, i+1)
+				complete = false
+			}
+		}
+	}
+	if !complete {
+		return
+	}
+	v := firewallValue(f)
+	used := map[string]bool{}
+	for _, r := range v.Rules {
+		used[r.ID] = true
+	}
+	for i := range v.Rules {
+		id := v.Rules[i].ID
+		if id == "" { // the platform gives the rule an id: check the rest with one that cannot clash
+			for n := i; ; n++ {
+				if id = "x" + itoa(n); !used[id] {
+					break
+				}
+			}
+			used[id] = true
+			v.Rules[i].ID = id
+		}
+		if domains.IsStandardRuleID(v.Rules[i].ID) {
+			c.err(CodeInvalidValue, rp("firewall", "rules", "["+itoa(i)+"]", "id"), "ids starting with %q are reserved for the standard protection", domains.StandardRuleIDPrefix)
+			return
+		}
+	}
+	err := agentprotocol.Firewall{Rules: v.FirewallRules()}.Validate()
+	if err == nil {
+		return
+	}
+	path, msg := rp("firewall", "rules"), err.Error()
+	if m := firewallErrAt.FindStringSubmatch(msg); m != nil {
+		ri, _ := strconv.Atoi(m[1])
+		path = rp("firewall", "rules", "["+itoa(ri-1)+"]")
+		msg = m[3]
+		switch {
+		case m[2] != "":
+			ci, _ := strconv.Atoi(m[2])
+			path = append(path, "conditions", "["+itoa(ci-1)+"]")
+			msg = "condition " + m[2] + ": " + msg
+		case strings.HasPrefix(msg, "id"):
+			path = append(path, "id")
+		case strings.HasPrefix(msg, "name"):
+			path = append(path, "name")
+		case strings.HasPrefix(msg, "action"):
+			path = append(path, "action")
+		}
+		msg = "rule " + m[1] + ": " + msg
+	}
+	c.err(CodeInvalidValue, path, "%s", msg)
+}
+
+func (c *svcCtx) checkMaintenance() {
+	m := c.def.Maintenance
+	if m == nil || !c.httpOnly("maintenance") {
+		return
+	}
+	if m.Enabled == nil {
+		c.err(CodeMissingRequired, rp("maintenance", "enabled"), "maintenance needs `enabled` (true or false)")
+	}
+	text := agentprotocol.Maintenance{Title: strings.TrimSpace(derefStr(m.Title)), Message: strings.TrimSpace(derefStr(m.Message))}
+	if err := agentprotocol.ValidateMaintenance(text); err != nil {
+		key := "title"
+		if strings.HasPrefix(err.Error(), "message") {
+			key = "message"
+		}
+		c.err(CodeInvalidValue, rp("maintenance", key), "%s", err.Error())
+	}
+	if m.ETA != nil {
+		if _, err := MaintenanceETA(*m.ETA); err != nil {
+			c.err(CodeInvalidValue, rp("maintenance", "eta"), "eta must be an RFC 3339 time with a zone, for example 2026-12-01T06:00:00Z")
+		}
+	}
 }
 
 func (c *svcCtx) checkTasks() {

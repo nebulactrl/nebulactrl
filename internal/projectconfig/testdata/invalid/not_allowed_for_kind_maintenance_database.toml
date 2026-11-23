@@ -1,0 +1,14 @@
+# expect: not_allowed_for_kind
+# schema: reject
+# Maintenance mode answers a service's domains with a 503 page; a database has
+# no domains, so the key does not apply to it.
+schema = 1
+server = "fra-1"
+
+[services.db]
+
+[services.db.database]
+engine = "postgres"
+
+[services.db.maintenance]
+enabled = true

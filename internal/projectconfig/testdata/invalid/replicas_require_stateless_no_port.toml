@@ -1,0 +1,11 @@
+# expect: replicas_require_stateless
+# A service without an HTTP port runs as a single instance.
+schema = 1
+server = "fra-1"
+
+[services.queue]
+image = "redis:7"
+port = 0
+
+[services.queue.scale]
+replicas = 2

@@ -56,6 +56,38 @@ A stack has no `Port`. Add domains like for any service, but pick the **componen
 - After the containers are healthy the agent switches the routes and **verifies through the proxy** (`GET /` through the first domain of the stack must answer below 500). A failed verification restores the previous routes and the previous stack.
 - Maintenance mode and traffic analytics are not available for stacks.
 
+## In `nebula.toml`
+
+A stack is `[services.<s>.stack]` in [`nebula.toml`](../reference/nebula-toml.md#stack). These settings of the stack's **Settings** tab have a key in the file:
+
+| Setting | Key | Notes |
+|---|---|---|
+| Compose file | `stack.compose` (text) or `stack.compose_file` (path next to `nebula.toml`) | exactly one of them |
+| Wait timeout | `stack.wait_seconds` | 1-3600, default 300 |
+| Component limits | `stack.resources.<component>.memory_mb`, `.cpus` | `memory_mb` is 0 (no limit) or at least 6 |
+| Stop grace period | `stop_grace_seconds` | 1-3600, default 30; how long components get to stop on Restart, Stop and Delete |
+| Block outbound internet | `block_egress` | default `false`; a service that attaches shared networks (`networks`) cannot set it |
+| Domains | `domains."<host>"` with `component` | `component` (the compose service) is required for a stack; `target_port` picks the container port; `process` is for apps only |
+
+```toml
+[services.shop]
+stop_grace_seconds = 60
+block_egress       = false
+
+[services.shop.stack]
+compose_file = "docker-compose.yml"
+wait_seconds = 120
+
+[services.shop.stack.resources.web]
+memory_mb = 512
+
+[services.shop.domains."shop.acme.com"]
+component   = "web"
+target_port = 8080
+```
+
+**A generated domain is not in the file.** **Networking → Generate domain** (API `POST /services/{serviceId}/domains/generate` with a `component`) attaches a hostname from the server's base domain; `generate_domain` is refused on a stack. Write the hostname as an explicit `domains."<host>"` table with `component` instead.
+
 ## Health, deploy and rollback
 
 - Health is Compose's: the agent runs `docker compose up -d --wait` and waits for every component with a `healthcheck` to be healthy and every other component to be running (`depends_on` conditions work). The wait is bounded by **Wait timeout** (default 300 seconds, at most 3600). A component that exits with code 0 (an init or migration container) counts as healthy ("completed").

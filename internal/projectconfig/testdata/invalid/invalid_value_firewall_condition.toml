@@ -1,0 +1,18 @@
+# expect: invalid_value
+# A condition's operator must fit its field and its values must parse: an ip
+# condition takes CIDRs or addresses.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "ghcr.io/acme/web:1.4.2"
+port = 3000
+
+[[services.web.firewall.rules]]
+name = "Block a network"
+action = "block"
+
+[[services.web.firewall.rules.conditions]]
+field = "ip"
+op = "in"
+values = ["10.0.0.0/99"]

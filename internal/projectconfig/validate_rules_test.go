@@ -17,6 +17,9 @@ func t2watch(n int) string {
 	return "watch_paths = [" + strings.Join(parts, ", ") + "]\n"
 }
 
+// t2fw is a valid firewall for the web service of t2web: an ordered list of two rules.
+const t2fw = "[[services.web.firewall.rules]]\nid = \"admin1\"\nname = \"Block admin\"\naction = \"block\"\n\n[[services.web.firewall.rules.conditions]]\nfield = \"path\"\nop = \"prefix\"\nvalues = [\"/admin\"]\n\n[[services.web.firewall.rules]]\nname = \"Allow office\"\naction = \"allow\"\ndisabled = true\n\n[[services.web.firewall.rules.conditions]]\nfield = \"ip\"\nop = \"in\"\nvalues = [\"203.0.113.0/24\"]\nnot = false\n\n"
+
 func t2SectionCases() []t2case {
 	return []t2case{
 		// health checks
@@ -143,6 +146,47 @@ func t2SectionCases() []t2case {
 		{name: "uptime recovery threshold zero", toml: t2doc(t2web + "[services.web.uptime]\nrecovery_threshold = 0\n"), code: CodeInvalidValue, path: "services.web.uptime.recovery_threshold"},
 		{name: "uptime reminder too long", toml: t2doc(t2web + "[services.web.uptime]\nreminder_minutes = 1441\n"), code: CodeInvalidValue, path: "services.web.uptime.reminder_minutes"},
 		{name: "uptime at the bounds", toml: t2doc(t2web + "[services.web.uptime]\nfailure_threshold = 20\nrecovery_threshold = 1\nreminder_minutes = 1440\n"), code: CodeInvalidValue, absent: true},
+
+		// firewall
+		{name: "firewall valid", toml: t2doc(t2web + t2fw), code: CodeInvalidValue, absent: true},
+		{name: "firewall empty table", toml: t2doc(t2web + "[services.web.firewall]\n"), code: CodeInvalidValue, absent: true},
+		{name: "firewall id optional", toml: t2doc(t2web + "[services.web.firewall]\nrules = [{ name = \"n\", action = \"block\", conditions = [{ field = \"method\", op = \"in\", values = [\"post\"] }] }]\n"), code: CodeInvalidValue, absent: true},
+		{name: "firewall rule without name", toml: t2doc(t2web + "[[services.web.firewall.rules]]\naction = \"block\"\nconditions = [{ field = \"path\", op = \"prefix\", values = [\"/a\"] }]\n"), code: CodeMissingRequired, path: "services.web.firewall.rules[0].name"},
+		{name: "firewall rule without action", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\nconditions = [{ field = \"path\", op = \"prefix\", values = [\"/a\"] }]\n"), code: CodeMissingRequired, path: "services.web.firewall.rules[0].action"},
+		{name: "firewall rule without conditions", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\naction = \"allow\"\n"), code: CodeMissingRequired, path: "services.web.firewall.rules[0].conditions"},
+		{name: "firewall condition without field", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\naction = \"block\"\nconditions = [{ op = \"in\", values = [\"GET\"] }]\n"), code: CodeMissingRequired, path: "services.web.firewall.rules[0].conditions[0].field"},
+		{name: "firewall action value", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\naction = \"deny\"\nconditions = [{ field = \"path\", op = \"prefix\", values = [\"/a\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[0].action"},
+		{name: "firewall op not allowed for the field", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"ip\", op = \"prefix\", values = [\"10.0.0.0/8\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[0].conditions[0]"},
+		{name: "firewall bad cidr in second rule", toml: t2doc(t2web + t2fw + "[[services.web.firewall.rules]]\nname = \"bad\"\naction = \"block\"\nconditions = [{ field = \"ip\", op = \"in\", values = [\"10.0.0.0/99\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[2].conditions[0]"},
+		{name: "firewall bad country", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"country\", op = \"in\", values = [\"Germany\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[0].conditions[0]"},
+		{name: "firewall lower-case country is canonicalised", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"country\", op = \"in\", values = [\"de\"] }]\n"), code: CodeInvalidValue, absent: true},
+		{name: "firewall header needs a name", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"header\", op = \"present\" }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[0].conditions[0]"},
+		{name: "firewall bad regex", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"userAgent\", op = \"regex\", values = [\"(\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[0].conditions[0]"},
+		{name: "firewall duplicate id", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nid = \"a\"\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"method\", op = \"in\", values = [\"GET\"] }]\n\n[[services.web.firewall.rules]]\nid = \"a\"\nname = \"m\"\naction = \"block\"\nconditions = [{ field = \"method\", op = \"in\", values = [\"PUT\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[1].id"},
+		{name: "firewall bad id", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nid = \"Not Valid\"\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"method\", op = \"in\", values = [\"GET\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[0].id"},
+		{name: "firewall standard id is reserved", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nid = \"stdsecrets\"\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"method\", op = \"in\", values = [\"GET\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[0].id"},
+		{name: "firewall name too long", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"" + strings.Repeat("n", 81) + "\"\naction = \"block\"\nconditions = [{ field = \"method\", op = \"in\", values = [\"GET\"] }]\n"), code: CodeInvalidValue, path: "services.web.firewall.rules[0].name"},
+		{name: "firewall too many rules", toml: t2doc(t2web + "[services.web.firewall]\nrules = [" + strings.Repeat("{ name = \"n\", action = \"block\", conditions = [{ field = \"method\", op = \"in\", values = [\"GET\"] }] }, ", 51) + "]\n"), code: CodeLimitExceeded, path: "services.web.firewall.rules"},
+		{name: "firewall unknown key", toml: t2doc(t2web + "[[services.web.firewall.rules]]\nname = \"n\"\nbogus = 1\n"), code: CodeUnknownKey},
+		{name: "firewall on a tcp route", toml: t2doc("[services.game]\nserver = \"srv\"\n\n[services.game.route]\nprotocol = \"tcp\"\nupstreams = [{ address = \"10.0.0.1:25565\" }]\nlisten_port = 25565\nopen_to_internet = true\n\n[services.game.firewall]\n"), code: CodeNotAllowedForKind, path: "services.game.firewall"},
+		{name: "firewall on an http route", toml: t2doc("[services.rt]\nserver = \"srv\"\n\n[services.rt.route]\nprotocol = \"http\"\nupstreams = [{ address = \"10.0.0.1:80\" }]\n\n[[services.rt.firewall.rules]]\nname = \"n\"\naction = \"block\"\nconditions = [{ field = \"method\", op = \"in\", values = [\"GET\"] }]\n"), code: CodeNotAllowedForKind, absent: true},
+		{name: "firewall on a one-shot job", toml: t2doc("[services.job]\nimage = \"busybox:1\"\none_shot = true\n\n[services.job.firewall]\n"), code: CodeInvalidValue, path: "services.job.firewall"},
+		{name: "firewall on a database", toml: t2doc("[services.db]\n\n[services.db.database]\nengine = \"postgres\"\n\n[services.db.firewall]\n"), code: CodeNotAllowedForKind, path: "services.db.firewall"},
+
+		// maintenance
+		{name: "maintenance on", toml: t2doc(t2web + "[services.web.maintenance]\nenabled = true\ntitle = \"Back soon\"\nmessage = \"Upgrading.\\nBack by noon.\"\neta = \"2026-12-01T06:00:00Z\"\n"), code: CodeInvalidValue, absent: true},
+		{name: "maintenance off with text", toml: t2doc(t2web + "[services.web.maintenance]\nenabled = false\ntitle = \"kept\"\n"), code: CodeInvalidValue, absent: true},
+		{name: "maintenance needs enabled", toml: t2doc(t2web + "[services.web.maintenance]\nmessage = \"x\"\n"), code: CodeMissingRequired, path: "services.web.maintenance.enabled"},
+		{name: "maintenance title too long", toml: t2doc(t2web + "[services.web.maintenance]\nenabled = true\ntitle = \"" + strings.Repeat("t", 81) + "\"\n"), code: CodeInvalidValue, path: "services.web.maintenance.title"},
+		{name: "maintenance message too long", toml: t2doc(t2web + "[services.web.maintenance]\nenabled = true\nmessage = \"" + strings.Repeat("m", 601) + "\"\n"), code: CodeInvalidValue, path: "services.web.maintenance.message"},
+		{name: "maintenance title control character", toml: t2doc(t2web + "[services.web.maintenance]\nenabled = true\ntitle = \"a\\u0007b\"\n"), code: CodeInvalidValue, path: "services.web.maintenance.title"},
+		{name: "maintenance eta not a time", toml: t2doc(t2web + "[services.web.maintenance]\nenabled = true\neta = \"tomorrow\"\n"), code: CodeInvalidValue, path: "services.web.maintenance.eta"},
+		{name: "maintenance eta without a zone", toml: t2doc(t2web + "[services.web.maintenance]\nenabled = true\neta = \"2026-12-01T06:00:00\"\n"), code: CodeInvalidValue, path: "services.web.maintenance.eta"},
+		{name: "maintenance eta as a toml datetime", toml: t2doc(t2web + "[services.web.maintenance]\nenabled = true\neta = 2026-12-01T06:00:00Z\n"), code: CodeWrongType, path: "services.web.maintenance.eta"},
+		{name: "maintenance on a udp route", toml: t2doc("[services.game]\nserver = \"srv\"\n\n[services.game.route]\nprotocol = \"udp\"\nupstreams = [{ address = \"10.0.0.1:25565\" }]\nlisten_port = 25565\nopen_to_internet = true\n\n[services.game.maintenance]\nenabled = true\n"), code: CodeNotAllowedForKind, path: "services.game.maintenance"},
+		{name: "maintenance on a stack", toml: t2doc("[services.s]\n\n[services.s.stack]\ncompose = \"services:\\n  web:\\n    image: nginx\\n\"\n\n[services.s.maintenance]\nenabled = true\n"), code: CodeNotAllowedForKind, path: "services.s.maintenance"},
+		{name: "maintenance on a database", toml: t2doc("[services.db]\n\n[services.db.database]\nengine = \"postgres\"\n\n[services.db.maintenance]\nenabled = true\n"), code: CodeNotAllowedForKind, path: "services.db.maintenance"},
+		{name: "maintenance on a one-shot job", toml: t2doc("[services.job]\nimage = \"busybox:1\"\none_shot = true\n\n[services.job.maintenance]\nenabled = true\n"), code: CodeInvalidValue, path: "services.job.maintenance"},
 
 		// runtime keys
 		{name: "stop grace out of range", toml: t2doc("[services.web]\nimage = \"nginx:1\"\nstop_grace_seconds = 4000\n"), code: CodeInvalidValue, path: "services.web.stop_grace_seconds"},

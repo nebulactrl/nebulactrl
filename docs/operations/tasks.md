@@ -24,6 +24,25 @@ runs `["/app/server", "migrate"]` as written.
 Per service, up to 20 tasks: `name`, `action`, `schedule`, `command`, `enabled`,
 `timeoutSeconds` (default 1800), `concurrency` (`forbid` or `allow`).
 
+In [`nebula.toml`](../reference/nebula-toml.md) a task is a table `[services.<s>.tasks.<name>]`. The name matches `[a-z0-9][a-z0-9_-]*` (at most 63 characters):
+
+```toml
+[services.web.tasks.digest]
+action          = "command"          # or "restart"; default "command"
+schedule        = "0 7 * * 1-5"      # required
+timezone        = "Europe/Berlin"    # default "UTC"
+command         = ["bun", "run", "jobs:digest"]
+timeout_seconds = 900                # 1-86400, default 1800
+concurrency     = "forbid"           # or "allow"; default "forbid"
+enabled         = true               # default true
+
+[services.web.tasks.nightly-restart]
+action   = "restart"                 # no command, no timeout_seconds
+schedule = "0 4 * * *"
+```
+
+`schedule` is required; `command` is required unless `action = "restart"`, where `command` and `timeout_seconds` are refused. Tasks apply at once, like the dashboard controls, with no deploy. A task is owned by its name: removing it from the file only releases it, and an apply with `--prune` deletes it ([ownership](project-config.md#ownership-and-drift)).
+
 - **Action**: `command` (default) runs `command` in a throwaway container as
   described above. `restart` **restarts the service's running container** on the
   schedule instead, for services that leak memory or need a periodic refresh; it
@@ -100,7 +119,9 @@ is the same one that can deploy. Output is untrusted application text.
 ## Pre-deploy command
 
 Service settings → Deploy → **Pre-deploy command** (`config.preDeployCommand`,
-`preDeployTimeoutSeconds`, default 600, at most 3600).
+`preDeployTimeoutSeconds`, default 600, at most 3600). In `nebula.toml`:
+`[services.<s>.pre_deploy]` with `command` (argv) and `timeout_seconds` (1-3600,
+default 600; needs `command` in the same table).
 
 Order of a deploy on the agent: pull or build the image → **pre-deploy** → stop
 the old container (recreate only) → create and start the new one → health check →
@@ -123,7 +144,8 @@ Beware that migrations are not undone by a rollback.
 ## Post-deploy command
 
 Service settings → Deploy → **Post-deploy command** (`config.postDeployCommand`,
-`postDeployTimeoutSeconds`, default 600, at most 3600). It mirrors the pre-deploy
+`postDeployTimeoutSeconds`, default 600, at most 3600; `[services.<s>.post_deploy]`
+with `command` and `timeout_seconds` in `nebula.toml`). It mirrors the pre-deploy
 command, but runs **after** the swap, for work that needs the new release to be
 live: cache warm-up, a search reindex, a smoke call.
 

@@ -519,21 +519,22 @@ func (x *exporter) variables(lvs map[string]liveVar, skip func(key string) bool,
 // ---------------------------------------------------------------------------
 // Services.
 
-// exCaps are the sections a service kind takes (the kind matrix).
+// exCaps are the sections a service kind takes (the kind matrix). grace is the stop grace period
+// and egress switch a stack shares with the other container kinds (tuning includes them).
 type exCaps struct {
-	runtime, tuning, docker, tailnet, files, vars, domains, backups, networks, processes bool
+	runtime, tuning, grace, docker, tailnet, files, tasks, vars, domains, backups, networks, processes bool
 }
 
 func exCapsOf(kind string) exCaps {
 	switch kind {
 	case projectconfig.KindDatabase:
-		return exCaps{tuning: true, docker: true, tailnet: true, vars: true, backups: true, networks: true}
+		return exCaps{tuning: true, docker: true, tailnet: true, tasks: true, vars: true, backups: true, networks: true}
 	case projectconfig.KindRoute:
 		return exCaps{domains: true}
 	case projectconfig.KindStack:
-		return exCaps{vars: true, domains: true, networks: true}
+		return exCaps{grace: true, vars: true, domains: true, networks: true}
 	}
-	return exCaps{runtime: true, tuning: true, docker: true, tailnet: true, files: true, vars: true, domains: true, networks: true, processes: true}
+	return exCaps{runtime: true, tuning: true, docker: true, tailnet: true, files: true, tasks: true, vars: true, domains: true, networks: true, processes: true}
 }
 
 // exService builds the definition of one live service.
@@ -591,6 +592,8 @@ func (x *exporter) service(slug string, ls *liveService, serverName, rootServer 
 	}
 	if s.caps.tuning {
 		s.tuning()
+	} else if s.caps.grace {
+		s.grace()
 	}
 	switch kind {
 	case projectconfig.KindGit:
@@ -613,6 +616,8 @@ func (x *exporter) service(slug string, ls *liveService, serverName, rootServer 
 		s.files()
 		s.volumes()
 		s.scale()
+	}
+	if s.caps.tasks {
 		s.tasks()
 	}
 	if s.caps.vars {
@@ -625,6 +630,8 @@ func (x *exporter) service(slug string, ls *liveService, serverName, rootServer 
 		s.backups()
 	}
 	s.uptime()
+	s.firewall()
+	s.maintenance()
 
 	return &projectconfig.ResolvedService{
 		Slug: slug, Kind: kind, ServerName: serverName, Def: s.def,
@@ -675,13 +682,35 @@ func (s *exService) runtime() {
 	}
 }
 
-// tuning writes stop_grace_seconds, memory_mb, cpus, image_retention and block_egress.
-func (s *exService) tuning() {
+// grace writes stop_grace_seconds and block_egress, the tuning keys every container kind takes,
+// a stack included.
+func (s *exService) grace() {
+	s.stopGrace()
+	s.egress()
+}
+
+func (s *exService) stopGrace() {
 	cfg, d := s.cfg, s.def
 	ref := services.Config{Port: cfg.Port}.WithDefaults()
 	if s.emit("config.stopGraceSeconds", cfg.StopGraceSeconds != ref.StopGraceSeconds) {
 		d.StopGraceSeconds = new(cfg.StopGraceSeconds)
 	}
+}
+
+func (s *exService) egress() {
+	cfg, d := s.cfg, s.def
+	// A new database blocks outbound traffic by default.
+	defEgress := s.kind == projectconfig.KindDatabase
+	if s.emit("config.blockEgress", cfg.BlockEgress != defEgress) {
+		d.BlockEgress = new(cfg.BlockEgress)
+	}
+}
+
+// tuning writes stop_grace_seconds, memory_mb, cpus, image_retention and block_egress.
+func (s *exService) tuning() {
+	cfg, d := s.cfg, s.def
+	ref := services.Config{Port: cfg.Port}.WithDefaults()
+	s.stopGrace()
 	// A restart policy only exists on a long-running image or git service.
 	restartable := !cfg.OneShot && (s.kind == projectconfig.KindImage || s.kind == projectconfig.KindGit)
 	if s.emitIf("config.restartPolicy", cfg.RestartPolicy != "", restartable) {
@@ -705,11 +734,7 @@ func (s *exService) tuning() {
 	if s.emit("config.imageRetention", cfg.ImageRetention != ref.ImageRetention) {
 		d.ImageRetention = new(cfg.ImageRetention)
 	}
-	// A new database blocks outbound traffic by default.
-	defEgress := s.kind == projectconfig.KindDatabase
-	if s.emit("config.blockEgress", cfg.BlockEgress != defEgress) {
-		d.BlockEgress = new(cfg.BlockEgress)
-	}
+	s.egress()
 }
 
 func (s *exService) healthCheck() {
@@ -1437,6 +1462,79 @@ func (s *exService) uptime() {
 	if used {
 		s.def.Uptime = up
 	}
+}
+
+// servesHTTP reports whether the service can carry a firewall and maintenance mode: an image or git
+// service that is not a one-shot job, or an HTTP route.
+func (s *exService) servesHTTP() bool {
+	switch s.kind {
+	case projectconfig.KindDatabase, projectconfig.KindStack:
+		return false
+	case projectconfig.KindRoute:
+		r := s.cfg.Route
+		return r == nil || r.Protocol == "" || r.Protocol == agentprotocol.ProtoHTTP
+	}
+	return !s.cfg.OneShot
+}
+
+// firewall writes the live rules, with their ids. An empty firewall is written (as an empty table) only
+// where the file owns it, so the file keeps saying "no rules".
+func (s *exService) firewall() {
+	if !s.servesHTTP() {
+		return
+	}
+	rules := liveFirewallRules(s.ls.Row)
+	if !s.emit("firewall", len(rules) > 0) {
+		return
+	}
+	fw := &projectconfig.Firewall{}
+	for _, r := range rules {
+		e := projectconfig.FirewallRule{ID: new(r.ID), Name: new(r.Name), Action: new(r.Action)}
+		if r.Disabled {
+			e.Disabled = new(true)
+		}
+		for _, c := range r.Conditions {
+			ec := projectconfig.FirewallCondition{Field: new(c.Field), Op: new(c.Op)}
+			if c.Name != "" {
+				ec.Name = new(c.Name)
+			}
+			if len(c.Values) > 0 {
+				ec.Values = exStrings(c.Values)
+			}
+			if c.Not {
+				ec.Not = new(true)
+			}
+			e.Conditions = append(e.Conditions, ec)
+		}
+		fw.Rules = append(fw.Rules, e)
+	}
+	s.def.Firewall = fw
+}
+
+// maintenance writes maintenance mode while it is on (the page text and time with it), and
+// `enabled = false` where the file owns it. A service that is not in maintenance and whose file
+// says nothing gets no table: an export never writes an outage that is not live.
+func (s *exService) maintenance() {
+	if !s.servesHTTP() {
+		return
+	}
+	v := liveMaintenance(s.ls.Row)
+	if !v.Enabled && !s.owned("maintenance") {
+		return
+	}
+	m := &projectconfig.Maintenance{Enabled: new(v.Enabled)}
+	if v.Enabled {
+		if v.Title != "" {
+			m.Title = new(v.Title)
+		}
+		if v.Message != "" {
+			m.Message = new(v.Message)
+		}
+		if v.ETA != "" {
+			m.ETA = new(v.ETA)
+		}
+	}
+	s.def.Maintenance = m
 }
 
 func (s *exService) tasks() {

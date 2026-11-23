@@ -381,6 +381,8 @@ func wire(c *Core) Modules {
 
 	// Traffic analytics: ingest of agent aggregates, rollups, reports.
 	analyticsSvc := analytics.NewService(c.Pool, c.Bus, c.Logger)
+	// The firewall's blocked-request counts come from the traffic aggregates.
+	firewallSvc.SetBlocks(analyticsSvc)
 
 	// Web terminal and file browser: exec and file access in replica containers,
 	// relayed over the agent connection.
@@ -462,7 +464,7 @@ func wire(c *Core) Modules {
 	configSvc := configsync.NewService(configsync.Deps{
 		Pool: c.Pool, Bus: c.Bus, Box: c.Box, Logger: c.Logger, PublicURL: c.Config.PublicURL,
 		Services: serviceSvc, Variables: variableSvc, Domains: domainSvc, Databases: databaseSvc, Routes: routeSvc, Networks: networkSvc,
-		Scaling: scalingSvc, Tasks: taskSvc, Backups: backupSvc, Uptime: uptimeSvc, Git: gitSvc, Cloudflare: cloudflareSvc, Deploy: deploymentSvc,
+		Scaling: scalingSvc, Tasks: taskSvc, Backups: backupSvc, Uptime: uptimeSvc, Firewall: firewallSvc, Maintenance: maintenanceSvc, Git: gitSvc, Cloudflare: cloudflareSvc, Deploy: deploymentSvc,
 		CloneURL: gitSvc.CloneURLFor,
 	})
 	m.Start = append(m.Start, func(ctx context.Context) error {

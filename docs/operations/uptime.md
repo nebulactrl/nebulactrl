@@ -54,15 +54,25 @@ Agents older than the uptime feature do not report; their services stay `unknown
 
 ## Thresholds
 
-One failed check is often a blip. Per service you set, with the [API below](#api):
+One failed check is often a blip. Per service you set, in **Settings → Operations → Uptime monitoring**, with the [API below](#api), or in [`nebula.toml`](../reference/nebula-toml.md) under `[services.<s>.uptime]`:
 
-| Setting | Default | Meaning |
-|---|---|---|
-| `failureThreshold` | 3 | consecutive **down** checks that open an outage (90 seconds) |
-| `recoveryThreshold` | 2 | consecutive **up or degraded** checks that end it (60 seconds) |
-| `alerts` | on | send `uptime.down` / `uptime.up` |
-| `reminderMinutes` | 0 (off) | while an outage lasts, send `uptime.down` again every this many minutes, 0 to 1440 ([reminders](#reminders)) |
-| `enabled` | on | probe the service at all |
+| Setting | `nebula.toml` key | Default | Meaning |
+|---|---|---|---|
+| `failureThreshold` | `failure_threshold` | 3 | consecutive **down** checks that open an outage (90 seconds) |
+| `recoveryThreshold` | `recovery_threshold` | 2 | consecutive **up or degraded** checks that end it (60 seconds) |
+| `alerts` | `alerts` | on | send `uptime.down` / `uptime.up` |
+| `reminderMinutes` | `reminder_minutes` | 0 (off) | while an outage lasts, send `uptime.down` again every this many minutes, 0 to 1440 ([reminders](#reminders)) |
+| `enabled` | `enabled` | on | probe the service at all |
+
+```toml
+[services.web.uptime]
+failure_threshold  = 5
+recovery_threshold = 2
+alerts             = true
+reminder_minutes   = 60
+```
+
+In the file the table applies at once, like the Settings form: no deploy runs. Applying it needs the `admin` scope, as `updateUptimeMonitor` does. Every key is optional and a key you leave out is not touched. Removing a key only releases it (the live value stays); an apply with `--prune` resets the monitor to the defaults above ([ownership](project-config.md#ownership-and-drift)).
 
 Both thresholds go from 1 to 20. A passing check resets the failure streak, and a failing check resets the recovery streak. Degraded checks count as passing.
 

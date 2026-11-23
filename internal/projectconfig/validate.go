@@ -189,6 +189,8 @@ func (v *view) validateService(c *svcCtx) {
 	c.checkFiles()
 	c.checkScale()
 	c.checkUptime()
+	c.checkFirewall()
+	c.checkMaintenance()
 	c.checkProcesses()
 	c.checkTasks()
 	c.checkCronTable()
@@ -271,6 +273,8 @@ func (c *svcCtx) checkKind() {
 	forbid("secrets", d.Secrets != nil)
 	forbid("domains", d.Domains != nil)
 	forbid("scale", d.Scale != nil)
+	forbid("firewall", d.Firewall != nil)
+	forbid("maintenance", d.Maintenance != nil)
 	forbid("processes", d.Processes != nil)
 	forbid("process_name", d.ProcessName != nil)
 	forbid("singleton", d.Singleton != nil)
@@ -312,11 +316,15 @@ func matrix(kind, key string) int {
 		default:
 			return mxForbidden
 		}
-	case "stop_grace_seconds", "memory_mb", "cpus", "image_retention", "block_egress", "docker", "tailnet":
+	case "stop_grace_seconds", "block_egress":
+		if !runtime && kind != KindDatabase && kind != KindStack {
+			return mxForbidden
+		}
+	case "memory_mb", "cpus", "image_retention", "docker", "tailnet", "tasks":
 		if !runtime && kind != KindDatabase {
 			return mxForbidden
 		}
-	case "pre_deploy", "post_deploy", "files", "scale", "tasks", "generate_domain", "processes", "process_name", "singleton", "restart_policy", "restart_max_retries", "cron":
+	case "pre_deploy", "post_deploy", "files", "scale", "generate_domain", "processes", "process_name", "singleton", "restart_policy", "restart_max_retries", "cron":
 		if !runtime {
 			return mxForbidden
 		}
@@ -338,6 +346,10 @@ func matrix(kind, key string) int {
 		}
 	case "backups":
 		if kind != KindDatabase {
+			return mxForbidden
+		}
+	case "firewall", "maintenance":
+		if kind == KindDatabase || kind == KindStack {
 			return mxForbidden
 		}
 	case "networks":
@@ -544,28 +556,40 @@ func (c *svcCtx) checkHook(key string, h *Hook) {
 // same limit as the service's own.
 func (c *svcCtx) checkLinks() {
 	d := c.def
-	if len(d.Volumes) == 0 {
+	// What the file itself declares that makes the service run as a single instance (the platform's
+	// services.Eligibility). A port the file leaves out may still be live, so only `port = 0`
+	// counts here; the plan judges the rest against the live service.
+	var why string
+	switch {
+	case len(d.Volumes) > 0:
+		why = "with volumes (volumes are not shared between replicas)"
+	case d.Port != nil && *d.Port == 0 && len(d.Processes) == 0:
+		why = "without an HTTP port"
+	case len(d.Files) > 0:
+		why = "with config files"
+	default:
 		return
 	}
-	c.checkVolumeScale(rp("scale"), d.Scale, "a service")
+	c.checkSingleInstanceScale(rp("scale"), d.Scale, "a service", why)
 	for _, name := range sortedKeys(d.Processes) {
 		if p := d.Processes[name]; p != nil {
-			c.checkVolumeScale(rp("processes", name, "scale"), p.Scale, "a process of a service")
+			c.checkSingleInstanceScale(rp("processes", name, "scale"), p.Scale, "a process of a service", why)
 		}
 	}
 }
 
-// checkVolumeScale reports a scale table found at key that asks for more than one instance.
-func (c *svcCtx) checkVolumeScale(key []string, s *Scale, who string) {
+// checkSingleInstanceScale reports a scale table found at key that asks for more than one instance
+// of something that runs as a single one for the reason why.
+func (c *svcCtx) checkSingleInstanceScale(key []string, s *Scale, who, why string) {
 	if s == nil {
 		return
 	}
 	at := func(k ...string) []string { return append(key[:len(key):len(key)], k...) }
 	if s.Replicas != nil && *s.Replicas > 1 {
-		c.err(CodeReplicasRequireStateles, at("replicas"), "%s with volumes cannot run more than one replica (volumes are not shared between replicas)", who)
+		c.err(CodeReplicasRequireStateles, at("replicas"), "%s %s cannot run more than one replica", who, why)
 	}
 	if a := s.Autoscaling; a != nil && a.Enabled != nil && *a.Enabled && a.Max != nil && *a.Max > 1 {
-		c.err(CodeReplicasRequireStateles, at("autoscaling", "max"), "%s with volumes cannot autoscale beyond one replica", who)
+		c.err(CodeReplicasRequireStateles, at("autoscaling", "max"), "%s %s cannot autoscale beyond one replica", who, why)
 	}
 }
 
