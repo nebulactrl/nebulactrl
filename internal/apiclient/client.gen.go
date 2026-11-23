@@ -195,6 +195,42 @@ func (e ApprovalViewStatus) Valid() bool {
 	}
 }
 
+// Defines values for AutoUpdateInputBodyReboot.
+const (
+	AutoUpdateInputBodyRebootNever        AutoUpdateInputBodyReboot = "never"
+	AutoUpdateInputBodyRebootWhenRequired AutoUpdateInputBodyReboot = "whenRequired"
+)
+
+// Valid indicates whether the value is a known member of the AutoUpdateInputBodyReboot enum.
+func (e AutoUpdateInputBodyReboot) Valid() bool {
+	switch e {
+	case AutoUpdateInputBodyRebootNever:
+		return true
+	case AutoUpdateInputBodyRebootWhenRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for AutoUpdateInputBodyScope.
+const (
+	AutoUpdateInputBodyScopeAll      AutoUpdateInputBodyScope = "all"
+	AutoUpdateInputBodyScopeSecurity AutoUpdateInputBodyScope = "security"
+)
+
+// Valid indicates whether the value is a known member of the AutoUpdateInputBodyScope enum.
+func (e AutoUpdateInputBodyScope) Valid() bool {
+	switch e {
+	case AutoUpdateInputBodyScopeAll:
+		return true
+	case AutoUpdateInputBodyScopeSecurity:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for BackupSliceViewState.
 const (
 	BackupSliceViewStateFailed       BackupSliceViewState = "failed"
@@ -1016,19 +1052,19 @@ func (e ComposeStackComponentAction) Valid() bool {
 
 // Defines values for ConfigRestartPolicy.
 const (
-	Always    ConfigRestartPolicy = "always"
-	Never     ConfigRestartPolicy = "never"
-	OnFailure ConfigRestartPolicy = "on-failure"
+	ConfigRestartPolicyAlways    ConfigRestartPolicy = "always"
+	ConfigRestartPolicyNever     ConfigRestartPolicy = "never"
+	ConfigRestartPolicyOnFailure ConfigRestartPolicy = "on-failure"
 )
 
 // Valid indicates whether the value is a known member of the ConfigRestartPolicy enum.
 func (e ConfigRestartPolicy) Valid() bool {
 	switch e {
-	case Always:
+	case ConfigRestartPolicyAlways:
 		return true
-	case Never:
+	case ConfigRestartPolicyNever:
 		return true
-	case OnFailure:
+	case ConfigRestartPolicyOnFailure:
 		return true
 	default:
 		return false
@@ -3258,6 +3294,27 @@ func (e FileEntryType) Valid() bool {
 	}
 }
 
+// Defines values for FirewallBlocksRange.
+const (
+	FirewallBlocksRangeN24h FirewallBlocksRange = "24h"
+	FirewallBlocksRangeN30d FirewallBlocksRange = "30d"
+	FirewallBlocksRangeN7d  FirewallBlocksRange = "7d"
+)
+
+// Valid indicates whether the value is a known member of the FirewallBlocksRange enum.
+func (e FirewallBlocksRange) Valid() bool {
+	switch e {
+	case FirewallBlocksRangeN24h:
+		return true
+	case FirewallBlocksRangeN30d:
+		return true
+	case FirewallBlocksRangeN7d:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for FirewallConditionField.
 const (
 	FirewallConditionFieldCountry   FirewallConditionField = "country"
@@ -3336,6 +3393,45 @@ func (e FirewallRuleAction) Valid() bool {
 	case FirewallRuleActionAllow:
 		return true
 	case FirewallRuleActionBlock:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallRuleCountAction.
+const (
+	FirewallRuleCountActionAllow FirewallRuleCountAction = "allow"
+	FirewallRuleCountActionBlock FirewallRuleCountAction = "block"
+)
+
+// Valid indicates whether the value is a known member of the FirewallRuleCountAction enum.
+func (e FirewallRuleCountAction) Valid() bool {
+	switch e {
+	case FirewallRuleCountActionAllow:
+		return true
+	case FirewallRuleCountActionBlock:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for FirewallRuleCountKind.
+const (
+	FirewallRuleCountKindRemoved  FirewallRuleCountKind = "removed"
+	FirewallRuleCountKindRule     FirewallRuleCountKind = "rule"
+	FirewallRuleCountKindStandard FirewallRuleCountKind = "standard"
+)
+
+// Valid indicates whether the value is a known member of the FirewallRuleCountKind enum.
+func (e FirewallRuleCountKind) Valid() bool {
+	switch e {
+	case FirewallRuleCountKindRemoved:
+		return true
+	case FirewallRuleCountKindRule:
+		return true
+	case FirewallRuleCountKindStandard:
 		return true
 	default:
 		return false
@@ -4560,6 +4656,87 @@ const (
 func (e PasswordResetRequestOutputBodyStatus) Valid() bool {
 	switch e {
 	case Requested:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchAutoNativeAutoUpdates.
+const (
+	PatchAutoNativeAutoUpdatesDnfAutomatic       PatchAutoNativeAutoUpdates = "dnf-automatic"
+	PatchAutoNativeAutoUpdatesEmpty              PatchAutoNativeAutoUpdates = ""
+	PatchAutoNativeAutoUpdatesUnattendedUpgrades PatchAutoNativeAutoUpdates = "unattended-upgrades"
+)
+
+// Valid indicates whether the value is a known member of the PatchAutoNativeAutoUpdates enum.
+func (e PatchAutoNativeAutoUpdates) Valid() bool {
+	switch e {
+	case PatchAutoNativeAutoUpdatesDnfAutomatic:
+		return true
+	case PatchAutoNativeAutoUpdatesEmpty:
+		return true
+	case PatchAutoNativeAutoUpdatesUnattendedUpgrades:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchAutoReboot.
+const (
+	PatchAutoRebootNever        PatchAutoReboot = "never"
+	PatchAutoRebootWhenRequired PatchAutoReboot = "whenRequired"
+)
+
+// Valid indicates whether the value is a known member of the PatchAutoReboot enum.
+func (e PatchAutoReboot) Valid() bool {
+	switch e {
+	case PatchAutoRebootNever:
+		return true
+	case PatchAutoRebootWhenRequired:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchAutoScope.
+const (
+	PatchAutoScopeAll      PatchAutoScope = "all"
+	PatchAutoScopeSecurity PatchAutoScope = "security"
+)
+
+// Valid indicates whether the value is a known member of the PatchAutoScope enum.
+func (e PatchAutoScope) Valid() bool {
+	switch e {
+	case PatchAutoScopeAll:
+		return true
+	case PatchAutoScopeSecurity:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for PatchAutoRunStatus.
+const (
+	PatchAutoRunStatusFailed    PatchAutoRunStatus = "failed"
+	PatchAutoRunStatusPending   PatchAutoRunStatus = "pending"
+	PatchAutoRunStatusRebooting PatchAutoRunStatus = "rebooting"
+	PatchAutoRunStatusSucceeded PatchAutoRunStatus = "succeeded"
+)
+
+// Valid indicates whether the value is a known member of the PatchAutoRunStatus enum.
+func (e PatchAutoRunStatus) Valid() bool {
+	switch e {
+	case PatchAutoRunStatusFailed:
+		return true
+	case PatchAutoRunStatusPending:
+		return true
+	case PatchAutoRunStatusRebooting:
+		return true
+	case PatchAutoRunStatusSucceeded:
 		return true
 	default:
 		return false
@@ -8715,6 +8892,27 @@ func (e GetServiceAnalyticsParamsCompare) Valid() bool {
 	}
 }
 
+// Defines values for GetServiceFirewallBlocksParamsRange.
+const (
+	GetServiceFirewallBlocksParamsRangeN24h GetServiceFirewallBlocksParamsRange = "24h"
+	GetServiceFirewallBlocksParamsRangeN30d GetServiceFirewallBlocksParamsRange = "30d"
+	GetServiceFirewallBlocksParamsRangeN7d  GetServiceFirewallBlocksParamsRange = "7d"
+)
+
+// Valid indicates whether the value is a known member of the GetServiceFirewallBlocksParamsRange enum.
+func (e GetServiceFirewallBlocksParamsRange) Valid() bool {
+	switch e {
+	case GetServiceFirewallBlocksParamsRangeN24h:
+		return true
+	case GetServiceFirewallBlocksParamsRangeN30d:
+		return true
+	case GetServiceFirewallBlocksParamsRangeN7d:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for DownloadServiceLogsParamsFormat.
 const (
 	DownloadServiceLogsParamsFormatNdjson DownloadServiceLogsParamsFormat = "ndjson"
@@ -9278,6 +9476,39 @@ type AuthUsersOutputBody struct {
 type AuthorizeOutputBody struct {
 	AuthorizeUrl string `json:"authorizeUrl"`
 }
+
+// AutoUpdateInputBody defines model for AutoUpdateInputBody.
+type AutoUpdateInputBody struct {
+	// AcknowledgeProduction Required to enable when production services or the control plane run on the server
+	AcknowledgeProduction *bool `json:"acknowledgeProduction,omitempty"`
+
+	// Enabled Apply updates automatically every night
+	Enabled bool `json:"enabled"`
+
+	// HoldPackages Package names a scheduled run never upgrades, at most 20, extra to the built-in holds (Docker and containerd)
+	HoldPackages []string `json:"holdPackages"`
+
+	// Reboot whenRequired: reboot after an upgrade that asks for it, inside the window, with guards
+	Reboot AutoUpdateInputBodyReboot `json:"reboot"`
+
+	// Scope security: only the packages with a security update (apt and dnf); all: every package
+	Scope AutoUpdateInputBodyScope `json:"scope"`
+
+	// Timezone IANA time zone of windowStart, for example Europe/Berlin; UTC when empty
+	Timezone string `json:"timezone"`
+
+	// WindowMinutes Length of the window in minutes, 60-240. Nothing starts in its last 15 minutes
+	WindowMinutes int64 `json:"windowMinutes"`
+
+	// WindowStart Start of the nightly window as HH:MM (24-hour) in timezone, for example 03:00. Avoid 01:00-02:59 where clocks change
+	WindowStart string `json:"windowStart"`
+}
+
+// AutoUpdateInputBodyReboot whenRequired: reboot after an upgrade that asks for it, inside the window, with guards
+type AutoUpdateInputBodyReboot string
+
+// AutoUpdateInputBodyScope security: only the packages with a security update (apt and dnf); all: every package
+type AutoUpdateInputBodyScope string
 
 // Autoscaling defines model for Autoscaling.
 type Autoscaling struct {
@@ -13301,6 +13532,25 @@ type FileWritePolicy struct {
 	Reason *string `json:"reason,omitempty"`
 }
 
+// FirewallBlocks defines model for FirewallBlocks.
+type FirewallBlocks struct {
+	// ByRule Blocked requests per rule, largest first
+	ByRule *[]FirewallRuleCount `json:"byRule"`
+	From   time.Time            `json:"from"`
+
+	// LogsQuery Logs explorer query for the blocked request lines (kept on the host, only the matching page or counts come back). Its facets list the blocked paths, client networks, countries and user agents; request logs must be on for the server
+	LogsQuery string              `json:"logsQuery"`
+	Range     FirewallBlocksRange `json:"range"`
+	To        time.Time           `json:"to"`
+
+	// Total Requests blocked in the window
+	Total            int64 `json:"total"`
+	TrafficAnalytics bool  `json:"trafficAnalytics"`
+}
+
+// FirewallBlocksRange defines model for FirewallBlocks.Range.
+type FirewallBlocksRange string
+
 // FirewallCondition defines model for FirewallCondition.
 type FirewallCondition struct {
 	Field  FirewallConditionField `json:"field"`
@@ -13316,6 +13566,24 @@ type FirewallConditionField string
 // FirewallConditionOp defines model for FirewallCondition.Op.
 type FirewallConditionOp string
 
+// FirewallPoint defines model for FirewallPoint.
+type FirewallPoint struct {
+	Blocked int64     `json:"blocked"`
+	Ts      time.Time `json:"ts"`
+}
+
+// FirewallReport defines model for FirewallReport.
+type FirewallReport struct {
+	// Blocked Requests blocked by the firewall (own rules and standard protection); they are also part of requests and of the 4xx count
+	Blocked int64 `json:"blocked"`
+
+	// ByRule Blocked requests per rule, largest first. Service reports name every rule; server and workspace reports name only the standard protection and list the other rules by id
+	ByRule *[]FirewallRuleCount `json:"byRule"`
+
+	// Series Blocked requests per chart step, on the same x axis as the report's series
+	Series *[]FirewallPoint `json:"series"`
+}
+
 // FirewallRule defines model for FirewallRule.
 type FirewallRule struct {
 	Action     FirewallRuleAction   `json:"action"`
@@ -13329,6 +13597,25 @@ type FirewallRule struct {
 
 // FirewallRuleAction defines model for FirewallRule.Action.
 type FirewallRuleAction string
+
+// FirewallRuleCount defines model for FirewallRuleCount.
+type FirewallRuleCount struct {
+	Action *FirewallRuleCountAction `json:"action,omitempty"`
+
+	// Id The rule's id; ids starting with std belong to the standard protection
+	Id   string                `json:"id"`
+	Kind FirewallRuleCountKind `json:"kind"`
+
+	// Name The rule's name; the id for a removed rule
+	Name     string `json:"name"`
+	Requests int64  `json:"requests"`
+}
+
+// FirewallRuleCountAction defines model for FirewallRuleCount.Action.
+type FirewallRuleCountAction string
+
+// FirewallRuleCountKind defines model for FirewallRuleCount.Kind.
+type FirewallRuleCountKind string
 
 // FirewallView defines model for FirewallView.
 type FirewallView struct {
@@ -15213,6 +15500,73 @@ type PasswordResetStatusOutputBody struct {
 	Available bool `json:"available"`
 }
 
+// PatchAuto defines model for PatchAuto.
+type PatchAuto struct {
+	// BuiltinHolds Packages always excluded from scheduled runs (Docker and containerd); upgrade them with Apply updates
+	BuiltinHolds []string `json:"builtinHolds"`
+
+	// ConsecutiveFailures Scheduled runs that failed in a row; three switch the schedule off
+	ConsecutiveFailures int64 `json:"consecutiveFailures"`
+
+	// DisabledReason Why NebulaCtrl switched the schedule off after repeated failures
+	DisabledReason *string `json:"disabledReason"`
+	Enabled        bool    `json:"enabled"`
+
+	// HoldPackages Packages a scheduled run never upgrades, extra to builtinHolds
+	HoldPackages     []string      `json:"holdPackages"`
+	LastScheduledRun *PatchAutoRun `json:"lastScheduledRun"`
+
+	// NativeAutoUpdates The host's own automatic update mechanism the last check found active; empty when none is (including after NebulaCtrl switched it off)
+	NativeAutoUpdates PatchAutoNativeAutoUpdates `json:"nativeAutoUpdates"`
+
+	// NextWindowStart Start of the next window; null while the schedule is off
+	NextWindowStart *time.Time `json:"nextWindowStart"`
+
+	// Reboot whenRequired: reboot after an upgrade that asks for it, inside the window, with guards (see the server patching docs)
+	Reboot PatchAutoReboot `json:"reboot"`
+
+	// RequiresAcknowledgement Enabling needs acknowledgeProduction: production services or the control plane run on this server
+	RequiresAcknowledgement bool `json:"requiresAcknowledgement"`
+
+	// Scope security: only the packages with a security update (apt and dnf); all: every package
+	Scope PatchAutoScope `json:"scope"`
+
+	// SecurityOnlySupported The host's package manager can limit an upgrade to security updates
+	SecurityOnlySupported bool `json:"securityOnlySupported"`
+
+	// SuggestedStart Start of the quietest window in the last 14 days of traffic, in timezone (HH:MM); null with less than 3 days of data
+	SuggestedStart *string `json:"suggestedStart"`
+
+	// Timezone IANA time zone of windowStart
+	Timezone string `json:"timezone"`
+
+	// WindowMinutes Length of the window, 60-240. Nothing starts in its last 15 minutes
+	WindowMinutes int64 `json:"windowMinutes"`
+
+	// WindowStart Start of the nightly maintenance window as HH:MM in timezone
+	WindowStart string `json:"windowStart"`
+}
+
+// PatchAutoNativeAutoUpdates The host's own automatic update mechanism the last check found active; empty when none is (including after NebulaCtrl switched it off)
+type PatchAutoNativeAutoUpdates string
+
+// PatchAutoReboot whenRequired: reboot after an upgrade that asks for it, inside the window, with guards (see the server patching docs)
+type PatchAutoReboot string
+
+// PatchAutoScope security: only the packages with a security update (apt and dnf); all: every package
+type PatchAutoScope string
+
+// PatchAutoRun defines model for PatchAutoRun.
+type PatchAutoRun struct {
+	FinishedAt *time.Time         `json:"finishedAt"`
+	Id         string             `json:"id"`
+	StartedAt  time.Time          `json:"startedAt"`
+	Status     PatchAutoRunStatus `json:"status"`
+}
+
+// PatchAutoRunStatus defines model for PatchAutoRun.Status.
+type PatchAutoRunStatus string
+
 // PatchChannelInputBody defines model for PatchChannelInputBody.
 type PatchChannelInputBody struct {
 	// Config Replaces the non-secret settings.
@@ -15455,7 +15809,8 @@ type PatchTaskInputBodyConcurrency string
 // PatchView defines model for PatchView.
 type PatchView struct {
 	// AgentSupported The agent advertised patching support; false means update the agent first
-	AgentSupported bool `json:"agentSupported"`
+	AgentSupported bool      `json:"agentSupported"`
+	Auto           PatchAuto `json:"auto"`
 
 	// Busy The run in flight, if any
 	Busy      PatchViewBusy `json:"busy"`
@@ -17046,6 +17401,7 @@ type Report struct {
 	// Comparison Same fields for the previous equal window; present with compare=prev
 	Comparison  *Summary            `json:"comparison,omitempty"`
 	Deployments *[]DeploymentMarker `json:"deployments"`
+	Firewall    *FirewallReport     `json:"firewall,omitempty"`
 	Geo         *Geo                `json:"geo,omitempty"`
 
 	// GeoReason Why geo is absent
@@ -21802,6 +22158,15 @@ type SetServiceFirewallParams struct {
 	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
 }
 
+// GetServiceFirewallBlocksParams defines parameters for GetServiceFirewallBlocks.
+type GetServiceFirewallBlocksParams struct {
+	// Range Window to count
+	Range *GetServiceFirewallBlocksParamsRange `form:"range,omitempty" json:"range,omitempty"`
+}
+
+// GetServiceFirewallBlocksParamsRange defines parameters for GetServiceFirewallBlocks.
+type GetServiceFirewallBlocksParamsRange string
+
 // ListServiceIncidentsParams defines parameters for ListServiceIncidents.
 type ListServiceIncidentsParams struct {
 	// Limit Default 50.
@@ -22488,6 +22853,9 @@ type CheckServerMeshJSONRequestBody = CheckServerInputBody
 
 // ApplyServerPatchesJSONRequestBody defines body for ApplyServerPatches for application/json ContentType.
 type ApplyServerPatchesJSONRequestBody = ApplyInputBody
+
+// UpdateServerPatchAutoJSONRequestBody defines body for UpdateServerPatchAuto for application/json ContentType.
+type UpdateServerPatchAutoJSONRequestBody = AutoUpdateInputBody
 
 // RebootServerJSONRequestBody defines body for RebootServer for application/json ContentType.
 type RebootServerJSONRequestBody = RebootInputBody
@@ -26010,7 +26378,7 @@ type ClientInterface interface {
 
 	// GetServerPatches Pending OS updates and reboot-required of a server
 	//
-	// The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning where an upgrade is risky, the production services that run on the server, and the recent runs. The agent checks every server about every 6 hours; `known` is false until the first check completes.
+	// The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning where an upgrade is risky, the production services that run on the server, the recent runs, and `auto`, the automatic updates (settings, next window, last scheduled run, quiet-hour suggestion). The agent checks every server about every 6 hours; `known` is false until the first check completes.
 	//
 	// Corresponds with GET /servers/{serverId}/patches (the `GetServerPatches` operationId).
 	GetServerPatches(ctx context.Context, serverId string, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -26032,6 +26400,24 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /servers/{serverId}/patches/apply (the `ApplyServerPatches` operationId).
 	ApplyServerPatches(ctx context.Context, serverId string, params *ApplyServerPatchesParams, body ApplyServerPatchesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateServerPatchAutoWithBody Change the automatic updates of a server
+	//
+	// Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /servers/{serverId}/patches/auto (the `UpdateServerPatchAuto` operationId).
+	UpdateServerPatchAutoWithBody(ctx context.Context, serverId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UpdateServerPatchAuto Change the automatic updates of a server
+	//
+	// Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /servers/{serverId}/patches/auto (the `UpdateServerPatchAuto` operationId).
+	UpdateServerPatchAuto(ctx context.Context, serverId string, body UpdateServerPatchAutoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// CheckServerPatches Check the server for updates now
 	//
@@ -26249,7 +26635,7 @@ type ClientInterface interface {
 
 	// GetServiceAnalytics Traffic analytics of a service
 	//
-	// Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), latency percentiles from merged histograms, status codes and top lists. Raw access logs, IPs and user agents are never stored. Window to report. Minute data covers 24 hours; longer ranges read hourly (default 7 days kept) or daily (90 days) rows.
+	// Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), latency percentiles from merged histograms, status codes and top lists, and `firewall`: the requests the service firewall blocked, per rule (own rules and standard protection; counted only while traffic analytics is on, from the moment an agent first reports them). Raw access logs, IPs and user agents are never stored. Window to report. Minute data covers 24 hours; longer ranges read hourly (default 7 days kept) or daily (90 days) rows.
 	//
 	// Corresponds with GET /services/{serviceId}/analytics (the `GetServiceAnalytics` operationId).
 	GetServiceAnalytics(ctx context.Context, serviceId string, params *GetServiceAnalyticsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
@@ -26741,6 +27127,13 @@ type ClientInterface interface {
 	//
 	// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
 	SetServiceFirewall(ctx context.Context, serviceId string, params *SetServiceFirewallParams, body SetServiceFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetServiceFirewallBlocks Requests a service's firewall blocked
+	//
+	// How many requests the firewall blocked in the last 24 hours, 7 or 30 days, per rule: the service's own rules and the standard protection (`std…` ids), named as they are now (`removed` for a rule deleted since). Counted from the proxy's access log, so only while traffic analytics is on for the service's server (`trafficAnalytics`), and from the moment the agent first reported it: nothing is backfilled, and a guard-enforced rule (country conditions, or visitor addresses behind Cloudflare) is counted once the proxy was recreated with the agent that sets the rule header. The blocked paths, client networks (/24, /48) and countries stay on the host: `logsQuery` is the query that finds the blocked request lines in the Logs explorer, and its facets rank them.
+	//
+	// Corresponds with GET /services/{serviceId}/firewall/blocks (the `GetServiceFirewallBlocks` operationId).
+	GetServiceFirewallBlocks(ctx context.Context, serviceId string, params *GetServiceFirewallBlocksParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// UnlinkServiceGit Unlink a service from its repository
 	//
@@ -35473,7 +35866,7 @@ func (c *Client) GetServerMetrics(ctx context.Context, serverId string, params *
 
 // GetServerPatches Pending OS updates and reboot-required of a server
 //
-// The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning where an upgrade is risky, the production services that run on the server, and the recent runs. The agent checks every server about every 6 hours; `known` is false until the first check completes.
+// The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning where an upgrade is risky, the production services that run on the server, the recent runs, and `auto`, the automatic updates (settings, next window, last scheduled run, quiet-hour suggestion). The agent checks every server about every 6 hours; `known` is false until the first check completes.
 //
 // Corresponds with GET /servers/{serverId}/patches (the `GetServerPatches` operationId).
 func (c *Client) GetServerPatches(ctx context.Context, serverId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -35516,6 +35909,44 @@ func (c *Client) ApplyServerPatchesWithBody(ctx context.Context, serverId string
 // Corresponds with POST /servers/{serverId}/patches/apply (the `ApplyServerPatches` operationId).
 func (c *Client) ApplyServerPatches(ctx context.Context, serverId string, params *ApplyServerPatchesParams, body ApplyServerPatchesJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewApplyServerPatchesRequest(c.Server, serverId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateServerPatchAutoWithBody Change the automatic updates of a server
+//
+// Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /servers/{serverId}/patches/auto (the `UpdateServerPatchAuto` operationId).
+func (c *Client) UpdateServerPatchAutoWithBody(ctx context.Context, serverId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateServerPatchAutoRequestWithBody(c.Server, serverId, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UpdateServerPatchAuto Change the automatic updates of a server
+//
+// Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /servers/{serverId}/patches/auto (the `UpdateServerPatchAuto` operationId).
+func (c *Client) UpdateServerPatchAuto(ctx context.Context, serverId string, body UpdateServerPatchAutoJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUpdateServerPatchAutoRequest(c.Server, serverId, body)
 	if err != nil {
 		return nil, err
 	}
@@ -36022,7 +36453,7 @@ func (c *Client) UpdateService(ctx context.Context, serviceId string, params *Up
 
 // GetServiceAnalytics Traffic analytics of a service
 //
-// Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), latency percentiles from merged histograms, status codes and top lists. Raw access logs, IPs and user agents are never stored. Window to report. Minute data covers 24 hours; longer ranges read hourly (default 7 days kept) or daily (90 days) rows.
+// Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), latency percentiles from merged histograms, status codes and top lists, and `firewall`: the requests the service firewall blocked, per rule (own rules and standard protection; counted only while traffic analytics is on, from the moment an agent first reports them). Raw access logs, IPs and user agents are never stored. Window to report. Minute data covers 24 hours; longer ranges read hourly (default 7 days kept) or daily (90 days) rows.
 //
 // Corresponds with GET /services/{serviceId}/analytics (the `GetServiceAnalytics` operationId).
 func (c *Client) GetServiceAnalytics(ctx context.Context, serviceId string, params *GetServiceAnalyticsParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -37135,6 +37566,23 @@ func (c *Client) SetServiceFirewallWithBody(ctx context.Context, serviceId strin
 // Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
 func (c *Client) SetServiceFirewall(ctx context.Context, serviceId string, params *SetServiceFirewallParams, body SetServiceFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewSetServiceFirewallRequest(c.Server, serviceId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// GetServiceFirewallBlocks Requests a service's firewall blocked
+//
+// How many requests the firewall blocked in the last 24 hours, 7 or 30 days, per rule: the service's own rules and the standard protection (`std…` ids), named as they are now (`removed` for a rule deleted since). Counted from the proxy's access log, so only while traffic analytics is on for the service's server (`trafficAnalytics`), and from the moment the agent first reported it: nothing is backfilled, and a guard-enforced rule (country conditions, or visitor addresses behind Cloudflare) is counted once the proxy was recreated with the agent that sets the rule header. The blocked paths, client networks (/24, /48) and countries stay on the host: `logsQuery` is the query that finds the blocked request lines in the Logs explorer, and its facets rank them.
+//
+// Corresponds with GET /services/{serviceId}/firewall/blocks (the `GetServiceFirewallBlocks` operationId).
+func (c *Client) GetServiceFirewallBlocks(ctx context.Context, serviceId string, params *GetServiceFirewallBlocksParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServiceFirewallBlocksRequest(c.Server, serviceId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -53595,6 +54043,53 @@ func NewApplyServerPatchesRequestWithBody(server string, serverId string, params
 	return req, nil
 }
 
+// NewUpdateServerPatchAutoRequest calls the generic UpdateServerPatchAuto builder with application/json body
+func NewUpdateServerPatchAutoRequest(server string, serverId string, body UpdateServerPatchAutoJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewUpdateServerPatchAutoRequestWithBody(server, serverId, "application/json", bodyReader)
+}
+
+// NewUpdateServerPatchAutoRequestWithBody constructs an http.Request for the UpdateServerPatchAuto method, with any body, and a specified content type
+func NewUpdateServerPatchAutoRequestWithBody(server string, serverId string, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serverId", serverId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/servers/%s/patches/auto", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	return req, nil
+}
+
 // NewCheckServerPatchesRequest constructs an http.Request for the CheckServerPatches method
 func NewCheckServerPatchesRequest(server string, serverId string, params *CheckServerPatchesParams) (*http.Request, error) {
 	var err error
@@ -56712,6 +57207,67 @@ func NewSetServiceFirewallRequestWithBody(server string, serviceId string, param
 			req.Header.Set("Idempotency-Key", headerParam0)
 		}
 
+	}
+
+	return req, nil
+}
+
+// NewGetServiceFirewallBlocksRequest constructs an http.Request for the GetServiceFirewallBlocks method
+func NewGetServiceFirewallBlocksRequest(server string, serviceId string, params *GetServiceFirewallBlocksParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/firewall/blocks", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.Range != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "range", *params.Range, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
 	}
 
 	return req, nil
@@ -66303,7 +66859,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetServerPatchesWithResponse Pending OS updates and reboot-required of a server
 	//
-	// The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning where an upgrade is risky, the production services that run on the server, and the recent runs. The agent checks every server about every 6 hours; `known` is false until the first check completes.
+	// The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning where an upgrade is risky, the production services that run on the server, the recent runs, and `auto`, the automatic updates (settings, next window, last scheduled run, quiet-hour suggestion). The agent checks every server about every 6 hours; `known` is false until the first check completes.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -66327,6 +66883,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /servers/{serverId}/patches/apply (the `ApplyServerPatches` operationId).
 	ApplyServerPatchesWithResponse(ctx context.Context, serverId string, params *ApplyServerPatchesParams, body ApplyServerPatchesJSONRequestBody, reqEditors ...RequestEditorFn) (*ApplyServerPatchesResponse, error)
+
+	// UpdateServerPatchAutoWithBodyWithResponse Change the automatic updates of a server
+	//
+	// Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /servers/{serverId}/patches/auto (the `UpdateServerPatchAuto` operationId).
+	UpdateServerPatchAutoWithBodyWithResponse(ctx context.Context, serverId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateServerPatchAutoResponse, error)
+
+	// UpdateServerPatchAutoWithResponse Change the automatic updates of a server
+	//
+	// Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /servers/{serverId}/patches/auto (the `UpdateServerPatchAuto` operationId).
+	UpdateServerPatchAutoWithResponse(ctx context.Context, serverId string, body UpdateServerPatchAutoJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateServerPatchAutoResponse, error)
 
 	// CheckServerPatchesWithResponse Check the server for updates now
 	//
@@ -66576,7 +67150,7 @@ type ClientWithResponsesInterface interface {
 
 	// GetServiceAnalyticsWithResponse Traffic analytics of a service
 	//
-	// Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), latency percentiles from merged histograms, status codes and top lists. Raw access logs, IPs and user agents are never stored. Window to report. Minute data covers 24 hours; longer ranges read hourly (default 7 days kept) or daily (90 days) rows.
+	// Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), latency percentiles from merged histograms, status codes and top lists, and `firewall`: the requests the service firewall blocked, per rule (own rules and standard protection; counted only while traffic analytics is on, from the moment an agent first reports them). Raw access logs, IPs and user agents are never stored. Window to report. Minute data covers 24 hours; longer ranges read hourly (default 7 days kept) or daily (90 days) rows.
 	//
 	// Returns a wrapper object for the known response body format(s).
 	//
@@ -67114,6 +67688,15 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with PUT /services/{serviceId}/firewall (the `SetServiceFirewall` operationId).
 	SetServiceFirewallWithResponse(ctx context.Context, serviceId string, params *SetServiceFirewallParams, body SetServiceFirewallJSONRequestBody, reqEditors ...RequestEditorFn) (*SetServiceFirewallResponse, error)
+
+	// GetServiceFirewallBlocksWithResponse Requests a service's firewall blocked
+	//
+	// How many requests the firewall blocked in the last 24 hours, 7 or 30 days, per rule: the service's own rules and the standard protection (`std…` ids), named as they are now (`removed` for a rule deleted since). Counted from the proxy's access log, so only while traffic analytics is on for the service's server (`trafficAnalytics`), and from the moment the agent first reported it: nothing is backfilled, and a guard-enforced rule (country conditions, or visitor addresses behind Cloudflare) is counted once the proxy was recreated with the agent that sets the rule header. The blocked paths, client networks (/24, /48) and countries stay on the host: `logsQuery` is the query that finds the blocked request lines in the Logs explorer, and its facets rank them.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /services/{serviceId}/firewall/blocks (the `GetServiceFirewallBlocks` operationId).
+	GetServiceFirewallBlocksWithResponse(ctx context.Context, serviceId string, params *GetServiceFirewallBlocksParams, reqEditors ...RequestEditorFn) (*GetServiceFirewallBlocksResponse, error)
 
 	// UnlinkServiceGitWithResponse Unlink a service from its repository
 	//
@@ -93120,6 +93703,103 @@ func (r ApplyServerPatchesResponse) ContentType() string {
 	return ""
 }
 
+type UpdateServerPatchAutoResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PatchAuto
+	// ApplicationproblemJSON400 the response for an HTTP 400 `application/problem+json` response
+	ApplicationproblemJSON400 *Error
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r UpdateServerPatchAutoResponse) GetJSON200() *PatchAuto {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON400 returns the response for an HTTP 400 `application/problem+json` response
+func (r UpdateServerPatchAutoResponse) GetApplicationproblemJSON400() *Error {
+	return r.ApplicationproblemJSON400
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r UpdateServerPatchAutoResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r UpdateServerPatchAutoResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r UpdateServerPatchAutoResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r UpdateServerPatchAutoResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r UpdateServerPatchAutoResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r UpdateServerPatchAutoResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r UpdateServerPatchAutoResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UpdateServerPatchAutoResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UpdateServerPatchAutoResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UpdateServerPatchAutoResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UpdateServerPatchAutoResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type CheckServerPatchesResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -98875,6 +99555,89 @@ func (r SetServiceFirewallResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r SetServiceFirewallResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type GetServiceFirewallBlocksResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *FirewallBlocks
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetServiceFirewallBlocksResponse) GetJSON200() *FirewallBlocks {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetServiceFirewallBlocksResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetServiceFirewallBlocksResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetServiceFirewallBlocksResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r GetServiceFirewallBlocksResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r GetServiceFirewallBlocksResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetServiceFirewallBlocksResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetServiceFirewallBlocksResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetServiceFirewallBlocksResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetServiceFirewallBlocksResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetServiceFirewallBlocksResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -115471,7 +116234,7 @@ func (c *ClientWithResponses) GetServerMetricsWithResponse(ctx context.Context, 
 
 // GetServerPatchesWithResponse Pending OS updates and reboot-required of a server
 //
-// The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning where an upgrade is risky, the production services that run on the server, and the recent runs. The agent checks every server about every 6 hours; `known` is false until the first check completes.
+// The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning where an upgrade is risky, the production services that run on the server, the recent runs, and `auto`, the automatic updates (settings, next window, last scheduled run, quiet-hour suggestion). The agent checks every server about every 6 hours; `known` is false until the first check completes.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -115512,6 +116275,36 @@ func (c *ClientWithResponses) ApplyServerPatchesWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseApplyServerPatchesResponse(rsp)
+}
+
+// UpdateServerPatchAutoWithBodyWithResponse Change the automatic updates of a server
+//
+// Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /servers/{serverId}/patches/auto (the `UpdateServerPatchAuto` operationId).
+func (c *ClientWithResponses) UpdateServerPatchAutoWithBodyWithResponse(ctx context.Context, serverId string, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*UpdateServerPatchAutoResponse, error) {
+	rsp, err := c.UpdateServerPatchAutoWithBody(ctx, serverId, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateServerPatchAutoResponse(rsp)
+}
+
+// UpdateServerPatchAutoWithResponse Change the automatic updates of a server
+//
+// Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /servers/{serverId}/patches/auto (the `UpdateServerPatchAuto` operationId).
+func (c *ClientWithResponses) UpdateServerPatchAutoWithResponse(ctx context.Context, serverId string, body UpdateServerPatchAutoJSONRequestBody, reqEditors ...RequestEditorFn) (*UpdateServerPatchAutoResponse, error) {
+	rsp, err := c.UpdateServerPatchAuto(ctx, serverId, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUpdateServerPatchAutoResponse(rsp)
 }
 
 // CheckServerPatchesWithResponse Check the server for updates now
@@ -115930,7 +116723,7 @@ func (c *ClientWithResponses) UpdateServiceWithResponse(ctx context.Context, ser
 
 // GetServiceAnalyticsWithResponse Traffic analytics of a service
 //
-// Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), latency percentiles from merged histograms, status codes and top lists. Raw access logs, IPs and user agents are never stored. Window to report. Minute data covers 24 hours; longer ranges read hourly (default 7 days kept) or daily (90 days) rows.
+// Aggregated from Traefik access logs on the service's server: requests, bandwidth, unique visitors (per UTC day, bots excluded), latency percentiles from merged histograms, status codes and top lists, and `firewall`: the requests the service firewall blocked, per rule (own rules and standard protection; counted only while traffic analytics is on, from the moment an agent first reports them). Raw access logs, IPs and user agents are never stored. Window to report. Minute data covers 24 hours; longer ranges read hourly (default 7 days kept) or daily (90 days) rows.
 //
 // Returns a wrapper object for the known response body format(s).
 //
@@ -116845,6 +117638,21 @@ func (c *ClientWithResponses) SetServiceFirewallWithResponse(ctx context.Context
 		return nil, err
 	}
 	return ParseSetServiceFirewallResponse(rsp)
+}
+
+// GetServiceFirewallBlocksWithResponse Requests a service's firewall blocked
+//
+// How many requests the firewall blocked in the last 24 hours, 7 or 30 days, per rule: the service's own rules and the standard protection (`std…` ids), named as they are now (`removed` for a rule deleted since). Counted from the proxy's access log, so only while traffic analytics is on for the service's server (`trafficAnalytics`), and from the moment the agent first reported it: nothing is backfilled, and a guard-enforced rule (country conditions, or visitor addresses behind Cloudflare) is counted once the proxy was recreated with the agent that sets the rule header. The blocked paths, client networks (/24, /48) and countries stay on the host: `logsQuery` is the query that finds the blocked request lines in the Logs explorer, and its facets rank them.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /services/{serviceId}/firewall/blocks (the `GetServiceFirewallBlocks` operationId).
+func (c *ClientWithResponses) GetServiceFirewallBlocksWithResponse(ctx context.Context, serviceId string, params *GetServiceFirewallBlocksParams, reqEditors ...RequestEditorFn) (*GetServiceFirewallBlocksResponse, error) {
+	rsp, err := c.GetServiceFirewallBlocks(ctx, serviceId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetServiceFirewallBlocksResponse(rsp)
 }
 
 // UnlinkServiceGitWithResponse Unlink a service from its repository
@@ -139542,6 +140350,88 @@ func ParseApplyServerPatchesResponse(rsp *http.Response) (*ApplyServerPatchesRes
 	return response, nil
 }
 
+// ParseUpdateServerPatchAutoResponse parses an HTTP response from a UpdateServerPatchAutoWithResponse call
+func ParseUpdateServerPatchAutoResponse(rsp *http.Response) (*UpdateServerPatchAutoResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UpdateServerPatchAutoResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PatchAuto
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 400:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON400 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseCheckServerPatchesResponse parses an HTTP response from a CheckServerPatchesWithResponse call
 func ParseCheckServerPatchesResponse(rsp *http.Response) (*CheckServerPatchesResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -144333,6 +145223,74 @@ func ParseSetServiceFirewallResponse(rsp *http.Response) (*SetServiceFirewallRes
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest FirewallView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetServiceFirewallBlocksResponse parses an HTTP response from a GetServiceFirewallBlocksWithResponse call
+func ParseGetServiceFirewallBlocksResponse(rsp *http.Response) (*GetServiceFirewallBlocksResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetServiceFirewallBlocksResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest FirewallBlocks
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

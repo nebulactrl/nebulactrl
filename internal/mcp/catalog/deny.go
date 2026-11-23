@@ -155,6 +155,7 @@ var denyEntries = map[string]Deny{
 	"rollbackServerHardening": {Reason: ReasonHostRoot, Why: "Reverts host hardening as root."},
 	"applyServerPatches":      {Reason: ReasonHostRoot, Why: "Upgrades the host's packages as root; Docker and system services restart."},
 	"rebootServer":            {Reason: ReasonHostRoot, Why: "Reboots the host; every service on it goes down."},
+	"updateServerPatchAuto":   {Reason: ReasonHostRoot, Why: "Schedules unattended package upgrades (and optionally reboots) of the host as root every night."},
 	"removeServer":            {Reason: ReasonHostRoot, Why: "Has the agent (root) remove every NebulaCtrl container, network and volume on the host and then itself, and deletes the server: irreversible."},
 	"upgradeServerAgent":      {Reason: ReasonHostRoot, Why: "Replaces the agent binary on the host (the agent runs as root) and restarts the agent."},
 	"upgradeServerAgents":     {Reason: ReasonHostRoot, Why: "Replaces the agent binary on every selected host (the agents run as root) and restarts them."},

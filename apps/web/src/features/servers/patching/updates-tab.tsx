@@ -39,6 +39,7 @@ import { StatusIcon } from "#/components/ui/status-icon";
 import { toast } from "#/components/ui/toast";
 import { count } from "#/lib/format";
 import type { ServerView } from "../model";
+import { AutoUpdatesCard, runAnchor } from "./auto-updates-card";
 import {
 	busyText,
 	needsAcknowledgement,
@@ -397,6 +398,12 @@ function UpdatesBody({
 				</CardContent>
 			</Card>
 
+			<AutoUpdatesCard
+				server={server}
+				view={view}
+				instanceAdmin={roles.instanceAdmin}
+			/>
+
 			{view.packages.length > 0 ? (
 				<Card>
 					<CardContent className="py-1">
@@ -514,7 +521,7 @@ function RunRow({ serverId, run }: { serverId: string; run: PatchRun }) {
 	const expandable =
 		run.action === "apply" || Boolean(run.error) || Boolean(run.message);
 	return (
-		<li className="py-2.5">
+		<li id={runAnchor(run.id)} className="py-2.5">
 			<button
 				type="button"
 				className="flex w-full min-w-0 items-center gap-3 text-left disabled:cursor-default"

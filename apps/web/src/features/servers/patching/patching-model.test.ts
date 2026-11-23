@@ -5,17 +5,33 @@ import type {
 	ServerPatchSummary,
 } from "#/api/gen/types.gen";
 import {
+	type AutoDraft,
+	applySuggestion,
+	autoBody,
+	autoDraftOf,
+	autoErrorField,
+	autoIssues,
+	autoKey,
+	autoRunStatusText,
 	busyText,
+	enableAuto,
+	failuresText,
+	hasAutoIssues,
+	nativeUpdatesText,
 	needsAcknowledgement,
 	needsAttention,
+	nextWindowText,
 	patchHint,
 	productionList,
 	rebootWarnings,
 	runStatus,
 	runSummary,
+	startWarning,
 	tabBadge,
 	updatesStatus,
 	updatesText,
+	windowLengthLabel,
+	windowLengths,
 } from "./patching-model";
 
 const summary = (
@@ -32,6 +48,24 @@ const summary = (
 });
 
 const view = (over: Partial<PatchView> = {}): PatchView => ({
+	auto: {
+		builtinHolds: ["docker-ce", "containerd.io"],
+		consecutiveFailures: 0,
+		disabledReason: null,
+		enabled: false,
+		holdPackages: [],
+		lastScheduledRun: null,
+		nativeAutoUpdates: "",
+		nextWindowStart: null,
+		reboot: "never",
+		requiresAcknowledgement: false,
+		scope: "security",
+		securityOnlySupported: true,
+		suggestedStart: null,
+		timezone: "UTC",
+		windowMinutes: 120,
+		windowStart: "03:00",
+	},
 	online: true,
 	agentSupported: true,
 	known: true,
@@ -249,5 +283,181 @@ describe("production warnings", () => {
 		expect(w.join(" ")).toContain("Production is affected: shop/api");
 		expect(w.join(" ")).toContain("NebulaCtrl itself");
 		expect(w.join(" ")).toContain("20 minutes");
+	});
+});
+
+describe("automatic updates draft", () => {
+	const saved = view().auto;
+	const draft = (over: Partial<AutoDraft> = {}): AutoDraft => ({
+		...autoDraftOf(saved),
+		...over,
+	});
+
+	test("the saved settings become the draft, security-only falls back to all", () => {
+		expect(autoDraftOf(saved)).toEqual({
+			enabled: false,
+			scope: "security",
+			windowStart: "03:00",
+			windowMinutes: 120,
+			timezone: "UTC",
+			reboot: "never",
+			holdPackages: [],
+		});
+		expect(autoDraftOf({ ...saved, securityOnlySupported: false }).scope).toBe(
+			"all",
+		);
+	});
+
+	test("the body trims names, drops blanks and repeats, and acknowledges only when told", () => {
+		const body = autoBody(
+			draft({
+				enabled: true,
+				timezone: " ",
+				windowStart: " 04:30 ",
+				holdPackages: [" openssl ", "", "curl", "openssl"],
+			}),
+		);
+		expect(body).toEqual({
+			enabled: true,
+			scope: "security",
+			windowStart: "04:30",
+			windowMinutes: 120,
+			timezone: "UTC",
+			reboot: "never",
+			holdPackages: ["openssl", "curl"],
+		});
+		expect(autoBody(draft(), true).acknowledgeProduction).toBe(true);
+	});
+
+	test("an empty row is not a change", () => {
+		expect(autoKey(draft({ holdPackages: [""] }))).toBe(autoKey(draft()));
+		expect(autoKey(draft({ windowMinutes: 180 }))).not.toBe(autoKey(draft()));
+	});
+
+	test("enabling a default-zone server takes the reader's zone once", () => {
+		expect(enableAuto(draft(), saved, "Europe/Berlin")).toMatchObject({
+			enabled: true,
+			timezone: "Europe/Berlin",
+		});
+		// A zone the reader already chose stays.
+		expect(
+			enableAuto(draft({ timezone: "Asia/Tokyo" }), saved, "Europe/Berlin")
+				.timezone,
+		).toBe("Asia/Tokyo");
+		// A saved zone stays.
+		const berlin = { ...saved, timezone: "America/Chicago" };
+		expect(
+			enableAuto(autoDraftOf(berlin), berlin, "Europe/Berlin").timezone,
+		).toBe("America/Chicago");
+		// A zone the runtime does not know is not used.
+		expect(enableAuto(draft(), saved, "Mars/Base").timezone).toBe("UTC");
+	});
+
+	test("the suggestion brings the zone it was computed in", () => {
+		const withSuggestion = { suggestedStart: "03:12", timezone: "UTC" };
+		expect(
+			applySuggestion(draft({ timezone: "Europe/Berlin" }), withSuggestion),
+		).toMatchObject({ windowStart: "03:12", timezone: "UTC" });
+		const none = draft();
+		expect(
+			applySuggestion(none, { suggestedStart: null, timezone: "UTC" }),
+		).toBe(none);
+	});
+
+	test("window lengths keep an unusual saved length", () => {
+		expect(windowLengths(120)).toEqual([60, 120, 180, 240]);
+		expect(windowLengths(90)).toEqual([60, 90, 120, 180, 240]);
+		expect(windowLengthLabel(120)).toBe("2h");
+		expect(windowLengthLabel(90)).toBe("90m");
+	});
+
+	test("issues name the field", () => {
+		expect(hasAutoIssues(autoIssues(draft()))).toBe(false);
+		expect(autoIssues(draft({ windowStart: "25:00" })).windowStart).toContain(
+			"HH:MM",
+		);
+		expect(autoIssues(draft({ windowStart: "" })).windowStart).toBeDefined();
+		expect(autoIssues(draft({ timezone: "Mars/Base" })).timezone).toBeDefined();
+		const rows = autoIssues(draft({ holdPackages: ["ok", "bad name"] }));
+		expect(rows.holdRows[1]).toContain("package name");
+		expect(rows.holdRows[0]).toBeUndefined();
+		const many = Array.from({ length: 21 }, (_, i) => `pkg${i}`);
+		expect(autoIssues(draft({ holdPackages: many })).holdPackages).toContain(
+			"20",
+		);
+	});
+
+	test("a start while clocks change is warned about", () => {
+		expect(startWarning("01:30")).toContain("Clocks change");
+		expect(startWarning("02:59")).toContain("Clocks change");
+		expect(startWarning("03:00")).toBeNull();
+		expect(startWarning("00:59")).toBeNull();
+		expect(startWarning("")).toBeNull();
+	});
+
+	test("422 codes map to their field", () => {
+		expect(autoErrorField("invalid_timezone")).toBe("timezone");
+		expect(autoErrorField("invalid_window")).toBe("windowStart");
+		expect(autoErrorField("scope_unsupported")).toBe("scope");
+		expect(autoErrorField("invalid_package")).toBe("holdPackages");
+		expect(autoErrorField("agent_too_old")).toBeNull();
+		expect(autoErrorField("production_ack_required")).toBeNull();
+		expect(autoErrorField(undefined)).toBeNull();
+	});
+});
+
+describe("automatic updates status", () => {
+	const now = new Date("2026-10-27T20:00:00Z"); // 21:00 in Berlin (CET)
+
+	test("the next window is named in the schedule's zone", () => {
+		expect(nextWindowText("2026-10-28T02:12:00Z", "Europe/Berlin", now)).toBe(
+			"Tonight 03:12 Europe/Berlin",
+		);
+		expect(nextWindowText("2026-10-28T13:00:00Z", "Europe/Berlin", now)).toBe(
+			"Tomorrow 14:00 Europe/Berlin",
+		);
+		expect(nextWindowText("2026-10-27T22:30:00Z", "Europe/Berlin", now)).toBe(
+			"Tonight 23:30 Europe/Berlin",
+		);
+		expect(
+			nextWindowText(
+				"2026-10-27T14:00:00Z",
+				"UTC",
+				new Date("2026-10-27T08:00:00Z"),
+			),
+		).toBe("Today 14:00 UTC");
+		expect(nextWindowText("2026-10-30T02:00:00Z", "Europe/Berlin", now)).toBe(
+			"Fri 30 Oct 03:00 Europe/Berlin",
+		);
+		expect(nextWindowText("nonsense", "UTC", now)).toBe("");
+	});
+
+	test("the day is the schedule zone's, not the reader's", () => {
+		// 23:30 UTC on the 27th is already the 28th in Tokyo, 08:30 there.
+		expect(
+			nextWindowText(
+				"2026-10-27T23:30:00Z",
+				"Asia/Tokyo",
+				new Date("2026-10-27T10:00:00Z"),
+			),
+		).toBe("Tomorrow 08:30 Asia/Tokyo");
+	});
+
+	test("run, failure and host updater lines", () => {
+		expect(autoRunStatusText({ status: "succeeded" })).toBe("Succeeded");
+		expect(autoRunStatusText({ status: "failed" })).toBe("Failed");
+		expect(autoRunStatusText({ status: "pending" })).toBe("Running");
+		expect(autoRunStatusText({ status: "rebooting" })).toBe("Rebooting");
+		expect(failuresText(0)).toBeNull();
+		expect(failuresText(2)).toBe(
+			"2 failed runs in a row. Three in a row switch automatic updates off.",
+		);
+		expect(nativeUpdatesText("", true)).toBeNull();
+		expect(nativeUpdatesText("unattended-upgrades", true)).toBe(
+			"NebulaCtrl turns off unattended-upgrades on this server while automatic updates are on.",
+		);
+		expect(nativeUpdatesText("dnf-automatic", false)).toContain(
+			"dnf-automatic is active on this server",
+		);
 	});
 });

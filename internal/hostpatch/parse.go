@@ -71,6 +71,10 @@ func ParseCheck(out string) (agentprotocol.PatchState, error) {
 		st.Message = "No supported package manager (apt or dnf) was found on this host."
 		return st, nil
 	}
+	switch n := s.values["NATIVE"]; n {
+	case agentprotocol.PatchNativeUnattendedUpgrades, agentprotocol.PatchNativeDNFAutomatic:
+		st.NativeAutoUpdates = n
+	}
 	st.Updates = len(st.Packages)
 	for _, p := range st.Packages {
 		if p.Security {

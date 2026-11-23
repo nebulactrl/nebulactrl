@@ -75,6 +75,8 @@ type PatchView struct {
 	// ProductionServices lists the services in production environments on this server.
 	ProductionServices []ProductionService `json:"productionServices" nullable:"false"`
 	Runs               []PatchRun          `json:"runs" nullable:"false" doc:"The most recent runs, newest first, without logs"`
+	// Auto is the automatic updates of the server: its settings and where the schedule stands.
+	Auto PatchAuto `json:"auto"`
 }
 
 // PatchPlan is what an upgrade would do, shown before the person confirms.
@@ -164,12 +166,14 @@ func (s *Service) view(ctx context.Context, srv db.Server) (PatchView, error) {
 		Online: srv.Status == "online", AgentSupported: SupportsPatching(srv.Facts), ControlPlane: srv.IsControlPlane,
 		Packages: []PatchPackage{}, RebootPackages: []string{}, Runs: []PatchRun{}, ProductionServices: []ProductionService{},
 	}
+	native := ""
 	st, err := s.q.GetServerPatchState(ctx, srv.ID)
 	switch {
 	case errors.Is(err, pgx.ErrNoRows):
 	case err != nil:
 		return PatchView{}, fmt.Errorf("get patch state: %w", err)
 	default:
+		native = st.NativeAutoUpdates
 		v.Known = st.CheckedAt != nil
 		v.Supported, v.Manager, v.Updates, v.Security = st.Supported, st.Manager, int(st.Updates), int(st.SecurityUpdates)
 		v.RebootRequired, v.CheckedAt, v.Message = st.RebootRequired, st.CheckedAt, st.Message
@@ -191,6 +195,9 @@ func (s *Service) view(ctx context.Context, srv db.Server) (PatchView, error) {
 		}
 	}
 	if v.ProductionServices, err = s.productionServices(ctx, srv.ID); err != nil {
+		return PatchView{}, err
+	}
+	if v.Auto, err = s.autoView(ctx, srv, v.Known, v.Supported, native, len(v.ProductionServices) > 0 || srv.IsControlPlane); err != nil {
 		return PatchView{}, err
 	}
 	return v, nil

@@ -168,7 +168,7 @@ func (c *Collector) Facts(ctx context.Context) agentprotocol.Facts {
 	}
 	f.Capabilities = []string{agentprotocol.CapProxyV2, agentprotocol.CapServiceTailnet, agentprotocol.CapDNS01, agentprotocol.CapDNS01Lego, agentprotocol.CapTunnel, agentprotocol.CapTunnelEntrypoint, agentprotocol.CapDockerCleanup}
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapHostHardening)
-	f.Capabilities = append(f.Capabilities, agentprotocol.CapHostPatching)
+	f.Capabilities = append(f.Capabilities, agentprotocol.CapHostPatching, agentprotocol.CapHostPatchingAuto)
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapCancelDeploy, agentprotocol.CapDecommission)
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapMesh, agentprotocol.CapReplication, agentprotocol.CapProxyPorts, agentprotocol.CapFirewall)
 	f.Capabilities = append(f.Capabilities, agentprotocol.CapBuildOptions, agentprotocol.CapUptime)

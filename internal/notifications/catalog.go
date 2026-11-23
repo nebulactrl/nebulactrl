@@ -61,6 +61,8 @@ var catalog = []ChannelEventType{
 		Description: "A server's Docker cleanup failed, or freed more than 1 GB (sent as info; failures are errors)."},
 	{Type: TypeServerRebootRequired, Label: "Server needs a reboot", Group: GroupServers, Severity: SeverityWarning, DefaultOn: true, tone: toneWarn,
 		Description: "Installed updates (a new kernel, libc, systemd ...) only take effect after a reboot. Sent once each time a server starts needing one; services keep running until you reboot it."},
+	{Type: TypeServerAutoUpdateFailed, Label: "Automatic updates failed", Group: GroupServers, Severity: SeverityWarning, DefaultOn: true, tone: toneWarn,
+		Description: "A scheduled automatic update of a server failed (or was skipped, for example on a nearly full disk). The third failure in a row switches automatic updates off for that server."},
 	{Type: TypeServerOnline, Label: "Server online", Group: GroupServers, Severity: SeverityInfo, tone: toneOK,
 		Description: "A server connected, or came back after being offline."},
 

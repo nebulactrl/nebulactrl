@@ -37,6 +37,16 @@ describe("UpdatesPage", () => {
 			},
 			"GET /servers/:serverId/patches": {
 				body: {
+					auto: make("PatchAuto", {
+						builtinHolds: ["docker-ce", "containerd.io"],
+						enabled: false,
+						reboot: "never",
+						scope: "security",
+						securityOnlySupported: true,
+						timezone: "UTC",
+						windowMinutes: 120,
+						windowStart: "03:00",
+					}),
 					agentSupported: true,
 					busy: "",
 					checkedAt: null,

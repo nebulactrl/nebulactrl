@@ -117,6 +117,10 @@ func NewService(d Deps) *Service {
 // agentprotocol.CapHostPatching. A server that has never connected has no facts
 // yet and is assumed to enroll with a current agent.
 func SupportsPatching(facts json.RawMessage) bool {
+	return supportsCapability(facts, agentprotocol.CapHostPatching)
+}
+
+func supportsCapability(facts json.RawMessage, capability string) bool {
 	if len(facts) == 0 {
 		return true
 	}
@@ -124,7 +128,7 @@ func SupportsPatching(facts json.RawMessage) bool {
 	if err := json.Unmarshal(facts, &f); err != nil || f.OS == "" {
 		return true
 	}
-	return slices.Contains(f.Capabilities, agentprotocol.CapHostPatching)
+	return slices.Contains(f.Capabilities, capability)
 }
 
 func (s *Service) publish(serverID uuid.UUID) {
@@ -381,6 +385,12 @@ type startSpec struct {
 	securityOnly    bool
 	updatesBefore   *int
 	production      []ProductionService
+	// The scheduled upgrade of automatic updates: the window it belongs to, the
+	// extra held packages and whether the agent should report the containers'
+	// restart policies. A reboot that follows it carries the same slotStart.
+	slotStart       *time.Time
+	holds           []string
+	checkContainers bool
 }
 
 func (s *Service) canRun(ctx context.Context, srv db.Server) error {
@@ -418,13 +428,24 @@ func (s *Service) start(ctx context.Context, srv db.Server, sp startSpec) (db.Se
 		var err error
 		if run, err = q.InsertServerPatchRun(ctx, db.InsertServerPatchRunParams{
 			ServerID: srv.ID, WorkspaceID: srv.WorkspaceID, Action: sp.action, Trigger: sp.trigger,
-			RequestedBy: sp.by, SecurityOnly: sp.securityOnly, UpdatesBefore: before,
+			RequestedBy: sp.by, SecurityOnly: sp.securityOnly, UpdatesBefore: before, SlotStart: sp.slotStart,
 		}); err != nil {
 			return fmt.Errorf("insert patch run: %w", err)
 		}
-		raw, err := json.Marshal(agentprotocol.PatchingPayload{
+		payload := agentprotocol.PatchingPayload{
 			RunID: run.ID.String(), Action: sp.action, Trigger: sp.trigger, SecurityOnly: sp.securityOnly,
-		})
+			HoldPackages: sp.holds, CheckContainers: sp.checkContainers,
+		}
+		if sp.action != agentprotocol.PatchingActionReboot && SupportsAutoPatching(srv.Facts) {
+			auto, err := q.GetServerPatchAutoSettings(ctx, srv.ID)
+			switch {
+			case err == nil:
+				payload.Native = nativeDirective(auto)
+			case !errors.Is(err, pgx.ErrNoRows):
+				return fmt.Errorf("get automatic update settings: %w", err)
+			}
+		}
+		raw, err := json.Marshal(payload)
 		if err != nil {
 			return err
 		}
@@ -590,6 +611,7 @@ func (s *Service) HandleResult(ctx context.Context, serverID, commandID uuid.UUI
 		}
 		return s.finishRun(ctx, run, StatusFailed, nil, "", "The agent's answer could not be read: "+err.Error())
 	}
+	s.recordNative(ctx, serverID, out.NativeApplied)
 	switch {
 	case verify:
 		before := run.BootIDBefore
@@ -607,7 +629,20 @@ func (s *Service) HandleResult(ctx context.Context, serverID, commandID uuid.UUI
 			}
 			return s.finishRun(ctx, run, StatusFailed, &out, "", msg)
 		}
-		return s.finishRun(ctx, run, StatusSucceeded, &out, out.Message, "")
+		msg, reboot := out.Message, false
+		if run.Trigger == agentprotocol.PatchingTriggerScheduled {
+			var note string
+			if reboot, note = s.autoRebootPlan(ctx, run, out); note != "" {
+				msg = strings.TrimSpace(msg + " " + note)
+			}
+		}
+		if err := s.finishRun(ctx, run, StatusSucceeded, &out, msg, ""); err != nil {
+			return err
+		}
+		if reboot {
+			s.startAutoReboot(ctx, run)
+		}
+		return nil
 	default: // check
 		return s.finishRun(ctx, run, StatusSucceeded, &out, out.Message, "")
 	}
@@ -710,6 +745,9 @@ func (s *Service) finishRun(ctx context.Context, run db.ServerPatchRun, status s
 		if newlyRequired && out != nil {
 			s.notifyRebootRequired(ctx, run, out.State)
 		}
+		if run.Trigger == agentprotocol.PatchingTriggerScheduled && run.Action != agentprotocol.PatchingActionCheck {
+			s.afterScheduledRun(ctx, run, status, errMsg)
+		}
 	}
 	return nil
 }
@@ -734,7 +772,7 @@ func (s *Service) storeState(ctx context.Context, q *db.Queries, run db.ServerPa
 	if _, err := q.UpsertServerPatchState(ctx, db.UpsertServerPatchStateParams{
 		ServerID: run.ServerID, WorkspaceID: run.WorkspaceID, Manager: st.Manager, Supported: st.Supported,
 		Updates: int32(st.Updates), SecurityUpdates: int32(st.Security), Packages: pkgs, RebootRequired: st.RebootRequired,
-		RebootPackages: reboot, BootID: st.BootID, Message: st.Message,
+		RebootPackages: reboot, BootID: st.BootID, Message: st.Message, NativeAutoUpdates: st.NativeAutoUpdates,
 	}); err != nil {
 		return false, fmt.Errorf("store patch state: %w", err)
 	}
