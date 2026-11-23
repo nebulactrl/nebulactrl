@@ -66,10 +66,15 @@ func NewPool(t testing.TB) *pgxpool.Pool {
 // database across a whole test binary (TestMain). The returned func closes the
 // pool and drops the database. NEBULACTRL_TEST_DATABASE_URL must be set.
 //
-// The database is `CREATE DATABASE t_<hex> TEMPLATE <template>`. The template
-// (nebula_tmpl_<hash>) is migrated once per server: the first caller builds it
-// under an advisory lock, concurrent test binaries wait for it, and it only
-// exists under its final name once it is complete. Nothing stays connected to it.
+// The database is `CREATE DATABASE t_<hex> TEMPLATE <template>`, with the
+// server's default strategy (WAL_LOG on Postgres 15+). Never ask for FILE_COPY:
+// it forces a checkpoint per database, and with many test binaries cloning in
+// parallel those checkpoints serialise (a clone took ~8x longer than WAL_LOG
+// even single-threaded, ~9x with 8 parallel, enough to time packages out). The
+// template (nebula_tmpl_<hash>) is migrated once per server: the first caller
+// builds it under an advisory lock, concurrent test binaries wait for it, and
+// it only exists under its final name once it is complete. Nothing stays
+// connected to it.
 func OpenSchema(ctx context.Context) (*pgxpool.Pool, func(), error) {
 	base := os.Getenv(EnvDatabaseURL)
 	if base == "" {
@@ -93,7 +98,7 @@ func OpenSchema(ctx context.Context) (*pgxpool.Pool, func(), error) {
 		if err != nil {
 			return nil, nil, err
 		}
-		_, err = admin.Exec(ctx, "CREATE DATABASE "+name+" TEMPLATE "+tmpl+srv.strategy)
+		_, err = admin.Exec(ctx, "CREATE DATABASE "+name+" TEMPLATE "+tmpl)
 		if err == nil {
 			break
 		}
@@ -135,10 +140,6 @@ func OpenSchema(ctx context.Context) (*pgxpool.Pool, func(), error) {
 // server is the process-wide admin connection to one Postgres server.
 type server struct {
 	pool *pgxpool.Pool
-	// strategy is appended to CREATE DATABASE. FILE_COPY (Postgres 15+) copies
-	// the small template's files directly: about half the time of the default
-	// WAL_LOG, and it holds up under many parallel clones.
-	strategy string
 }
 
 var (
@@ -166,15 +167,7 @@ func connectServer(ctx context.Context, base string) (*server, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect admin pool: %w", err)
 	}
-	var version int
-	if err := p.QueryRow(ctx, `SELECT current_setting('server_version_num')::int`).Scan(&version); err != nil {
-		p.Close()
-		return nil, fmt.Errorf("read server version: %w", err)
-	}
 	srv := &server{pool: p}
-	if version >= 150000 {
-		srv.strategy = " STRATEGY = FILE_COPY"
-	}
 	admins[base] = srv
 	return srv, nil
 }
