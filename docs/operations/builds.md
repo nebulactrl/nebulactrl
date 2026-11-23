@@ -7,7 +7,7 @@ order: 20
 
 # Builds: Dockerfile, Railpack and starter Dockerfiles
 
-By default, git services are built on the server that runs them ([ADR 0004](../decisions/0004-build-on-target-host.md), [ADR 0006](../decisions/0006-railpack-default-builder.md)). A team, project or service can instead build on a dedicated **build server** that pushes to a registry, and the server that runs the service pulls the image by digest: see [Build servers and registries](build-servers.md). The build methods below are the same either way. **Settings → Source → Build method** chooses how.
+By default, git services are built on the server that runs them ([ADR 0004](../decisions/0004-build-on-target-host.md), [ADR 0006](../decisions/0006-railpack-default-builder.md)). A team, project or service can instead build on a dedicated **build server** that pushes to a registry, and the server that runs the service pulls the image by digest: see [Build servers and registries](build-servers.md). The build methods below are the same either way. **Settings → Source → Build method** chooses how (`build.type` in [`nebula.toml`](../reference/nebula-toml.md)).
 
 | Build method | What happens |
 |---|---|
@@ -16,7 +16,7 @@ By default, git services are built on the server that runs them ([ADR 0004](../d
 | **Railpack** | Railpack, even if the repository has a Dockerfile (which is then ignored). |
 | **Starter: Node.js, Python, Go, Ruby, PHP, static site** | A Dockerfile generated from the files in the build context. It is printed at the top of the build log so you can copy it into your repository. |
 
-A Dockerfile always wins in Automatic mode. If you changed *Dockerfile path* away from `Dockerfile` and that file does not exist, the build fails with a clear message instead of falling back to Railpack.
+A Dockerfile always wins in Automatic mode. If you changed *Dockerfile path* away from `Dockerfile` and that file does not exist, the build fails with a clear message instead of falling back to Railpack. *Dockerfile path* (**Settings → Build**) is `build.dockerfile` in the file and *Build context* (**Settings → Build → More options**) is `build.context`, both relative to the repository root.
 
 ## Preview the build plan
 
@@ -109,7 +109,7 @@ Limits: `--no-cache` ignores cached *layers*; BuildKit **cache mounts** (the pac
 
 ## Git submodules
 
-**Settings → Source → Git submodules** (config `submodules`: `auto`, `on` or `off`; `nebulactrl services update <service> --submodules on`):
+**Settings → Build → More options → Git submodules** (config `submodules`: `auto`, `on` or `off`; `git.submodules` in `nebula.toml`; `nebulactrl services update <service> --submodules on`):
 
 | Mode | Behaviour |
 |---|---|

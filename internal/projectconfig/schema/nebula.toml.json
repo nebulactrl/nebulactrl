@@ -971,6 +971,172 @@
       },
       "type": "object"
     },
+    "firewall": {
+      "additionalProperties": false,
+      "properties": {
+        "rules": {
+          "description": "Rules in evaluation order: the first enabled rule whose conditions all match decides, and a request no rule matches goes through. Written as [[services.<slug>.firewall.rules]]. Replaces the whole list; an empty list removes the firewall.",
+          "examples": [
+            [
+              {
+                "action": "block",
+                "conditions": [
+                  {
+                    "field": "path",
+                    "op": "prefix",
+                    "values": [
+                      "/admin"
+                    ]
+                  }
+                ],
+                "name": "Block admin from outside the office"
+              }
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/firewallRule"
+          },
+          "maxItems": 50,
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "firewallCondition": {
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "description": "What is tested: ip (client address), country (ISO 3166 alpha-2, needs geolocation on the server), path, method, header, userAgent or query.",
+          "enum": [
+            "ip",
+            "country",
+            "path",
+            "method",
+            "header",
+            "userAgent",
+            "query"
+          ],
+          "examples": [
+            "path"
+          ]
+        },
+        "name": {
+          "description": "Header or query parameter name. Only for field header and query.",
+          "examples": [
+            "X-Api-Key"
+          ],
+          "maxLength": 128,
+          "type": "string"
+        },
+        "not": {
+          "default": false,
+          "description": "Invert the condition: it matches when the test fails.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "op": {
+          "description": "How the value is compared. ip, country and method take in; path takes prefix, exact, contains or regex; header and query take equals, contains, regex or present; userAgent takes contains or regex.",
+          "enum": [
+            "in",
+            "prefix",
+            "exact",
+            "equals",
+            "contains",
+            "regex",
+            "present"
+          ],
+          "examples": [
+            "prefix"
+          ]
+        },
+        "values": {
+          "description": "Values to compare, 1 to 50 (ip: CIDRs or addresses; country: codes such as DE; method: GET, POST, ...). The condition matches when any value does. Absent for op present.",
+          "examples": [
+            [
+              "/admin"
+            ]
+          ],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 50,
+          "type": "array"
+        }
+      },
+      "required": [
+        "field",
+        "op"
+      ],
+      "type": "object"
+    },
+    "firewallRule": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "description": "block answers matching requests with HTTP 403; allow lets them through and skips the rules below.",
+          "enum": [
+            "block",
+            "allow"
+          ],
+          "examples": [
+            "block"
+          ]
+        },
+        "conditions": {
+          "description": "Tests of a request, 1 to 10. Every condition must match. Written as [[services.<slug>.firewall.rules.conditions]].",
+          "examples": [
+            [
+              {
+                "field": "path",
+                "op": "prefix",
+                "values": [
+                  "/admin"
+                ]
+              }
+            ]
+          ],
+          "items": {
+            "$ref": "#/$defs/firewallCondition"
+          },
+          "maxItems": 10,
+          "minItems": 1,
+          "type": "array"
+        },
+        "disabled": {
+          "default": false,
+          "description": "Keep the rule but never evaluate it.",
+          "examples": [
+            false
+          ],
+          "type": "boolean"
+        },
+        "id": {
+          "description": "Stable identifier of the rule: 1 to 16 lowercase letters or digits, unique in the list. Absent keeps the id of the live rule at the same position, or generates one.",
+          "examples": [
+            "admin1"
+          ],
+          "pattern": "^[a-z0-9]{1,16}$",
+          "type": "string"
+        },
+        "name": {
+          "description": "What the rule is for, shown in the dashboard and in the block log.",
+          "examples": [
+            "Block admin from outside the office"
+          ],
+          "maxLength": 80,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "action",
+        "conditions"
+      ],
+      "type": "object"
+    },
     "git": {
       "additionalProperties": false,
       "properties": {
@@ -1298,6 +1464,46 @@
       },
       "required": [
         "command"
+      ],
+      "type": "object"
+    },
+    "maintenance": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "description": "true puts the service into maintenance, false takes it out. Writing false keeps the stored page text for the next time.",
+          "examples": [
+            true
+          ],
+          "type": "boolean"
+        },
+        "eta": {
+          "description": "When the service is expected back, an RFC 3339 time in the future (for example 2026-12-01T06:00:00Z), written as a string. Shown on the page and sent as Retry-After. Only used while enabled; stored in UTC, truncated to seconds.",
+          "examples": [
+            "2026-12-01T06:00:00Z"
+          ],
+          "maxLength": 40,
+          "type": "string"
+        },
+        "message": {
+          "description": "Page message, plain text (newlines allowed). Absent or empty shows the default copy. Only used while enabled.",
+          "examples": [
+            "We are upgrading the database."
+          ],
+          "maxLength": 600,
+          "type": "string"
+        },
+        "title": {
+          "description": "Page title. Absent or empty shows \"Down for maintenance\". Only used while enabled.",
+          "examples": [
+            "Back soon"
+          ],
+          "maxLength": 80,
+          "type": "string"
+        }
+      },
+      "required": [
+        "enabled"
       ],
       "type": "object"
     },
@@ -1920,11 +2126,6 @@
                 },
                 {
                   "required": [
-                    "tasks"
-                  ]
-                },
-                {
-                  "required": [
                     "scale"
                   ]
                 },
@@ -1966,6 +2167,16 @@
                 {
                   "required": [
                     "cron"
+                  ]
+                },
+                {
+                  "required": [
+                    "firewall"
+                  ]
+                },
+                {
+                  "required": [
+                    "maintenance"
                   ]
                 }
               ]
@@ -2024,22 +2235,12 @@
                 },
                 {
                   "required": [
-                    "stop_grace_seconds"
-                  ]
-                },
-                {
-                  "required": [
                     "image_retention"
                   ]
                 },
                 {
                   "required": [
                     "one_shot"
-                  ]
-                },
-                {
-                  "required": [
-                    "block_egress"
                   ]
                 },
                 {
@@ -2120,6 +2321,16 @@
                 {
                   "required": [
                     "tailnet"
+                  ]
+                },
+                {
+                  "required": [
+                    "stop_grace_seconds"
+                  ]
+                },
+                {
+                  "required": [
+                    "block_egress"
                   ]
                 },
                 {
@@ -2177,22 +2388,12 @@
                 },
                 {
                   "required": [
-                    "stop_grace_seconds"
-                  ]
-                },
-                {
-                  "required": [
                     "image_retention"
                   ]
                 },
                 {
                   "required": [
                     "one_shot"
-                  ]
-                },
-                {
-                  "required": [
-                    "block_egress"
                   ]
                 },
                 {
@@ -2273,6 +2474,16 @@
                 {
                   "required": [
                     "tailnet"
+                  ]
+                },
+                {
+                  "required": [
+                    "firewall"
+                  ]
+                },
+                {
+                  "required": [
+                    "maintenance"
                   ]
                 }
               ]
@@ -2422,6 +2633,29 @@
           },
           "type": "object"
         },
+        "firewall": {
+          "$ref": "#/$defs/firewall",
+          "description": "The service's firewall: ordered allow and block rules the proxy evaluates against every request to its domains. The whole table is owned as one unit: the rules you write replace the live ones, and an empty list removes the firewall. Applied immediately. HTTP services only. The standard protection NebulaCtrl adds to every HTTP service is not part of the file.",
+          "examples": [
+            {
+              "rules": [
+                {
+                  "action": "block",
+                  "conditions": [
+                    {
+                      "field": "path",
+                      "op": "prefix",
+                      "values": [
+                        "/admin"
+                      ]
+                    }
+                  ],
+                  "name": "Block admin from outside the office"
+                }
+              ]
+            }
+          ]
+        },
         "generate_domain": {
           "default": false,
           "description": "Attach the platform-generated hostname on the server's base domain when the service has no domain.",
@@ -2467,6 +2701,15 @@
           "maximum": 50,
           "minimum": 1,
           "type": "integer"
+        },
+        "maintenance": {
+          "$ref": "#/$defs/maintenance",
+          "description": "Maintenance mode: while enabled the proxy answers every domain of the service with a 503 maintenance page. The whole table is owned as one unit: a key you leave out takes its default (default page text, no expected-back time). Applied immediately. HTTP services only.",
+          "examples": [
+            {
+              "enabled": true
+            }
+          ]
         },
         "memory_mb": {
           "description": "Memory limit in MiB. 0 means no limit; otherwise at least 6.",
@@ -3100,11 +3343,12 @@
           "type": "string"
         },
         "size_mb": {
-          "description": "Size in MiB.",
+          "description": "Size in MiB. 0 or absent means 64.",
           "examples": [
             64
           ],
-          "minimum": 1,
+          "maximum": 65536,
+          "minimum": 0,
           "type": "integer"
         }
       },

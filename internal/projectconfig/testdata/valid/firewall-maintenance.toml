@@ -1,0 +1,81 @@
+#:schema https://nebula.example.com/schema/nebula.toml.json
+schema = 1
+server = "fra-1"
+
+# A web service with its own firewall rules, evaluated top to bottom: the first
+# enabled rule whose conditions all match decides.
+[services.web]
+image = "ghcr.io/acme/web:1.4.2"
+port = 3000
+
+[[services.web.firewall.rules]]
+id = "office"
+name = "Allow the office"
+action = "allow"
+
+[[services.web.firewall.rules.conditions]]
+field = "ip"
+op = "in"
+values = ["203.0.113.0/24"]
+
+[[services.web.firewall.rules]]
+name = "Block admin from everywhere else"
+action = "block"
+
+[[services.web.firewall.rules.conditions]]
+field = "path"
+op = "prefix"
+values = ["/admin", "/internal"]
+
+[[services.web.firewall.rules]]
+name = "Block scrapers"
+action = "block"
+disabled = true
+
+[[services.web.firewall.rules.conditions]]
+field = "userAgent"
+op = "contains"
+values = ["python-requests", "curl"]
+
+[[services.web.firewall.rules.conditions]]
+field = "country"
+op = "in"
+values = ["CN", "RU"]
+not = true
+
+# Maintenance mode: the proxy answers every domain with a 503 page while enabled.
+[services.web.maintenance]
+enabled = true
+title = "Back soon"
+message = """
+We are upgrading the database.
+Everything is back by noon."""
+eta = "2030-12-01T06:00:00Z"
+
+# A route can carry both too (HTTP routes only); a table with enabled = false
+# keeps maintenance off and the page text out of the comparison.
+[services.printer]
+
+[services.printer.route]
+protocol = "http"
+upstreams = [{ address = "192.168.1.20:631" }]
+
+[[services.printer.firewall.rules]]
+name = "Only POST and GET"
+action = "block"
+
+[[services.printer.firewall.rules.conditions]]
+field = "method"
+op = "in"
+values = ["GET", "POST"]
+not = true
+
+[services.printer.maintenance]
+enabled = false
+
+# An empty firewall table owns the firewall with no rules: it removes the live ones.
+[services.docs]
+image = "nginx:1.27"
+port = 80
+
+[services.docs.firewall]

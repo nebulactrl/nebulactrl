@@ -234,7 +234,8 @@ func (a *applier) applyConfig(sp *svcPlan) error {
 			return err
 		}
 	}
-	if !nameChanged && !serverChanged && len(cfgChanged) == 0 {
+	cronOff := len(sp.removesWith(cronScheduleID)) > 0
+	if !nameChanged && !serverChanged && len(cfgChanged) == 0 && !cronOff {
 		return nil
 	}
 	sc := a.scopes[slug]
@@ -261,6 +262,11 @@ func (a *applier) applyConfig(sp *svcPlan) error {
 		if f.fv.ID == "config.blockEgress" {
 			blockEgress = true
 		}
+	}
+	if cronOff {
+		// What the dashboard's "Run on a schedule" switch does when turned off: the schedule goes,
+		// the service stays a one-shot job that runs once per deploy (one_shot is a key of its own).
+		cfg.Cron = nil
 	}
 	cfg = cfg.WithDefaults()
 	in := services.UpdateInput{Config: &cfg}

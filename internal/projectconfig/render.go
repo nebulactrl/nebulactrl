@@ -177,6 +177,39 @@ var (
 	emitVolumeDefType = reflect.TypeOf(VolumeDef{})
 )
 
+// emitArrayTableTypes are the element types of slices written as [[array of tables]] instead of
+// an array of inline tables: lists of rules that are too wide to read on one line.
+var emitArrayTableTypes = map[reflect.Type]bool{
+	reflect.TypeFor[FirewallRule]():      true,
+	reflect.TypeFor[FirewallCondition](): true,
+}
+
+// sliceElem is the element type of slice type t with pointers removed.
+func sliceElem(t reflect.Type) reflect.Type {
+	e := t.Elem()
+	for e.Kind() == reflect.Pointer {
+		e = e.Elem()
+	}
+	return e
+}
+
+// tableArray returns the tables of a value that is written as [[array of tables]].
+func tableArray(v any) ([]*emitTable, bool) {
+	arr, ok := v.([]any)
+	if !ok || len(arr) == 0 {
+		return nil, false
+	}
+	out := make([]*emitTable, len(arr))
+	for i, e := range arr {
+		t, ok := e.(*emitTable)
+		if !ok || t.inline {
+			return nil, false
+		}
+		out[i] = t
+	}
+	return out, true
+}
+
 // toTree converts a model value (a struct or a pointer to one: File, Service,
 // Secrets, ...) into its generic tree. Values of the tree are string, int64,
 // float64, bool, []any (elements: scalars or inline tables) and *emitTable.
@@ -252,7 +285,7 @@ func encodeNode(rv reflect.Value) (any, bool) {
 				n = newEmitTable()
 			}
 			if t, isT := n.(*emitTable); isT {
-				t.inline = true
+				t.inline = !emitArrayTableTypes[sliceElem(rv.Type())]
 			}
 			out = append(out, n)
 		}
@@ -403,14 +436,28 @@ func (w *emitWriter) body(path []string, t *emitTable) {
 		if sub, ok := v.(*emitTable); ok && !sub.inline {
 			continue
 		}
+		if _, ok := tableArray(v); ok {
+			continue
+		}
 		w.writeLines(w.commentLines(childPath(path, k)))
 		w.buf.WriteString(emitKey(k) + " = " + emitValue(v, true) + "\n")
 	}
 	for _, k := range t.keys {
 		if sub, ok := t.vals[k].(*emitTable); ok && !sub.inline {
 			w.table(childPath(path, k), sub)
+		} else if tables, ok := tableArray(t.vals[k]); ok {
+			for _, sub := range tables {
+				w.arrayTable(childPath(path, k), sub)
+			}
 		}
 	}
+}
+
+// arrayTable writes one [[header]] element of an array of tables and its content.
+func (w *emitWriter) arrayTable(path []string, t *emitTable) {
+	w.blank()
+	w.buf.WriteString("[[" + emitPath(path) + "]]\n")
+	w.body(path, t)
 }
 
 // table writes the [header] of t (omitted when t only has sub-tables and no
@@ -418,6 +465,9 @@ func (w *emitWriter) body(path []string, t *emitTable) {
 func (w *emitWriter) table(path []string, t *emitTable) {
 	hasValues := false
 	for _, k := range t.keys {
+		if _, ok := tableArray(t.vals[k]); ok {
+			continue
+		}
 		if sub, ok := t.vals[k].(*emitTable); !ok || sub.inline {
 			hasValues = true
 			break

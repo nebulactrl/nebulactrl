@@ -711,9 +711,19 @@ func rtKitchenSink() *Resolved {
 			ImageRetention:   new(5),
 			HealthCheck:      &HealthCheck{Type: new("http"), Path: new("/healthz"), DeadlineSeconds: new(90)},
 			PreDeploy:        &Hook{Command: []string{"bun", "run", "db:migrate"}, TimeoutSeconds: new(300)},
-			Scale:            &Scale{Replicas: new(2)},
+			Scale:            &Scale{Replicas: new(1)},
 			Uptime:           &Uptime{FailureThreshold: new(3), ReminderMinutes: new(60)},
-			Secrets:          &Secrets{Keys: []string{"STRIPE_SECRET_KEY"}},
+			Firewall: &Firewall{Rules: []FirewallRule{
+				{ID: new("admin1"), Name: new("Block admin"), Action: new("block"), Conditions: []FirewallCondition{
+					{Field: new("path"), Op: new("prefix"), Values: []string{"/admin"}},
+					{Field: new("country"), Op: new("in"), Values: []string{"DE", "FR"}, Not: new(true)},
+				}},
+				{Name: new("Allow office"), Action: new("allow"), Disabled: new(true), Conditions: []FirewallCondition{
+					{Field: new("header"), Op: new("present"), Name: new("X-Office")},
+				}},
+			}},
+			Maintenance: &Maintenance{Enabled: new(true), Title: new("Back soon"), Message: new("Upgrading."), ETA: new("2026-12-01T06:00:00Z")},
+			Secrets:     &Secrets{Keys: []string{"STRIPE_SECRET_KEY"}},
 			Variables: map[string]Variable{
 				"NODE_ENV":     {Value: "production"},
 				"APP_URL":      {Value: "https://shop.acme.com"},

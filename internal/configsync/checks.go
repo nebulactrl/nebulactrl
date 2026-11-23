@@ -3,10 +3,12 @@ package configsync
 import (
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/databases/engines"
 	"github.com/nebulactrl/nebulactrl/internal/db"
+	"github.com/nebulactrl/nebulactrl/internal/firewall"
 	"github.com/nebulactrl/nebulactrl/internal/projectconfig"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/internal/varexpr"
@@ -27,7 +29,7 @@ func (p *planned) useCaseError(err error, path string, pos projectconfig.Pos) {
 			code = "docker_unrestricted"
 		case "license_not_accepted":
 			code = "license_not_accepted"
-		case "upstream_denied", "invalid_upstream":
+		case "upstream_denied", "invalid_upstream", "agent_too_old", "geo_required", "firewall_unsupported", "maintenance_unsupported":
 			code = ae.Code
 		case "domain_conflict":
 			code = "hostname_in_use"
@@ -77,6 +79,9 @@ func (p *planned) candidateConfig(sp *svcPlan) (services.Config, bool) {
 			sp.blocked = true
 			return cfg, false
 		}
+	}
+	if len(sp.removesWith(cronScheduleID)) > 0 {
+		cfg.Cron = nil // a prune turns the schedule off (applyConfig)
 	}
 	if cfg.GitURL == "" && pc.cloneURL != nil {
 		if f := sp.field("git.link"); f != nil {
@@ -159,17 +164,16 @@ func (s *Service) checkService(p *planned, sp *svcPlan) {
 	}
 
 	// Stateless scaling and egress.
-	if f := sp.field("scale.replicas"); f != nil {
-		if n, _ := asInt(f.fv.Value); n > 1 && s.hasVolumes(sp) {
-			p.errorf("replicas_require_stateless", f.fv.Path, f.fv.Pos, "a service with volumes cannot run more than one replica")
-		}
-	}
 	for _, f := range sp.fields {
-		if f.skipped || !strings.HasPrefix(f.fv.ID, "processes.") || !strings.HasSuffix(f.fv.ID, ".scale.replicas") {
+		if f.skipped {
 			continue
 		}
-		if n, _ := asInt(f.fv.Value); n > 1 && s.hasVolumes(sp) {
-			p.errorf("replicas_require_stateless", f.fv.Path, f.fv.Pos, "a service with volumes cannot run more than one replica of a process")
+		process, wants := scaleRequest(f)
+		if !wants {
+			continue
+		}
+		if why := s.scaleRefusal(sp, cfg, process); why != "" {
+			p.errorf("replicas_require_stateless", f.fv.Path, f.fv.Pos, "%s", why)
 		}
 	}
 	if cfg.BlockEgress {
@@ -195,6 +199,10 @@ func (s *Service) checkService(p *planned, sp *svcPlan) {
 			p.checkSecretDecl(sp, f)
 		case strings.HasPrefix(f.fv.ID, "variables."):
 			p.checkReferences(f)
+		case f.fv.ID == "firewall":
+			p.checkFirewall(sp, f, cfg)
+		case f.fv.ID == "maintenance":
+			p.checkMaintenance(f, cfg)
 		}
 	}
 }
@@ -251,6 +259,56 @@ func (s *Service) hasVolumes(sp *svcPlan) bool {
 		}
 	}
 	return false
+}
+
+// scaleRequest reports whether a field asks for more than one instance (replicas above one, or
+// autoscaling turned on), and for which process ("" for the service's own scale).
+func scaleRequest(f *fieldPlan) (process string, wants bool) {
+	id := f.fv.ID
+	if rest, ok := strings.CutPrefix(id, "processes."); ok {
+		i := strings.Index(rest, ".scale.")
+		if i < 0 {
+			return "", false
+		}
+		process, id = rest[:i], "scale."+rest[i+len(".scale."):]
+	}
+	switch id {
+	case "scale.replicas":
+		n, _ := asInt(f.fv.Value)
+		return process, n > 1
+	case "scale.autoscaling.enabled":
+		on, _ := asBool(f.fv.Value)
+		return process, on
+	}
+	return "", false
+}
+
+// scaleRefusal is the platform's reason (services.Eligibility, services.ProcessEligibility) why the
+// service, or the named process, cannot run more than one replica with the config the file leads
+// to; empty when it can.
+func (s *Service) scaleRefusal(sp *svcPlan, cfg services.Config, process string) string {
+	volumes := 0
+	if s.hasVolumes(sp) {
+		volumes = 1
+	}
+	var ok bool
+	var why string
+	if process == "" {
+		ok, why = services.Eligibility(sp.rs.Kind, cfg, volumes)
+	} else {
+		ep := services.EffectiveProcess{Name: process}
+		for _, c := range cfg.EffectiveProcesses() {
+			if c.Name == process {
+				ep = c
+				break
+			}
+		}
+		ok, why = services.ProcessEligibility(sp.rs.Kind, cfg, volumes, ep)
+	}
+	if ok {
+		return ""
+	}
+	return why
 }
 
 // checkDatabase refuses a change to what a database's creation fixed, and a missing licence acknowledgement.
@@ -312,14 +370,20 @@ func (p *planned) checkDomain(sp *svcPlan, f *fieldPlan) {
 
 // checkDomainProcess applies the platform's rule for the process a domain routes to against the
 // config the file leads to, and refuses a change of the process of a domain that exists (the
-// platform fixes it when the domain is created).
+// platform fixes it when the domain is created). A target_port is held to the same rule: an app's
+// domain always routes to the port of its process, so a different one is refused; the domain of a
+// stack fixes its component and target port at creation (checkStackDomainTarget).
 func (p *planned) checkDomainProcess(sp *svcPlan, f *fieldPlan) {
 	r, ok := f.fv.Value.(projectconfig.DomainRule)
-	if !ok || sp.rs.Kind == projectconfig.KindStack || sp.rs.Kind == projectconfig.KindRoute {
+	if !ok || sp.rs.Kind == projectconfig.KindRoute {
+		return
+	}
+	if sp.rs.Kind == projectconfig.KindStack {
+		p.checkStackDomainTarget(sp, f, r)
 		return
 	}
 	cfg := sp.cfg
-	if r.Process == nil && !cfg.HasProcesses() {
+	if r.Process == nil && !cfg.HasProcesses() && (r.TargetPort == nil || *r.TargetPort == 0) {
 		return
 	}
 	process, target := "", 0
@@ -339,6 +403,23 @@ func (p *planned) checkDomainProcess(sp *svcPlan, f *fieldPlan) {
 	host, path := splitDomainID(f.fv.ID)
 	if d, live := sp.liveDomain(host, path); live && r.Process != nil && d.Component != stored {
 		p.errorf("immutable_field", f.fv.Path, f.fv.Pos, "the process of a domain cannot change; remove the domain and add it again")
+	}
+}
+
+// checkStackDomainTarget refuses a different component or target port for a stack domain that
+// exists: the platform fixes both when the domain is created and an update ignores them, so the
+// change would otherwise be a silent no-op.
+func (p *planned) checkStackDomainTarget(sp *svcPlan, f *fieldPlan, r projectconfig.DomainRule) {
+	host, path := splitDomainID(f.fv.ID)
+	d, live := sp.liveDomain(host, path)
+	if !live {
+		return
+	}
+	if r.Component != nil && *r.Component != d.Component {
+		p.errorf("immutable_field", f.fv.Path+".component", f.fv.Pos, "the component of a domain cannot change; remove the domain and add it again")
+	}
+	if r.TargetPort != nil && *r.TargetPort != 0 && int32(*r.TargetPort) != d.TargetPort {
+		p.errorf("immutable_field", f.fv.Path+".target_port", f.fv.Pos, "the target port of a domain cannot change; remove the domain and add it again")
 	}
 }
 
@@ -438,5 +519,54 @@ func (p *planned) checkUpstreamPolicy(s *Service, sp *svcPlan) {
 			path, pos = f.fv.Path, f.fv.Pos
 		}
 		p.useCaseError(err, path, pos)
+	}
+}
+
+// httpRouteOnly refuses a tcp or udp route: the proxy filters and puts into maintenance only HTTP traffic.
+func httpRouteOnly(cfg services.Config, code, msg string) error {
+	if r := cfg.Route; r != nil && r.Protocol != "" && r.Protocol != agentprotocol.ProtoHTTP {
+		return apierr.Unprocessable(code, msg)
+	}
+	return nil
+}
+
+// checkFirewall applies what firewall.Service.Put would refuse for a firewall that changes: a tcp or udp
+// route, an agent too old for firewalls and country rules on a server without geolocation. A firewall the
+// apply leaves alone is not checked: it is not written.
+func (p *planned) checkFirewall(sp *svcPlan, f *fieldPlan, cfg services.Config) {
+	v, ok := f.fv.Value.(projectconfig.FirewallValue)
+	if !ok || !f.changed {
+		return
+	}
+	if err := httpRouteOnly(cfg, "firewall_unsupported", "a firewall only applies to HTTP services, not tcp/udp routes"); err != nil {
+		p.useCaseError(err, f.fv.Path, f.fv.Pos)
+		return
+	}
+	if sp.server == nil {
+		return
+	}
+	if err := firewall.CheckPlacement(*sp.server, agentprotocol.Firewall{Rules: v.FirewallRules()}); err != nil {
+		p.useCaseError(err, f.fv.Path, f.fv.Pos)
+	}
+}
+
+// checkMaintenance applies what maintenance.Service.Set would refuse for a maintenance setting that changes: a
+// tcp or udp route, and an expected-back time that has passed (a time that already is the live one is a no-op
+// for the platform, which the plan does not flag because the setting does not change).
+func (p *planned) checkMaintenance(f *fieldPlan, cfg services.Config) {
+	v, ok := f.fv.Value.(projectconfig.MaintenanceValue)
+	if !ok || !f.changed {
+		return
+	}
+	if err := httpRouteOnly(cfg, "maintenance_unsupported", "maintenance mode only applies to HTTP services, not tcp/udp routes"); err != nil {
+		p.useCaseError(err, f.fv.Path, f.fv.Pos)
+		return
+	}
+	if !v.Enabled || v.ETA == "" {
+		return
+	}
+	if eta, err := projectconfig.MaintenanceETA(v.ETA); err == nil && !eta.After(time.Now()) {
+		path := f.fv.Path + ".eta"
+		p.errorf("invalid_value", path, firstPos(p.res.Pos(path), f.fv.Pos), "eta %s has passed: maintenance needs an expected-back time in the future", v.ETA)
 	}
 }

@@ -53,15 +53,18 @@ Common keys: `name` (immediate), `server` (staged; required for `route`), `only_
 |---|---|---|---|---|
 | `port`, `command`, `health_check`, `one_shot` | yes | derived | no | no |
 | `cron` | yes | no | no | no |
-| `stop_grace_seconds`, `memory_mb`, `cpus`, `image_retention`, `block_egress`, `docker` | yes | yes | no | no |
+| `stop_grace_seconds`, `block_egress` | yes | yes | no | yes |
+| `memory_mb`, `cpus`, `image_retention`, `docker` | yes | yes | no | no |
 | `tailnet` | yes | yes | no | no |
 | `restart_policy`, `restart_max_retries` | yes | no | no | no |
-| `pre_deploy`, `post_deploy`, `files`, `volumes`, `scale`, `tasks` | yes | no | no | no |
+| `pre_deploy`, `post_deploy`, `files`, `volumes`, `scale` | yes | no | no | no |
+| `tasks` | yes | yes | no | no |
 | `process_name`, `singleton`, `processes` | yes | no | no | no |
 | `variables`, `secrets` | yes | yes | no | yes |
 | `domains` | yes (needs a port) | no | yes (http routes) | yes (`component`) |
 | `backups` | no | yes | no | no |
 | `uptime` | yes | yes | yes | yes |
+| `firewall`, `maintenance` | yes (not `one_shot`) | no | yes (http routes) | no |
 
 A key not allowed for the kind is `not_allowed_for_kind`.
 
@@ -73,18 +76,20 @@ A key not allowed for the kind is `not_allowed_for_kind`.
 | `port` | integer | `0` | 0-65535; `0` means no HTTP |
 | `command` | argv | image default | `[]` clears |
 | `one_shot` | bool | `false` | Runs to completion on every deploy; excludes `pre_deploy` and `post_deploy` |
-| `stop_grace_seconds` | integer | `30` | 1-3600 |
+| `stop_grace_seconds` | integer | `30` | 1-3600; a stack applies it to stopping and restarting its containers |
 | `restart_policy` | string | `always` | `always`, `on-failure` or `never`; not with `one_shot`; not for databases |
 | `restart_max_retries` | integer | `10` with `on-failure` | 1-100; only with `restart_policy = "on-failure"` |
-| `memory_mb` | integer | `0` (no limit) | `0` or at least 6 |
-| `cpus` | float | `0` (no limit) | at least 0; the only float in the format |
+| `memory_mb` | integer | `0` (no limit) | `0` or at least 6; no upper bound in the file or the API (the dashboard form stops at 1048576) |
+| `cpus` | float | `0` (no limit) | at least 0, fractions allowed; no upper bound; the only float in the format |
 | `image_retention` | integer | `5` | 1-50 |
-| `block_egress` | bool | `false` (`true` for a new database) | No outbound internet |
+| `block_egress` | bool | `false` (`true` for a new database) | No outbound internet; also on a stack |
 | `generate_domain` | bool | `false` | Attach the platform-generated hostname when the service has none |
 
 `cron` (staged, each key owned on its own): turns the service into a cron service. `schedule` (required: a 5-field cron expression or `@daily` and friends), `timezone` (`UTC`; an IANA zone), `timeout_seconds` (1800, 1-86400), `concurrency` (`forbid`, `allow`; `forbid` skips a run while the previous one still runs). `one_shot = true` is implied (`one_shot = false` with `[cron]` is an error); a cron service has no `port`, `pre_deploy`, `post_deploy`, `processes` or `tasks`. A deploy pulls or builds the image and starts nothing; the image's own command (or `command`) runs on the schedule. See [cron services](../operations/tasks.md#cron-services).
 
-`health_check`: `type` (`http`, `tcp`, `docker`, `exec`, `none`), `path` (http, starts with `/`), `port`, `interval_seconds` (2), `timeout_seconds` (3), `start_period_seconds` (0), `deadline_seconds` (120, 1-3600), `success_threshold` (2), `command` (exec; first element `CMD` or `CMD-SHELL`). Each key is owned on its own.
+**Removing `[cron]`** releases the schedule, and the live schedule keeps running. An apply with `--prune` turns it off, exactly like switching **Run on a schedule** off in the dashboard (staged): the service stays a one-shot job that runs once per deploy. `one_shot` is a key of its own: the file only owned it through `[cron]`, so to make the service a normal long-running one again, write `one_shot = false` (an explicit `one_shot = true` keeps it one-shot). Removing only `timezone`, `timeout_seconds` or `concurrency` while `schedule` stays releases that key and changes nothing.
+
+`health_check`: `type` (`http`, `tcp`, `docker`, `exec`, `none`), `path` (http, starts with `/`), `port`, `interval_seconds` (2), `timeout_seconds` (3), `start_period_seconds` (0), `deadline_seconds` (120, 1-3600), `success_threshold` (2), `command` (exec; first element `CMD` or `CMD-SHELL`). Each key is owned on its own. Bounds, the same in the file and the API: `interval_seconds`, `timeout_seconds` and `success_threshold` at least 1, `start_period_seconds` at least 0, `deadline_seconds` 1-3600, `port` 0-65535; there is no other upper bound (the dashboard form limits the three timings and the start period to 3600 and the threshold to 100).
 
 `pre_deploy` and `post_deploy`: `command` (argv, required) and `timeout_seconds` (600, 1-3600).
 
@@ -92,7 +97,7 @@ A key not allowed for the kind is `not_allowed_for_kind`.
 
 | Key | Type | Notes |
 |---|---|---|
-| `git.url` | string | Public repository, or one whose token or deploy key is already stored. Userinfo in the URL is rejected. Exclusive with `connection` and `repo`. |
+| `git.url` | string | Public repository, or one whose token or deploy key is already stored. An `https://`, `http://`, `git://` or `ssh://` URL, or the scp form `git@host:org/repo.git`; an SSH URL clones with the service's stored SSH deploy key ([SSH deploy keys](../operations/ssh-deploy-keys.md)), which is not a file key. Userinfo in the URL is rejected. Exclusive with `connection` and `repo`. |
 | `git.connection` | string (name) | Git connection; credentials stay in the connection. immediate |
 | `git.repo` | string | `owner/name`. immediate |
 | `git.branch` | string | Required. |
@@ -117,6 +122,8 @@ The table form carries metadata: `KEY = { value = "...", scope = "build", commen
 
 `[services.<s>.domains."<host>[/<path-prefix>]"]`; a table may be empty. Keys (all staged unless noted): `target_port`, `component` (stack, required there), `process` (app with processes), `strip_prefix`, `add_prefix`, `kind` (`serve`, `redirect`), `redirect_to`, `redirect_code` (301, 302, 307, 308; default 308), `preserve_path`, `tls` (`auto`, `custom`, `none`), `certificate` (name), `dns_resolver`, `www_redirect`, `options` (the whole table replaces the live option set), and `cloudflare` (`proxied`, `origin_lock`; immediate, needs a Cloudflare connection).
 
+`target_port`, `component` and `process` are **create-only**: the platform fixes them when the domain is created and an update ignores them, so the plan refuses a different value on an existing hostname with `immutable_field` (on an app, a `target_port` other than the port of the process the domain routes to is refused as `invalid_target_port`). To point a hostname somewhere else, remove the domain and add it again, or use another hostname. Leaving the keys out of an existing domain's table changes nothing.
+
 `cloudflare`: NebulaCtrl always manages the DNS record of a hostname whose zone is in the team's connected Cloudflare account; there is no key to turn that off. The old `manage` key was removed: a file that still has it is rejected with `unknown_key` ("key \"manage\" was removed"), so delete the line. `proxied` is the orange cloud. Leave it out and the name keeps what it has: an existing DNS-only name stays DNS only, an existing proxied name stays proxied, and `plan` shows no change for it. A name NebulaCtrl starts managing, for example a new domain, is proxied, except a wildcard name or a name on a non-HTTP(S) port, which are DNS only because the Cloudflare proxy cannot serve them. A name behind a Cloudflare Tunnel is always proxied, whatever the file says. Write `proxied = false` to keep a name DNS only, or `proxied = true` to change a DNS-only name. `origin_lock` is the [origin lock](../operations/cloudflare.md#origin-lock) of a proxied name and follows the same rule: left out means unchanged. `nebulactrl config export` writes `proxied = false` for a DNS-only name in a connected zone, since proxied is the default there.
 
 `options`: `force_https`, `compress`, `noindex`, `security_headers` (`basic`, `strict`), `request_headers`, `response_headers`, `cors` (`origins`, `methods`, `headers`, `expose_headers`, `credentials`, `max_age_seconds`), `redirects` (array of `regex`, `replacement`, `permanent`), `rate_limit` (`average`, `period_seconds`, `burst`, `trusted_proxy_depth`), `access` (`allow_cidrs`, `deny_cidrs`, `trusted_proxy_depth`, `reject_status`), `basic_auth` (enables only; users and passwords are never in the file), `large_uploads`.
@@ -133,7 +140,7 @@ The table form carries metadata: `KEY = { value = "...", scope = "build", commen
 
 ### `stack`
 
-Exactly one of `compose` (up to 256 KiB) and `compose_file` (relative path, sent as an attachment); `wait_seconds` (300, 1-3600); `resources.<component>` with `memory_mb` and `cpus`.
+Exactly one of `compose` (up to 256 KiB) and `compose_file` (relative path, sent as an attachment); `wait_seconds` (300, 1-3600); `resources.<component>` with `memory_mb` and `cpus`. `stop_grace_seconds` and `block_egress` apply to the stack's containers (see [Runtime keys](#runtime-keys)). `generate_domain` is refused on a stack: the generated hostname is a dashboard and API action (Networking → Generate domain, with a `component`); in the file write an explicit `domains."<host>"` table with `component`.
 
 ### `processes`
 
@@ -151,16 +158,16 @@ A service can run more than one command from the same build. The service's own `
 | `processes.<name>.health_check` | table | follows the process' port | the keys of the service's `health_check` |
 | `processes.<name>.scale` | table (immediate) | 1 replica | `replicas`, `autoscaling.*` as for `scale` |
 
-A process is owned as a whole: a key you leave out takes its default. `domains."<host>".process` names the process a domain routes to (apps only; stacks use `component`); without it a domain routes to the own process, or to the only process with a port. The process name `web` (or `process_name`) is taken by the own process. A service with volumes cannot scale a process above one replica.
+A process is owned as a whole: a key you leave out takes its default. `domains."<host>".process` names the process a domain routes to (apps only; stacks use `component`); without it a domain routes to the own process, or to the only process with a port. The process name `web` (or `process_name`) is taken by the own process. A service with volumes cannot scale a process above one replica. **The file has no rename:** changing `processes.old` to `processes.new` is a remove and an add (a new process with the defaults; `old` is only released, and `--prune` removes it); see [processes](../operations/processes.md) for what that means for replicas and domains.
 
 ### `volumes`, `files`, `scale`, `uptime`, `tasks`, `docker`, `tailnet`
 
-- `volumes`: `name = "/mount/path"`, or the table form `name = { path = "/mount/path", owner = "10001:10001" }`; names match `^[a-z0-9][a-z0-9_.-]{0,62}$`, paths are absolute. The string form means no owner. `owner` is `"uid"` or `"uid:gid"`, numbers only (0-2147483647): the agent sets the owner of the volume's root directory (not recursively), for an image that runs as a non-root user and mounts a path the image does not contain ([volumes and their owner](../operations/deployments.md#volumes-and-their-owner)). Export writes the table form only for a volume that has an owner. An environment override replaces a volume entry as a unit. Staged. Detaching never deletes data. A service with volumes cannot have `scale.replicas` above 1.
+- `volumes`: `name = "/mount/path"`, or the table form `name = { path = "/mount/path", owner = "10001:10001" }`; names match `^[a-z0-9][a-z0-9_.-]{0,62}$`, paths are absolute. The string form means no owner. `owner` is `"uid"` or `"uid:gid"`, numbers only (0-2147483647): the agent sets the owner of the volume's root directory (not recursively), for an image that runs as a non-root user and mounts a path the image does not contain ([volumes and their owner](../operations/deployments.md#volumes-and-their-owner)). Export writes the table form only for a volume that has an owner. An environment override replaces a volume entry as a unit. Staged. Removing a volume from the file only **releases** it: it stays attached to the service. An apply with `--prune` detaches it (a staged change); the Docker volume and its data are never deleted. A service with volumes cannot have `scale.replicas` above 1.
 - `files."/path"`: `mode` (octal string, `0644`) and exactly one of `content` or `source` (an attachment). At most 16 files, 64 KiB each, 256 KiB in all. The whole set is one unit.
-- `scale` (immediate): `replicas` (1-10), `autoscaling.enabled`, `autoscaling.min`, `autoscaling.max`, `autoscaling.target_cpu_percent` (20-95).
+- `scale` (immediate): `replicas` (1-10), `autoscaling.enabled`, `autoscaling.min` (1-10), `autoscaling.max` (1-10, at least `min`), `autoscaling.target_cpu_percent` (20-95). More than one replica, or autoscaling on, is refused with `replicas_require_stateless` for a service with volumes, with `files`, or without an HTTP `port` (a service with `processes` may scale a process without a port), the same rule as the dashboard. The plan checks it against the live service, so a file that leaves out `port` or `volumes` is judged by what the service has.
 - `uptime` (immediate, admin scope): `enabled`, `alerts`, `failure_threshold` (3, 1-20), `recovery_threshold` (2, 1-20), `reminder_minutes` (0, 0-1440).
-- `tasks.<name>` (immediate, at most 20): `schedule` (required cron), `timezone` (`UTC`), `action` (`command`, `restart`; `command` by default), `command` (argv, required unless `action = "restart"`, where it must be absent), `enabled`, `timeout_seconds` (1800, 1-86400; not with `restart`), `concurrency` (`forbid`, `allow`). A `restart` task restarts the service's running container on the schedule and is refused on a `one_shot` service.
-- `docker`: staged, each key owned individually. Allowed everywhere: `cap_add`, `cap_drop`, `no_new_privileges`, `read_only_rootfs`, `pids_limit`, `hostname`, `dns`, `sysctls`, `host_sysctls`, `user`, `group_add`, `ulimits`, `shm_size_mb`, `extra_hosts`, `labels`, `init`, `stop_signal`, `tmpfs`, `entrypoint`. Only on unrestricted servers: `devices`, `gpus`, `runtime`, `privileged`, `pid_host`, `seccomp_unconfined`, `apparmor_unconfined` and the capabilities `NET_ADMIN` and `SYS_ADMIN`.
+- `tasks.<name>` (immediate, at most 20; image, git and database services): `schedule` (required cron), `timezone` (`UTC`), `action` (`command`, `restart`; `command` by default), `command` (argv, required unless `action = "restart"`, where it must be absent), `enabled`, `timeout_seconds` (1800, 1-86400; not with `restart`), `concurrency` (`forbid`, `allow`). A `restart` task restarts the service's running container on the schedule and is refused on a `one_shot` service.
+- `docker`: staged, each key owned individually. Allowed everywhere: `cap_add`, `cap_drop`, `no_new_privileges`, `read_only_rootfs`, `pids_limit`, `hostname`, `dns`, `sysctls`, `host_sysctls`, `user`, `group_add`, `ulimits`, `shm_size_mb`, `extra_hosts`, `labels`, `init`, `stop_signal`, `tmpfs` (`size_mb` 0-65536, `0` or absent means 64), `entrypoint` (1-32 elements). Only on unrestricted servers: `devices`, `gpus`, `runtime`, `privileged`, `pid_host`, `seccomp_unconfined`, `apparmor_unconfined` and the capabilities `NET_ADMIN` and `SYS_ADMIN`. The rules, limits and the API-to-file names are in [Docker options](../operations/docker-options.md#in-nebulatoml).
 - `tailnet`: staged, **owned as one unit** (every key you leave out takes its default, like a process; the live Funnel flag is never touched). Puts the service on your Tailscale or Headscale tailnet; see [per-service tailnet](../operations/service-tailnet.md). Image, git and database services. A cron or `one_shot` service cannot be on a tailnet.
 
   | Key | Type | Default | Notes |
@@ -182,6 +189,75 @@ A process is owned as a whole: a key you leave out takes its default. `domains."
   hide_public = true
   ```
 
+### `firewall` and `maintenance`
+
+Both are immediate and operational, like their dashboard controls: they change the proxy at once, without a deployment, and are not staged or rolled back. They apply to HTTP traffic only: image and git services and routes with `protocol = "http"`. Either table on a database, a stack or a tcp or udp route is `not_allowed_for_kind`, and on a `one_shot` or `cron` job (which serves no traffic) `invalid_value`.
+
+**`firewall`** (immediate, scope `proxy:write`; it also needs `projects:write`, which every apply holds) is the service's own rule list, see [Service firewall](../operations/firewall.md). The first enabled rule whose conditions all match decides, so **the list is owned as one unit, in order**: a plan or apply replaces the whole list, and moving a rule is a change. Each rule is a `[[services.<s>.firewall.rules]]` table, each condition a `[[services.<s>.firewall.rules.conditions]]` table below it.
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `rules` | array of tables | none | At most 50. An empty `[services.<s>.firewall]` table owns the firewall with no rules. |
+| `rules.id` | string | kept by position | 1-16 lowercase letters or digits, unique in the list. Optional: a rule without one keeps the id of the live rule at the same position (a new rule gets a generated one), so a file without ids plans as unchanged. Ids starting with `std` are reserved for the standard protection (`invalid_value`). |
+| `rules.name` | string | required | 1-80 characters; shown in the dashboard and the block log. |
+| `rules.action` | string | required | `block` answers HTTP 403; `allow` lets the request through and skips the rules below it. |
+| `rules.disabled` | bool | `false` | Keep the rule but never evaluate it. |
+| `rules.conditions` | array of tables | required | 1-10 per rule; every condition must match. |
+| `conditions.field` | string | required | `ip`, `country`, `path`, `method`, `header`, `userAgent`, `query`. |
+| `conditions.op` | string | required | Depends on the field: `ip`, `country` and `method` take `in`; `path` takes `prefix`, `exact`, `contains`, `regex`; `header` and `query` take `equals`, `contains`, `regex`, `present`; `userAgent` takes `contains`, `regex`. |
+| `conditions.name` | string | none | Header or query parameter name; required for `header` and `query`, not allowed for the other fields. |
+| `conditions.values` | array of strings | none | 1-50 per condition (an `ip` condition takes up to 200 addresses; none for `present`); the condition matches when any value does. Trimmed and de-duplicated; countries and methods are upper-cased. |
+| `conditions.not` | bool | `false` | Invert the condition. |
+
+The rules go through the same validation as `PUT /services/{id}/firewall` (`invalid_value`, naming the rule and condition at fault). The plan also checks what only the target server decides: `agent_too_old` when its agent predates firewalls, and `geo_required` when an active rule matches `country` and the server has no geolocation. Either blocks the service in the plan instead of failing the apply. The **standard protection** (secret-file probes) is not in the file: it is always on, after your rules, and never exported. Removing `[services.<s>.firewall]` from the file only **releases** the list, which stays live; an apply with `--prune` removes the service's own rules, like **Apply firewall** with an empty list (the standard protection stays). Export writes the live rules, ids included, so a round trip keeps them; a service with no rules gets no table unless the file already owns the firewall. In an environment block the rule list replaces the lower one as a whole.
+
+```toml
+[[services.web.firewall.rules]]
+id     = "wp"
+name   = "Block WordPress probes"
+action = "block"
+
+[[services.web.firewall.rules.conditions]]
+field  = "path"
+op     = "contains"
+values = ["wp-login.php", "xmlrpc.php", "/wp-admin", "phpmyadmin"]
+```
+
+**`maintenance`** (immediate, scope `deployments:write`) puts the service into [maintenance mode](../operations/maintenance-and-error-pages.md#maintenance-mode): every domain answers `503` with the maintenance page. The table is owned as one unit.
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `enabled` | bool | required | `true` switches maintenance on, `false` off. |
+| `title` | string | `Down for maintenance` | At most 80 characters. Only used while `enabled = true`. |
+| `message` | string | the default copy | At most 600 characters, plain text, newlines kept. Only used while `enabled = true`. |
+| `eta` | string | none | An RFC 3339 time **in the future**, written as a string (`"2026-12-01T06:00:00Z"`); stored in UTC, truncated to seconds. Shown on the page and sent as `Retry-After`. Only used while `enabled = true`. |
+
+`title`, `message` and `eta` are only compared while `enabled = true`: switching maintenance off keeps the stored text for next time, which a file with `enabled = false` neither sets nor compares. A plan blocks an `eta` that has passed (`invalid_value`) when it would change the setting; a file that repeats the live window is unchanged even after the time has passed. Removing `[services.<s>.maintenance]` only **releases** the setting and leaves the service in whatever state it is in; an apply with `--prune` **switches maintenance off**. Export writes the table while maintenance is on, and `enabled = false` where the file already owns it; a service that is not in maintenance and whose file says nothing gets no table, so an export never writes an outage that is not live. A file that says `enabled = true` puts the service back into maintenance on every apply that finds it off: end the window by writing `enabled = false`, not by deleting the table.
+
+```toml
+[services.web.maintenance]
+enabled = true
+title   = "Back soon"
+message = "We are upgrading the database."
+eta     = "2026-12-01T06:00:00Z"
+```
+
+### Not in the file
+
+These settings are deliberately not keys: they are secrets, or an action that needs a person's confirmation. An apply never reads or changes them; set each where listed.
+
+| Setting | Why it is not a key | Where to set it |
+|---|---|---|
+| Registry credentials of an image service | A secret | Service → Settings → Source (`registryAuth` in the API); see [change a service's source](../operations/builds.md#change-a-services-source). Moving to another source clears them. |
+| Git access token | A secret | Service → Settings → Source (`gitToken` in the API), or link a git connection with `git.connection` and `git.repo` ([Git providers](../operations/git-providers.md)). |
+| SSH deploy keys | A private key | Service → Settings → Source → **Use SSH**; a `git.url` in SSH form then uses it ([SSH deploy keys](../operations/ssh-deploy-keys.md)). |
+| Deploy hook URL | The URL is the secret and is shown once | Service → Settings → Deploy → **Deploy hook** ([deploy hooks](../operations/deploy-hooks.md#turn-it-on)). |
+| Basic-auth users and passwords | `options.basic_auth` only switches it on | The domain's rules in the dashboard, or the API ([basic auth](../operations/proxy-routes.md#basic-auth)). The plan warns `basic_auth_no_users` until a user exists. |
+| Tailnet Funnel | Publishes the service on the public internet; needs a typed confirmation | The service's tailnet settings ([Funnel](../operations/service-tailnet.md#funnel)). |
+| The public port of a managed database | A separate TCP route with an allow-list | The database's Networking settings or the API ([public port](../operations/databases.md#public-port)). |
+| The generated hostname of a stack | An action, not a setting | Networking → Generate domain; in the file write an explicit `domains."<host>"` table with `component`. |
+| The standard protection of a service's firewall | It is always on, after the service's own rules | Not a file key; to let one of its paths through, add an `allow` rule for it ([standard protection](../operations/firewall.md#standard-protection)). |
+
 ## Environments
 
 `[environments.<slug>]` overrides one environment: `server`, `variables` and `secrets` (the environment layer of shared variables), and `services.<slug>` with the same keys as a service plus `unset`. The file never creates, renames or deletes environments.
@@ -199,7 +275,7 @@ For service `S` in environment `E` the resolved definition is `merge(services.S,
 
 ## Limits
 
-File 256 KiB; attachments at most 8, 256 KiB each, 1 MiB in all; 64 services; 500 variables per service and per shared layer; 50 domains per service; 16 files per service; 20 tasks per service; 9 processes per service besides its own; 50 watch paths; 20 upstreams; 32 environment blocks; table nesting depth 10; any string 64 KiB.
+File 256 KiB; attachments at most 8, 256 KiB each, 1 MiB in all; 64 services; 500 variables per service and per shared layer; 50 domains per service; 16 files per service; 20 tasks per service; 9 processes per service besides its own; 50 firewall rules per service, 10 conditions per rule, 50 values per condition (200 for `ip`); 50 watch paths; 20 upstreams; 32 environment blocks; table nesting depth 10; any string 64 KiB.
 
 ## Problems
 

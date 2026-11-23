@@ -58,7 +58,7 @@ A file declares exactly one of `image` or `[services.<name>.git]` for an app. Ch
 | Apply | `nebulactrl config apply --env production` | Re-plans and stages the changes in one transaction, then applies the immediate settings. Pass `--plan-id` to fail if anything changed since the plan. |
 | Deploy | `nebulactrl config apply --deploy`, or the Deploy key | Staged changes take effect on the next deploy, like any dashboard edit. |
 
-Staged changes are visible in the staged bar, with `set by nebula.toml` beside the lines the file owns, and you can discard them. Settings that act on a running service (scaling of the service and of each process, tasks, backup schedules, uptime, a git link, DNS records) apply at once, like their dashboard controls.
+Staged changes are visible in the staged bar, with `set by nebula.toml` beside the lines the file owns, and you can discard them. Settings that act on a running service (scaling of the service and of each process, tasks, backup schedules, uptime, the firewall, maintenance mode, a git link, DNS records) apply at once, like their dashboard controls.
 
 The same calls exist in the API (`validateProjectConfig`, `planProjectConfig`, `applyProjectConfig`, `exportProjectConfig`) and, for agents, as one MCP tool, `sync_config`, in the `config` toolset (`?toolsets=core,config`): its `action` is `export`, `plan` or `apply`, and `plan` includes the validation.
 
@@ -66,7 +66,7 @@ The same calls exist in the API (`validateProjectConfig`, `planProjectConfig`, `
 
 - A key present in the file (after the environment's overrides) is **owned** by the file. A key you leave out is not touched.
 - Removing a key **releases** it: the live value stays, the file stops managing it. Removing a service from the file never deletes it; the plan lists it as *not in file*.
-- `--prune` additionally deletes only the variables, domains, volumes, networks, links, tasks, processes and backup schedules the file owned before and no longer names. It never deletes services, databases or stored backups, and it needs `--yes`. Agents cannot prune.
+- `--prune` additionally deletes only the variables, domains, volumes, networks, links, tasks, processes and backup schedules the file owned before and no longer names, and turns off a cron schedule whose `[cron]` table was removed (the service stays a one-shot job, like switching **Run on a schedule** off). Removing a volume detaches it; the Docker volume and its data stay on the server. It never deletes services, databases or stored backups, and it needs `--yes`. Agents cannot prune.
 - Editing an owned field in the dashboard is allowed. It shows as **edited here** (drift) with a file icon beside the control, and the next apply overwrites it. From the icon you can **Revert to file** or **Stop managing** that field.
 - The comparison is three-way: what the last apply wrote, the file, and what is live. The plan says whether a change is *file changed*, *edited in dashboard* or *both changed*.
 
@@ -129,12 +129,12 @@ Each problem carries a stable `code`. Fix the key at `path` (line and column are
 | `path_escape`, `attachment_missing` | A referenced file (`compose_file`, `files.*.source`, a Dockerfile path) leaves the repository or was not sent. |
 | `unknown_environment`, `project_mismatch` | The environment or project named does not exist, or the file's `project` differs from the target. |
 | `unknown_server`, `unknown_connection`, `unknown_registry`, `unknown_destination`, `unknown_network`, `unknown_certificate`, `ambiguous_reference` | A name in the file does not match exactly one object in the workspace. |
-| `immutable_field`, `source_type_change` | `immutable_field`: a create-only key (database engine, route protocol) cannot change through the file. `source_type_change`: the file would turn a service into a different **kind** (a database, route or stack, or an app into one of those). Moving an app between `image = …` and `[services.<name>.git]` is allowed: it is a staged `source` change. |
+| `immutable_field`, `source_type_change` | `immutable_field`: a create-only key (database engine, route protocol, the process, `component` or `target_port` of an existing domain) cannot change through the file; remove and re-add the domain instead. `source_type_change`: the file would turn a service into a different **kind** (a database, route or stack, or an app into one of those). Moving an app between `image = …` and `[services.<name>.git]` is allowed: it is a staged `source` change. |
 | `hostname_in_use`, `invalid_upstream`, `upstream_denied` | Another service owns the hostname, or the route's upstream is not allowed on that server. |
 | `process_command_required`, `process_name_reserved`, `process_port_conflict`, `process_singleton_scale` | A process needs its own `command`; its name cannot be the own process' name (`web`, or `process_name`); ports are unique across the service's processes; a `singleton` process runs one instance, so drop its `scale.replicas` above 1 or its autoscaling. See [processes](processes.md). |
 | `license_not_accepted` | Set `accept_license = true` for a source-available database engine. |
 | `docker_unrestricted`, `auto_apply_privileged` | The option needs an unrestricted server; auto-apply never applies it, a person must. |
-| `cloudflare_not_connected`, `replicas_require_stateless`, `egress_blocked` | The matching dashboard prerequisite is missing. |
+| `cloudflare_not_connected`, `replicas_require_stateless`, `egress_blocked` | The matching dashboard prerequisite is missing. `replicas_require_stateless`: more than one replica (or autoscaling) needs a service without volumes or `files` and with an HTTP `port` (a process of a service with `processes` needs no port). |
 | `basic_auth_no_users`, `secret_missing_value`, `secret_flag_differs` | Warnings: set the missing value or users in the dashboard; the variable will be marked secret on the next apply. |
 | `plan_stale`, `generation_conflict` | The file or environment changed since the plan. Plan again. |
 | `insufficient_scope`, `approval_required` | The token lacks a scope, or production needs a person's approval of this plan. |

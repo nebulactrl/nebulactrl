@@ -9,6 +9,8 @@ order: 40
 
 A git service can clone over SSH instead of HTTPS: **Settings → Source → Repository** accepts `ssh://git@host[:port]/org/repo.git` and the scp form `git@host:org/repo.git`. An SSH URL needs a **deploy key** and a **pinned host key**; both are managed per service under Source. They apply immediately and are never staged.
 
+**In `nebula.toml`.** Deploy keys are secrets, so they are not a key of the file (a credential key such as `deploy_key` is refused): the private key and the pinned host keys exist only on the service and are managed in the dashboard or the [API](#api). The file carries only the URL. `git.url` accepts `ssh://git@host[:port]/org/repo.git` and `git@host:org/repo.git` (a password in the URL is rejected) and the service uses the key already stored for it. Add the key under **Settings → Source** before the first deploy of an SSH service, or that deploy fails with "has no deploy key". See [`git` in the file reference](../reference/nebula-toml.md#git-and-build).
+
 ## Deploy key
 
 - **Use SSH: generate a key** creates an Ed25519 key pair on the control plane. The private key is stored encrypted (AES-256-GCM, like every secret), is **write-only** (no endpoint returns it) and travels to the agent as a send-time secret, never in a command payload, release or log. The public key is shown with a copy button, its fingerprint, and, for github.com, gitlab.com, bitbucket.org, codeberg.org and gitea.com, a link to the repository's "add deploy key" page. Read-only access is enough.

@@ -51,7 +51,7 @@ func TestCatalogSanity(t *testing.T) {
 		}
 		sort.Strings(got)
 		want := []string{
-			"backups.*", "domains.*.cloudflare", "git.auto_deploy", "git.link", "git.poll", "git.poll_deploy", "git.wait_for_ci", "git.watch_paths", "name",
+			"backups.*", "domains.*.cloudflare", "firewall", "git.auto_deploy", "git.link", "git.poll", "git.poll_deploy", "git.wait_for_ci", "git.watch_paths", "maintenance", "name",
 			"processes.*.scale.autoscaling.enabled", "processes.*.scale.autoscaling.max", "processes.*.scale.autoscaling.min",
 			"processes.*.scale.autoscaling.targetCpuPercent", "processes.*.scale.replicas",
 			"scale.autoscaling.enabled", "scale.autoscaling.max", "scale.autoscaling.min", "scale.autoscaling.targetCpuPercent",
@@ -591,6 +591,44 @@ target_port = 80
 
 [services.stk.uptime]
 reminder_minutes = 5
+
+[services.img.firewall]
+
+[[services.img.firewall.rules]]
+id = "admin1"
+name = " Block admin "
+action = "block"
+
+[[services.img.firewall.rules.conditions]]
+field = "country"
+op = "in"
+values = ["de", " fr ", "DE"]
+not = true
+
+[[services.img.firewall.rules.conditions]]
+field = "path"
+op = "prefix"
+values = ["/admin"]
+
+[[services.img.firewall.rules]]
+name = "Allow office"
+action = "allow"
+disabled = true
+
+[[services.img.firewall.rules.conditions]]
+field = "ip"
+op = "in"
+values = ["203.0.113.0/24"]
+
+[services.img.maintenance]
+enabled = true
+title = "  Back soon "
+message = "Upgrading."
+eta = "2026-12-01T08:00:00+02:00"
+
+[services.rt.maintenance]
+enabled = false
+title = "ignored while off"
 `
 
 func t2KindsResolved(t *testing.T) *Resolved {
@@ -634,7 +672,7 @@ func TestFieldsPerKind(t *testing.T) {
 			"domains.shop.acme.com", "domains.shop.acme.com.cloudflare", "domains.shop.acme.com/api", "domains.plain.acme.com",
 			"scale.replicas", "scale.autoscaling.enabled", "scale.autoscaling.min", "scale.autoscaling.max", "scale.autoscaling.targetCpuPercent",
 			"uptime.enabled", "uptime.alerts", "uptime.failureThreshold", "uptime.recoveryThreshold", "uptime.reminderMinutes",
-			"tasks.digest", "tasks.minimal", "tasks.restarter",
+			"tasks.digest", "tasks.minimal", "tasks.restarter", "firewall", "maintenance",
 		),
 		"ex": {"server", "config.image", "config.healthcheck.type", "config.healthcheck.command"},
 		"cr": {
@@ -663,7 +701,7 @@ func TestFieldsPerKind(t *testing.T) {
 			"name", "server", "links.img",
 			"config.route.protocol", "config.route.upstreams", "config.route.scheme", "config.route.insecureSkipVerify", "config.route.serverName",
 			"config.route.passHost", "config.route.healthPath", "config.route.verifySkip",
-			"domains.rt.acme.com", "uptime.enabled",
+			"domains.rt.acme.com", "uptime.enabled", "maintenance",
 		},
 		"tcp": {
 			"server", "config.route.protocol", "config.route.upstreams", "config.route.listenPort", "config.route.allowCidrs",
@@ -860,6 +898,20 @@ func TestFieldValuesOfTheImageService(t *testing.T) {
 		require.Equal(t, false, val("uptime.alerts"))
 		require.Equal(t, 4, val("uptime.failureThreshold"))
 		require.Equal(t, 30, val("uptime.reminderMinutes"))
+	})
+
+	t.Run("firewall and maintenance are one unit each, canonical", func(t *testing.T) {
+		require.Equal(t, FirewallValue{Rules: []FirewallRuleValue{
+			{ID: "admin1", Name: "Block admin", Action: "block", Conditions: []FirewallConditionValue{
+				{Field: "country", Op: "in", Values: []string{"DE", "FR"}, Not: true},
+				{Field: "path", Op: "prefix", Values: []string{"/admin"}},
+			}},
+			{Name: "Allow office", Action: "allow", Disabled: true, Conditions: []FirewallConditionValue{
+				{Field: "ip", Op: "in", Values: []string{"203.0.113.0/24"}},
+			}},
+		}}, val("firewall"))
+		require.Equal(t, MaintenanceValue{Enabled: true, Title: "Back soon", Message: "Upgrading.", ETA: "2026-12-01T06:00:00Z"}, val("maintenance"))
+		require.Equal(t, MaintenanceValue{}, t2field(t, t2KindsResolved(t), "rt", "maintenance").Value, "a disabled value carries no page text")
 	})
 
 	t.Run("tasks have their defaults filled", func(t *testing.T) {

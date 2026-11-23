@@ -29,6 +29,8 @@ func TestScopeOfFieldTable(t *testing.T) {
 		"backups.nightly":                                     policy.ScopeDeploymentsWrite,
 		"uptime.enabled":                                      policy.ScopeAdmin,
 		"uptime.reminderMinutes":                              policy.ScopeAdmin,
+		"firewall":                                            policy.ScopeProxyWrite,
+		"maintenance":                                         policy.ScopeDeploymentsWrite,
 		"config.route.protocol":                               policy.ScopeProxyWrite,
 		"config.route.upstreams":                              policy.ScopeProxyWrite,
 		"config.route.allowCidrs":                             policy.ScopeProxyWrite,
@@ -65,8 +67,10 @@ func TestScopeOfFieldEveryCatalogIDNeedsAValidScope(t *testing.T) {
 			want = policy.ScopeDeploymentsWrite
 		case strings.HasPrefix(id, "uptime."):
 			want = policy.ScopeAdmin
-		case strings.HasPrefix(id, "config.route."):
+		case id == "firewall", strings.HasPrefix(id, "config.route."):
 			want = policy.ScopeProxyWrite
+		case id == "maintenance":
+			want = policy.ScopeDeploymentsWrite
 		default:
 			want = policy.ScopeProjectsWrite
 		}

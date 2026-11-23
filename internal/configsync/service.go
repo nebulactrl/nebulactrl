@@ -13,8 +13,10 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/deployments"
 	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/events"
+	"github.com/nebulactrl/nebulactrl/internal/firewall"
 	"github.com/nebulactrl/nebulactrl/internal/gitproviders"
 	"github.com/nebulactrl/nebulactrl/internal/integrations/cloudflare"
+	"github.com/nebulactrl/nebulactrl/internal/maintenance"
 	"github.com/nebulactrl/nebulactrl/internal/networks"
 	"github.com/nebulactrl/nebulactrl/internal/proxyroutes"
 	"github.com/nebulactrl/nebulactrl/internal/scaling"
@@ -51,6 +53,16 @@ type BackupStore interface {
 // MonitorStore replaces a service's uptime monitor (uptime.Service).
 type MonitorStore interface {
 	UpdateMonitor(ctx context.Context, serviceID uuid.UUID, v uptime.MonitorView) (uptime.MonitorView, error)
+}
+
+// FirewallStore replaces a service's firewall rules (firewall.Service).
+type FirewallStore interface {
+	Put(ctx context.Context, serviceID uuid.UUID, in firewall.PutInput) (firewall.FirewallView, error)
+}
+
+// MaintenanceStore switches a service's maintenance mode (maintenance.Service).
+type MaintenanceStore interface {
+	Set(ctx context.Context, serviceID uuid.UUID, in maintenance.SetInput) (services.ServiceView, error)
 }
 
 // GitLinker links a service to a repository and sets how it checks for new commits (gitproviders.Service).
@@ -90,13 +102,15 @@ type Deps struct {
 	Networks  *networks.Service
 
 	// Immediate changes run after it commits.
-	Scaling    Scaler
-	Tasks      TaskStore
-	Backups    BackupStore
-	Uptime     MonitorStore
-	Git        GitLinker
-	Cloudflare DNSSettings
-	Deploy     Deployer
+	Scaling     Scaler
+	Tasks       TaskStore
+	Backups     BackupStore
+	Uptime      MonitorStore
+	Firewall    FirewallStore
+	Maintenance MaintenanceStore
+	Git         GitLinker
+	Cloudflare  DNSSettings
+	Deploy      Deployer
 }
 
 // Service implements validate, plan, apply and export of nebula.toml.

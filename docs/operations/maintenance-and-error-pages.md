@@ -38,6 +38,25 @@ Use it when you want visitors to see a clean page instead of a half-working app:
 - **Idempotent.** Repeating a request that changes nothing records no audit event and sends nothing.
 - **Not for TCP/UDP routes** (`422 maintenance_unsupported`): there is no page to show on a raw port.
 
+### In nebula.toml
+
+Maintenance mode is also a table of [`nebula.toml`](../reference/nebula-toml.md#firewall-and-maintenance), `[services.<s>.maintenance]`, for image and git services and HTTP routes. An apply switches it at once, like the dashboard control (scope `deployments:write`; nothing staged, no deployment).
+
+```toml
+[services.web.maintenance]
+enabled = true
+title   = "Back soon"
+message = "We are upgrading the database."
+eta     = "2026-12-01T06:00:00Z"
+```
+
+- **Keys:** `enabled` (required), `title` (at most 80 characters; empty shows "Down for maintenance"), `message` (at most 600; empty shows the default copy) and `eta` (an RFC 3339 time in the future, as a string). The text and the time only count while `enabled = true`.
+- **Off keeps the text.** `enabled = false` switches maintenance off and keeps the stored text for next time; the file neither sets nor compares it then.
+- **A past `eta`** is `invalid_value` when it would change the setting. A file that repeats the live window stays unchanged after the time passes, but it also leaves the maintenance page up: write `enabled = false` to end it.
+- **Removing the table releases it.** The service stays in whatever state it is in. `nebulactrl config apply --prune` switches maintenance off.
+- **Export** writes the table while maintenance is on (and `enabled = false` where the file already owns it), so an export never writes an outage that is not live.
+- **Not for** databases, stacks and TCP/UDP routes (`not_allowed_for_kind`), or for `one_shot` and cron jobs, which serve no traffic (`invalid_value`).
+
 ## Automatic error pages
 
 The agent adds an `errors` middleware (status `502-504`) in front of every service router and a lowest-priority catch-all router on ports 80 and 443. Together they replace Traefik's bare `Bad Gateway` / `no available server` / `404 page not found` text:

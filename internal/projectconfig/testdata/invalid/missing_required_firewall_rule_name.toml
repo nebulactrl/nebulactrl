@@ -1,0 +1,17 @@
+# expect: missing_required
+# schema: reject
+# Every firewall rule has a name, an action and at least one condition.
+schema = 1
+server = "fra-1"
+
+[services.web]
+image = "ghcr.io/acme/web:1.4.2"
+port = 3000
+
+[[services.web.firewall.rules]]
+action = "block"
+
+[[services.web.firewall.rules.conditions]]
+field = "path"
+op = "prefix"
+values = ["/admin"]

@@ -1,0 +1,24 @@
+# expect: not_allowed_for_kind
+# schema: reject
+# A stack is not a service the proxy filters per request: the firewall only
+# applies to image, git and HTTP route services.
+schema = 1
+server = "fra-1"
+
+[services.shop]
+
+[services.shop.stack]
+compose = '''
+services:
+  web:
+    image: nginx:1.27-alpine
+'''
+
+[[services.shop.firewall.rules]]
+name = "Block admin"
+action = "block"
+
+[[services.shop.firewall.rules.conditions]]
+field = "path"
+op = "prefix"
+values = ["/admin"]

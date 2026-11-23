@@ -91,11 +91,17 @@ func sortedKeys[V any](m map[string]V) []string {
 // Collections whose members the file owns individually and may prune.
 var prunablePrefixes = []string{"variables.", "domains.", "volumes.", "networks.", "links.", "tasks.", "backups.", "config.processes."}
 
+// cronScheduleID is the field that stands for the whole [cron] table.
+const cronScheduleID = "config.cron.schedule"
+
 // prunable reports whether a field id names a member of a prunable collection
 // (a declared secret flag, a domain's Cloudflare settings and the whole uptime
-// monitor included: uptime resets to its defaults).
+// monitor included: uptime resets to its defaults; the firewall is emptied and maintenance mode
+// is switched off). The cron schedule is prunable
+// as the marker of the whole [cron] table: removing it turns the schedule off (the
+// other cron keys are only released with it).
 func prunable(id string) bool {
-	if id == "uptime" || strings.HasPrefix(id, "uptime.") {
+	if id == "uptime" || strings.HasPrefix(id, "uptime.") || id == cronScheduleID || id == "firewall" || id == "maintenance" {
 		return true
 	}
 	for _, p := range prunablePrefixes {
