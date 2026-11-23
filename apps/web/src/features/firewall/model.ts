@@ -1299,7 +1299,7 @@ export const MAX_AUTOBAN_ALLOW = 200;
 export type AutoBanUnit = "minutes" | "hours" | "days";
 
 /** Seconds in one unit. */
-export const AUTOBAN_UNIT_SECONDS: Record<AutoBanUnit, number> = {
+const AUTOBAN_UNIT_SECONDS: Record<AutoBanUnit, number> = {
 	minutes: 60,
 	hours: 3600,
 	days: 86400,

@@ -592,7 +592,9 @@ func TestAutoBanIPv6BansTheWholeSlash64(t *testing.T) {
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw()}})
 	h.loadBans(bansOf("r1", []string{"2001:db8:1:2::99"},
 		agentprotocol.GuardBan{Prefix: "2001:db8:1:2::/64", ExpiresAt: time.Now().Add(time.Hour)}))
-	v := func(ip string) visit { return visit{route: "r1", client: "peer", method: "GET", uri: "/", forwardedFor: ip} }
+	v := func(ip string) visit {
+		return visit{route: "r1", client: "peer", method: "GET", uri: "/", forwardedFor: ip}
+	}
 	require.Equal(t, http.StatusForbidden, h.status(v("2001:db8:1:2::1")))
 	require.Equal(t, http.StatusForbidden, h.status(v("2001:db8:1:2:ffff:ffff:ffff:ffff")), "any address of the /64")
 	require.Equal(t, http.StatusOK, h.status(v("2001:db8:1:3::1")), "the next /64 is not banned")
@@ -605,7 +607,9 @@ func TestAutoBanIPv4MappedVisitorUsesTheIPv4Ban(t *testing.T) {
 	h.load(Rules{Routes: map[string]*agentprotocol.Firewall{"r1": fw()}})
 	h.loadBans(bansOf("r1", []string{"198.51.100.0/24"},
 		agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: time.Now().Add(time.Hour)}))
-	v := func(ip string) visit { return visit{route: "r1", client: "peer", method: "GET", uri: "/", forwardedFor: ip} }
+	v := func(ip string) visit {
+		return visit{route: "r1", client: "peer", method: "GET", uri: "/", forwardedFor: ip}
+	}
 	require.Equal(t, http.StatusForbidden, h.status(v("::ffff:203.0.113.7")))
 	require.Equal(t, http.StatusOK, h.status(v("::ffff:198.51.100.5")), "the allow list sees the unmapped address too")
 }
@@ -619,7 +623,9 @@ func TestAutoBanExpires(t *testing.T) {
 		agentprotocol.GuardBan{Prefix: "203.0.113.7/32", ExpiresAt: now.Add(time.Minute)},
 		agentprotocol.GuardBan{Prefix: "203.0.113.9/32", ExpiresAt: now.Add(-time.Second)},
 	))
-	v := func(ip string) visit { return visit{route: "r1", client: "peer", method: "GET", uri: "/", forwardedFor: ip} }
+	v := func(ip string) visit {
+		return visit{route: "r1", client: "peer", method: "GET", uri: "/", forwardedFor: ip}
+	}
 	require.Equal(t, http.StatusForbidden, h.status(v("203.0.113.7")))
 	require.Equal(t, http.StatusOK, h.status(v("203.0.113.9")), "a ban that expired before the load is not enforced")
 	now = now.Add(59 * time.Second)
