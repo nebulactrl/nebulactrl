@@ -42,11 +42,17 @@ describe("the default table", () => {
 });
 
 describe("the structural defaults", () => {
-	test("every schema of the API yields a valid default", () => {
-		for (const name of allNames) {
-			expect(() => make(name)).not.toThrow();
-		}
-	});
+	// Builds a default for every API schema (870+); under a loaded full run that
+	// takes longer than bun's 5 s default.
+	test(
+		"every schema of the API yields a valid default",
+		() => {
+			for (const name of allNames) {
+				expect(() => make(name)).not.toThrow();
+			}
+		},
+		20_000,
+	);
 
 	test("hold required members only, the smallest legal value", () => {
 		// PageServer has no table entry; `nextCursor` is optional, so it is absent.

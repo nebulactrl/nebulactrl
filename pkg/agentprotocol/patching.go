@@ -18,13 +18,22 @@ func init() { AllowedKinds[KindHostPatching] = true }
 // and is assumed to enroll with a current agent.
 const CapHostPatching = "host.patching"
 
+// CapHostPatchingAuto is advertised by agents that understand the scheduled
+// apply of automatic updates: held packages, the disk preflight and the
+// hand-over of the host's own automatic updates. A scheduled apply is never sent
+// to an agent without it (an older agent would ignore the holds and upgrade
+// Docker).
+const CapHostPatchingAuto = "host.patching.auto"
+
 // Patching actions (PatchingPayload.Action).
 const (
 	// PatchingActionCheck refreshes the package lists and reports the pending
 	// updates and whether a reboot is required. It changes no package.
 	PatchingActionCheck = "check"
 	// PatchingActionApply upgrades the packages (security ones only when
-	// asked), keeps the existing configuration files, then checks again.
+	// asked), keeps the existing configuration files, then checks again. A
+	// scheduled apply (trigger scheduled) also leaves the held packages alone and
+	// skips when the disk is nearly full.
 	PatchingActionApply = "apply"
 	// PatchingActionReboot schedules a reboot of the host a few seconds ahead
 	// so the agent can still answer, and reports the boot id it will replace.
@@ -36,6 +45,27 @@ const (
 	PatchingTriggerScheduled = "scheduled"
 	PatchingTriggerManual    = "manual"
 )
+
+// Native automatic updates (PatchingPayload.Native, PatchingResult.NativeApplied):
+// what to do with the host's own mechanism (unattended-upgrades, dnf-automatic).
+const (
+	// PatchNativeDisable switches it off so the schedule is the only one patching:
+	// an apt drop-in with APT::Periodic::Unattended-Upgrade "0", or the dnf
+	// automatic timers disabled (remembered in the state directory).
+	PatchNativeDisable = "disable"
+	// PatchNativeRestore undoes PatchNativeDisable: the drop-in is removed and the
+	// timers it disabled are enabled again.
+	PatchNativeRestore = "restore"
+)
+
+// Native automatic update mechanisms found active (PatchState.NativeAutoUpdates).
+const (
+	PatchNativeUnattendedUpgrades = "unattended-upgrades"
+	PatchNativeDNFAutomatic       = "dnf-automatic"
+)
+
+// MaxPatchHolds bounds PatchingPayload.HoldPackages.
+const MaxPatchHolds = 20
 
 // Package managers (PatchState.Manager).
 const (
@@ -50,6 +80,16 @@ type PatchingPayload struct {
 	Trigger string `json:"trigger"`
 	// SecurityOnly limits an apply to security updates.
 	SecurityOnly bool `json:"securityOnly,omitempty"`
+	// HoldPackages are package names a scheduled apply leaves alone, extra to the
+	// agent's built-in holds (Docker and containerd packages). Ignored by manual
+	// applies, which upgrade what the person reviewed in the plan.
+	HoldPackages []string `json:"holdPackages,omitempty"`
+	// Native asks a check or apply to first switch the host's own automatic updates
+	// off (PatchNativeDisable) or back on (PatchNativeRestore). Empty: leave them.
+	Native string `json:"native,omitempty"`
+	// CheckContainers asks a scheduled apply to report the restart policies of the
+	// running containers, so the control plane can decide on a reboot.
+	CheckContainers bool `json:"checkContainers,omitempty"`
 }
 
 // PatchPackage is one pending package upgrade.
@@ -84,6 +124,23 @@ type PatchState struct {
 	// Message is a caution from the check, for example that the package lists
 	// could not be refreshed and are the last ones the host downloaded.
 	Message string `json:"message,omitempty"`
+	// NativeAutoUpdates is the host's own automatic update mechanism that is
+	// active ("unattended-upgrades", "dnf-automatic"), empty when none is.
+	NativeAutoUpdates string `json:"nativeAutoUpdates,omitempty"`
+}
+
+// PatchContainers is the restart policy of the containers running on the host
+// before a scheduled reboot: they only come back by themselves when every one of
+// them restarts "always" or "unless-stopped".
+type PatchContainers struct {
+	// Known is false when the agent could not read them (no Docker CLI on the host,
+	// the daemon did not answer); Reason says why.
+	Known  bool   `json:"known"`
+	Reason string `json:"reason,omitempty"`
+	// Running counts the running containers; Unsafe names those whose restart
+	// policy is neither "always" nor "unless-stopped" (at most 20).
+	Running int      `json:"running,omitempty"`
+	Unsafe  []string `json:"unsafe,omitempty"`
 }
 
 // MaxPatchPackages bounds PatchState.Packages.
@@ -100,4 +157,9 @@ type PatchingResult struct {
 	// Log is the tail of what the upgrade printed (apply only), bounded.
 	Log     string `json:"log,omitempty"`
 	Message string `json:"message,omitempty"`
+	// NativeApplied echoes PatchingPayload.Native once the host's own automatic
+	// updates were switched; empty when nothing was asked or it did not work.
+	NativeApplied string `json:"nativeApplied,omitempty"`
+	// Containers is set on a scheduled apply that asked for it.
+	Containers *PatchContainers `json:"containers,omitempty"`
 }

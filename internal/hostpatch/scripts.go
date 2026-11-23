@@ -39,11 +39,13 @@ if command -v timeout >/dev/null 2>&1; then _t="timeout 300"; else _t=""; fi
 echo "@@BOOTID $(cat /proc/sys/kernel/random/boot_id 2>/dev/null)"
 if command -v apt-get >/dev/null 2>&1; then
   echo "@@MANAGER apt"
-  DEBIAN_FRONTEND=noninteractive $_t apt-get update -qq >/dev/null 2>&1
+  DEBIAN_FRONTEND=noninteractive $_t apt-get -o Acquire::Retries=3 update -qq >/dev/null 2>&1
   echo "@@REFRESH $?"
   echo "@@UPDATES"
   apt-get -s -o Debug::NoLocking=1 upgrade 2>/dev/null | grep '^Inst '
   echo "@@UPDATESRC 0"
+  _nv="$(apt-config dump 2>/dev/null | sed -n 's/^APT::Periodic::Unattended-Upgrade "\(.*\)";.*/\1/p' | head -n1)"
+  if command -v unattended-upgrade >/dev/null 2>&1 && [ -n "$_nv" ] && [ "$_nv" != "0" ]; then echo "@@NATIVE unattended-upgrades"; else echo "@@NATIVE"; fi
   if [ -e /run/reboot-required ] || [ -e /var/run/reboot-required ]; then
     echo "@@REBOOT 1"
     echo "@@REBOOTPKGS"
@@ -69,6 +71,13 @@ elif command -v dnf >/dev/null 2>&1; then
     [ -n "$_new" ] && [ "$_new" != "$_run" ] && _r=1
   fi
   echo "@@REBOOT $_r"
+  _nat=""
+  if command -v systemctl >/dev/null 2>&1; then
+    for _u in dnf-automatic.timer dnf-automatic-install.timer dnf5-automatic.timer; do
+      case "$(systemctl is-enabled "$_u" 2>/dev/null)" in enabled|enabled-runtime) _nat="dnf-automatic" ;; esac
+    done
+  fi
+  echo "@@NATIVE $_nat"
 else
   echo "@@MANAGER none"
 fi
@@ -104,28 +113,103 @@ func validRunID(id string) error {
 	return nil
 }
 
+// UpgradeOptions shapes the upgrade program.
+type UpgradeOptions struct {
+	// SecurityOnly upgrades only the packages with a security update.
+	SecurityOnly bool
+	// Scheduled is the nightly run of automatic updates: it first checks the free
+	// disk space (exit status ExitSkipped when there is too little), leaves the
+	// built-in holds and Holds alone, and lets apt install new dependencies of
+	// kept-back packages (kernel meta packages). A manual apply upgrades exactly
+	// what the person reviewed and is unaffected by holds.
+	Scheduled bool
+	// Holds are extra package names a scheduled upgrade leaves alone.
+	Holds []string
+}
+
+// ExitSkipped is the exit status of an upgrade that did not start because the
+// host failed the preflight; the log's last "nebulactrl: skipped: ..." line says why.
+const ExitSkipped = 75
+
+// SkipMarker starts the line the preflight prints when it skips the upgrade.
+const SkipMarker = "nebulactrl: skipped: "
+
+// MinVarFreeKiB and MinBootFreeKiB are the free space a scheduled upgrade needs
+// on /var (package downloads) and on a separate /boot (kernel and initramfs).
+const (
+	MinVarFreeKiB  = 1024 * 1024
+	MinBootFreeKiB = 300 * 1024
+)
+
+// preflightScript skips a scheduled upgrade on a nearly full disk.
+var preflightScript = fmt.Sprintf(`_kb() { df -Pk "$1" 2>/dev/null | awk 'NR==2 {print $4}'; }
+_v="$(_kb /var)"
+if [ -n "$_v" ] && [ "$_v" -lt %[1]d ] 2>/dev/null; then echo "%[3]sless than 1 GiB free on /var"; exit %[4]d; fi
+if awk '$2 == "/boot" {f=1} END {exit !f}' /proc/mounts 2>/dev/null; then
+  _b="$(_kb /boot)"
+  if [ -n "$_b" ] && [ "$_b" -lt %[2]d ] 2>/dev/null; then echo "%[3]sless than 300 MiB free on /boot"; exit %[4]d; fi
+fi
+`, MinVarFreeKiB, MinBootFreeKiB, SkipMarker, ExitSkipped)
+
 // upgradeScript returns the program that upgrades the packages.
-func upgradeScript(manager string, securityOnly bool) (string, error) {
+func upgradeScript(manager string, o UpgradeOptions) (string, error) {
+	holds, err := holdPatterns(o.Holds)
+	if err != nil {
+		return "", err
+	}
 	switch manager {
 	case "apt":
-		if securityOnly {
+		const refresh = `apt-get -o Acquire::Retries=3 -o DPkg::Lock::Timeout=600 update -qq || echo "could not refresh the package lists; using the last ones"
+`
+		const install = `apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold -o DPkg::Lock::Timeout=600`
+		if o.Scheduled {
+			filter := ""
+			if o.SecurityOnly {
+				filter = " | grep -e '-security'"
+			}
+			// Only upgrades of installed packages ("Inst name [old] (new ...)") are
+			// listed: "install --only-upgrade" would skip a brand-new package, which
+			// comes in as a dependency of the one that needs it. The held packages are
+			// dropped from the list instead of being "apt-mark hold"-ed, so a failure
+			// cannot leave a stray hold behind.
 			return preamble + `export DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1
-apt-get update -qq || echo "could not refresh the package lists; using the last ones"
-_pkgs="$(apt-get -s -o Debug::NoLocking=1 upgrade 2>/dev/null | grep '^Inst ' | grep -e '-security' | awk '{print $2}')"
+` + preflightScript + `held() { case "$1" in ` + holds + `) return 0 ;; esac; return 1; }
+` + refresh + `_all="$(apt-get -s -o Debug::NoLocking=1 --with-new-pkgs upgrade 2>/dev/null | grep '^Inst [^ ]* \[' ` + filter + ` | awk '{print $2}')"
+_pkgs=""; _held=""
+for _p in $_all; do if held "$_p"; then _held="$_held $_p"; else _pkgs="$_pkgs $_p"; fi; done
+[ -z "$_held" ] || echo "Held back:$_held"
+if [ -z "$_pkgs" ]; then echo "Nothing to upgrade."; exit 0; fi
+echo "Upgrading:$_pkgs"
+for _p in $(apt-get -s -o Debug::NoLocking=1 install --only-upgrade $_pkgs 2>/dev/null | grep '^Inst ' | awk '{print $2}'); do
+  if held "$_p"; then echo "The upgrade would also change the held package $_p. Upgrade it from the Updates tab instead."; exit 1; fi
+done
+` + install + ` install --only-upgrade $_pkgs
+`, nil
+		}
+		if o.SecurityOnly {
+			return preamble + `export DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1
+` + refresh + `_pkgs="$(apt-get -s -o Debug::NoLocking=1 upgrade 2>/dev/null | grep '^Inst ' | grep -e '-security' | awk '{print $2}')"
 if [ -z "$_pkgs" ]; then echo "No security updates are pending."; exit 0; fi
 echo "Upgrading: $_pkgs"
-apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install --only-upgrade $_pkgs
+` + install + ` install --only-upgrade $_pkgs
 `, nil
 		}
 		return preamble + `export DEBIAN_FRONTEND=noninteractive NEEDRESTART_SUSPEND=1
-apt-get update -qq || echo "could not refresh the package lists; using the last ones"
-apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold upgrade
+` + refresh + install + ` upgrade
 `, nil
 	case "dnf":
-		if securityOnly {
-			return preamble + "dnf -y upgrade --security\n", nil
+		sec := ""
+		if o.SecurityOnly {
+			sec = " --security"
 		}
-		return preamble + "dnf -y upgrade\n", nil
+		if o.Scheduled {
+			ex, err := excludeList(o.Holds)
+			if err != nil {
+				return "", err
+			}
+			return preamble + preflightScript + "dnf -y upgrade" + sec + " --exclude='" + ex + "'\n", nil
+		}
+		return preamble + "dnf -y upgrade" + sec + "\n", nil
 	}
 	return "", fmt.Errorf("unsupported package manager %q", manager)
 }
@@ -134,11 +218,11 @@ apt-get -y -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold
 // safe to run twice: it prints "@@STARTED" the first time and "@@RUNNING" or
 // "@@DONE" when the run already started, so an agent that restarted attaches to
 // the upgrade instead of starting another.
-func StartScript(runID, manager string, securityOnly bool) (string, error) {
+func StartScript(runID, manager string, o UpgradeOptions) (string, error) {
 	if err := validRunID(runID); err != nil {
 		return "", err
 	}
-	up, err := upgradeScript(manager, securityOnly)
+	up, err := upgradeScript(manager, o)
 	if err != nil {
 		return "", err
 	}
@@ -146,7 +230,7 @@ func StartScript(runID, manager string, securityOnly bool) (string, error) {
 ID=%[2]s
 umask 077
 mkdir -p "$D" || { echo "@@FAILED cannot create $D"; exit 0; }
-find "$D" -type f -mtime +7 -delete 2>/dev/null
+find "$D" -type f ! -name 'native-*' -mtime +7 -delete 2>/dev/null
 if [ -e "$D/$ID.rc" ]; then echo "@@DONE"; exit 0; fi
 if [ -e "$D/$ID.started" ]; then echo "@@RUNNING"; exit 0; fi
 : > "$D/$ID.started"

@@ -46,6 +46,7 @@ export interface ApiSchemas {
 	"AuthUserBody": T.AuthUserBody;
 	"AuthUsersOutputBody": T.AuthUsersOutputBody;
 	"AuthorizeOutputBody": T.AuthorizeOutputBody;
+	"AutoUpdateInputBody": T.AutoUpdateInputBody;
 	"Autoscaling": T.Autoscaling;
 	"AutoscalingPatch": T.AutoscalingPatch;
 	"AvailabilityView": T.AvailabilityView;
@@ -309,8 +310,12 @@ export interface ApiSchemas {
 	"FileListing": T.FileListing;
 	"FileMount": T.FileMount;
 	"FileWritePolicy": T.FileWritePolicy;
+	"FirewallBlocks": T.FirewallBlocks;
 	"FirewallCondition": T.FirewallCondition;
+	"FirewallPoint": T.FirewallPoint;
+	"FirewallReport": T.FirewallReport;
 	"FirewallRule": T.FirewallRule;
+	"FirewallRuleCount": T.FirewallRuleCount;
 	"FirewallView": T.FirewallView;
 	"FixesInputBody": T.FixesInputBody;
 	"FlavorView": T.FlavorView;
@@ -462,6 +467,8 @@ export interface ApiSchemas {
 	"PasswordResetRequestInputBody": T.PasswordResetRequestInputBody;
 	"PasswordResetRequestOutputBody": T.PasswordResetRequestOutputBody;
 	"PasswordResetStatusOutputBody": T.PasswordResetStatusOutputBody;
+	"PatchAuto": T.PatchAuto;
+	"PatchAutoRun": T.PatchAutoRun;
 	"PatchChannelInputBody": T.PatchChannelInputBody;
 	"PatchDestinationInputBody": T.PatchDestinationInputBody;
 	"PatchDrainInputBody": T.PatchDrainInputBody;

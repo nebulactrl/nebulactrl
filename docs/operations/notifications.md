@@ -43,7 +43,7 @@ A new channel starts with failures and alerts on and successes off:
 
 | On by default | Off by default |
 |---|---|
-| `deploy.failed`, `deploy.rolled_back`, `deployment.ci_blocked`, `server.offline`, `server.disk_alert`, `server.cleanup`, `server.reboot_required`, `backup.failed`, `backup.missed`, `storage.quota_warning`, `storage.quota_full`, `task.failed`, `scale.blocked`, `cert.expiring`, `dns.sync_failed`, `cloudflare.ips_stale`, `service.crashed`, `service.unhealthy`, `service.restart_loop`, `service.recovered`, `uptime.down`, `uptime.up` | `deploy.succeeded`, `server.online`, `backup.succeeded`, `preview.created`, `preview.deleted`, `maintenance.on`, `maintenance.off`, `cloudflare.ips_changed` |
+| `deploy.failed`, `deploy.rolled_back`, `deployment.ci_blocked`, `server.offline`, `server.disk_alert`, `server.cleanup`, `server.reboot_required`, `server.auto_update_failed`, `backup.failed`, `backup.missed`, `storage.quota_warning`, `storage.quota_full`, `task.failed`, `scale.blocked`, `cert.expiring`, `dns.sync_failed`, `cloudflare.ips_stale`, `service.crashed`, `service.unhealthy`, `service.restart_loop`, `service.recovered`, `uptime.down`, `uptime.up` | `deploy.succeeded`, `server.online`, `backup.succeeded`, `preview.created`, `preview.deleted`, `maintenance.on`, `maintenance.off`, `cloudflare.ips_changed` |
 
 `GET /api/v1/notifications/event-types` returns the catalogue (label, group, default severity, default on/off).
 
@@ -55,7 +55,7 @@ Built-in backup storage: when a team's use of its [built-in backup storage](plat
 
 Uptime: when the probes that run from each server (every 30 seconds) find a service down several times in a row, one `uptime.down` error is sent (and, if the monitor sets a reminder interval, again every that many minutes while the outage lasts); when it passes again, one `uptime.up` closes it, with the outage's duration. Maintenance and deployments never alert. A monitor's `alerts` switch turns all of it off for that service. See [Uptime monitoring](uptime.md).
 
-Server patching: when a server's host starts needing a reboot (the first [check](server-patching.md) that sees the flag, or an upgrade that sets it), one `server.reboot_required` warning is sent; it is not repeated while the flag stays set, and a new streak is announced again. Pending updates alone send nothing.
+Server patching: when a server's host starts needing a reboot (the first [check](server-patching.md) that sees the flag, or an upgrade that sets it), one `server.reboot_required` warning is sent; it is not repeated while the flag stays set, and a new streak is announced again. Pending updates alone send nothing. `server.auto_update_failed` (warning) is sent each time a scheduled [automatic update](server-patching.md#automatic-updates) of a server fails; the third failure in a row also switches automatic updates off for it.
 
 ## Delivery
 

@@ -34,7 +34,7 @@ SET status = $1::text,
     error = $6::text,
     finished_at = now()
 WHERE id = $7 AND status IN ('pending', 'rebooting')
-RETURNING id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at
+RETURNING id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at, slot_start
 `
 
 type FinishServerPatchRunParams struct {
@@ -82,12 +82,42 @@ func (q *Queries) FinishServerPatchRun(ctx context.Context, arg FinishServerPatc
 		&i.Error,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.SlotStart,
+	)
+	return i, err
+}
+
+const getServerPatchAutoSettings = `-- name: GetServerPatchAutoSettings :one
+
+SELECT server_id, workspace_id, enabled, scope, window_start, window_minutes, timezone, reboot, hold_packages, consecutive_failures, disabled_reason, native_handoff, settings_changed_at, updated_by, updated_at FROM server_patch_auto_settings WHERE server_id = $1
+`
+
+// ---- automatic updates ----
+func (q *Queries) GetServerPatchAutoSettings(ctx context.Context, serverID uuid.UUID) (ServerPatchAutoSetting, error) {
+	row := q.db.QueryRow(ctx, getServerPatchAutoSettings, serverID)
+	var i ServerPatchAutoSetting
+	err := row.Scan(
+		&i.ServerID,
+		&i.WorkspaceID,
+		&i.Enabled,
+		&i.Scope,
+		&i.WindowStart,
+		&i.WindowMinutes,
+		&i.Timezone,
+		&i.Reboot,
+		&i.HoldPackages,
+		&i.ConsecutiveFailures,
+		&i.DisabledReason,
+		&i.NativeHandoff,
+		&i.SettingsChangedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
 
 const getServerPatchRun = `-- name: GetServerPatchRun :one
-SELECT id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at FROM server_patch_runs WHERE id = $1 AND server_id = $2
+SELECT id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at, slot_start FROM server_patch_runs WHERE id = $1 AND server_id = $2
 `
 
 type GetServerPatchRunParams struct {
@@ -120,12 +150,13 @@ func (q *Queries) GetServerPatchRun(ctx context.Context, arg GetServerPatchRunPa
 		&i.Error,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.SlotStart,
 	)
 	return i, err
 }
 
 const getServerPatchRunByCommand = `-- name: GetServerPatchRunByCommand :one
-SELECT id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at FROM server_patch_runs WHERE command_id = $1 OR verify_command_id = $1
+SELECT id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at, slot_start FROM server_patch_runs WHERE command_id = $1 OR verify_command_id = $1
 ORDER BY created_at DESC LIMIT 1
 `
 
@@ -155,12 +186,13 @@ func (q *Queries) GetServerPatchRunByCommand(ctx context.Context, commandID *uui
 		&i.Error,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.SlotStart,
 	)
 	return i, err
 }
 
 const getServerPatchState = `-- name: GetServerPatchState :one
-SELECT server_id, workspace_id, manager, supported, updates, security_updates, packages, reboot_required, reboot_packages, boot_id, message, checked_at, updated_at FROM server_patch_state WHERE server_id = $1
+SELECT server_id, workspace_id, manager, supported, updates, security_updates, packages, reboot_required, reboot_packages, boot_id, message, checked_at, updated_at, native_auto_updates FROM server_patch_state WHERE server_id = $1
 `
 
 func (q *Queries) GetServerPatchState(ctx context.Context, serverID uuid.UUID) (ServerPatchState, error) {
@@ -180,6 +212,7 @@ func (q *Queries) GetServerPatchState(ctx context.Context, serverID uuid.UUID) (
 		&i.Message,
 		&i.CheckedAt,
 		&i.UpdatedAt,
+		&i.NativeAutoUpdates,
 	)
 	return i, err
 }
@@ -200,10 +233,88 @@ func (q *Queries) HasActiveServerPatchRun(ctx context.Context, serverID uuid.UUI
 	return exists, err
 }
 
+const hasRecentScheduledPatchReboot = `-- name: HasRecentScheduledPatchReboot :one
+SELECT EXISTS (
+    SELECT 1 FROM server_patch_runs
+    WHERE server_id = $1 AND trigger = 'scheduled' AND action = 'reboot' AND created_at > now() - interval '24 hours'
+)
+`
+
+func (q *Queries) HasRecentScheduledPatchReboot(ctx context.Context, serverID uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, hasRecentScheduledPatchReboot, serverID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasScheduledPatchApplyForSlot = `-- name: HasScheduledPatchApplyForSlot :one
+SELECT EXISTS (
+    SELECT 1 FROM server_patch_runs
+    WHERE server_id = $1 AND slot_start = $2 AND action = 'apply' AND trigger = 'scheduled'
+)
+`
+
+type HasScheduledPatchApplyForSlotParams struct {
+	ServerID  uuid.UUID  `json:"serverId"`
+	SlotStart *time.Time `json:"slotStart"`
+}
+
+func (q *Queries) HasScheduledPatchApplyForSlot(ctx context.Context, arg HasScheduledPatchApplyForSlotParams) (bool, error) {
+	row := q.db.QueryRow(ctx, hasScheduledPatchApplyForSlot, arg.ServerID, arg.SlotStart)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasScheduledPatchRunInFlight = `-- name: HasScheduledPatchRunInFlight :one
+SELECT EXISTS (
+    SELECT 1 FROM server_patch_runs
+    WHERE trigger = 'scheduled' AND action IN ('apply', 'reboot') AND status IN ('pending', 'rebooting')
+      AND created_at > now() - interval '6 hours'
+)
+`
+
+// A scheduled upgrade or reboot is in flight on any server: only one runs at a
+// time on the instance. A run older than 6 hours is not counted (its command was lost).
+func (q *Queries) HasScheduledPatchRunInFlight(ctx context.Context) (bool, error) {
+	row := q.db.QueryRow(ctx, hasScheduledPatchRunInFlight)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasServerBusyWork = `-- name: HasServerBusyWork :one
+SELECT (
+    EXISTS (
+        SELECT 1 FROM deployments d
+        WHERE (d.server_id = $1 OR d.build_server_id = $1)
+          AND d.status IN ('created', 'queued', 'preparing', 'building', 'releasing', 'verifying')
+          AND d.created_at > now() - interval '12 hours'
+    ) OR EXISTS (
+        SELECT 1 FROM backups b
+        WHERE b.server_id = $1 AND b.status IN ('queued', 'running') AND b.created_at > now() - interval '12 hours'
+    ) OR EXISTS (
+        SELECT 1 FROM backup_restores r
+        JOIN services sv ON sv.id = r.source_service_id OR sv.id = r.target_service_id
+        WHERE sv.server_id = $1 AND r.status IN ('provisioning', 'pre_backup', 'restoring')
+          AND r.created_at > now() - interval '12 hours'
+    )
+)::boolean AS busy
+`
+
+// A deployment or build (here as the target or the build server), a backup or a
+// restore is running on the server. Work older than 12 hours is not counted.
+func (q *Queries) HasServerBusyWork(ctx context.Context, serverID *uuid.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, hasServerBusyWork, serverID)
+	var busy bool
+	err := row.Scan(&busy)
+	return busy, err
+}
+
 const insertServerPatchRun = `-- name: InsertServerPatchRun :one
-INSERT INTO server_patch_runs (server_id, workspace_id, action, trigger, requested_by, security_only, updates_before)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
-RETURNING id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at
+INSERT INTO server_patch_runs (server_id, workspace_id, action, trigger, requested_by, security_only, updates_before, slot_start)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+RETURNING id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at, slot_start
 `
 
 type InsertServerPatchRunParams struct {
@@ -214,6 +325,7 @@ type InsertServerPatchRunParams struct {
 	RequestedBy   *uuid.UUID `json:"requestedBy"`
 	SecurityOnly  bool       `json:"securityOnly"`
 	UpdatesBefore *int32     `json:"updatesBefore"`
+	SlotStart     *time.Time `json:"slotStart"`
 }
 
 func (q *Queries) InsertServerPatchRun(ctx context.Context, arg InsertServerPatchRunParams) (ServerPatchRun, error) {
@@ -225,6 +337,7 @@ func (q *Queries) InsertServerPatchRun(ctx context.Context, arg InsertServerPatc
 		arg.RequestedBy,
 		arg.SecurityOnly,
 		arg.UpdatesBefore,
+		arg.SlotStart,
 	)
 	var i ServerPatchRun
 	err := row.Scan(
@@ -247,6 +360,32 @@ func (q *Queries) InsertServerPatchRun(ctx context.Context, arg InsertServerPatc
 		&i.Log,
 		&i.Message,
 		&i.Error,
+		&i.CreatedAt,
+		&i.FinishedAt,
+		&i.SlotStart,
+	)
+	return i, err
+}
+
+const lastScheduledPatchApply = `-- name: LastScheduledPatchApply :one
+SELECT id, status, created_at, finished_at FROM server_patch_runs
+WHERE server_id = $1 AND action = 'apply' AND trigger = 'scheduled'
+ORDER BY created_at DESC, id DESC LIMIT 1
+`
+
+type LastScheduledPatchApplyRow struct {
+	ID         uuid.UUID  `json:"id"`
+	Status     string     `json:"status"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	FinishedAt *time.Time `json:"finishedAt"`
+}
+
+func (q *Queries) LastScheduledPatchApply(ctx context.Context, serverID uuid.UUID) (LastScheduledPatchApplyRow, error) {
+	row := q.db.QueryRow(ctx, lastScheduledPatchApply, serverID)
+	var i LastScheduledPatchApplyRow
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
 		&i.CreatedAt,
 		&i.FinishedAt,
 	)
@@ -285,8 +424,73 @@ func (q *Queries) ListBusyServerPatchRuns(ctx context.Context, ids []uuid.UUID) 
 	return items, nil
 }
 
+const listOnlineServerPatchAuto = `-- name: ListOnlineServerPatchAuto :many
+SELECT a.server_id, a.workspace_id, a.enabled, a.scope, a.window_start, a.window_minutes, a.timezone, a.reboot, a.hold_packages, a.consecutive_failures, a.disabled_reason, a.native_handoff, a.settings_changed_at, a.updated_by, a.updated_at, s.name AS server_name, s.facts AS server_facts, s.is_control_plane AS server_is_control_plane,
+       p.checked_at AS state_checked_at, COALESCE(p.updates, 0)::int AS state_updates,
+       COALESCE(p.security_updates, 0)::int AS state_security_updates
+FROM server_patch_auto_settings a
+JOIN servers s ON s.id = a.server_id
+LEFT JOIN server_patch_state p ON p.server_id = a.server_id
+WHERE a.enabled AND s.status = 'online'
+ORDER BY a.server_id
+`
+
+type ListOnlineServerPatchAutoRow struct {
+	ServerPatchAutoSetting ServerPatchAutoSetting `json:"serverPatchAutoSetting"`
+	ServerName             string                 `json:"serverName"`
+	ServerFacts            json.RawMessage        `json:"serverFacts"`
+	ServerIsControlPlane   bool                   `json:"serverIsControlPlane"`
+	StateCheckedAt         *time.Time             `json:"stateCheckedAt"`
+	StateUpdates           int32                  `json:"stateUpdates"`
+	StateSecurityUpdates   int32                  `json:"stateSecurityUpdates"`
+}
+
+// The schedules the sweep looks at: enabled, on an online server, with what the
+// due decision needs from the server and its last check.
+func (q *Queries) ListOnlineServerPatchAuto(ctx context.Context) ([]ListOnlineServerPatchAutoRow, error) {
+	rows, err := q.db.Query(ctx, listOnlineServerPatchAuto)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListOnlineServerPatchAutoRow{}
+	for rows.Next() {
+		var i ListOnlineServerPatchAutoRow
+		if err := rows.Scan(
+			&i.ServerPatchAutoSetting.ServerID,
+			&i.ServerPatchAutoSetting.WorkspaceID,
+			&i.ServerPatchAutoSetting.Enabled,
+			&i.ServerPatchAutoSetting.Scope,
+			&i.ServerPatchAutoSetting.WindowStart,
+			&i.ServerPatchAutoSetting.WindowMinutes,
+			&i.ServerPatchAutoSetting.Timezone,
+			&i.ServerPatchAutoSetting.Reboot,
+			&i.ServerPatchAutoSetting.HoldPackages,
+			&i.ServerPatchAutoSetting.ConsecutiveFailures,
+			&i.ServerPatchAutoSetting.DisabledReason,
+			&i.ServerPatchAutoSetting.NativeHandoff,
+			&i.ServerPatchAutoSetting.SettingsChangedAt,
+			&i.ServerPatchAutoSetting.UpdatedBy,
+			&i.ServerPatchAutoSetting.UpdatedAt,
+			&i.ServerName,
+			&i.ServerFacts,
+			&i.ServerIsControlPlane,
+			&i.StateCheckedAt,
+			&i.StateUpdates,
+			&i.StateSecurityUpdates,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listRebootingServerPatchRuns = `-- name: ListRebootingServerPatchRuns :many
-SELECT r.id, r.server_id, r.workspace_id, r.action, r.trigger, r.status, r.command_id, r.verify_command_id, r.verify_sent_at, r.requested_by, r.security_only, r.boot_id_before, r.rebooting_since, r.updates_before, r.updates_after, r.exit_code, r.log, r.message, r.error, r.created_at, r.finished_at, s.status AS server_status, s.last_seen_at AS server_last_seen_at
+SELECT r.id, r.server_id, r.workspace_id, r.action, r.trigger, r.status, r.command_id, r.verify_command_id, r.verify_sent_at, r.requested_by, r.security_only, r.boot_id_before, r.rebooting_since, r.updates_before, r.updates_after, r.exit_code, r.log, r.message, r.error, r.created_at, r.finished_at, r.slot_start, s.status AS server_status, s.last_seen_at AS server_last_seen_at
 FROM server_patch_runs r JOIN servers s ON s.id = r.server_id
 WHERE r.status = 'rebooting'
 ORDER BY r.created_at
@@ -330,6 +534,7 @@ func (q *Queries) ListRebootingServerPatchRuns(ctx context.Context) ([]ListReboo
 			&i.ServerPatchRun.Error,
 			&i.ServerPatchRun.CreatedAt,
 			&i.ServerPatchRun.FinishedAt,
+			&i.ServerPatchRun.SlotStart,
 			&i.ServerStatus,
 			&i.ServerLastSeenAt,
 		); err != nil {
@@ -343,10 +548,44 @@ func (q *Queries) ListRebootingServerPatchRuns(ctx context.Context) ([]ListReboo
 	return items, nil
 }
 
+const listServerHourlyRequests = `-- name: ListServerHourlyRequests :many
+SELECT bucket, sum(requests)::bigint AS requests
+FROM traffic_1h
+WHERE server_id = $1 AND bucket >= now() - interval '14 days'
+GROUP BY bucket
+ORDER BY bucket
+`
+
+type ListServerHourlyRequestsRow struct {
+	Bucket   time.Time `json:"bucket"`
+	Requests int64     `json:"requests"`
+}
+
+// Requests per hour the server served in the last 14 days, for the quiet-hour suggestion.
+func (q *Queries) ListServerHourlyRequests(ctx context.Context, serverID uuid.UUID) ([]ListServerHourlyRequestsRow, error) {
+	rows, err := q.db.Query(ctx, listServerHourlyRequests, serverID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListServerHourlyRequestsRow{}
+	for rows.Next() {
+		var i ListServerHourlyRequestsRow
+		if err := rows.Scan(&i.Bucket, &i.Requests); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listServerPatchRuns = `-- name: ListServerPatchRuns :many
 SELECT id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by,
        security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code,
-       ''::text AS log, message, error, created_at, finished_at
+       ''::text AS log, message, error, created_at, finished_at, slot_start
 FROM server_patch_runs WHERE server_id = $1 ORDER BY created_at DESC, id DESC LIMIT $2
 `
 
@@ -377,6 +616,7 @@ type ListServerPatchRunsRow struct {
 	Error           string     `json:"error"`
 	CreatedAt       time.Time  `json:"createdAt"`
 	FinishedAt      *time.Time `json:"finishedAt"`
+	SlotStart       *time.Time `json:"slotStart"`
 }
 
 // Newest first, without the log (it can be large; GetServerPatchRun has it).
@@ -411,6 +651,7 @@ func (q *Queries) ListServerPatchRuns(ctx context.Context, arg ListServerPatchRu
 			&i.Error,
 			&i.CreatedAt,
 			&i.FinishedAt,
+			&i.SlotStart,
 		); err != nil {
 			return nil, err
 		}
@@ -564,11 +805,51 @@ func (q *Queries) ListServersDueForPatchCheck(ctx context.Context, everySeconds 
 	return items, nil
 }
 
+const listServersNeedingNativeHandoff = `-- name: ListServersNeedingNativeHandoff :many
+SELECT s.id, s.facts
+FROM server_patch_auto_settings a
+JOIN servers s ON s.id = a.server_id
+WHERE a.enabled <> a.native_handoff AND s.status = 'online'
+  AND NOT EXISTS (
+      SELECT 1 FROM server_patch_runs r
+      WHERE r.server_id = s.id AND r.created_at > now() - make_interval(secs => $1::float8)
+  )
+ORDER BY s.id
+`
+
+type ListServersNeedingNativeHandoffRow struct {
+	ID    uuid.UUID       `json:"id"`
+	Facts json.RawMessage `json:"facts"`
+}
+
+// Online servers whose host automatic updates do not yet match the schedule
+// (enabled but not handed over, or disabled but still handed over) and that had
+// no run for the interval, so an agent that cannot switch them is not asked in a loop.
+func (q *Queries) ListServersNeedingNativeHandoff(ctx context.Context, everySeconds float64) ([]ListServersNeedingNativeHandoffRow, error) {
+	rows, err := q.db.Query(ctx, listServersNeedingNativeHandoff, everySeconds)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListServersNeedingNativeHandoffRow{}
+	for rows.Next() {
+		var i ListServersNeedingNativeHandoffRow
+		if err := rows.Scan(&i.ID, &i.Facts); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markServerPatchRunRebooting = `-- name: MarkServerPatchRunRebooting :one
 UPDATE server_patch_runs
 SET status = 'rebooting', boot_id_before = $1::text, rebooting_since = now(), message = $2::text
 WHERE id = $3 AND status = 'pending'
-RETURNING id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at
+RETURNING id, server_id, workspace_id, action, trigger, status, command_id, verify_command_id, verify_sent_at, requested_by, security_only, boot_id_before, rebooting_since, updates_before, updates_after, exit_code, log, message, error, created_at, finished_at, slot_start
 `
 
 type MarkServerPatchRunRebootingParams struct {
@@ -603,6 +884,7 @@ func (q *Queries) MarkServerPatchRunRebooting(ctx context.Context, arg MarkServe
 		&i.Error,
 		&i.CreatedAt,
 		&i.FinishedAt,
+		&i.SlotStart,
 	)
 	return i, err
 }
@@ -623,6 +905,70 @@ type PruneServerPatchRunsParams struct {
 
 func (q *Queries) PruneServerPatchRuns(ctx context.Context, arg PruneServerPatchRunsParams) error {
 	_, err := q.db.Exec(ctx, pruneServerPatchRuns, arg.ServerID, arg.Keep)
+	return err
+}
+
+const recordServerPatchAutoFailure = `-- name: RecordServerPatchAutoFailure :one
+UPDATE server_patch_auto_settings
+SET consecutive_failures = consecutive_failures + 1,
+    enabled = enabled AND consecutive_failures + 1 < $1::int,
+    disabled_reason = CASE WHEN enabled AND consecutive_failures + 1 >= $1::int
+                           THEN $2::text ELSE disabled_reason END,
+    updated_at = now()
+WHERE server_id = $3
+RETURNING server_id, workspace_id, enabled, scope, window_start, window_minutes, timezone, reboot, hold_packages, consecutive_failures, disabled_reason, native_handoff, settings_changed_at, updated_by, updated_at
+`
+
+type RecordServerPatchAutoFailureParams struct {
+	MaxFailures int32     `json:"maxFailures"`
+	Reason      string    `json:"reason"`
+	ServerID    uuid.UUID `json:"serverId"`
+}
+
+// A scheduled run failed: count it, and switch the schedule off at max_failures in a row.
+func (q *Queries) RecordServerPatchAutoFailure(ctx context.Context, arg RecordServerPatchAutoFailureParams) (ServerPatchAutoSetting, error) {
+	row := q.db.QueryRow(ctx, recordServerPatchAutoFailure, arg.MaxFailures, arg.Reason, arg.ServerID)
+	var i ServerPatchAutoSetting
+	err := row.Scan(
+		&i.ServerID,
+		&i.WorkspaceID,
+		&i.Enabled,
+		&i.Scope,
+		&i.WindowStart,
+		&i.WindowMinutes,
+		&i.Timezone,
+		&i.Reboot,
+		&i.HoldPackages,
+		&i.ConsecutiveFailures,
+		&i.DisabledReason,
+		&i.NativeHandoff,
+		&i.SettingsChangedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const resetServerPatchAutoFailures = `-- name: ResetServerPatchAutoFailures :exec
+UPDATE server_patch_auto_settings SET consecutive_failures = 0 WHERE server_id = $1 AND consecutive_failures <> 0
+`
+
+func (q *Queries) ResetServerPatchAutoFailures(ctx context.Context, serverID uuid.UUID) error {
+	_, err := q.db.Exec(ctx, resetServerPatchAutoFailures, serverID)
+	return err
+}
+
+const setServerPatchAutoNativeHandoff = `-- name: SetServerPatchAutoNativeHandoff :exec
+UPDATE server_patch_auto_settings SET native_handoff = $2 WHERE server_id = $1 AND native_handoff <> $2
+`
+
+type SetServerPatchAutoNativeHandoffParams struct {
+	ServerID      uuid.UUID `json:"serverId"`
+	NativeHandoff bool      `json:"nativeHandoff"`
+}
+
+func (q *Queries) SetServerPatchAutoNativeHandoff(ctx context.Context, arg SetServerPatchAutoNativeHandoffParams) error {
+	_, err := q.db.Exec(ctx, setServerPatchAutoNativeHandoff, arg.ServerID, arg.NativeHandoff)
 	return err
 }
 
@@ -654,12 +1000,83 @@ func (q *Queries) SetServerPatchRunVerify(ctx context.Context, arg SetServerPatc
 	return err
 }
 
+const upsertServerPatchAutoSettings = `-- name: UpsertServerPatchAutoSettings :one
+INSERT INTO server_patch_auto_settings (server_id, workspace_id, enabled, scope, window_start, window_minutes, timezone, reboot,
+                                        hold_packages, updated_by)
+VALUES ($1, $2, $3, $4, $5,
+        $6, $7, $8, $9::text[], $10)
+ON CONFLICT (server_id) DO UPDATE
+SET enabled = EXCLUDED.enabled,
+    scope = EXCLUDED.scope,
+    window_start = EXCLUDED.window_start,
+    window_minutes = EXCLUDED.window_minutes,
+    timezone = EXCLUDED.timezone,
+    reboot = EXCLUDED.reboot,
+    hold_packages = EXCLUDED.hold_packages,
+    consecutive_failures = 0,
+    disabled_reason = '',
+    settings_changed_at = now(),
+    updated_by = EXCLUDED.updated_by,
+    updated_at = now()
+RETURNING server_id, workspace_id, enabled, scope, window_start, window_minutes, timezone, reboot, hold_packages, consecutive_failures, disabled_reason, native_handoff, settings_changed_at, updated_by, updated_at
+`
+
+type UpsertServerPatchAutoSettingsParams struct {
+	ServerID      uuid.UUID  `json:"serverId"`
+	WorkspaceID   uuid.UUID  `json:"workspaceId"`
+	Enabled       bool       `json:"enabled"`
+	Scope         string     `json:"scope"`
+	WindowStart   string     `json:"windowStart"`
+	WindowMinutes int32      `json:"windowMinutes"`
+	Timezone      string     `json:"timezone"`
+	Reboot        string     `json:"reboot"`
+	HoldPackages  []string   `json:"holdPackages"`
+	UpdatedBy     *uuid.UUID `json:"updatedBy"`
+}
+
+// Saved by a person: a new save starts the failure count over, clears the reason
+// an earlier run of failures switched the schedule off, and makes the window
+// already under way wait for the next night (settings_changed_at).
+func (q *Queries) UpsertServerPatchAutoSettings(ctx context.Context, arg UpsertServerPatchAutoSettingsParams) (ServerPatchAutoSetting, error) {
+	row := q.db.QueryRow(ctx, upsertServerPatchAutoSettings,
+		arg.ServerID,
+		arg.WorkspaceID,
+		arg.Enabled,
+		arg.Scope,
+		arg.WindowStart,
+		arg.WindowMinutes,
+		arg.Timezone,
+		arg.Reboot,
+		arg.HoldPackages,
+		arg.UpdatedBy,
+	)
+	var i ServerPatchAutoSetting
+	err := row.Scan(
+		&i.ServerID,
+		&i.WorkspaceID,
+		&i.Enabled,
+		&i.Scope,
+		&i.WindowStart,
+		&i.WindowMinutes,
+		&i.Timezone,
+		&i.Reboot,
+		&i.HoldPackages,
+		&i.ConsecutiveFailures,
+		&i.DisabledReason,
+		&i.NativeHandoff,
+		&i.SettingsChangedAt,
+		&i.UpdatedBy,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const upsertServerPatchState = `-- name: UpsertServerPatchState :one
 INSERT INTO server_patch_state (server_id, workspace_id, manager, supported, updates, security_updates, packages,
-                                reboot_required, reboot_packages, boot_id, message, checked_at)
+                                reboot_required, reboot_packages, boot_id, message, native_auto_updates, checked_at)
 VALUES ($1, $2, $3, $4, $5,
         $6, $7::jsonb, $8, $9::text[],
-        $10, $11, now())
+        $10, $11, $12, now())
 ON CONFLICT (server_id) DO UPDATE
 SET manager = EXCLUDED.manager,
     supported = EXCLUDED.supported,
@@ -670,23 +1087,25 @@ SET manager = EXCLUDED.manager,
     reboot_packages = EXCLUDED.reboot_packages,
     boot_id = EXCLUDED.boot_id,
     message = EXCLUDED.message,
+    native_auto_updates = EXCLUDED.native_auto_updates,
     checked_at = now(),
     updated_at = now()
-RETURNING server_id, workspace_id, manager, supported, updates, security_updates, packages, reboot_required, reboot_packages, boot_id, message, checked_at, updated_at
+RETURNING server_id, workspace_id, manager, supported, updates, security_updates, packages, reboot_required, reboot_packages, boot_id, message, checked_at, updated_at, native_auto_updates
 `
 
 type UpsertServerPatchStateParams struct {
-	ServerID        uuid.UUID       `json:"serverId"`
-	WorkspaceID     uuid.UUID       `json:"workspaceId"`
-	Manager         string          `json:"manager"`
-	Supported       bool            `json:"supported"`
-	Updates         int32           `json:"updates"`
-	SecurityUpdates int32           `json:"securityUpdates"`
-	Packages        json.RawMessage `json:"packages"`
-	RebootRequired  bool            `json:"rebootRequired"`
-	RebootPackages  []string        `json:"rebootPackages"`
-	BootID          string          `json:"bootId"`
-	Message         string          `json:"message"`
+	ServerID          uuid.UUID       `json:"serverId"`
+	WorkspaceID       uuid.UUID       `json:"workspaceId"`
+	Manager           string          `json:"manager"`
+	Supported         bool            `json:"supported"`
+	Updates           int32           `json:"updates"`
+	SecurityUpdates   int32           `json:"securityUpdates"`
+	Packages          json.RawMessage `json:"packages"`
+	RebootRequired    bool            `json:"rebootRequired"`
+	RebootPackages    []string        `json:"rebootPackages"`
+	BootID            string          `json:"bootId"`
+	Message           string          `json:"message"`
+	NativeAutoUpdates string          `json:"nativeAutoUpdates"`
 }
 
 // The result of a check (or of the check that follows an upgrade).
@@ -703,6 +1122,7 @@ func (q *Queries) UpsertServerPatchState(ctx context.Context, arg UpsertServerPa
 		arg.RebootPackages,
 		arg.BootID,
 		arg.Message,
+		arg.NativeAutoUpdates,
 	)
 	var i ServerPatchState
 	err := row.Scan(
@@ -719,6 +1139,7 @@ func (q *Queries) UpsertServerPatchState(ctx context.Context, arg UpsertServerPa
 		&i.Message,
 		&i.CheckedAt,
 		&i.UpdatedAt,
+		&i.NativeAutoUpdates,
 	)
 	return i, err
 }

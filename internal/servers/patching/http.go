@@ -42,6 +42,22 @@ type rebootInput struct {
 	}
 }
 
+type autoUpdateInput struct {
+	ID   uuid.UUID `path:"serverId"`
+	Body struct {
+		Enabled               bool     `json:"enabled" doc:"Apply updates automatically every night"`
+		Scope                 string   `json:"scope" enum:"security,all" doc:"security: only the packages with a security update (apt and dnf); all: every package"`
+		WindowStart           string   `json:"windowStart" doc:"Start of the nightly window as HH:MM (24-hour) in timezone, for example 03:00. Avoid 01:00-02:59 where clocks change"`
+		WindowMinutes         int      `json:"windowMinutes" doc:"Length of the window in minutes, 60-240. Nothing starts in its last 15 minutes"`
+		Timezone              string   `json:"timezone" doc:"IANA time zone of windowStart, for example Europe/Berlin; UTC when empty"`
+		Reboot                string   `json:"reboot" enum:"never,whenRequired" doc:"whenRequired: reboot after an upgrade that asks for it, inside the window, with guards"`
+		HoldPackages          []string `json:"holdPackages" nullable:"false" doc:"Package names a scheduled run never upgrades, at most 20, extra to the built-in holds (Docker and containerd)"`
+		AcknowledgeProduction bool     `json:"acknowledgeProduction,omitempty" doc:"Required to enable when production services or the control plane run on the server"`
+	}
+}
+
+type autoUpdateOutput struct{ Body PatchAuto }
+
 type viewOutput struct{ Body PatchView }
 
 type planOutput struct{ Body PatchPlan }
@@ -58,7 +74,7 @@ func Register(h huma.API, svc *Service) {
 		OperationID: "getServerPatches", Method: http.MethodGet, Path: "/servers/{serverId}/patches", Tags: tags,
 		Summary: "Pending OS updates and reboot-required of a server",
 		Description: "The Updates panel: how many packages are waiting (and how many are security updates), whether the host asks for a reboot, the pending packages with a warning " +
-			"where an upgrade is risky, the production services that run on the server, and the recent runs. The agent checks every server about every 6 hours; `known` is false until the first check completes.",
+			"where an upgrade is risky, the production services that run on the server, the recent runs, and `auto`, the automatic updates (settings, next window, last scheduled run, quiet-hour suggestion). The agent checks every server about every 6 hours; `known` is false until the first check completes.",
 		Errors: errs,
 	}, policy.ScopeServersRead), func(ctx context.Context, in *serverInput) (*viewOutput, error) {
 		v, err := svc.Get(ctx, in.ID)
@@ -127,6 +143,29 @@ func Register(h huma.API, svc *Service) {
 			return nil, err
 		}
 		return &runOutput{Body: r}, nil
+	})
+
+	huma.Register(h, api.WithScopes(huma.Operation{
+		OperationID: "updateServerPatchAuto", Method: http.MethodPut, Path: "/servers/{serverId}/patches/auto", Tags: tags,
+		Summary: "Change the automatic updates of a server",
+		Description: "Replaces the settings. When enabled, NebulaCtrl applies the pending updates every night inside the window (a stable per-server delay of up to 30 minutes is added), " +
+			"never starts one in the last 15 minutes of the window, and holds back Docker and containerd packages (`builtinHolds`) plus `holdPackages`. It waits for deployments, builds and backups on the server " +
+			"and runs one scheduled upgrade at a time on the instance. `reboot: whenRequired` reboots only when at least 10 minutes of the window remain, the server did not reboot automatically in the last 24 hours, " +
+			"is not the control plane host and every running container restarts by itself. Three failed runs in a row switch it off. Instance admin only; a server that runs production services or the control plane " +
+			"also needs `acknowledgeProduction` to enable (422 `production_ack_required`). 422 `invalid_timezone`, `invalid_window`, `scope_unsupported`, `invalid_package`, `agent_too_old`, `patching_unsupported`. Audited.",
+		Errors: runErrs,
+	}, policy.ScopeServersWrite), func(ctx context.Context, in *autoUpdateInput) (*autoUpdateOutput, error) {
+		a, err := svc.UpdateAuto(ctx, in.ID, AutoInput{
+			AutoSettings: AutoSettings{
+				Enabled: in.Body.Enabled, Scope: in.Body.Scope, WindowStart: in.Body.WindowStart, WindowMinutes: in.Body.WindowMinutes,
+				Timezone: in.Body.Timezone, Reboot: in.Body.Reboot, HoldPackages: in.Body.HoldPackages,
+			},
+			AcknowledgeProduction: in.Body.AcknowledgeProduction,
+		})
+		if err != nil {
+			return nil, err
+		}
+		return &autoUpdateOutput{Body: a}, nil
 	})
 
 	huma.Register(h, api.WithScopes(api.WithIdempotency(huma.Operation{
