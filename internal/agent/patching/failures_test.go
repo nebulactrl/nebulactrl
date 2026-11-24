@@ -120,6 +120,20 @@ func TestApplyFollowUpFailureDoesNotOverwriteAMoreSpecificMessage(t *testing.T) 
 	require.Equal(t, "The package manager exited with status 1.", res.Message)
 }
 
+func TestScheduledApplyFailureMessageNamesTheCause(t *testing.T) {
+	r := &fakeRunner{steps: []step{
+		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},
+		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},
+		{match: startMarker, out: "@@STARTED\n"},
+		{match: statusMarker, out: "@@RC 1\n@@LOG\nUpgrading: tzdata curl\nThe upgrade would also change the held package curl. Upgrade it from the Updates tab instead.\n\n"},
+	}}
+	res, err := newSvc(r).Handle(context.Background(), agentprotocol.PatchingPayload{
+		RunID: applyRun, Action: agentprotocol.PatchingActionApply, Trigger: agentprotocol.PatchingTriggerScheduled,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "The package manager exited with status 1: The upgrade would also change the held package curl. Upgrade it from the Updates tab instead.", res.Message)
+}
+
 func TestApplyTreatsAnUnintelligibleStatusAsAnUnreachableHost(t *testing.T) {
 	r := &fakeRunner{steps: []step{
 		{match: checkMarker, out: checkOut(twoUpdates, "b", false)},

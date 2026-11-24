@@ -194,6 +194,11 @@ func (s *Service) apply(ctx context.Context, p agentprotocol.PatchingPayload, re
 		}
 		if status.ExitCode != 0 && res.Message == "" {
 			res.Message = fmt.Sprintf("The package manager exited with status %d.", status.ExitCode)
+			// Nobody watches a scheduled run: the notification must say why it failed
+			// (a held package pulled in by an upgrade, a locked dpkg), not only that it did.
+			if last := lastLogLine(status.Log); scheduled && last != "" {
+				res.Message = fmt.Sprintf("The package manager exited with status %d: %s", status.ExitCode, last)
+			}
 		}
 	}
 	// The follow-up check never fails the command: the upgrade ran, and that is
@@ -222,6 +227,17 @@ func skipReason(log string) string {
 		}
 	}
 	return reason
+}
+
+// lastLogLine is the last non-empty line of an upgrade's log, clipped to a
+// length that fits a notification.
+func lastLogLine(log string) string {
+	lines := strings.Split(strings.TrimSpace(log), "\n")
+	line := strings.TrimSpace(lines[len(lines)-1])
+	if len(line) > 200 {
+		line = strings.TrimSpace(line[:200]) + "..."
+	}
+	return line
 }
 
 // wait polls the host until the detached upgrade ends. A runner that cannot
