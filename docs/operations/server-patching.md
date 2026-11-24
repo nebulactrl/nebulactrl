@@ -107,7 +107,7 @@ Sent once each time a server **starts needing a reboot**: the first check that s
 
 ## Notification: `server.auto_update_failed`
 
-Sent each time a scheduled automatic update (or the reboot after it) of a server fails; the third failure in a row says automatic updates were switched off. Severity warning, group Servers, on by default for a new channel. A successful night sends nothing.
+Sent each time a scheduled automatic update (or the reboot after it) of a server fails; the message carries the last line of the upgrade's log when the package manager failed (a held package that an upgrade would pull in, a locked dpkg), and the third failure in a row says automatic updates were switched off. Severity warning, group Servers, on by default for a new channel. A successful night sends nothing.
 
 ## API
 
