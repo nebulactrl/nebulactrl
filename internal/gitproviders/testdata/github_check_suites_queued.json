@@ -1,0 +1,7 @@
+{
+  "total_count": 2,
+  "check_suites": [
+    {"id": 11, "status": "completed", "conclusion": "success", "app": {"slug": "github-actions"}, "latest_check_runs_count": 4},
+    {"id": 12, "status": "queued", "conclusion": null, "app": {"slug": "github-actions"}, "latest_check_runs_count": 0}
+  ]
+}

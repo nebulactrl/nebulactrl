@@ -383,6 +383,52 @@ func TestWaitForCIGitHubWithoutChecksPermissionNotifiesHowToFixIt(t *testing.T) 
 	require.Equal(t, "Bearer ghs_installation_token", f.provider.callsTo("GET", base+"/check-runs")[0].Auth)
 }
 
+// A workflow run queued behind its concurrency group has a check suite but no
+// check run yet: the push must keep waiting instead of deploying as "no checks".
+func TestWaitForCIGitHubQueuedWorkflowRunIsWaitedFor(t *testing.T) {
+	f := newFixture(t)
+	conn := githubConnection(t, f)
+	ghTokenWith(f, map[string]string{"contents": "read", "metadata": "read", "statuses": "write", "checks": "read"})
+	svc := f.gitService("api")
+	_, err := f.svc.Link(f.ctx, svc.ID, gitproviders.LinkInput{ConnectionID: conn.ID, Repo: "acme/shop", WaitForCI: ptr(true)})
+	require.NoError(t, err)
+
+	const base = "/api/v3/repos/acme/shop/commits/" + ciRigSHA
+	ciState := func(suite string, runs ...any) {
+		f.provider.json("GET "+base+"/check-runs", 200, map[string]any{"total_count": len(runs), "check_runs": runs})
+		f.provider.json("GET "+base+"/check-suites", 200, map[string]any{"total_count": 2, "check_suites": []any{
+			map[string]any{"status": suite, "app": map[string]any{"slug": "github-actions"}},
+			map[string]any{"status": "queued", "app": map[string]any{"slug": "vercel"}},
+		}})
+	}
+	f.provider.json("GET "+base+"/status", 200, map[string]any{"state": "pending", "statuses": []any{}})
+	ciState("queued")
+
+	now := time.Now().UTC().Truncate(time.Second)
+	f.svc.SetNow(func() time.Time { return now })
+	body := bytes.ReplaceAll(readTestdata(t, "github_push.json"), []byte("octo-org/monorepo"), []byte("acme/shop"))
+	body = bytes.ReplaceAll(body, []byte("a1b2c3d4e5f60718293a4b5c6d7e8f9012345678"), []byte(ciRigSHA))
+	code, reply := f.post("github", conn.ID, map[string]string{
+		"X-GitHub-Event": "push", "X-GitHub-Delivery": "gh-ci-queued", "X-Hub-Signature-256": "sha256=" + gitproviders.SignForTest("whsec_from_github", body),
+	}, body)
+	require.Equal(t, 200, code)
+	require.Contains(t, reply["summary"], "waiting for CI")
+
+	for range 10 { // 10 minutes, well past the two minute grace for a commit without checks
+		now = now.Add(time.Minute)
+		require.NoError(t, f.svc.Sweep(context.Background()))
+	}
+	require.Empty(t, f.dep.snapshot(), "a queued workflow run is pending, not missing")
+	waiting, err := f.svc.GetLink(f.ctx, svc.ID)
+	require.NoError(t, err)
+	require.NotNil(t, waiting.WaitingForCI)
+
+	ciState("completed", map[string]any{"name": "quality", "status": "completed", "conclusion": "success"})
+	now = now.Add(time.Minute)
+	require.NoError(t, f.svc.Sweep(context.Background()))
+	require.Len(t, f.dep.snapshot(), 1)
+}
+
 // ghTokenWith makes the fake GitHub mint installation tokens carrying perms.
 func ghTokenWith(f *fixture, perms map[string]string) {
 	f.provider.json("POST /api/v3/app/installations/555/access_tokens", 201, map[string]any{

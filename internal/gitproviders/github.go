@@ -302,9 +302,11 @@ func (githubDriver) setStatus(ctx context.Context, c *apiClient, repo, sha strin
 	return err
 }
 
-// readCI folds the commit's check runs and commit statuses.
+// readCI folds the commit's check runs, commit statuses and not yet started
+// GitHub Actions workflow runs.
 // https://docs.github.com/en/rest/checks/runs#list-check-runs-for-a-git-reference
 // https://docs.github.com/en/rest/commits/statuses#get-the-combined-status-for-a-specific-reference
+// https://docs.github.com/en/rest/checks/suites#list-check-suites-for-a-git-reference
 func (githubDriver) readCI(ctx context.Context, c *apiClient, repo, sha string) (CIResult, error) {
 	ghClient(c)
 	var acc ciAcc
@@ -356,6 +358,30 @@ func (githubDriver) readCI(ctx context.Context, c *apiClient, repo, sha string) 
 			acc.add(s.Context, ciFailure)
 		default: // pending
 			acc.add(s.Context, ciPending)
+		}
+	}
+	if res := acc.result(); res.State == ciFailure || res.State == ciPending {
+		return res, nil
+	}
+	// A workflow run waiting for its concurrency group or a runner has no
+	// check run yet, only a check suite; without this the commit would read
+	// as "no checks" (and deploy after ciNoneGrace) or as "success".
+	// Only GitHub Actions suites count: GitHub creates a suite for every app
+	// with checks:write, and one that never runs a check stays queued forever.
+	var cs struct {
+		CheckSuites []struct {
+			Status string `json:"status"`
+			App    struct {
+				Slug string `json:"slug"`
+			} `json:"app"`
+		} `json:"check_suites"`
+	}
+	if err := c.do(ctx, http.MethodGet, base+"/check-suites", url.Values{"per_page": {"100"}}, nil, &cs); err != nil {
+		return CIResult{}, ciError(err)
+	}
+	for _, s := range cs.CheckSuites {
+		if s.App.Slug == "github-actions" && s.Status != "completed" {
+			acc.add("a queued GitHub Actions workflow", ciPending)
 		}
 	}
 	return acc.result(), nil

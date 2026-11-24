@@ -56,48 +56,52 @@ const ciSHA = "bffeb74224043ba2feb48e12f2ac4a0a9de3e04c"
 
 func TestGitHubReadCI(t *testing.T) {
 	const base = "/repos/acme/shop/commits/" + ciSHA
-	run := func(t *testing.T, checkRuns, status string) (CIResult, error) {
+	run := func(t *testing.T, checkRuns, status, suites string) (CIResult, error) {
 		t.Helper()
-		cs := newCIServer(t, map[string]string{base + "/check-runs": checkRuns, base + "/status": status})
+		cs := newCIServer(t, map[string]string{base + "/check-runs": checkRuns, base + "/status": status, base + "/check-suites": suites})
 		return githubDriver{}.readCI(context.Background(), cs.apiClient, "acme/shop", ciSHA)
 	}
+	const noSuites = "github_check_suites_none.json"
 	tests := []struct {
-		name, checkRuns, status string
-		want                    CIResult
+		name, checkRuns, status, suites string
+		want                            CIResult
 	}{
-		{"every check passes; our own failing check is ignored", "github_check_runs_success.json", "github_status_success.json", CIResult{State: "success"}},
-		{"nothing reported", "github_check_runs_none.json", "github_status_empty.json", CIResult{State: "none"}},
-		{"a timed out check run fails", "github_check_runs_failure.json", "github_status_empty.json", CIResult{State: "failure", Summary: "unit tests"}},
-		{"a running check run is pending", "github_check_runs_pending.json", "github_status_empty.json", CIResult{State: "pending", Summary: "unit tests"}},
-		{"a failing legacy status fails", "github_check_runs_success.json", "github_status_failure.json", CIResult{State: "failure", Summary: "ci/legacy"}},
-		{"a pending legacy status is pending", "github_check_runs_none.json", "github_status_pending.json", CIResult{State: "pending", Summary: "ci/legacy"}},
-		{"failure beats pending", "github_check_runs_pending.json", "github_status_failure.json", CIResult{State: "failure", Summary: "ci/legacy"}},
-		{"only a legacy status passing is success", "github_check_runs_none.json", "github_status_success.json", CIResult{State: "success"}},
+		{"every check passes; our own failing check is ignored", "github_check_runs_success.json", "github_status_success.json", noSuites, CIResult{State: "success"}},
+		{"nothing reported", "github_check_runs_none.json", "github_status_empty.json", noSuites, CIResult{State: "none"}},
+		{"a timed out check run fails", "github_check_runs_failure.json", "github_status_empty.json", noSuites, CIResult{State: "failure", Summary: "unit tests"}},
+		{"a running check run is pending", "github_check_runs_pending.json", "github_status_empty.json", noSuites, CIResult{State: "pending", Summary: "unit tests"}},
+		{"a failing legacy status fails", "github_check_runs_success.json", "github_status_failure.json", noSuites, CIResult{State: "failure", Summary: "ci/legacy"}},
+		{"a pending legacy status is pending", "github_check_runs_none.json", "github_status_pending.json", noSuites, CIResult{State: "pending", Summary: "ci/legacy"}},
+		{"failure beats pending", "github_check_runs_pending.json", "github_status_failure.json", noSuites, CIResult{State: "failure", Summary: "ci/legacy"}},
+		{"only a legacy status passing is success", "github_check_runs_none.json", "github_status_success.json", noSuites, CIResult{State: "success"}},
+		{"a workflow run queued without check runs is pending, not none", "github_check_runs_none.json", "github_status_empty.json", "github_check_suites_queued.json", CIResult{State: "pending", Summary: "a queued GitHub Actions workflow"}},
+		{"a queued workflow run holds back finished checks", "github_check_runs_success.json", "github_status_success.json", "github_check_suites_queued.json", CIResult{State: "pending", Summary: "a queued GitHub Actions workflow"}},
+		{"suites other apps never run are ignored", "github_check_runs_success.json", "github_status_empty.json", "github_check_suites_other_apps.json", CIResult{State: "success"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got, err := run(t, tc.checkRuns, tc.status)
+			got, err := run(t, tc.checkRuns, tc.status, tc.suites)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, got)
 		})
 	}
 
 	t.Run("a 403 on check runs is a permission error", func(t *testing.T) {
-		_, err := run(t, "403", "github_status_empty.json")
+		_, err := run(t, "403", "github_status_empty.json", noSuites)
 		require.ErrorIs(t, err, errCIPermission)
 	})
 	t.Run("a rate limited 403 is not a permission error", func(t *testing.T) {
-		_, err := run(t, "ratelimit", "github_status_empty.json")
+		_, err := run(t, "ratelimit", "github_status_empty.json", noSuites)
 		require.Error(t, err)
 		require.NotErrorIs(t, err, errCIPermission)
 	})
 	t.Run("another failure is returned as is", func(t *testing.T) {
-		_, err := run(t, "404", "github_status_empty.json")
+		_, err := run(t, "404", "github_status_empty.json", noSuites)
 		require.Error(t, err)
 		require.True(t, isNotFound(err))
 	})
 	t.Run("the check runs request asks for 100 per page", func(t *testing.T) {
-		cs := newCIServer(t, map[string]string{base + "/check-runs": "github_check_runs_none.json", base + "/status": "github_status_empty.json"})
+		cs := newCIServer(t, map[string]string{base + "/check-runs": "github_check_runs_none.json", base + "/status": "github_status_empty.json", base + "/check-suites": noSuites})
 		_, err := githubDriver{}.readCI(context.Background(), cs.apiClient, "acme/shop", ciSHA)
 		require.NoError(t, err)
 		require.Contains(t, cs.paths[0], "per_page=100")
