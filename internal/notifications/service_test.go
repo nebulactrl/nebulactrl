@@ -1022,7 +1022,7 @@ func TestEventTypesCatalog(t *testing.T) {
 		"database.replica.broken", "database.replica.lagging",
 		"service.crashed", "service.unhealthy", "service.restart_loop", "service.recovered", "backup.missed",
 		"storage.quota_warning", "storage.quota_full",
-		"uptime.down", "uptime.up",
+		"uptime.down", "uptime.up", "service.autoban",
 	}, allTypes())
 	require.Equal(t, SeverityError, NormalizeSeverity("critical"))
 	require.Equal(t, SeverityWarning, NormalizeSeverity(" WARN "))

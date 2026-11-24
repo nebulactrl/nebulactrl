@@ -1,13 +1,15 @@
 // Package guard is the edge guard: the forwardAuth server Traefik asks before
 // it forwards a request of a route whose firewall the compiled routers cannot
 // express (country conditions, or visitor addresses that arrive in
-// Cf-Connecting-IP). It runs as `nebulactrl-agent guard` in a sidecar
-// container that shares the proxy container's network namespace, so Traefik
-// reaches it on 127.0.0.1:agentprotocol.GuardPort and nothing else can.
+// Cf-Connecting-IP), or that has an auto-ban policy (the guard then decides
+// allow list, bans and firewall rules in that order). It runs as
+// `nebulactrl-agent guard` in a sidecar container that shares the proxy
+// container's network namespace, so Traefik reaches it on
+// 127.0.0.1:agentprotocol.GuardPort and nothing else can.
 //
-// The agent copies its own binary, the rules (RulesFile) and the GeoIP
-// database into the container's Dir; the server reloads the rules and the
-// database when their files change. It never talks to the agent.
+// The agent copies its own binary, the rules (RulesFile), the bans (BansFile)
+// and the GeoIP database into the container's Dir; the server reloads them
+// when their files change. It never talks to the agent.
 package guard
 
 import (
@@ -25,6 +27,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -43,6 +46,8 @@ const (
 	Binary = Dir + "/nebulactrl-agent"
 	// RulesFile is the JSON Rules document.
 	RulesFile = "rules.json"
+	// BansFile is the JSON agentprotocol.GuardBans document.
+	BansFile = "bans.json"
 )
 
 // reloadEvery is how often the server looks for changed files.
@@ -67,6 +72,8 @@ func Hash(raw []byte) string {
 type Server struct {
 	dir string
 	log *slog.Logger
+	// now is the clock the ban expiry reads (tests replace it).
+	now func() time.Time
 
 	mu       sync.RWMutex
 	matchers map[string]*agentprotocol.FirewallMatcher
@@ -75,8 +82,37 @@ type Server struct {
 	hash     string
 	// rulesStamp is the size and modification time of the loaded rules file.
 	rulesStamp string
+	// bans holds the auto-ban state of the routes that have a policy, by
+	// route id; bansHash fingerprints the loaded bans file and bansStamp is
+	// its size and modification time.
+	bans      map[string]*routeBans
+	bansHash  string
+	bansStamp string
 
 	blocked []byte
+}
+
+// routeBans is the auto-ban state of one route: addresses never banned and
+// the active bans by BanPrefix key.
+type routeBans struct {
+	allow []netip.Prefix
+	bans  map[netip.Prefix]time.Time
+}
+
+// allows reports whether addr (already cleaned) is on the allow list.
+func (b *routeBans) allows(addr netip.Addr) bool {
+	for _, p := range b.allow {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// banned reports whether addr's ban key is banned at now.
+func (b *routeBans) banned(addr netip.Addr, now time.Time) bool {
+	exp, ok := b.bans[agentprotocol.BanPrefix(addr)]
+	return ok && exp.After(now)
 }
 
 // NewServer returns a server reading dir.
@@ -85,14 +121,22 @@ func NewServer(dir string, log *slog.Logger) (*Server, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Server{dir: dir, log: log, matchers: map[string]*agentprotocol.FirewallMatcher{}, blocked: page}, nil
+	return &Server{
+		dir: dir, log: log, now: time.Now, blocked: page,
+		matchers: map[string]*agentprotocol.FirewallMatcher{}, bans: map[string]*routeBans{},
+	}, nil
 }
 
-// Reload reads the rules (and the GeoIP database they name) when the rules
-// file changed. A file that does not parse keeps the loaded rules: the agent
-// rewrites it whole and waits for /v1/ready, so a half-written file is
-// simply read again on the next tick.
+// Reload reads the rules (and the GeoIP database they name) and the bans
+// when their files changed.
 func (s *Server) Reload() error {
+	return errors.Join(s.reloadRules(), s.reloadBans())
+}
+
+// reloadRules reads the rules file when it changed. A file that does not
+// parse keeps the loaded rules: the agent rewrites it whole and waits for
+// /v1/ready, so a half-written file is simply read again on the next tick.
+func (s *Server) reloadRules() error {
 	path := filepath.Join(s.dir, RulesFile)
 	st, err := os.Stat(path)
 	if errors.Is(err, os.ErrNotExist) {
@@ -145,6 +189,82 @@ func (s *Server) Reload() error {
 	s.removeStaleGeo(geoName)
 	s.log.Info("guard: rules loaded", "routes", len(matchers), "geo", geoName != "", "hash", Hash(raw))
 	return nil
+}
+
+// reloadBans reads the bans file when it changed. Like the rules, a file that
+// does not parse keeps the loaded state, and a missing one leaves it empty.
+// Expired bans and entries that are not a ban key are left out.
+func (s *Server) reloadBans() error {
+	path := filepath.Join(s.dir, BansFile)
+	st, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	stamp := fmt.Sprintf("%d/%d", st.Size(), st.ModTime().UnixNano())
+	s.mu.RLock()
+	same := stamp == s.bansStamp
+	s.mu.RUnlock()
+	if same {
+		return nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	var doc agentprotocol.GuardBans
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return fmt.Errorf("parse bans: %w", err)
+	}
+	now := s.now()
+	bans := make(map[string]*routeBans, len(doc.Services))
+	active := 0
+	for id, rb := range doc.Services {
+		out := &routeBans{allow: compileAllow(rb.Allow, s.log), bans: make(map[netip.Prefix]time.Time, len(rb.Bans))}
+		for _, b := range rb.Bans {
+			p, err := netip.ParsePrefix(b.Prefix)
+			if err != nil || p != agentprotocol.BanPrefix(p.Addr()) {
+				s.log.Warn("guard: ignoring ban that is not a ban key", "route", id, "prefix", b.Prefix)
+				continue
+			}
+			if b.ExpiresAt.After(now) {
+				out.bans[p] = b.ExpiresAt
+				active++
+			}
+		}
+		bans[id] = out
+	}
+	s.mu.Lock()
+	s.bans, s.bansHash, s.bansStamp = bans, Hash(raw), stamp
+	s.mu.Unlock()
+	s.log.Info("guard: bans loaded", "routes", len(bans), "bans", active, "hash", Hash(raw))
+	return nil
+}
+
+// compileAllow parses an allow list into masked prefixes (a bare address is a
+// host prefix, an IPv4-mapped IPv6 prefix of at least /96 is the IPv4 one, as
+// agentprotocol.AutoBan.Allows reads it); entries that do not parse are logged
+// and left out.
+func compileAllow(entries []string, log *slog.Logger) []netip.Prefix {
+	var out []netip.Prefix
+	for _, e := range entries {
+		p, err := netip.ParsePrefix(e)
+		if err != nil {
+			a, aerr := netip.ParseAddr(e)
+			if aerr != nil {
+				log.Warn("guard: ignoring allow entry", "entry", e)
+				continue
+			}
+			p = netip.PrefixFrom(a, a.BitLen())
+		}
+		if a := p.Addr(); a.Is4In6() && p.Bits() >= 96 {
+			p = netip.PrefixFrom(a.Unmap(), p.Bits()-96)
+		}
+		out = append(out, p.Masked())
+	}
+	return out
 }
 
 // openGeo opens name in dir, or returns the loaded reader when it is the same file.
@@ -215,13 +335,19 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// ready answers 200 once the loaded rules have the hash the agent asks for.
+// ready answers 200 once the loaded rules and bans have the hashes the agent
+// asks for (rules=, bans=; either may be left out).
 func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 	s.mu.RLock()
-	hash := s.hash
+	hash, bansHash := s.hash, s.bansHash
 	s.mu.RUnlock()
-	if want := r.URL.Query().Get("rules"); want != "" && want != hash {
+	q := r.URL.Query()
+	if want := q.Get("rules"); want != "" && want != hash {
 		http.Error(w, "rules "+hash, http.StatusServiceUnavailable)
+		return
+	}
+	if want := q.Get("bans"); want != "" && want != bansHash {
+		http.Error(w, "bans "+bansHash, http.StatusServiceUnavailable)
 		return
 	}
 	_, _ = w.Write([]byte(hash))
@@ -229,11 +355,14 @@ func (s *Server) ready(w http.ResponseWriter, r *http.Request) {
 
 // check decides one forwarded request. A route the guard does not know (a
 // table being replaced) goes through: the routers only point at the guard
-// for firewalls it was given before they went live.
+// for firewalls it was given before they went live. A route with an auto-ban
+// policy is decided in order: allow list (never banned), active ban, then the
+// firewall rules.
 func (s *Server) check(w http.ResponseWriter, r *http.Request, route string) {
 	req := request(r)
 	s.mu.RLock()
 	m := s.matchers[route]
+	rb := s.bans[route]
 	if m != nil && s.geo != nil && req.ClientIP.IsValid() {
 		req.Country = country(s.geo, req.ClientIP)
 	}
@@ -242,19 +371,32 @@ func (s *Server) check(w http.ResponseWriter, r *http.Request, route string) {
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	if ruleID, action := m.Decide(req); action == agentprotocol.FirewallBlock {
-		// The rule rides the 403 to the access log (forwardAuth passes the
-		// header of a refusal on), where the agent counts blocks by it.
-		w.Header().Set(agentprotocol.FirewallRuleHeader, ruleID)
-		for k, v := range pages.SecurityHeaders() {
-			w.Header().Set(k, v)
+	if rb != nil && req.ClientIP.IsValid() {
+		// An invalid visitor address fails open: nothing to ban it by.
+		addr := req.ClientIP.WithZone("").Unmap()
+		if !rb.allows(addr) && rb.banned(addr, s.now()) {
+			s.deny(w, agentprotocol.FirewallRuleAutoBan)
+			return
 		}
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.WriteHeader(http.StatusForbidden)
-		_, _ = w.Write(s.blocked)
+	}
+	if ruleID, action := m.Decide(req); action == agentprotocol.FirewallBlock {
+		s.deny(w, ruleID)
 		return
 	}
 	w.WriteHeader(http.StatusOK)
+}
+
+// deny answers 403 with the page. The rule rides the 403 to the access log
+// (forwardAuth passes the header of a refusal on), where the agent counts
+// blocks by it.
+func (s *Server) deny(w http.ResponseWriter, ruleID string) {
+	w.Header().Set(agentprotocol.FirewallRuleHeader, ruleID)
+	for k, v := range pages.SecurityHeaders() {
+		w.Header().Set(k, v)
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write(s.blocked)
 }
 
 // request rebuilds the visitor's request from Traefik's forwardAuth headers.
@@ -349,6 +491,24 @@ func Encode(r Rules) ([]byte, error) {
 	enc := json.NewEncoder(&buf)
 	enc.SetEscapeHTML(false)
 	if err := enc.Encode(r); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// EncodeBans renders a bans document as the agent writes it. The bans of a
+// route are ordered by prefix and the allow list is kept as given, so equal
+// state encodes to equal bytes (and one Hash).
+func EncodeBans(b agentprotocol.GuardBans) ([]byte, error) {
+	out := agentprotocol.GuardBans{Services: make(map[string]agentprotocol.GuardRouteBans, len(b.Services))}
+	for id, rb := range b.Services {
+		rb.Bans = slices.SortedFunc(slices.Values(rb.Bans), func(x, y agentprotocol.GuardBan) int { return strings.Compare(x.Prefix, y.Prefix) })
+		out.Services[id] = rb
+	}
+	var buf bytes.Buffer
+	enc := json.NewEncoder(&buf)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(out); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil

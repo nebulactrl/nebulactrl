@@ -17,7 +17,7 @@ UPDATE services
 SET firewall = $1,
     updated_at = now()
 WHERE id = $2 AND deleted_at IS NULL
-RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall
+RETURNING id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall, autoban
 `
 
 type SetServiceFirewallParams struct {
@@ -63,6 +63,7 @@ func (q *Queries) SetServiceFirewall(ctx context.Context, arg SetServiceFirewall
 		&i.MaintenanceEta,
 		&i.MaintenanceSince,
 		&i.Firewall,
+		&i.Autoban,
 	)
 	return i, err
 }

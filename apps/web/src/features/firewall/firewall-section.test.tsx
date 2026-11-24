@@ -57,6 +57,24 @@ async function mount(
 	const api = stubApi({
 		[`GET ${PATH}`]: { body: initial },
 		[`GET ${BLOCKS_PATH}`]: blocks,
+		"GET /services/s1/autoban": {
+			body: {
+				activeBans: 0,
+				analytics: true,
+				hosts: ["shop.example.com"],
+				policy: {
+					enabled: false,
+					threshold: 10,
+					windowSeconds: 600,
+					durationSeconds: 3600,
+					allow: [],
+				},
+				server: "hetzner-01",
+				supported: true,
+				warnings: [],
+			},
+		},
+		"GET /services/s1/bans": { body: { items: [] } },
 		[`PUT ${PATH}`]: (request: Request) =>
 			request.json().then((body) => Response.json(put ? put(body) : initial)),
 	});
@@ -65,6 +83,8 @@ async function mount(
 		{ path: "/p/p1/prod", routePath: "/p/$projectId/$envSlug" },
 	);
 	await screen.findByText(/Covers/);
+	await screen.findByRole("switch", { name: "Auto-ban" });
+	await screen.findByText("No ban has ended yet.");
 	return api;
 }
 

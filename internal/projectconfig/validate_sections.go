@@ -675,6 +675,10 @@ func (c *svcCtx) checkFirewall() {
 			c.err(CodeInvalidValue, rp("firewall", "rules", "["+itoa(i)+"]", "id"), "ids starting with %q are reserved for the standard protection", domains.StandardRuleIDPrefix)
 			return
 		}
+		if v.Rules[i].ID == agentprotocol.FirewallRuleAutoBan {
+			c.err(CodeInvalidValue, rp("firewall", "rules", "["+itoa(i)+"]", "id"), "the id %q is reserved for auto-ban", agentprotocol.FirewallRuleAutoBan)
+			return
+		}
 	}
 	err := agentprotocol.Firewall{Rules: v.FirewallRules()}.Validate()
 	if err == nil {
@@ -700,6 +704,34 @@ func (c *svcCtx) checkFirewall() {
 		msg = "rule " + m[1] + ": " + msg
 	}
 	c.err(CodeInvalidValue, path, "%s", msg)
+}
+
+// checkAutoBan validates an [autoban] table with the limits of agentprotocol.AutoBan.Validate, each
+// reported at its key.
+func (c *svcCtx) checkAutoBan() {
+	a := c.def.AutoBan
+	if a == nil || !c.httpOnly("autoban") {
+		return
+	}
+	rng := func(key string, v *int, lo, hi int) {
+		if v != nil && (*v < lo || *v > hi) {
+			c.err(CodeInvalidValue, rp("autoban", key), "%s must be %d-%d", key, lo, hi)
+		}
+	}
+	rng("threshold", a.Threshold, agentprotocol.MinAutoBanThreshold, agentprotocol.MaxAutoBanThreshold)
+	rng("window_seconds", a.WindowSeconds, agentprotocol.MinAutoBanWindow, agentprotocol.MaxAutoBanWindow)
+	rng("duration_seconds", a.DurationSeconds, agentprotocol.MinAutoBanDuration, agentprotocol.MaxAutoBanDuration)
+	if len(a.Allow) > agentprotocol.MaxAccessCIDRs {
+		c.err(CodeLimitExceeded, rp("autoban", "allow"), "%d allow entries; at most %d", len(a.Allow), agentprotocol.MaxAccessCIDRs)
+		return
+	}
+	for i, s := range a.Allow {
+		probe := domains.DefaultAutoBan()
+		probe.Allow = []string{strings.TrimSpace(s)}
+		if err := probe.Validate(); err != nil {
+			c.err(CodeInvalidValue, rp("autoban", "allow", "["+itoa(i)+"]"), "%s", err.Error())
+		}
+	}
 }
 
 func (c *svcCtx) checkMaintenance() {

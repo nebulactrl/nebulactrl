@@ -46,6 +46,8 @@ export interface ApiSchemas {
 	"AuthUserBody": T.AuthUserBody;
 	"AuthUsersOutputBody": T.AuthUsersOutputBody;
 	"AuthorizeOutputBody": T.AuthorizeOutputBody;
+	"AutoBan": T.AutoBan;
+	"AutoBanView": T.AutoBanView;
 	"AutoUpdateInputBody": T.AutoUpdateInputBody;
 	"Autoscaling": T.Autoscaling;
 	"AutoscalingPatch": T.AutoscalingPatch;
@@ -53,6 +55,7 @@ export interface ApiSchemas {
 	"BackupListOutputBody": T.BackupListOutputBody;
 	"BackupSliceView": T.BackupSliceView;
 	"BackupView": T.BackupView;
+	"BanView": T.BanView;
 	"Blocker": T.Blocker;
 	"BranchesOutputBody": T.BranchesOutputBody;
 	"BrowseTableInputBody": T.BrowseTableInputBody;
@@ -441,6 +444,7 @@ export interface ApiSchemas {
 	"OriginLockView": T.OriginLockView;
 	"Overview": T.Overview;
 	"PageAuditEvent": T.PageAuditEvent;
+	"PageBanView": T.PageBanView;
 	"PageDNSFixInputBody": T.PageDnsFixInputBody;
 	"PageDNSSettingsInputBody": T.PageDnsSettingsInputBody;
 	"PageDeploymentView": T.PageDeploymentView;
@@ -797,6 +801,7 @@ export interface ApiSchemas {
 	"TotpSetupOutputBody": T.TotpSetupOutputBody;
 	"TunnelView": T.TunnelView;
 	"Ulimit": T.Ulimit;
+	"UnbanView": T.UnbanView;
 	"UnrestrictedSettings": T.UnrestrictedSettings;
 	"Unrouted": T.Unrouted;
 	"UpdateCleanupInputBody": T.UpdateCleanupInputBody;

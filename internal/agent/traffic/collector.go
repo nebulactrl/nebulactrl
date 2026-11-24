@@ -79,6 +79,11 @@ type Config struct {
 	// at or before its service's entry was stored by an earlier run and is not
 	// stored again; the later ones are, whatever the access-log cursor says.
 	RequestsResume func() map[string]time.Time
+	// Observe, when set, sees every event the aggregation counts, under the
+	// same replay gate (an event an earlier run or flush already covered is
+	// not passed on). The auto-ban engine counts strikes with it. It runs on
+	// the collector's goroutine and must not block.
+	Observe func(Event)
 }
 
 // Collector tails the proxy's access log, aggregates it and ships completed minutes.
@@ -387,6 +392,9 @@ func (c *Collector) handleLine(line string, skipBefore time.Time) {
 	c.mu.Unlock()
 	if count {
 		c.agg.Add(ev)
+		if c.cfg.Observe != nil {
+			c.cfg.Observe(ev)
+		}
 	}
 	if storeRequest {
 		c.reqs.Add(ev)

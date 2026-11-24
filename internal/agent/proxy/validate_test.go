@@ -360,3 +360,38 @@ func TestErrorsNeverContainBcryptHashes(t *testing.T) {
 	require.Error(t, err)
 	require.False(t, strings.Contains(err.Error(), bcryptHash))
 }
+
+func TestValidateRoutesAutoBan(t *testing.T) {
+	good := ruleRoute(rule(domA, "app.example.com", nil))
+	good.AutoBan = autoBanPolicy(true)
+	require.NoError(t, ValidateRoutes([]agentprotocol.Route{good}, agentprotocol.UpstreamPolicy{}))
+
+	bad := map[string]func(*agentprotocol.AutoBan){
+		"threshold": func(a *agentprotocol.AutoBan) { a.Threshold = 1 },
+		"window":    func(a *agentprotocol.AutoBan) { a.WindowSeconds = 5 },
+		"duration":  func(a *agentprotocol.AutoBan) { a.DurationSeconds = agentprotocol.MaxAutoBanDuration + 1 },
+		"allow":     func(a *agentprotocol.AutoBan) { a.Allow = []string{"not-an-address"} },
+		"disabled keeps the limits": func(a *agentprotocol.AutoBan) {
+			a.Enabled, a.Threshold = false, 0
+		},
+	}
+	for name, mut := range bad {
+		t.Run(name, func(t *testing.T) {
+			r := good
+			ab := *good.AutoBan
+			mut(&ab)
+			r.AutoBan = &ab
+			require.ErrorContains(t, ValidateRoutes([]agentprotocol.Route{r}, agentprotocol.UpstreamPolicy{}), "auto-ban")
+			_, err := BuildConfig([]agentprotocol.Route{r}, Options{})
+			require.Error(t, err, "an invalid policy never renders")
+		})
+	}
+
+	t.Run("on a tcp route", func(t *testing.T) {
+		tcp := agentprotocol.Route{
+			ServiceID: svcApp, Upstreams: []string{"nc-pg-aaaaaaaa-0:5432"},
+			RouteExt: agentprotocol.RouteExt{Protocol: agentprotocol.ProtoTCP, ListenPort: 5432, AutoBan: autoBanPolicy(true)},
+		}
+		require.ErrorContains(t, ValidateRoutes([]agentprotocol.Route{tcp}, agentprotocol.UpstreamPolicy{}), "only apply to http routes")
+	})
+}

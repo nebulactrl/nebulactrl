@@ -67,6 +67,7 @@ type Hub struct {
 	redactor  Redactor
 	traffic   TrafficSink
 	probes    ProbeSink
+	bans      BanSink
 	scanSinks []SourceScanSink
 	taskLogs  TaskLogSink
 	notifier  notifications.Emitter
@@ -163,6 +164,20 @@ func (h *Hub) probeSink() ProbeSink {
 	h.mu.RLock()
 	defer h.mu.RUnlock()
 	return h.probes
+}
+
+// SetBanSink installs the auto-ban ingest hook. Without one, ban frames are
+// acknowledged and discarded.
+func (h *Hub) SetBanSink(b BanSink) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.bans = b
+}
+
+func (h *Hub) banSink() BanSink {
+	h.mu.RLock()
+	defer h.mu.RUnlock()
+	return h.bans
 }
 
 // SetTaskLogSink installs the hook that stores the output of task runs

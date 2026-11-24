@@ -2,6 +2,7 @@ package configsync
 
 import (
 	"encoding/json"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -190,6 +191,39 @@ func (maintenanceOps) desired(_ *planCtx, _ *liveService, fv projectconfig.Field
 		return fieldView{}, refErr("wrong_type", "maintenance has an unexpected value")
 	}
 	return view(v, maintenanceDisplay(v)), nil
+}
+
+// autobanOps handles autoban (immediate): the whole policy is one unit, a key the file leaves out
+// being its default.
+type autobanOps struct{}
+
+func autobanDisplay(v projectconfig.AutoBanValue) string {
+	if !v.Enabled {
+		return "off"
+	}
+	s := fmt.Sprintf("on: %d blocked requests in %ds ban for %ds", v.Threshold, v.WindowSeconds, v.DurationSeconds)
+	if len(v.Allow) > 0 {
+		s += fmt.Sprintf(", %d allowed", len(v.Allow))
+	}
+	return s
+}
+
+// liveAutoBan is the stored policy as a file states it (the default, off, for a service without one).
+func liveAutoBan(row db.Service) projectconfig.AutoBanValue {
+	return projectconfig.AutoBanValueOf(domains.StoredAutoBan(row.Autoban))
+}
+
+func (autobanOps) live(_ *planCtx, ls *liveService, _, _ string) (fieldView, bool) {
+	v := liveAutoBan(ls.Row)
+	return view(v, autobanDisplay(v)), true
+}
+
+func (autobanOps) desired(_ *planCtx, _ *liveService, fv projectconfig.FieldValue) (fieldView, error) {
+	v, ok := fv.Value.(projectconfig.AutoBanValue)
+	if !ok {
+		return fieldView{}, refErr("wrong_type", "autoban has an unexpected value")
+	}
+	return view(v, autobanDisplay(v)), nil
 }
 
 // gitOps handles git.link, git.auto_deploy, git.wait_for_ci, git.poll, git.poll_deploy and git.watch_paths (immediate).

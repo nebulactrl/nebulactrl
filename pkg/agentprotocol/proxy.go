@@ -127,6 +127,10 @@ type RouteExt struct {
 	// Like Maintenance it is operational: sync_routes toggles it, and tables
 	// the agent builds from a deploy payload take it from the live table.
 	Firewall *Firewall `json:"firewall,omitempty"`
+	// AutoBan is the service's auto-ban policy (HTTP routes only; see
+	// AutoBan). Operational like Firewall. A route with an enabled policy is
+	// evaluated entirely by the edge guard.
+	AutoBan *AutoBan `json:"autoBan,omitempty"`
 	// System marks a route the control plane generates for its own containers
 	// (the dashboard and the public status pages). Its upstream is a name only
 	// the proxy's Docker network resolves, so the agent does not resolve and

@@ -11,6 +11,7 @@ import (
 	"github.com/nebulactrl/nebulactrl/internal/backups"
 	"github.com/nebulactrl/nebulactrl/internal/databases"
 	"github.com/nebulactrl/nebulactrl/internal/deployments"
+	"github.com/nebulactrl/nebulactrl/internal/firewall"
 	"github.com/nebulactrl/nebulactrl/internal/mesh"
 	"github.com/nebulactrl/nebulactrl/internal/proxyserver"
 	"github.com/nebulactrl/nebulactrl/internal/reconciler"
@@ -50,6 +51,7 @@ type agentHandler struct {
 	reg       *registries.Service
 	mesh      *mesh.Service
 	update    *sysupdate.Service
+	fw        *firewall.Service
 }
 
 var (
@@ -140,6 +142,9 @@ func (h *agentHandler) HandleResult(ctx context.Context, serverID, commandID uui
 			return err
 		}
 		if err := h.mesh.HandleResult(ctx, serverID, commandID, res); err != nil {
+			return err
+		}
+		if err := h.fw.HandleResult(ctx, serverID, commandID, res); err != nil {
 			return err
 		}
 	}

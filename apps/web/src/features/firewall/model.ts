@@ -3,6 +3,8 @@
 // firewall.go), and the decision the proxy makes for a request, so the
 // "Try a request" panel answers before anything is applied.
 import type {
+	AutoBan,
+	BanView,
 	FirewallBlocks,
 	FirewallCondition,
 	FirewallRuleCount,
@@ -1283,4 +1285,267 @@ export function blockedLogsQuery(serviceName: string, ruleId?: string): string {
 		`service:${formatValue(serviceName)}`,
 		`@blocked_by:${ruleId ?? "*"}`,
 	].join(" ");
+}
+
+/** Limits of auto-ban (docs/operations/firewall.md#auto-ban). */
+export const AUTOBAN_THRESHOLD = { min: 3, max: 1000 } as const;
+export const AUTOBAN_WINDOW_SECONDS = { min: 60, max: 24 * 3600 } as const;
+export const AUTOBAN_DURATION_SECONDS = {
+	min: 5 * 60,
+	max: 7 * 24 * 3600,
+} as const;
+export const MAX_AUTOBAN_ALLOW = 200;
+
+export type AutoBanUnit = "minutes" | "hours" | "days";
+
+/** Seconds in one unit. */
+const AUTOBAN_UNIT_SECONDS: Record<AutoBanUnit, number> = {
+	minutes: 60,
+	hours: 3600,
+	days: 86400,
+};
+
+export const AUTOBAN_UNITS: readonly AutoBanUnit[] = [
+	"minutes",
+	"hours",
+	"days",
+];
+
+/** A length of time as the inputs hold it: the text typed and its unit. */
+export interface AutoBanSpan {
+	amount: string;
+	unit: AutoBanUnit;
+}
+
+/** The policy as the card edits it. Numbers stay text until validated. */
+export interface AutoBanDraft {
+	enabled: boolean;
+	threshold: string;
+	window: AutoBanSpan;
+	duration: AutoBanSpan;
+	allow: string[];
+}
+
+export type AutoBanFieldErrors = {
+	threshold?: string | undefined;
+	window?: string | undefined;
+	duration?: string | undefined;
+	/** The allow list as a whole (too long). */
+	allow?: string | undefined;
+	/** One entry's problem, by position. */
+	allowRows: Record<number, string>;
+};
+
+/** Seconds as the largest unit that divides them evenly (minutes when none does). */
+export function spanOf(seconds: number): AutoBanSpan {
+	if (seconds >= 86400 && seconds % 86400 === 0) {
+		return { amount: String(seconds / 86400), unit: "days" };
+	}
+	if (seconds >= 3600 && seconds % 3600 === 0) {
+		return { amount: String(seconds / 3600), unit: "hours" };
+	}
+	return { amount: String(seconds / 60), unit: "minutes" };
+}
+
+/** The seconds a span states, or null when its text is not a positive number. */
+export function spanSeconds(span: AutoBanSpan): number | null {
+	const text = span.amount.trim();
+	if (!/^\d+(\.\d+)?$/.test(text)) return null;
+	const seconds = Math.round(Number(text) * AUTOBAN_UNIT_SECONDS[span.unit]);
+	return Number.isFinite(seconds) && seconds > 0 ? seconds : null;
+}
+
+/** "1 minute", "24 hours": a limit as a sentence. */
+export function spanPhrase(seconds: number): string {
+	const { amount, unit } = spanOf(seconds);
+	return `${amount} ${amount === "1" ? unit.slice(0, -1) : unit}`;
+}
+
+export function autobanDraftOf(policy: AutoBan): AutoBanDraft {
+	return {
+		enabled: policy.enabled,
+		threshold: String(policy.threshold),
+		window: spanOf(policy.windowSeconds),
+		duration: spanOf(policy.durationSeconds),
+		allow: [...(policy.allow ?? [])],
+	};
+}
+
+function spanProblem(
+	span: AutoBanSpan,
+	label: string,
+	limit: { min: number; max: number },
+): string | undefined {
+	const seconds = spanSeconds(span);
+	if (seconds === null) return `${label} is a number greater than 0.`;
+	if (seconds < limit.min || seconds > limit.max) {
+		return `${label} is ${spanPhrase(limit.min)} to ${spanPhrase(limit.max)}.`;
+	}
+	return undefined;
+}
+
+/** What the control plane would refuse, keyed for the card. Empty when fine. */
+export function validateAutoBan(draft: AutoBanDraft): AutoBanFieldErrors {
+	const errors: AutoBanFieldErrors = { allowRows: {} };
+	const threshold = draft.threshold.trim();
+	if (
+		!/^\d+$/.test(threshold) ||
+		Number(threshold) < AUTOBAN_THRESHOLD.min ||
+		Number(threshold) > AUTOBAN_THRESHOLD.max
+	) {
+		errors.threshold = `Blocked requests to ban is a whole number from ${AUTOBAN_THRESHOLD.min} to ${AUTOBAN_THRESHOLD.max}.`;
+	}
+	errors.window = spanProblem(
+		draft.window,
+		"Counting window",
+		AUTOBAN_WINDOW_SECONDS,
+	);
+	errors.duration = spanProblem(
+		draft.duration,
+		"Ban length",
+		AUTOBAN_DURATION_SECONDS,
+	);
+	if (draft.allow.length > MAX_AUTOBAN_ALLOW) {
+		errors.allow = `The allow list holds at most ${MAX_AUTOBAN_ALLOW} entries.`;
+	}
+	draft.allow.forEach((entry, index) => {
+		const problem = validateEntry(entry);
+		if (problem) errors.allowRows[index] = problem;
+	});
+	return errors;
+}
+
+export function hasAutoBanErrors(errors: AutoBanFieldErrors): boolean {
+	return (
+		errors.threshold !== undefined ||
+		errors.window !== undefined ||
+		errors.duration !== undefined ||
+		errors.allow !== undefined ||
+		Object.keys(errors.allowRows).length > 0
+	);
+}
+
+/** The PUT body of a draft that passed validation. */
+export function autobanBody(draft: AutoBanDraft): AutoBan {
+	return {
+		enabled: draft.enabled,
+		threshold: Number(draft.threshold.trim()),
+		windowSeconds: spanSeconds(draft.window) ?? AUTOBAN_WINDOW_SECONDS.min,
+		durationSeconds:
+			spanSeconds(draft.duration) ?? AUTOBAN_DURATION_SECONDS.min,
+		allow: draft.allow.map((entry) => entry.trim()),
+	};
+}
+
+/** Whether a draft says what the live policy says (units do not matter, seconds do). */
+export function autobanUnchanged(draft: AutoBanDraft, live: AutoBan): boolean {
+	const body = autobanBody(draft);
+	const allow = live.allow ?? [];
+	return (
+		body.enabled === live.enabled &&
+		body.threshold === live.threshold &&
+		body.windowSeconds === live.windowSeconds &&
+		body.durationSeconds === live.durationSeconds &&
+		body.allow?.length === allow.length &&
+		(body.allow ?? []).every((entry, i) => entry === allow[i])
+	);
+}
+
+export type AutoBanField =
+	| "threshold"
+	| "window"
+	| "duration"
+	| "allow"
+	| "enabled";
+
+/** Where a refused save belongs: a field of the card, or the card as a whole. */
+export interface AutoBanRefusal {
+	field?: AutoBanField | undefined;
+	message: string;
+}
+
+/** The 422 codes of PUT /services/{id}/autoban as the card shows them. */
+export function autobanRefusal(
+	code: string | undefined,
+	message: string,
+): AutoBanRefusal {
+	switch (code) {
+		case "analytics_required":
+			return {
+				field: "enabled",
+				message:
+					"Auto-ban decides from the proxy's access log, so traffic analytics must be on for this service's server.",
+			};
+		case "agent_too_old":
+			return {
+				field: "enabled",
+				message:
+					"The agent on this service's server is too old for auto-ban. Update the agent first.",
+			};
+		case "autoban_unsupported":
+			return {
+				field: "enabled",
+				message:
+					"Auto-ban is for HTTP services only: this service has no firewall.",
+			};
+		case "invalid_autoban": {
+			const field = /threshold/i.test(message)
+				? "threshold"
+				: /window/i.test(message)
+					? "window"
+					: /duration/i.test(message)
+						? "duration"
+						: /allow/i.test(message)
+							? "allow"
+							: undefined;
+			return { field, message };
+		}
+		default:
+			return { message };
+	}
+}
+
+/**
+ * The names a ban's rule ids go by: the service's own rules, then the
+ * standard protection. An id in neither is a rule since removed.
+ */
+export function banRuleNames(
+	rules: Readonly<Record<string, number>> | undefined,
+	names: ReadonlyMap<string, string>,
+): string[] {
+	return Object.entries(rules ?? {})
+		.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+		.map(([id]) =>
+			id === "autoban" ? "Auto-ban" : (names.get(id) ?? `Removed rule ${id}`),
+		);
+}
+
+/** Rule id → name for the own rules and the standard protection of a view. */
+export function ruleNameIndex(
+	view: FirewallView | undefined,
+): Map<string, string> {
+	const names = new Map<string, string>();
+	for (const entry of view?.standard ?? []) {
+		if (entry.rule.id) names.set(entry.rule.id, entry.rule.name);
+	}
+	for (const rule of view?.rules ?? []) {
+		if (rule.id) names.set(rule.id, rule.name);
+	}
+	return names;
+}
+
+/** Why a ban ended, as a sentence fragment. */
+export function banEndReason(reason: BanView["endReason"]): string {
+	switch (reason) {
+		case "expired":
+			return "Expired";
+		case "unbanned":
+			return "Unbanned";
+		case "lifted":
+			return "Lifted (policy changed or route removed)";
+		case "resync":
+			return "Dropped by the agent";
+		default:
+			return "Ended";
+	}
 }

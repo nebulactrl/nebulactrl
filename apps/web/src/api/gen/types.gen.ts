@@ -422,6 +422,33 @@ export type AuthorizeOutputBody = {
     authorizeUrl: string;
 };
 
+export type AutoBan = {
+    allow?: Array<string> | null;
+    durationSeconds: number;
+    enabled: boolean;
+    threshold: number;
+    windowSeconds: number;
+};
+
+export type AutoBanView = {
+    activeBans: number;
+    /**
+     * Traffic analytics is on for the service's server; auto-ban needs it
+     */
+    analytics: boolean;
+    hosts: Array<string> | null;
+    /**
+     * The service's policy; the defaults (off) when it has none
+     */
+    policy: AutoBan;
+    server: string;
+    supported: boolean;
+    /**
+     * cloudflare_proxied_not_locked: a Cloudflare-proxied domain that is not locked to Cloudflare shows only Cloudflare's addresses, so its visitors cannot be banned
+     */
+    warnings: Array<string> | null;
+};
+
 export type AutoUpdateInputBody = {
     /**
      * Required to enable when production services or the control plane run on the server
@@ -544,6 +571,33 @@ export type BackupView = {
     startedAt?: string;
     status: 'queued' | 'running' | 'succeeded' | 'failed' | 'skipped' | 'expired';
     trigger: 'manual' | 'schedule' | 'pre_restore';
+};
+
+export type BanView = {
+    /**
+     * The banned address; kept only while the ban is active, null afterwards
+     */
+    address: string | null;
+    /**
+     * Why the ban ended: expired, unbanned (by a person), lifted (policy switched off, allow-listed or route removed) or resync (the agent no longer held it)
+     */
+    endReason?: 'expired' | 'unbanned' | 'lifted' | 'resync';
+    endedAt: string | null;
+    expiresAt: string;
+    id: string;
+    /**
+     * The banned network: the address as /32 (IPv4) or its /64 (IPv6)
+     */
+    prefix: string;
+    /**
+     * Blocked requests that counted toward the ban, per firewall rule id
+     */
+    rules: {
+        [key: string]: number;
+    };
+    source: 'auto';
+    startedAt: string;
+    strikes: number;
 };
 
 export type Blocker = {
@@ -6017,6 +6071,14 @@ export type PageAuditEvent = {
     nextCursor?: string;
 };
 
+export type PageBanView = {
+    items: Array<BanView> | null;
+    /**
+     * Present when more items exist
+     */
+    nextCursor?: string;
+};
+
 export type PageDnsFixInputBody = {
     /**
      * Take over the existing record NebulaCtrl did not create: it is marked as managed and pointed at the control-plane server
@@ -10755,6 +10817,13 @@ export type Ulimit = {
     hard: number;
     name: 'nofile' | 'memlock';
     soft: number;
+};
+
+export type UnbanView = {
+    /**
+     * The agent was told to lift the ban; the ban ends when it confirms
+     */
+    status: 'queued';
 };
 
 export type UnrestrictedSettings = {
@@ -27839,6 +27908,106 @@ export type GetServiceAnalyticsResponses = {
 
 export type GetServiceAnalyticsResponse = GetServiceAnalyticsResponses[keyof GetServiceAnalyticsResponses];
 
+export type GetServiceAutoBanData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/autoban';
+};
+
+export type GetServiceAutoBanErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type GetServiceAutoBanError = GetServiceAutoBanErrors[keyof GetServiceAutoBanErrors];
+
+export type GetServiceAutoBanResponses = {
+    /**
+     * OK
+     */
+    200: AutoBanView;
+};
+
+export type GetServiceAutoBanResponse = GetServiceAutoBanResponses[keyof GetServiceAutoBanResponses];
+
+export type SetServiceAutoBanData = {
+    body: AutoBan;
+    headers?: {
+        /**
+         * Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
+         */
+        'Idempotency-Key'?: string;
+    };
+    path: {
+        serviceId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/autoban';
+};
+
+export type SetServiceAutoBanErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type SetServiceAutoBanError = SetServiceAutoBanErrors[keyof SetServiceAutoBanErrors];
+
+export type SetServiceAutoBanResponses = {
+    /**
+     * OK
+     */
+    200: AutoBanView;
+};
+
+export type SetServiceAutoBanResponse = SetServiceAutoBanResponses[keyof SetServiceAutoBanResponses];
+
 export type ListBackupRestoresData = {
     body?: never;
     path: {
@@ -28071,6 +28240,124 @@ export type CreateBackupResponses = {
 };
 
 export type CreateBackupResponse = CreateBackupResponses[keyof CreateBackupResponses];
+
+export type ListServiceBansData = {
+    body?: never;
+    path: {
+        serviceId: string;
+    };
+    query?: {
+        /**
+         * active: the bans in force now, with the banned address. ended: past bans, prefix only
+         */
+        state?: 'active' | 'ended';
+        /**
+         * Opaque cursor from a previous page's nextCursor
+         */
+        cursor?: string;
+        /**
+         * Page size (default 50, max 200)
+         */
+        limit?: number;
+    };
+    url: '/services/{serviceId}/bans';
+};
+
+export type ListServiceBansErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type ListServiceBansError = ListServiceBansErrors[keyof ListServiceBansErrors];
+
+export type ListServiceBansResponses = {
+    /**
+     * OK
+     */
+    200: PageBanView;
+};
+
+export type ListServiceBansResponse = ListServiceBansResponses[keyof ListServiceBansResponses];
+
+export type UnbanServiceAddressData = {
+    body?: never;
+    headers?: {
+        /**
+         * Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
+         */
+        'Idempotency-Key'?: string;
+    };
+    path: {
+        serviceId: string;
+        banId: string;
+    };
+    query?: never;
+    url: '/services/{serviceId}/bans/{banId}';
+};
+
+export type UnbanServiceAddressErrors = {
+    /**
+     * Unauthorized
+     */
+    401: Error;
+    /**
+     * Forbidden
+     */
+    403: Error;
+    /**
+     * Not Found
+     */
+    404: Error;
+    /**
+     * Conflict
+     */
+    409: Error;
+    /**
+     * Unprocessable Entity
+     */
+    422: Error;
+    /**
+     * Internal Server Error
+     */
+    500: Error;
+    /**
+     * Error
+     */
+    default: Error;
+};
+
+export type UnbanServiceAddressError = UnbanServiceAddressErrors[keyof UnbanServiceAddressErrors];
+
+export type UnbanServiceAddressResponses = {
+    /**
+     * Accepted
+     */
+    202: UnbanView;
+};
+
+export type UnbanServiceAddressResponse = UnbanServiceAddressResponses[keyof UnbanServiceAddressResponses];
 
 export type PreviewBuildPlanData = {
     body?: never;

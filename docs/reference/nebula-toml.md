@@ -64,7 +64,7 @@ Common keys: `name` (immediate), `server` (staged; required for `route`), `only_
 | `domains` | yes (needs a port) | no | yes (http routes) | yes (`component`) |
 | `backups` | no | yes | no | no |
 | `uptime` | yes | yes | yes | yes |
-| `firewall`, `maintenance` | yes (not `one_shot`) | no | yes (http routes) | no |
+| `firewall`, `autoban`, `maintenance` | yes (not `one_shot`) | no | yes (http routes) | no |
 
 A key not allowed for the kind is `not_allowed_for_kind`.
 
@@ -191,7 +191,7 @@ A process is owned as a whole: a key you leave out takes its default. `domains."
 
 ### `firewall` and `maintenance`
 
-Both are immediate and operational, like their dashboard controls: they change the proxy at once, without a deployment, and are not staged or rolled back. They apply to HTTP traffic only: image and git services and routes with `protocol = "http"`. Either table on a database, a stack or a tcp or udp route is `not_allowed_for_kind`, and on a `one_shot` or `cron` job (which serves no traffic) `invalid_value`.
+`firewall`, `autoban` and `maintenance` are immediate and operational, like their dashboard controls: they change the proxy at once, without a deployment, and are not staged or rolled back. They apply to HTTP traffic only: image and git services and routes with `protocol = "http"`. Any of the tables on a database, a stack or a tcp or udp route is `not_allowed_for_kind`, and on a `one_shot` or `cron` job (which serves no traffic) `invalid_value`.
 
 **`firewall`** (immediate, scope `proxy:write`; it also needs `projects:write`, which every apply holds) is the service's own rule list, see [Service firewall](../operations/firewall.md). The first enabled rule whose conditions all match decides, so **the list is owned as one unit, in order**: a plan or apply replaces the whole list, and moving a rule is a change. Each rule is a `[[services.<s>.firewall.rules]]` table, each condition a `[[services.<s>.firewall.rules.conditions]]` table below it.
 
@@ -221,6 +221,27 @@ action = "block"
 field  = "path"
 op     = "contains"
 values = ["wp-login.php", "xmlrpc.php", "/wp-admin", "phpmyadmin"]
+```
+
+**`autoban`** (immediate, scope `proxy:write`; it also needs `projects:write`, which every apply holds) is the service's [auto-ban](../operations/firewall.md#auto-ban) policy: an address that trips the standard protection or a block rule (other than an `ip` or `country` rule) `threshold` times within `window_seconds` is banned for `duration_seconds`. The table is **owned as one unit**: a key you leave out takes its default (off, 10, 600, 3600, no allow list), so a plan or apply replaces the whole policy. Durations are written in seconds, like the other time values of the file (`interval_seconds`, `timeout_seconds`).
+
+| Key | Type | Default | Notes |
+|---|---|---|---|
+| `enabled` | bool | `false` | `true` switches auto-ban on; the limits stay stored while it is off. |
+| `threshold` | int | `10` | Blocked requests from one address that start a ban, 3-1000. |
+| `window_seconds` | int | `600` | How far back those requests count, 60-86400. |
+| `duration_seconds` | int | `3600` | How long a ban lasts, 300-604800. |
+| `allow` | array of strings | none | Addresses and networks that are never banned: CIDRs or single addresses (stored as masked prefixes, duplicates dropped), at most 200. Adding an entry lifts the bans it covers. |
+
+A value out of its limit, or an `allow` entry that is not an address or CIDR, is `invalid_value` at its key; more than 200 `allow` entries is `limit_exceeded`. The plan also checks what only the target server decides, for a policy that is switched on: `agent_too_old` when its agent predates auto-ban and `analytics_required` when traffic analytics is off on the server. Either blocks the service in the plan instead of failing the apply. Removing `[services.<s>.autoban]` only **releases** the policy, which stays live; an apply with `--prune` switches auto-ban off and restores the defaults. Export writes the policy while the service has one (any key at its default is left out), and `enabled = false` where the file already owns it.
+
+```toml
+[services.web.autoban]
+enabled          = true
+threshold        = 10                   # blocked requests from one address that start a ban (3-1000)
+window_seconds   = 600                  # how far back they count (60-86400)
+duration_seconds = 3600                 # how long the ban lasts (300-604800)
+allow            = ["203.0.113.0/24"]   # never banned: CIDR or address, up to 200
 ```
 
 **`maintenance`** (immediate, scope `deployments:write`) puts the service into [maintenance mode](../operations/maintenance-and-error-pages.md#maintenance-mode): every domain answers `503` with the maintenance page. The table is owned as one unit.

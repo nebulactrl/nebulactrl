@@ -95,6 +95,7 @@ func TestFirewallValidateRejections(t *testing.T) {
 		"id too long":               {with(func(r *FirewallRule) { r.ID = strings.Repeat("a", 17) }), "id must be"},
 		"id with dash":              {with(func(r *FirewallRule) { r.ID = "a-b" }), "id must be"},
 		"duplicate ids":             {Firewall{Rules: []FirewallRule{ok, ok}}, "used twice"},
+		"reserved autoban id":       {with(func(r *FirewallRule) { r.ID = FirewallRuleAutoBan }), "reserved"},
 		"blank name":                {with(func(r *FirewallRule) { r.Name = "  " }), "name must be"},
 		"name too long":             {with(func(r *FirewallRule) { r.Name = strings.Repeat("n", 81) }), "name must be"},
 		"unknown action":            {with(func(r *FirewallRule) { r.Action = "drop" }), "block or allow"},

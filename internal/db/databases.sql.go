@@ -369,7 +369,7 @@ func (q *Queries) ListDatabaseRotations(ctx context.Context, serviceID uuid.UUID
 }
 
 const listEnvironmentDatabases = `-- name: ListEnvironmentDatabases :many
-SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall FROM services
+SELECT id, environment_id, name, slug, kind, source_type, config, git_token_enc, registry_auth_enc, generation, applied_generation, server_id, current_deployment_id, observed, observed_at, created_at, updated_at, deleted_at, desired_state, replicas, autoscaling, last_scale_at, last_scale_event, scale_blocked_reason, suggested_env, template_instance_id, template_key, maintenance_enabled, maintenance_title, maintenance_message, maintenance_eta, maintenance_since, firewall, autoban FROM services
 WHERE environment_id = $1 AND kind = 'database' AND deleted_at IS NULL
 ORDER BY created_at, id
 `
@@ -417,6 +417,7 @@ func (q *Queries) ListEnvironmentDatabases(ctx context.Context, environmentID uu
 			&i.MaintenanceEta,
 			&i.MaintenanceSince,
 			&i.Firewall,
+			&i.Autoban,
 		); err != nil {
 			return nil, err
 		}

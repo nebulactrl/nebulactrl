@@ -113,6 +113,11 @@ const OtherKey = "Other"
 // router's name.
 const FirewallRuleHeader = "X-Nebula-Firewall-Rule"
 
+// FirewallRuleAutoBan is the rule id the edge guard sends in
+// FirewallRuleHeader when a ban blocks a request. It is reserved: a firewall
+// rule cannot use it (Firewall.Validate).
+const FirewallRuleAutoBan = "autoban"
+
 // TrafficTop holds the top-N lists of a bucket. paths counts every request,
 // pages only documents (GET/HEAD text/html 2xx/3xx).
 type TrafficTop struct {

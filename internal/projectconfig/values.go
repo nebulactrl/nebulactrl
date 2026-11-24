@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/internal/tailnet/tailnetcfg"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
@@ -317,6 +318,54 @@ func maintenanceValue(m *Maintenance) MaintenanceValue {
 		}
 	}
 	return v
+}
+
+// AutoBanValue is the value of autoban: the whole table is one unit, so a key the file leaves out
+// is its default (off, 10 blocked requests in 600 s ban an address for 3600 s, no allow list).
+// Allow is canonical as the platform stores it: every entry a masked prefix, duplicates dropped.
+type AutoBanValue struct {
+	Enabled         bool     `json:"enabled"`
+	Threshold       int      `json:"threshold"`
+	WindowSeconds   int      `json:"windowSeconds"`
+	DurationSeconds int      `json:"durationSeconds"`
+	Allow           []string `json:"allow"`
+}
+
+// Policy converts the value to the platform's policy.
+func (v AutoBanValue) Policy() agentprotocol.AutoBan {
+	return agentprotocol.AutoBan{
+		Enabled: v.Enabled, Threshold: v.Threshold, WindowSeconds: v.WindowSeconds, DurationSeconds: v.DurationSeconds,
+		Allow: slices.Clone(v.Allow),
+	}
+}
+
+// AutoBanValueOf is the comparable form of a platform policy (as stored).
+func AutoBanValueOf(a agentprotocol.AutoBan) AutoBanValue {
+	a = a.Normalize()
+	return AutoBanValue{
+		Enabled: a.Enabled, Threshold: a.Threshold, WindowSeconds: a.WindowSeconds, DurationSeconds: a.DurationSeconds,
+		Allow: nonNilStrings(a.Allow),
+	}
+}
+
+// autoBanValue is the value of an [autoban] table: keys the file leaves out take their default.
+func autoBanValue(a *AutoBan) AutoBanValue {
+	pol := domains.DefaultAutoBan()
+	pol.Enabled = derefBool(a.Enabled)
+	if a.Threshold != nil {
+		pol.Threshold = *a.Threshold
+	}
+	if a.WindowSeconds != nil {
+		pol.WindowSeconds = *a.WindowSeconds
+	}
+	if a.DurationSeconds != nil {
+		pol.DurationSeconds = *a.DurationSeconds
+	}
+	pol.Allow = nil
+	for _, s := range a.Allow {
+		pol.Allow = append(pol.Allow, strings.TrimSpace(s))
+	}
+	return AutoBanValueOf(pol)
 }
 
 // ProcessValue is the value of config.processes.<name>: the whole process is

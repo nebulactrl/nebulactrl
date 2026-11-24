@@ -69,6 +69,13 @@ type ProbeSink interface {
 	IngestProbes(ctx context.Context, serverID uuid.UUID, p agentprotocol.Probes) error
 }
 
+// BanSink stores the auto-ban events an agent reports. Implemented by
+// internal/firewall. A nil error means the frame is durable and the agent may
+// forget it; duplicates (resends after a reconnect) must be ignored.
+type BanSink interface {
+	IngestBans(ctx context.Context, serverID uuid.UUID, f agentprotocol.BanFrame) error
+}
+
 // TaskLogSink stores the output frames of task runs (frames with a taskRunId).
 // Implemented by internal/tasks, which redacts, caps and persists the lines.
 type TaskLogSink interface {

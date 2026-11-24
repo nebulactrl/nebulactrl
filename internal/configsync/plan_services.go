@@ -349,7 +349,7 @@ func firstPos(a, b projectconfig.Pos) projectconfig.Pos {
 }
 
 func appliesOfRemoval(id string) string {
-	if strings.HasPrefix(id, "tasks.") || strings.HasPrefix(id, "backups.") || strings.HasPrefix(id, "uptime.") || id == "uptime" || id == "firewall" || id == "maintenance" {
+	if strings.HasPrefix(id, "tasks.") || strings.HasPrefix(id, "backups.") || strings.HasPrefix(id, "uptime.") || id == "uptime" || id == "firewall" || id == "autoban" || id == "maintenance" {
 		return AppliesImmediate
 	}
 	return AppliesStaged

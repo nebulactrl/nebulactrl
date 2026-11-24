@@ -12,6 +12,7 @@ import (
 	"math"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -50,8 +51,8 @@ type Event struct {
 
 // accessLine mirrors the fields of Traefik's JSON access log the agent reads
 // (static flags: --accesslog.format=json, defaultmode=keep, headers dropped
-// except User-Agent, Referer, Content-Type and X-Nebula-Firewall-Rule);
-// everything else is ignored.
+// except User-Agent, Referer, Content-Type, Cf-Connecting-Ip and
+// X-Nebula-Firewall-Rule); everything else is ignored.
 type accessLine struct {
 	StartUTC              string  `json:"StartUTC"`
 	RouterName            string  `json:"RouterName"`
@@ -73,6 +74,9 @@ type accessLine struct {
 	// FirewallRule is the response header the edge guard sets on a request it
 	// blocks (agentprotocol.FirewallRuleHeader); forwardAuth passes it on.
 	FirewallRule string `json:"downstream_X-Nebula-Firewall-Rule"`
+	// CfConnectingIP is the visitor address Cloudflare sent. ParseLine reads
+	// it only on a tunnel router (clientAddr).
+	CfConnectingIP string `json:"request_Cf-Connecting-Ip"`
 }
 
 var accessMarker = []byte(`"DownstreamStatus"`)
@@ -168,6 +172,19 @@ func isUUID(s string) bool {
 	return isHex(s[:8]) && isHex(s[9:13]) && isHex(s[14:18]) && isHex(s[19:23]) && isHex(s[24:])
 }
 
+// isTunnelRouter reports whether a router name is a tunnel router
+// (nc-<uuid>-d<id8>-tunnel, with or without a compiled firewall rule suffix):
+// served on the tunnel entrypoint, which only cloudflared reaches.
+func isTunnelRouter(name string) bool {
+	if at := strings.IndexByte(name, '@'); at >= 0 {
+		name = name[:at]
+	}
+	if i := strings.LastIndex(name, firewallRouterInfix); i >= 0 && validRuleID(name[i+len(firewallRouterInfix):]) {
+		name = name[:i]
+	}
+	return strings.HasSuffix(name, "-tunnel")
+}
+
 // ParseLine decodes one Traefik access log line (stdout of the proxy
 // container). Lines that are not access entries, or that must not be counted
 // (redirects, ACME challenges, status 0), return ErrIgnored. A line whose router
@@ -196,6 +213,7 @@ func ParseLine(line []byte) (Event, error) {
 	}
 	svc, redirect, fw, routed := serviceFromRouter(l.RouterName)
 	blockedBy := ""
+	tunnel := routed && isTunnelRouter(l.RouterName)
 	if !routed {
 		// Fall back to the service name (nc-<uuid>@rest) for the odd router
 		// that does not follow the naming contract.
@@ -243,11 +261,29 @@ func ParseLine(line []byte) (Event, error) {
 		DurationMs:  l.Duration / 1e6,
 		BytesOut:    max(l.DownstreamContentSize, 0),
 		BytesIn:     max(l.RequestContentSize, 0),
-		ClientIP:    clientIP(l.ClientHost),
+		ClientIP:    clientAddr(l, tunnel),
 		UserAgent:   l.UserAgent,
 		Referer:     l.Referer,
 		ContentType: l.ContentType,
 	}, nil
+}
+
+// clientAddr returns the visitor address of a line. On a tunnel router the
+// peer is cloudflared and the visitor is in the Cf-Connecting-Ip header
+// (kept in the access log, see StaticFlags), which only that peer reaches the
+// entrypoint through. On every other router the header is whatever the
+// visitor sent and is ignored: a peer domain trusts no client header, and an
+// origin-locked domain already carries the address Cloudflare appended in
+// ClientHost (clientIP), the same one Cloudflare puts in the header. The
+// address is returned in full (the strike path of the auto-ban needs it;
+// only the stored request line truncates it).
+func clientAddr(l accessLine, tunnel bool) string {
+	if tunnel {
+		if a, err := netip.ParseAddr(strings.TrimSpace(l.CfConnectingIP)); err == nil {
+			return a.WithZone("").Unmap().String()
+		}
+	}
+	return clientIP(l.ClientHost)
 }
 
 // clientIP returns the visitor address of an access-log ClientHost. Traefik

@@ -414,3 +414,88 @@ func testCert(t *testing.T) (crt, key string) {
 	require.NoError(t, err)
 	return string(c), string(k)
 }
+
+func autoBanPolicy(enabled bool) *agentprotocol.AutoBan {
+	return &agentprotocol.AutoBan{Enabled: enabled, Threshold: 10, WindowSeconds: 600, DurationSeconds: 3600, Allow: []string{"203.0.113.0/24"}}
+}
+
+// A route with an enabled auto-ban policy goes through the guard on every
+// serving router, and its firewall rules are evaluated by the guard (after the
+// allow list and the bans) instead of being compiled into routers.
+func TestGoldenAutoBanRouteGoesThroughTheGuard(t *testing.T) {
+	r := ruleRoute(
+		rule(domA, "app.example.com", nil),
+		rule(domB, "t.example.com", func(d *agentprotocol.DomainRule) { d.Tunnel = true }),
+	)
+	r.Firewall = &agentprotocol.Firewall{Rules: []agentprotocol.FirewallRule{fwr("admin", blockA, fwc("path", "prefix", "/admin"))}}
+	r.AutoBan = autoBanPolicy(true)
+	r.Hosts = append(r.Hosts, "extra.example.com")
+	p := parse(t, goldenConfig(t, "autoban_guard", []agentprotocol.Route{r}, Options{ACMEEmail: "ops@example.com"}))
+
+	for name := range p.HTTP.Routers {
+		require.NotContains(t, name, "-fw", "the firewall is not compiled into routers")
+	}
+	a, b, def := "nc-"+svcApp+"-daaaaaaaa", "nc-"+svcApp+"-dbbbbbbbb", "nc-"+svcApp
+	for router, mw := range map[string]string{a + "-https": a + "-guard", b + "-tunnel": b + "-guard", def + "-https": def + "-guard"} {
+		require.Contains(t, strs(p.HTTP.Routers[router]["middlewares"]), mw, router)
+	}
+	require.Equal(t, map[string]any{"address": agentprotocol.GuardCheckURL(svcApp, agentprotocol.GuardClientPeer)}, p.HTTP.Middlewares[a+"-guard"]["forwardAuth"])
+	require.Equal(t, map[string]any{"address": agentprotocol.GuardCheckURL(svcApp, agentprotocol.GuardClientCloudflare)}, p.HTTP.Middlewares[b+"-guard"]["forwardAuth"], "a tunnelled domain reads Cf-Connecting-IP")
+	require.Equal(t, map[string]any{"address": agentprotocol.GuardCheckURL(svcApp, agentprotocol.GuardClientPeer)}, p.HTTP.Middlewares[def+"-guard"]["forwardAuth"])
+	probe, err := json.Marshal(p.HTTP.Routers[a+"-probe"])
+	require.NoError(t, err)
+	require.NotContains(t, string(probe), "guard", "verification does not go through the guard")
+}
+
+// An auto-ban policy without rules still routes through the guard; a disabled
+// one changes nothing (the same bytes as a route without it).
+func TestAutoBanRouteWithoutRulesAndDisabledPolicy(t *testing.T) {
+	opts := Options{ACMEEmail: "ops@example.com"}
+	bare := ruleRoute(rule(domA, "app.example.com", nil))
+	on := bare
+	on.AutoBan = autoBanPolicy(true)
+	cfg := buildConfig(t, []agentprotocol.Route{on}, opts)
+	require.Contains(t, cfg.HTTP.Middlewares, fwDom+"-guard")
+	require.Contains(t, cfg.HTTP.Routers[fwDom+"-https"].Middlewares, fwDom+"-guard")
+
+	off := bare
+	off.AutoBan = autoBanPolicy(false)
+	require.Equal(t, mustBuild(t, []agentprotocol.Route{bare}, opts), mustBuild(t, []agentprotocol.Route{off}, opts), "a disabled policy renders nothing")
+
+	// With a disabled policy a compilable firewall is still compiled.
+	off.Firewall = &agentprotocol.Firewall{Rules: []agentprotocol.FirewallRule{fwr("admin", blockA, fwc("path", "prefix", "/admin"))}}
+	cfg = buildConfig(t, []agentprotocol.Route{off}, opts)
+	require.Contains(t, cfg.HTTP.Routers, fwDom+"-https-fwadmin")
+	require.NotContains(t, cfg.HTTP.Middlewares, fwDom+"-guard")
+}
+
+func TestGuardRoutesCoverAutoBanAndFirewallRoutes(t *testing.T) {
+	banned := ruleRoute(rule(domA, "a.example.com", nil))
+	banned.AutoBan = autoBanPolicy(true)
+	banned.Firewall = &agentprotocol.Firewall{Rules: []agentprotocol.FirewallRule{fwr("admin", blockA, fwc("path", "prefix", "/admin"))}}
+	off := countryRoute("22222222-2222-2222-2222-222222222222")
+	off.AutoBan = autoBanPolicy(false)
+	disabled := ruleRoute(rule(domA, "d.example.com", nil))
+	disabled.ServiceID = "33333333-3333-3333-3333-333333333333"
+	disabled.AutoBan = autoBanPolicy(false)
+	tcp := agentprotocol.Route{
+		ServiceID: "44444444-4444-4444-4444-444444444444", Upstreams: []string{"pg:5432"},
+		RouteExt: agentprotocol.RouteExt{Protocol: agentprotocol.ProtoTCP, ListenPort: 5432, AutoBan: autoBanPolicy(true)},
+	}
+
+	got := GuardRoutes([]agentprotocol.Route{banned, off, disabled, tcp})
+	require.Len(t, got, 2)
+	require.NotNil(t, got[banned.ServiceID].AutoBan)
+	require.Equal(t, []string{"203.0.113.0/24"}, got[banned.ServiceID].AutoBan.Allow)
+	require.Len(t, got[banned.ServiceID].Firewall.Rules, 1, "the route's rules are evaluated by the guard too")
+	require.Nil(t, got[off.ServiceID].AutoBan, "a disabled policy does not arm the ban check")
+	require.Contains(t, got, off.ServiceID, "its country rules still need the guard")
+
+	// An auto-ban route without rules is guarded with an empty firewall (the
+	// guard answers 200 for a route it holds no matcher for).
+	bare := ruleRoute(rule(domA, "b.example.com", nil))
+	bare.AutoBan = autoBanPolicy(true)
+	g := GuardRoutes([]agentprotocol.Route{bare})[bare.ServiceID]
+	require.NotNil(t, g.Firewall)
+	require.Empty(t, g.Firewall.Rules)
+}

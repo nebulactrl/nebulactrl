@@ -634,12 +634,12 @@ func (b *builder) http(r agentprotocol.Route) {
 			b.addMiddleware(t.maint, &dynMiddleware{ReplacePath: &dynReplacePath{Path: pages.MaintenancePath(r.ServiceID)}})
 		}
 	}
-	if fw := r.Firewall; len(fw.Active()) > 0 {
-		if fw.NeedsGuard(headerClientIP(r)) {
-			t.guardRoute = r.ServiceID
-		} else {
-			t.fw = fw.Active()
-		}
+	// An auto-ban route is evaluated entirely by the guard (allow list, bans,
+	// then its firewall rules), so none of its rules is compiled into routers.
+	if needsGuard(r) {
+		t.guardRoute = r.ServiceID
+	} else if fw := r.Firewall; len(fw.Active()) > 0 {
+		t.fw = fw.Active()
 	}
 	if len(rest) > 0 {
 		b.defaultHosts(t, rest)

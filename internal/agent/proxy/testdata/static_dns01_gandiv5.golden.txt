@@ -34,6 +34,7 @@
 --accesslog.fields.headers.names.Referer=keep
 --accesslog.fields.headers.names.Content-Type=keep
 --accesslog.fields.headers.names.X-Nebula-Firewall-Rule=keep
+--accesslog.fields.headers.names.Cf-Connecting-Ip=keep
 --certificatesresolvers.le.acme.email=ops@example.com
 --certificatesresolvers.le.acme.storage=/data/acme.json
 --certificatesresolvers.le.acme.httpchallenge=true

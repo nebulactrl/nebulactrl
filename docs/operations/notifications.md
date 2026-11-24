@@ -43,7 +43,7 @@ A new channel starts with failures and alerts on and successes off:
 
 | On by default | Off by default |
 |---|---|
-| `deploy.failed`, `deploy.rolled_back`, `deployment.ci_blocked`, `server.offline`, `server.disk_alert`, `server.cleanup`, `server.reboot_required`, `server.auto_update_failed`, `backup.failed`, `backup.missed`, `storage.quota_warning`, `storage.quota_full`, `task.failed`, `scale.blocked`, `cert.expiring`, `dns.sync_failed`, `cloudflare.ips_stale`, `service.crashed`, `service.unhealthy`, `service.restart_loop`, `service.recovered`, `uptime.down`, `uptime.up` | `deploy.succeeded`, `server.online`, `backup.succeeded`, `preview.created`, `preview.deleted`, `maintenance.on`, `maintenance.off`, `cloudflare.ips_changed` |
+| `deploy.failed`, `deploy.rolled_back`, `deployment.ci_blocked`, `server.offline`, `server.disk_alert`, `server.cleanup`, `server.reboot_required`, `server.auto_update_failed`, `backup.failed`, `backup.missed`, `storage.quota_warning`, `storage.quota_full`, `task.failed`, `scale.blocked`, `cert.expiring`, `dns.sync_failed`, `cloudflare.ips_stale`, `service.crashed`, `service.unhealthy`, `service.restart_loop`, `service.recovered`, `uptime.down`, `uptime.up` | `deploy.succeeded`, `server.online`, `backup.succeeded`, `preview.created`, `preview.deleted`, `maintenance.on`, `maintenance.off`, `cloudflare.ips_changed`, `service.autoban` |
 
 `GET /api/v1/notifications/event-types` returns the catalogue (label, group, default severity, default on/off).
 
@@ -54,6 +54,8 @@ Service health and backups: a crash, a failing health check or a restart loop is
 Built-in backup storage: when a team's use of its [built-in backup storage](platform-services.md#quotas) reaches **80%** of its quota, one `storage.quota_warning` warning ("Built-in backup storage nearly full") is sent, and at **100%** one `storage.quota_full` error ("Built-in backup storage full"); each is sent once per crossing and re-arms when use falls below 75%. The team gets them, and so does the instance admin (the copy goes to the control-plane host's team). New backups fail while the storage is full; existing ones are kept.
 
 Uptime: when the probes that run from each server (every 30 seconds) find a service down several times in a row, one `uptime.down` error is sent (and, if the monitor sets a reminder interval, again every that many minutes while the outage lasts); when it passes again, one `uptime.up` closes it, with the outage's duration. Maintenance and deployments never alert. A monitor's `alerts` switch turns all of it off for that service. See [Uptime monitoring](uptime.md).
+
+Auto-ban: when [auto-ban](firewall.md#auto-ban) banned addresses on a service, one `service.autoban` warning per service per 10 minutes says how many addresses were banned and which rule struck most ("3 addresses banned on shop in the last 10 minutes"). It never names an address. Off by default, because a public service is scanned all day.
 
 Server patching: when a server's host starts needing a reboot (the first [check](server-patching.md) that sees the flag, or an upgrade that sets it), one `server.reboot_required` warning is sent; it is not repeated while the flag stays set, and a new streak is announced again. Pending updates alone send nothing. `server.auto_update_failed` (warning) is sent each time a scheduled [automatic update](server-patching.md#automatic-updates) of a server fails; the third failure in a row also switches automatic updates off for it.
 

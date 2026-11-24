@@ -26,6 +26,11 @@ import (
 // plane refuses firewall rules (422 agent_too_old) for servers without it.
 const CapFirewall = "proxy.firewall"
 
+// CapAutoBan is advertised by agents that detect and enforce auto-bans
+// (autoban.go). The control plane refuses an auto-ban policy (422
+// agent_too_old) for servers without it.
+const CapAutoBan = "proxy.autoban"
+
 // Rule actions (FirewallRule.Action).
 const (
 	FirewallBlock = "block"
@@ -204,6 +209,9 @@ func (f Firewall) Validate() error {
 		at := fmt.Sprintf("rule %d", i+1)
 		if !firewallRuleID.MatchString(r.ID) {
 			return fmt.Errorf("%s: id must be 1-16 lowercase letters or digits", at)
+		}
+		if r.ID == FirewallRuleAutoBan {
+			return fmt.Errorf("%s: id %q is reserved for auto-ban", at, r.ID)
 		}
 		if seen[r.ID] {
 			return fmt.Errorf("%s: id %q is used twice", at, r.ID)

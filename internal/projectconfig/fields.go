@@ -217,6 +217,7 @@ func buildCatalog() []FieldSpec {
 		add(fs("uptime."+u.id, "uptime."+u.key, "uptime.MonitorView."+strings.ToUpper(u.id[:1])+u.id[1:], AppliesImmediate, u.typ, nil))
 	}
 	add(fs("firewall", "firewall", "firewall.PutInput.Rules", AppliesImmediate, "FirewallValue", httpKinds))
+	add(fs("autoban", "autoban", "firewall.Service.PutAutoBan", AppliesImmediate, "AutoBanValue", httpKinds))
 	add(fs("maintenance", "maintenance", "maintenance.SetInput", AppliesImmediate, "MaintenanceValue", httpKinds))
 	t := fs("tasks.*", "tasks.*", "tasks.TaskInput", AppliesImmediate, "TaskValue", append(append([]string(nil), rtKinds...), KindDatabase))
 	t.Collection = true
@@ -804,6 +805,9 @@ func (c *svcCtx) assembleCollections() {
 	}
 	if f := d.Firewall; f != nil {
 		c.addField("firewall", rp("firewall"), firewallValue(f), im)
+	}
+	if a := d.AutoBan; a != nil {
+		c.addField("autoban", rp("autoban"), autoBanValue(a), im)
 	}
 	if m := d.Maintenance; m != nil {
 		c.addField("maintenance", rp("maintenance"), maintenanceValue(m), im)

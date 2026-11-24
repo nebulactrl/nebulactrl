@@ -67,6 +67,7 @@ var schemaTypeDefs = map[reflect.Type]string{
 	reflect.TypeFor[FirewallRule]():      "firewallRule",
 	reflect.TypeFor[FirewallCondition](): "firewallCondition",
 	reflect.TypeFor[Maintenance]():       "maintenance",
+	reflect.TypeFor[AutoBan]():           "autoban",
 	reflect.TypeFor[Task]():              "task",
 	reflect.TypeFor[Process]():           "process",
 	reflect.TypeFor[Backup]():            "backup",
@@ -496,7 +497,7 @@ func (g *schemaGen) serviceDef() map[string]any {
 	databaseForbids := []string{
 		"port", "command", "health_check", "volumes", "domains", "pre_deploy", "post_deploy",
 		"one_shot", "files", "scale", "build", "generate_domain", "processes", "process_name", "singleton",
-		"restart_policy", "restart_max_retries", "cron", "firewall", "maintenance",
+		"restart_policy", "restart_max_retries", "cron", "firewall", "autoban", "maintenance",
 	}
 	stackForbids := []string{
 		"port", "command", "health_check", "memory_mb", "cpus", "image_retention",
@@ -505,7 +506,7 @@ func (g *schemaGen) serviceDef() map[string]any {
 	}
 	routeForbids := append(slices.Clone(stackForbids), "stop_grace_seconds", "block_egress", "variables", "secrets", "networks")
 	// A route serves HTTP through the proxy, so it takes a firewall and maintenance mode (the protocol is checked by validation).
-	stackForbids = append(stackForbids, "firewall", "maintenance")
+	stackForbids = append(stackForbids, "firewall", "autoban", "maintenance")
 	// A process of a base service needs its command; an environment override may restate a single key of it.
 	processesRule := map[string]any{"additionalProperties": map[string]any{"required": []string{"command"}}}
 	for kw, v := range g.bodyProperty("processes") {

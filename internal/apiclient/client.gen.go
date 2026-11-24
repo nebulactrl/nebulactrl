@@ -309,6 +309,45 @@ func (e BackupViewTrigger) Valid() bool {
 	}
 }
 
+// Defines values for BanViewEndReason.
+const (
+	BanViewEndReasonExpired  BanViewEndReason = "expired"
+	BanViewEndReasonLifted   BanViewEndReason = "lifted"
+	BanViewEndReasonResync   BanViewEndReason = "resync"
+	BanViewEndReasonUnbanned BanViewEndReason = "unbanned"
+)
+
+// Valid indicates whether the value is a known member of the BanViewEndReason enum.
+func (e BanViewEndReason) Valid() bool {
+	switch e {
+	case BanViewEndReasonExpired:
+		return true
+	case BanViewEndReasonLifted:
+		return true
+	case BanViewEndReasonResync:
+		return true
+	case BanViewEndReasonUnbanned:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for BanViewSource.
+const (
+	BanViewSourceAuto BanViewSource = "auto"
+)
+
+// Valid indicates whether the value is a known member of the BanViewSource enum.
+func (e BanViewSource) Valid() bool {
+	switch e {
+	case BanViewSourceAuto:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for ChannelConfigProvider.
 const (
 	ChannelConfigProviderResend ChannelConfigProvider = "resend"
@@ -7659,6 +7698,21 @@ func (e UlimitName) Valid() bool {
 	}
 }
 
+// Defines values for UnbanViewStatus.
+const (
+	UnbanViewStatusQueued UnbanViewStatus = "queued"
+)
+
+// Valid indicates whether the value is a known member of the UnbanViewStatus enum.
+func (e UnbanViewStatus) Valid() bool {
+	switch e {
+	case UnbanViewStatusQueued:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for UpdateIncidentInputBodyImpact.
 const (
 	UpdateIncidentInputBodyImpactCritical UpdateIncidentInputBodyImpact = "critical"
@@ -8892,6 +8946,24 @@ func (e GetServiceAnalyticsParamsCompare) Valid() bool {
 	}
 }
 
+// Defines values for ListServiceBansParamsState.
+const (
+	ListServiceBansParamsStateActive ListServiceBansParamsState = "active"
+	ListServiceBansParamsStateEnded  ListServiceBansParamsState = "ended"
+)
+
+// Valid indicates whether the value is a known member of the ListServiceBansParamsState enum.
+func (e ListServiceBansParamsState) Valid() bool {
+	switch e {
+	case ListServiceBansParamsStateActive:
+		return true
+	case ListServiceBansParamsStateEnded:
+		return true
+	default:
+		return false
+	}
+}
+
 // Defines values for GetServiceFirewallBlocksParamsRange.
 const (
 	GetServiceFirewallBlocksParamsRangeN24h GetServiceFirewallBlocksParamsRange = "24h"
@@ -9477,6 +9549,32 @@ type AuthorizeOutputBody struct {
 	AuthorizeUrl string `json:"authorizeUrl"`
 }
 
+// AutoBan defines model for AutoBan.
+type AutoBan struct {
+	Allow           *[]string `json:"allow,omitempty"`
+	DurationSeconds int64     `json:"durationSeconds"`
+	Enabled         bool      `json:"enabled"`
+	Threshold       int64     `json:"threshold"`
+	WindowSeconds   int64     `json:"windowSeconds"`
+}
+
+// AutoBanView defines model for AutoBanView.
+type AutoBanView struct {
+	ActiveBans int64 `json:"activeBans"`
+
+	// Analytics Traffic analytics is on for the service's server; auto-ban needs it
+	Analytics bool      `json:"analytics"`
+	Hosts     *[]string `json:"hosts"`
+
+	// Policy The service's policy; the defaults (off) when it has none
+	Policy    AutoBan `json:"policy"`
+	Server    string  `json:"server"`
+	Supported bool    `json:"supported"`
+
+	// Warnings cloudflare_proxied_not_locked: a Cloudflare-proxied domain that is not locked to Cloudflare shows only Cloudflare's addresses, so its visitors cannot be banned
+	Warnings *[]string `json:"warnings"`
+}
+
 // AutoUpdateInputBody defines model for AutoUpdateInputBody.
 type AutoUpdateInputBody struct {
 	// AcknowledgeProduction Required to enable when production services or the control plane run on the server
@@ -9601,6 +9699,33 @@ type BackupViewStatus string
 
 // BackupViewTrigger defines model for BackupView.Trigger.
 type BackupViewTrigger string
+
+// BanView defines model for BanView.
+type BanView struct {
+	// Address The banned address; kept only while the ban is active, null afterwards
+	Address *string `json:"address"`
+
+	// EndReason Why the ban ended: expired, unbanned (by a person), lifted (policy switched off, allow-listed or route removed) or resync (the agent no longer held it)
+	EndReason *BanViewEndReason `json:"endReason,omitempty"`
+	EndedAt   *time.Time        `json:"endedAt"`
+	ExpiresAt time.Time         `json:"expiresAt"`
+	Id        string            `json:"id"`
+
+	// Prefix The banned network: the address as /32 (IPv4) or its /64 (IPv6)
+	Prefix string `json:"prefix"`
+
+	// Rules Blocked requests that counted toward the ban, per firewall rule id
+	Rules     map[string]int64 `json:"rules"`
+	Source    BanViewSource    `json:"source"`
+	StartedAt time.Time        `json:"startedAt"`
+	Strikes   int64            `json:"strikes"`
+}
+
+// BanViewEndReason Why the ban ended: expired, unbanned (by a person), lifted (policy switched off, allow-listed or route removed) or resync (the agent no longer held it)
+type BanViewEndReason string
+
+// BanViewSource defines model for BanView.Source.
+type BanViewSource string
 
 // Blocker defines model for Blocker.
 type Blocker struct {
@@ -15303,6 +15428,14 @@ type PageAuditEvent struct {
 	NextCursor *string `json:"nextCursor,omitempty"`
 }
 
+// PageBanView defines model for PageBanView.
+type PageBanView struct {
+	Items *[]BanView `json:"items"`
+
+	// NextCursor Present when more items exist
+	NextCursor *string `json:"nextCursor,omitempty"`
+}
+
 // PageDNSFixInputBody defines model for PageDNSFixInputBody.
 type PageDNSFixInputBody struct {
 	// Adopt Take over the existing record NebulaCtrl did not create: it is marked as managed and pointed at the control-plane server
@@ -20122,6 +20255,15 @@ type Ulimit struct {
 // UlimitName defines model for Ulimit.Name.
 type UlimitName string
 
+// UnbanView defines model for UnbanView.
+type UnbanView struct {
+	// Status The agent was told to lift the ban; the ban ends when it confirms
+	Status UnbanViewStatus `json:"status"`
+}
+
+// UnbanViewStatus The agent was told to lift the ban; the ban ends when it confirms
+type UnbanViewStatus string
+
 // UnrestrictedSettings defines model for UnrestrictedSettings.
 type UnrestrictedSettings struct {
 	// Available The agent can run Compose stacks (Docker Compose plugin 2.24 or newer)
@@ -22063,6 +22205,12 @@ type GetServiceAnalyticsParamsRange string
 // GetServiceAnalyticsParamsCompare defines parameters for GetServiceAnalytics.
 type GetServiceAnalyticsParamsCompare string
 
+// SetServiceAutoBanParams defines parameters for SetServiceAutoBan.
+type SetServiceAutoBanParams struct {
+	// IdempotencyKey Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
+	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
+}
+
 // CreateBackupScheduleParams defines parameters for CreateBackupSchedule.
 type CreateBackupScheduleParams struct {
 	// IdempotencyKey Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
@@ -22076,6 +22224,27 @@ type ListBackupsParams struct {
 
 // CreateBackupParams defines parameters for CreateBackup.
 type CreateBackupParams struct {
+	// IdempotencyKey Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
+	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
+}
+
+// ListServiceBansParams defines parameters for ListServiceBans.
+type ListServiceBansParams struct {
+	// State active: the bans in force now, with the banned address. ended: past bans, prefix only
+	State *ListServiceBansParamsState `form:"state,omitempty" json:"state,omitempty"`
+
+	// Cursor Opaque cursor from a previous page's nextCursor
+	Cursor *string `form:"cursor,omitempty" json:"cursor,omitempty"`
+
+	// Limit Page size (default 50, max 200)
+	Limit *int64 `form:"limit,omitempty" json:"limit,omitempty"`
+}
+
+// ListServiceBansParamsState defines parameters for ListServiceBans.
+type ListServiceBansParamsState string
+
+// UnbanServiceAddressParams defines parameters for UnbanServiceAddress.
+type UnbanServiceAddressParams struct {
 	// IdempotencyKey Client-chosen key (<=255 chars). A retry with the same key replays the original response for 24 hours.
 	IdempotencyKey *string `json:"Idempotency-Key,omitempty"`
 }
@@ -22874,6 +23043,9 @@ type SetServerUnrestrictedJSONRequestBody = SetUnrestrictedInputBody
 
 // UpdateServiceJSONRequestBody defines body for UpdateService for application/json ContentType.
 type UpdateServiceJSONRequestBody = UpdateServiceInputBody
+
+// SetServiceAutoBanJSONRequestBody defines body for SetServiceAutoBan for application/json ContentType.
+type SetServiceAutoBanJSONRequestBody = AutoBan
 
 // CreateBackupScheduleJSONRequestBody defines body for CreateBackupSchedule for application/json ContentType.
 type CreateBackupScheduleJSONRequestBody = CreateScheduleInputBody
@@ -26640,6 +26812,31 @@ type ClientInterface interface {
 	// Corresponds with GET /services/{serviceId}/analytics (the `GetServiceAnalytics` operationId).
 	GetServiceAnalytics(ctx context.Context, serviceId string, params *GetServiceAnalyticsParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
+	// GetServiceAutoBan Get a service's auto-ban policy
+	//
+	// Auto-ban bans an address that trips the service's firewall again and again: `threshold` blocked requests within `windowSeconds` ban it for `durationSeconds`. Only requests blocked by the standard protection or by a block rule with a condition other than `ip` or `country` count; allow rules, private and Cloudflare addresses and the `allow` list never do. `supported` is false when the server's agent is too old, `analytics` false while traffic analytics is off on the server (auto-ban needs it), `warnings` lists conditions that keep some visitors from being banned.
+	//
+	// Corresponds with GET /services/{serviceId}/autoban (the `GetServiceAutoBan` operationId).
+	GetServiceAutoBan(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetServiceAutoBanWithBody Replace a service's auto-ban policy
+	//
+	// Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic analytics is off on the server, `autoban_unsupported` for a tcp/udp route.
+	//
+	// Takes any type of body and a specified content type.
+	//
+	// Corresponds with PUT /services/{serviceId}/autoban (the `SetServiceAutoBan` operationId).
+	SetServiceAutoBanWithBody(ctx context.Context, serviceId string, params *SetServiceAutoBanParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// SetServiceAutoBan Replace a service's auto-ban policy
+	//
+	// Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic analytics is off on the server, `autoban_unsupported` for a tcp/udp route.
+	//
+	// Takes a body of the `application/json` content type.
+	//
+	// Corresponds with PUT /services/{serviceId}/autoban (the `SetServiceAutoBan` operationId).
+	SetServiceAutoBan(ctx context.Context, serviceId string, params *SetServiceAutoBanParams, body SetServiceAutoBanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
 	// ListBackupRestores List restores of a database
 	//
 	// Corresponds with GET /services/{serviceId}/backup-restores (the `ListBackupRestores` operationId).
@@ -26686,6 +26883,20 @@ type ClientInterface interface {
 	//
 	// Corresponds with POST /services/{serviceId}/backups (the `CreateBackup` operationId).
 	CreateBackup(ctx context.Context, serviceId string, params *CreateBackupParams, body CreateBackupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// ListServiceBans List a service's bans
+	//
+	// Bans auto-ban decided for the service, newest first. An active ban shows the banned `address`; an ended one keeps only the `prefix` (the address is forgotten when the ban ends) and is listed for 90 days.
+	//
+	// Corresponds with GET /services/{serviceId}/bans (the `ListServiceBans` operationId).
+	ListServiceBans(ctx context.Context, serviceId string, params *ListServiceBansParams, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// UnbanServiceAddress Lift a ban
+	//
+	// Tells the server's agent to lift an active ban; it ends when the agent confirms. The address can be banned again if it keeps tripping the firewall: add it to the policy's `allow` list to keep it out of auto-ban. 409 `ban_not_active` when the ban already ended.
+	//
+	// Corresponds with DELETE /services/{serviceId}/bans/{banId} (the `UnbanServiceAddress` operationId).
+	UnbanServiceAddress(ctx context.Context, serviceId string, banId string, params *UnbanServiceAddressParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	// PreviewBuildPlan Preview how a git service would be built
 	//
@@ -36468,6 +36679,61 @@ func (c *Client) GetServiceAnalytics(ctx context.Context, serviceId string, para
 	return c.Client.Do(req)
 }
 
+// GetServiceAutoBan Get a service's auto-ban policy
+//
+// Auto-ban bans an address that trips the service's firewall again and again: `threshold` blocked requests within `windowSeconds` ban it for `durationSeconds`. Only requests blocked by the standard protection or by a block rule with a condition other than `ip` or `country` count; allow rules, private and Cloudflare addresses and the `allow` list never do. `supported` is false when the server's agent is too old, `analytics` false while traffic analytics is off on the server (auto-ban needs it), `warnings` lists conditions that keep some visitors from being banned.
+//
+// Corresponds with GET /services/{serviceId}/autoban (the `GetServiceAutoBan` operationId).
+func (c *Client) GetServiceAutoBan(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetServiceAutoBanRequest(c.Server, serviceId)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetServiceAutoBanWithBody Replace a service's auto-ban policy
+//
+// Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic analytics is off on the server, `autoban_unsupported` for a tcp/udp route.
+//
+// Takes any type of body and a specified content type.
+//
+// Corresponds with PUT /services/{serviceId}/autoban (the `SetServiceAutoBan` operationId).
+func (c *Client) SetServiceAutoBanWithBody(ctx context.Context, serviceId string, params *SetServiceAutoBanParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetServiceAutoBanRequestWithBody(c.Server, serviceId, params, contentType, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// SetServiceAutoBan Replace a service's auto-ban policy
+//
+// Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic analytics is off on the server, `autoban_unsupported` for a tcp/udp route.
+//
+// Takes a body of the `application/json` content type.
+//
+// Corresponds with PUT /services/{serviceId}/autoban (the `SetServiceAutoBan` operationId).
+func (c *Client) SetServiceAutoBan(ctx context.Context, serviceId string, params *SetServiceAutoBanParams, body SetServiceAutoBanJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewSetServiceAutoBanRequest(c.Server, serviceId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
 // ListBackupRestores List restores of a database
 //
 // Corresponds with GET /services/{serviceId}/backup-restores (the `ListBackupRestores` operationId).
@@ -36575,6 +36841,40 @@ func (c *Client) CreateBackupWithBody(ctx context.Context, serviceId string, par
 // Corresponds with POST /services/{serviceId}/backups (the `CreateBackup` operationId).
 func (c *Client) CreateBackup(ctx context.Context, serviceId string, params *CreateBackupParams, body CreateBackupJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewCreateBackupRequest(c.Server, serviceId, params, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// ListServiceBans List a service's bans
+//
+// Bans auto-ban decided for the service, newest first. An active ban shows the banned `address`; an ended one keeps only the `prefix` (the address is forgotten when the ban ends) and is listed for 90 days.
+//
+// Corresponds with GET /services/{serviceId}/bans (the `ListServiceBans` operationId).
+func (c *Client) ListServiceBans(ctx context.Context, serviceId string, params *ListServiceBansParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewListServiceBansRequest(c.Server, serviceId, params)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// UnbanServiceAddress Lift a ban
+//
+// Tells the server's agent to lift an active ban; it ends when the agent confirms. The address can be banned again if it keeps tripping the firewall: add it to the policy's `allow` list to keep it out of auto-ban. 409 `ban_not_active` when the ban already ended.
+//
+// Corresponds with DELETE /services/{serviceId}/bans/{banId} (the `UnbanServiceAddress` operationId).
+func (c *Client) UnbanServiceAddress(ctx context.Context, serviceId string, banId string, params *UnbanServiceAddressParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewUnbanServiceAddressRequest(c.Server, serviceId, banId, params)
 	if err != nil {
 		return nil, err
 	}
@@ -55218,6 +55518,102 @@ func NewGetServiceAnalyticsRequest(server string, serviceId string, params *GetS
 	return req, nil
 }
 
+// NewGetServiceAutoBanRequest constructs an http.Request for the GetServiceAutoBan method
+func NewGetServiceAutoBanRequest(server string, serviceId string) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/autoban", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewSetServiceAutoBanRequest calls the generic SetServiceAutoBan builder with application/json body
+func NewSetServiceAutoBanRequest(server string, serviceId string, params *SetServiceAutoBanParams, body SetServiceAutoBanJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewSetServiceAutoBanRequestWithBody(server, serviceId, params, "application/json", bodyReader)
+}
+
+// NewSetServiceAutoBanRequestWithBody constructs an http.Request for the SetServiceAutoBan method, with any body, and a specified content type
+func NewSetServiceAutoBanRequestWithBody(server string, serviceId string, params *SetServiceAutoBanParams, contentType string, body io.Reader) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/autoban", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPut, queryURL.String(), body)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.IdempotencyKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", *params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Idempotency-Key", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
 // NewListBackupRestoresRequest constructs an http.Request for the ListBackupRestores method
 func NewListBackupRestoresRequest(server string, serviceId string) (*http.Request, error) {
 	var err error
@@ -55452,6 +55848,147 @@ func NewCreateBackupRequestWithBody(server string, serviceId string, params *Cre
 	}
 
 	req.Header.Add("Content-Type", contentType)
+
+	if params != nil {
+
+		if params.IdempotencyKey != nil {
+			var headerParam0 string
+
+			headerParam0, err = runtime.StyleParamWithOptions("simple", false, "Idempotency-Key", *params.IdempotencyKey, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationHeader, Type: "string", Format: ""})
+			if err != nil {
+				return nil, err
+			}
+
+			req.Header.Set("Idempotency-Key", headerParam0)
+		}
+
+	}
+
+	return req, nil
+}
+
+// NewListServiceBansRequest constructs an http.Request for the ListServiceBans method
+func NewListServiceBansRequest(server string, serviceId string, params *ListServiceBansParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/bans", pathParam0)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		// queryValues collects non-styled parameters (passthrough, JSON)
+		// that are safe to round-trip through url.Values.Encode().
+		queryValues := queryURL.Query()
+		// rawQueryFragments collects pre-encoded query fragments from
+		// styled parameters, preserving literal commas as delimiters
+		// per the OpenAPI spec (e.g. "color=blue,black,brown").
+		var rawQueryFragments []string
+
+		if params.State != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "state", *params.State, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Cursor != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "cursor", *params.Cursor, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "string", Format: ""}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if params.Limit != nil {
+
+			if queryFrag, err := runtime.StyleParamWithOptions("form", false, "limit", *params.Limit, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationQuery, Type: "integer", Format: "int64"}); err != nil {
+				return nil, err
+			} else {
+				for _, qp := range strings.Split(queryFrag, "&") {
+					rawQueryFragments = append(rawQueryFragments, qp)
+				}
+			}
+
+		}
+
+		if encoded := queryValues.Encode(); encoded != "" {
+			rawQueryFragments = append(rawQueryFragments, encoded)
+		}
+		queryURL.RawQuery = strings.Join(rawQueryFragments, "&")
+	}
+
+	req, err := http.NewRequest(http.MethodGet, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
+// NewUnbanServiceAddressRequest constructs an http.Request for the UnbanServiceAddress method
+func NewUnbanServiceAddressRequest(server string, serviceId string, banId string, params *UnbanServiceAddressParams) (*http.Request, error) {
+	var err error
+
+	var pathParam0 string
+
+	pathParam0, err = runtime.StyleParamWithOptions("simple", false, "serviceId", serviceId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	var pathParam1 string
+
+	pathParam1, err = runtime.StyleParamWithOptions("simple", false, "banId", banId, runtime.StyleParamOptions{ParamLocation: runtime.ParamLocationPath, Type: "string", Format: ""})
+	if err != nil {
+		return nil, err
+	}
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/services/%s/bans/%s", pathParam0, pathParam1)
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodDelete, queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if params != nil {
 
@@ -67157,6 +67694,33 @@ type ClientWithResponsesInterface interface {
 	// Corresponds with GET /services/{serviceId}/analytics (the `GetServiceAnalytics` operationId).
 	GetServiceAnalyticsWithResponse(ctx context.Context, serviceId string, params *GetServiceAnalyticsParams, reqEditors ...RequestEditorFn) (*GetServiceAnalyticsResponse, error)
 
+	// GetServiceAutoBanWithResponse Get a service's auto-ban policy
+	//
+	// Auto-ban bans an address that trips the service's firewall again and again: `threshold` blocked requests within `windowSeconds` ban it for `durationSeconds`. Only requests blocked by the standard protection or by a block rule with a condition other than `ip` or `country` count; allow rules, private and Cloudflare addresses and the `allow` list never do. `supported` is false when the server's agent is too old, `analytics` false while traffic analytics is off on the server (auto-ban needs it), `warnings` lists conditions that keep some visitors from being banned.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /services/{serviceId}/autoban (the `GetServiceAutoBan` operationId).
+	GetServiceAutoBanWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*GetServiceAutoBanResponse, error)
+
+	// SetServiceAutoBanWithBodyWithResponse Replace a service's auto-ban policy
+	//
+	// Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic analytics is off on the server, `autoban_unsupported` for a tcp/udp route.
+	//
+	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /services/{serviceId}/autoban (the `SetServiceAutoBan` operationId).
+	SetServiceAutoBanWithBodyWithResponse(ctx context.Context, serviceId string, params *SetServiceAutoBanParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetServiceAutoBanResponse, error)
+
+	// SetServiceAutoBanWithResponse Replace a service's auto-ban policy
+	//
+	// Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic analytics is off on the server, `autoban_unsupported` for a tcp/udp route.
+	//
+	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with PUT /services/{serviceId}/autoban (the `SetServiceAutoBan` operationId).
+	SetServiceAutoBanWithResponse(ctx context.Context, serviceId string, params *SetServiceAutoBanParams, body SetServiceAutoBanJSONRequestBody, reqEditors ...RequestEditorFn) (*SetServiceAutoBanResponse, error)
+
 	// ListBackupRestoresWithResponse List restores of a database
 	//
 	// Returns a wrapper object for the known response body format(s).
@@ -67209,6 +67773,24 @@ type ClientWithResponsesInterface interface {
 	//
 	// Corresponds with POST /services/{serviceId}/backups (the `CreateBackup` operationId).
 	CreateBackupWithResponse(ctx context.Context, serviceId string, params *CreateBackupParams, body CreateBackupJSONRequestBody, reqEditors ...RequestEditorFn) (*CreateBackupResponse, error)
+
+	// ListServiceBansWithResponse List a service's bans
+	//
+	// Bans auto-ban decided for the service, newest first. An active ban shows the banned `address`; an ended one keeps only the `prefix` (the address is forgotten when the ban ends) and is listed for 90 days.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with GET /services/{serviceId}/bans (the `ListServiceBans` operationId).
+	ListServiceBansWithResponse(ctx context.Context, serviceId string, params *ListServiceBansParams, reqEditors ...RequestEditorFn) (*ListServiceBansResponse, error)
+
+	// UnbanServiceAddressWithResponse Lift a ban
+	//
+	// Tells the server's agent to lift an active ban; it ends when the agent confirms. The address can be banned again if it keeps tripping the firewall: add it to the policy's `allow` list to keep it out of auto-ban. 409 `ban_not_active` when the ban already ended.
+	//
+	// Returns a wrapper object for the known response body format(s).
+	//
+	// Corresponds with DELETE /services/{serviceId}/bans/{banId} (the `UnbanServiceAddress` operationId).
+	UnbanServiceAddressWithResponse(ctx context.Context, serviceId string, banId string, params *UnbanServiceAddressParams, reqEditors ...RequestEditorFn) (*UnbanServiceAddressResponse, error)
 
 	// PreviewBuildPlanWithResponse Preview how a git service would be built
 	//
@@ -95814,6 +96396,172 @@ func (r GetServiceAnalyticsResponse) ContentType() string {
 	return ""
 }
 
+type GetServiceAutoBanResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AutoBanView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r GetServiceAutoBanResponse) GetJSON200() *AutoBanView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r GetServiceAutoBanResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r GetServiceAutoBanResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r GetServiceAutoBanResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r GetServiceAutoBanResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r GetServiceAutoBanResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r GetServiceAutoBanResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r GetServiceAutoBanResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r GetServiceAutoBanResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetServiceAutoBanResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r GetServiceAutoBanResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type SetServiceAutoBanResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *AutoBanView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r SetServiceAutoBanResponse) GetJSON200() *AutoBanView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r SetServiceAutoBanResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r SetServiceAutoBanResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r SetServiceAutoBanResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r SetServiceAutoBanResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r SetServiceAutoBanResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r SetServiceAutoBanResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r SetServiceAutoBanResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r SetServiceAutoBanResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r SetServiceAutoBanResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r SetServiceAutoBanResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
 type ListBackupRestoresResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
@@ -96195,6 +96943,179 @@ func (r CreateBackupResponse) StatusCode() int {
 
 // ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
 func (r CreateBackupResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type ListServiceBansResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON200 the response for an HTTP 200 `application/json` response
+	JSON200 *PageBanView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON200 returns the response for an HTTP 200 `application/json` response
+func (r ListServiceBansResponse) GetJSON200() *PageBanView {
+	return r.JSON200
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r ListServiceBansResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r ListServiceBansResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r ListServiceBansResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r ListServiceBansResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r ListServiceBansResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r ListServiceBansResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r ListServiceBansResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r ListServiceBansResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r ListServiceBansResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r ListServiceBansResponse) ContentType() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Header.Get("Content-Type")
+	}
+	return ""
+}
+
+type UnbanServiceAddressResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	// JSON202 the response for an HTTP 202 `application/json` response
+	JSON202 *UnbanView
+	// ApplicationproblemJSON401 the response for an HTTP 401 `application/problem+json` response
+	ApplicationproblemJSON401 *Error
+	// ApplicationproblemJSON403 the response for an HTTP 403 `application/problem+json` response
+	ApplicationproblemJSON403 *Error
+	// ApplicationproblemJSON404 the response for an HTTP 404 `application/problem+json` response
+	ApplicationproblemJSON404 *Error
+	// ApplicationproblemJSON409 the response for an HTTP 409 `application/problem+json` response
+	ApplicationproblemJSON409 *Error
+	// ApplicationproblemJSON422 the response for an HTTP 422 `application/problem+json` response
+	ApplicationproblemJSON422 *Error
+	// ApplicationproblemJSON500 the response for an HTTP 500 `application/problem+json` response
+	ApplicationproblemJSON500 *Error
+	// ApplicationproblemJSONDefault the response for an HTTP default `application/problem+json` response
+	ApplicationproblemJSONDefault *Error
+}
+
+// GetJSON202 returns the response for an HTTP 202 `application/json` response
+func (r UnbanServiceAddressResponse) GetJSON202() *UnbanView {
+	return r.JSON202
+}
+
+// GetApplicationproblemJSON401 returns the response for an HTTP 401 `application/problem+json` response
+func (r UnbanServiceAddressResponse) GetApplicationproblemJSON401() *Error {
+	return r.ApplicationproblemJSON401
+}
+
+// GetApplicationproblemJSON403 returns the response for an HTTP 403 `application/problem+json` response
+func (r UnbanServiceAddressResponse) GetApplicationproblemJSON403() *Error {
+	return r.ApplicationproblemJSON403
+}
+
+// GetApplicationproblemJSON404 returns the response for an HTTP 404 `application/problem+json` response
+func (r UnbanServiceAddressResponse) GetApplicationproblemJSON404() *Error {
+	return r.ApplicationproblemJSON404
+}
+
+// GetApplicationproblemJSON409 returns the response for an HTTP 409 `application/problem+json` response
+func (r UnbanServiceAddressResponse) GetApplicationproblemJSON409() *Error {
+	return r.ApplicationproblemJSON409
+}
+
+// GetApplicationproblemJSON422 returns the response for an HTTP 422 `application/problem+json` response
+func (r UnbanServiceAddressResponse) GetApplicationproblemJSON422() *Error {
+	return r.ApplicationproblemJSON422
+}
+
+// GetApplicationproblemJSON500 returns the response for an HTTP 500 `application/problem+json` response
+func (r UnbanServiceAddressResponse) GetApplicationproblemJSON500() *Error {
+	return r.ApplicationproblemJSON500
+}
+
+// GetApplicationproblemJSONDefault returns the response for an HTTP default `application/problem+json` response
+func (r UnbanServiceAddressResponse) GetApplicationproblemJSONDefault() *Error {
+	return r.ApplicationproblemJSONDefault
+}
+
+// GetBody returns the raw response body bytes
+func (r UnbanServiceAddressResponse) GetBody() []byte {
+	return r.Body
+}
+
+// Status returns HTTPResponse.Status
+func (r UnbanServiceAddressResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r UnbanServiceAddressResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
+// ContentType is a convenience method to retrieve the Content-Type value from the HTTP response headers
+func (r UnbanServiceAddressResponse) ContentType() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Header.Get("Content-Type")
 	}
@@ -116736,6 +117657,51 @@ func (c *ClientWithResponses) GetServiceAnalyticsWithResponse(ctx context.Contex
 	return ParseGetServiceAnalyticsResponse(rsp)
 }
 
+// GetServiceAutoBanWithResponse Get a service's auto-ban policy
+//
+// Auto-ban bans an address that trips the service's firewall again and again: `threshold` blocked requests within `windowSeconds` ban it for `durationSeconds`. Only requests blocked by the standard protection or by a block rule with a condition other than `ip` or `country` count; allow rules, private and Cloudflare addresses and the `allow` list never do. `supported` is false when the server's agent is too old, `analytics` false while traffic analytics is off on the server (auto-ban needs it), `warnings` lists conditions that keep some visitors from being banned.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /services/{serviceId}/autoban (the `GetServiceAutoBan` operationId).
+func (c *ClientWithResponses) GetServiceAutoBanWithResponse(ctx context.Context, serviceId string, reqEditors ...RequestEditorFn) (*GetServiceAutoBanResponse, error) {
+	rsp, err := c.GetServiceAutoBan(ctx, serviceId, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetServiceAutoBanResponse(rsp)
+}
+
+// SetServiceAutoBanWithBodyWithResponse Replace a service's auto-ban policy
+//
+// Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic analytics is off on the server, `autoban_unsupported` for a tcp/udp route.
+//
+// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /services/{serviceId}/autoban (the `SetServiceAutoBan` operationId).
+func (c *ClientWithResponses) SetServiceAutoBanWithBodyWithResponse(ctx context.Context, serviceId string, params *SetServiceAutoBanParams, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*SetServiceAutoBanResponse, error) {
+	rsp, err := c.SetServiceAutoBanWithBody(ctx, serviceId, params, contentType, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetServiceAutoBanResponse(rsp)
+}
+
+// SetServiceAutoBanWithResponse Replace a service's auto-ban policy
+//
+// Replaces the whole policy. `threshold` is 3-1000 blocked requests, `windowSeconds` 60-86400, `durationSeconds` 300-604800, `allow` up to 200 CIDRs or addresses that are never banned. Visitors are banned by address (IPv4 /32, IPv6 /64). Switching the policy off, or allow-listing a banned address, lifts its bans at once. The service's domains are then evaluated by the edge guard next to the proxy (one extra local hop per request). The change is operational: it applies at once, without a deployment, is never staged and never rolled back. 422 `invalid_autoban` for a value out of its limits, `agent_too_old` when the server's agent predates auto-ban, `analytics_required` when traffic analytics is off on the server, `autoban_unsupported` for a tcp/udp route.
+//
+// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
+//
+// Corresponds with PUT /services/{serviceId}/autoban (the `SetServiceAutoBan` operationId).
+func (c *ClientWithResponses) SetServiceAutoBanWithResponse(ctx context.Context, serviceId string, params *SetServiceAutoBanParams, body SetServiceAutoBanJSONRequestBody, reqEditors ...RequestEditorFn) (*SetServiceAutoBanResponse, error) {
+	rsp, err := c.SetServiceAutoBan(ctx, serviceId, params, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseSetServiceAutoBanResponse(rsp)
+}
+
 // ListBackupRestoresWithResponse List restores of a database
 //
 // Returns a wrapper object for the known response body format(s).
@@ -116829,6 +117795,36 @@ func (c *ClientWithResponses) CreateBackupWithResponse(ctx context.Context, serv
 		return nil, err
 	}
 	return ParseCreateBackupResponse(rsp)
+}
+
+// ListServiceBansWithResponse List a service's bans
+//
+// Bans auto-ban decided for the service, newest first. An active ban shows the banned `address`; an ended one keeps only the `prefix` (the address is forgotten when the ban ends) and is listed for 90 days.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with GET /services/{serviceId}/bans (the `ListServiceBans` operationId).
+func (c *ClientWithResponses) ListServiceBansWithResponse(ctx context.Context, serviceId string, params *ListServiceBansParams, reqEditors ...RequestEditorFn) (*ListServiceBansResponse, error) {
+	rsp, err := c.ListServiceBans(ctx, serviceId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseListServiceBansResponse(rsp)
+}
+
+// UnbanServiceAddressWithResponse Lift a ban
+//
+// Tells the server's agent to lift an active ban; it ends when the agent confirms. The address can be banned again if it keeps tripping the firewall: add it to the policy's `allow` list to keep it out of auto-ban. 409 `ban_not_active` when the ban already ended.
+//
+// Returns a wrapper object for the known response body format(s).
+//
+// Corresponds with DELETE /services/{serviceId}/bans/{banId} (the `UnbanServiceAddress` operationId).
+func (c *ClientWithResponses) UnbanServiceAddressWithResponse(ctx context.Context, serviceId string, banId string, params *UnbanServiceAddressParams, reqEditors ...RequestEditorFn) (*UnbanServiceAddressResponse, error) {
+	rsp, err := c.UnbanServiceAddress(ctx, serviceId, banId, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseUnbanServiceAddressResponse(rsp)
 }
 
 // PreviewBuildPlanWithResponse Preview how a git service would be built
@@ -142116,6 +143112,142 @@ func ParseGetServiceAnalyticsResponse(rsp *http.Response) (*GetServiceAnalyticsR
 	return response, nil
 }
 
+// ParseGetServiceAutoBanResponse parses an HTTP response from a GetServiceAutoBanWithResponse call
+func ParseGetServiceAutoBanResponse(rsp *http.Response) (*GetServiceAutoBanResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetServiceAutoBanResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AutoBanView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseSetServiceAutoBanResponse parses an HTTP response from a SetServiceAutoBanWithResponse call
+func ParseSetServiceAutoBanResponse(rsp *http.Response) (*SetServiceAutoBanResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &SetServiceAutoBanResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest AutoBanView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
 // ParseListBackupRestoresResponse parses an HTTP response from a ListBackupRestoresWithResponse call
 func ParseListBackupRestoresResponse(rsp *http.Response) (*ListBackupRestoresResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
@@ -142394,6 +143526,149 @@ func ParseCreateBackupResponse(rsp *http.Response) (*CreateBackupResponse, error
 			return nil, err
 		}
 		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON409 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseListServiceBansResponse parses an HTTP response from a ListServiceBansWithResponse call
+func ParseListServiceBansResponse(rsp *http.Response) (*ListServiceBansResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &ListServiceBansResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest PageBanView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 422:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON422 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 500:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON500 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && true:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSONDefault = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseUnbanServiceAddressResponse parses an HTTP response from a UnbanServiceAddressWithResponse call
+func ParseUnbanServiceAddressResponse(rsp *http.Response) (*UnbanServiceAddressResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &UnbanServiceAddressResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 202:
+		var dest UnbanView
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON202 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 401:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON401 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 403:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON403 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 404:
+		var dest Error
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.ApplicationproblemJSON404 = &dest
 
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 409:
 		var dest Error

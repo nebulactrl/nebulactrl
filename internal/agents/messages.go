@@ -132,6 +132,11 @@ func (h *Hub) dispatch(ctx context.Context, c *agentConn, f agentprotocol.Frame)
 		if f.Into(&tf) == nil {
 			h.onTraffic(ctx, c, tf)
 		}
+	case agentprotocol.TypeBans:
+		var bf agentprotocol.BanFrame
+		if f.Into(&bf) == nil {
+			h.onBans(ctx, c, bf)
+		}
 	case agentprotocol.TypeProbes:
 		var pf agentprotocol.Probes
 		if f.Into(&pf) == nil {
@@ -350,6 +355,19 @@ func (h *Hub) onTraffic(ctx context.Context, c *agentConn, t agentprotocol.Traff
 		}
 	}
 	_ = c.sendFrame(agentprotocol.TypeTrafficAck, "", agentprotocol.TrafficAck{Seq: t.Seq})
+}
+
+// onBans hands an auto-ban frame to the ban sink and acknowledges it once the
+// events are committed. A sink failure withholds the ack so the agent resends
+// (the sink applies a frame idempotently).
+func (h *Hub) onBans(ctx context.Context, c *agentConn, b agentprotocol.BanFrame) {
+	if sink := h.banSink(); sink != nil {
+		if err := sink.IngestBans(ctx, c.serverID, b); err != nil {
+			c.log.ErrorContext(ctx, "ingest bans", "seq", b.Seq, "events", len(b.Events), "snapshot", b.Snapshot, "err", err)
+			return
+		}
+	}
+	_ = c.sendFrame(agentprotocol.TypeBansAck, "", agentprotocol.BanAck{Seq: b.Seq})
 }
 
 // onProbes hands a probes frame to the uptime sink and acknowledges it once

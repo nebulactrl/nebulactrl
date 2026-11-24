@@ -195,3 +195,49 @@ func TestClassifier(t *testing.T) {
 
 	require.Equal(t, "unknown", c.Classify("").Device)
 }
+
+// accessLineFor renders a minimal access line of a router with the given
+// ClientHost and Cf-Connecting-Ip header ("" leaves the header out).
+func accessLineFor(router, clientHost, cf string) []byte {
+	hdr := ""
+	if cf != "" {
+		hdr = `,"request_Cf-Connecting-Ip":"` + cf + `"`
+	}
+	return []byte(`{"StartUTC":"2025-10-26T17:33:20.5Z","RouterName":"` + router + `","RequestHost":"a.example.com","RequestPath":"/",` +
+		`"RequestMethod":"GET","DownstreamStatus":200,"Duration":1000,"ClientHost":"` + clientHost + `"` + hdr + `}`)
+}
+
+// The Cf-Connecting-Ip header is the visitor on a tunnel router only: the
+// peer there is cloudflared. Everywhere else it is client-supplied.
+func TestParseLineTakesCfConnectingIPOnlyOnTunnelRouters(t *testing.T) {
+	cases := map[string]struct {
+		router, host, cf, want string
+	}{
+		"tunnel":                          {"nc-" + svcA + "-daaaaaaaa-tunnel@rest", "172.20.0.5", "203.0.113.7", "203.0.113.7"},
+		"tunnel firewall copy":            {"nc-" + svcA + "-daaaaaaaa-tunnel-fwabc123@rest", "172.20.0.5", "203.0.113.7", "203.0.113.7"},
+		"tunnel ipv6 keeps the full addr": {"nc-" + svcA + "-daaaaaaaa-tunnel@rest", "172.20.0.5", "2001:db8:1:2:3:4:5:6", "2001:db8:1:2:3:4:5:6"},
+		"tunnel mapped ipv4":              {"nc-" + svcA + "-daaaaaaaa-tunnel@rest", "172.20.0.5", "::ffff:203.0.113.7", "203.0.113.7"},
+		"tunnel without the header":       {"nc-" + svcA + "-daaaaaaaa-tunnel@rest", "172.20.0.5", "", "172.20.0.5"},
+		"tunnel garbage header":           {"nc-" + svcA + "-daaaaaaaa-tunnel@rest", "172.20.0.5", "not-an-ip", "172.20.0.5"},
+		"peer domain ignores the header":  {"nc-" + svcA + "-https@rest", "198.51.100.9", "203.0.113.7", "198.51.100.9"},
+		"per-domain peer router":          {"nc-" + svcA + "-daaaaaaaa-https@rest", "198.51.100.9", "203.0.113.7", "198.51.100.9"},
+		"origin-locked keeps last XFF":    {"nc-" + svcA + "-daaaaaaaa-https@rest", "6.6.6.6, 203.0.113.7", "6.6.6.6", "203.0.113.7"},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			ev, err := ParseLine(accessLineFor(c.router, c.host, c.cf))
+			require.NoError(t, err)
+			require.Equal(t, c.want, ev.ClientIP)
+		})
+	}
+	t.Run("unrouted line ignores the header", func(t *testing.T) {
+		ev, err := ParseLine(accessLineFor("nc-gen@rest", "198.51.100.9", "203.0.113.7"))
+		require.NoError(t, err)
+		require.Equal(t, "198.51.100.9", ev.ClientIP)
+	})
+	t.Run("router name that merely ends in tunnel", func(t *testing.T) {
+		ev, err := ParseLine(accessLineFor("evil-tunnel@docker", "198.51.100.9", "203.0.113.7"))
+		require.NoError(t, err)
+		require.Equal(t, "198.51.100.9", ev.ClientIP)
+	})
+}

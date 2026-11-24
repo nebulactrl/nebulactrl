@@ -1205,7 +1205,7 @@ func (d *deploy) route() agentprotocol.Route {
 		Upstreams:  d.upstreams(d.p.Port),
 		HealthPath: d.traefikHealthPath(),
 		Networks:   d.plan().RouteNetworks(),
-		RouteExt:   agentprotocol.RouteExt{Domains: append([]agentprotocol.DomainRule(nil), d.p.DomainRules...), OriginLock: d.p.OriginLock, Firewall: d.p.Firewall},
+		RouteExt:   agentprotocol.RouteExt{Domains: append([]agentprotocol.DomainRule(nil), d.p.DomainRules...), OriginLock: d.p.OriginLock, Firewall: d.p.Firewall, AutoBan: d.p.AutoBan},
 	}
 	if pr := d.proc(); pr != nil && !pr.Default {
 		r.Stack = d.p.ServiceID // the route of a named process belongs to the service like a stack's does

@@ -23,12 +23,14 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"github.com/nebulactrl/nebulactrl/internal/agents"
 	"github.com/nebulactrl/nebulactrl/internal/analytics"
 	"github.com/nebulactrl/nebulactrl/internal/apierr"
 	"github.com/nebulactrl/nebulactrl/internal/audit"
 	"github.com/nebulactrl/nebulactrl/internal/db"
 	"github.com/nebulactrl/nebulactrl/internal/domains"
 	"github.com/nebulactrl/nebulactrl/internal/events"
+	"github.com/nebulactrl/nebulactrl/internal/notifications"
 	"github.com/nebulactrl/nebulactrl/internal/policy"
 	"github.com/nebulactrl/nebulactrl/internal/services"
 	"github.com/nebulactrl/nebulactrl/pkg/agentprotocol"
@@ -63,6 +65,8 @@ type Service struct {
 	bus    *events.Bus
 	routes RoutePusher
 	blocks BlocksReader
+	disp   agents.Dispatcher     // the auto-ban unban command; see SetDispatcher
+	notify notifications.Emitter // the auto-ban digest; see SetNotifier
 	log    *slog.Logger
 }
 
@@ -265,6 +269,10 @@ func (s *Service) Put(ctx context.Context, id uuid.UUID, in PutInput) (FirewallV
 		if domains.IsStandardRuleID(strings.TrimSpace(r.ID)) {
 			return FirewallView{}, apierr.Unprocessable("invalid_firewall",
 				fmt.Sprintf("rule %d: ids starting with %q are reserved for the standard protection", i+1, domains.StandardRuleIDPrefix))
+		}
+		if strings.TrimSpace(r.ID) == agentprotocol.FirewallRuleAutoBan {
+			return FirewallView{}, apierr.Unprocessable("invalid_firewall",
+				fmt.Sprintf("rule %d: the id %q is reserved for auto-ban", i+1, agentprotocol.FirewallRuleAutoBan))
 		}
 	}
 	fw := normalize(in.Rules)

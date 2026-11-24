@@ -135,6 +135,7 @@ type Service struct {
 	Scale       *Scale       `toml:"scale" json:"scale,omitempty" doc:"Replicas and autoscaling. Applied immediately."`
 	Uptime      *Uptime      `toml:"uptime" json:"uptime,omitempty" doc:"Uptime monitor settings. Applied immediately."`
 	Firewall    *Firewall    `toml:"firewall" json:"firewall,omitempty" doc:"The service's firewall: ordered allow and block rules the proxy evaluates against every request to its domains. The whole table is owned as one unit: the rules you write replace the live ones, and an empty list removes the firewall. Applied immediately. HTTP services only. The standard protection NebulaCtrl adds to every HTTP service is not part of the file."`
+	AutoBan     *AutoBan     `toml:"autoban" json:"autoban,omitempty" doc:"Auto-ban: an address that trips the standard protection or a block rule (other than ip or country rules) again and again is banned for a while by the edge guard. The whole table is owned as one unit: a key you leave out takes its default (off, 10 blocked requests in 10 minutes ban an address for 1 hour, empty allow list). Needs traffic analytics on the service's server. Applied immediately. HTTP services only."`
 	Maintenance *Maintenance `toml:"maintenance" json:"maintenance,omitempty" doc:"Maintenance mode: while enabled the proxy answers every domain of the service with a 503 maintenance page. The whole table is owned as one unit: a key you leave out takes its default (default page text, no expected-back time). Applied immediately. HTTP services only."`
 	Secrets     *Secrets     `toml:"secrets" json:"secrets,omitempty" doc:"Names of secret variables of this service. Values are never written in the file."`
 
@@ -402,6 +403,15 @@ type Maintenance struct {
 	Title   *string `toml:"title" json:"title,omitempty" doc:"Page title. Absent or empty shows \"Down for maintenance\". Only used while enabled." example:"Back soon" maxLength:"80"`
 	Message *string `toml:"message" json:"message,omitempty" doc:"Page message, plain text (newlines allowed). Absent or empty shows the default copy. Only used while enabled." example:"We are upgrading the database." maxLength:"600"`
 	ETA     *string `toml:"eta" json:"eta,omitempty" doc:"When the service is expected back, an RFC 3339 time in the future (for example 2026-12-01T06:00:00Z), written as a string. Shown on the page and sent as Retry-After. Only used while enabled; stored in UTC, truncated to seconds." example:"2026-12-01T06:00:00Z" maxLength:"40"`
+}
+
+// AutoBan is [services.<slug>.autoban].
+type AutoBan struct {
+	Enabled         *bool    `toml:"enabled" json:"enabled,omitempty" doc:"Switch auto-ban on. A table without enabled leaves it off." example:"true" default:"false"`
+	Threshold       *int     `toml:"threshold" json:"threshold,omitempty" doc:"Blocked requests from one address, within window_seconds, that start a ban. Only requests the standard protection or a block rule with a condition other than ip or country blocked count." example:"10" minimum:"3" maximum:"1000" default:"10"`
+	WindowSeconds   *int     `toml:"window_seconds" json:"window_seconds,omitempty" doc:"How far back, in seconds, blocked requests count toward a ban (60 to 24 hours)." example:"600" minimum:"60" maximum:"86400" default:"600"`
+	DurationSeconds *int     `toml:"duration_seconds" json:"duration_seconds,omitempty" doc:"How long, in seconds, a ban lasts (5 minutes to 7 days)." example:"3600" minimum:"300" maximum:"604800" default:"3600"`
+	Allow           []string `toml:"allow" json:"allow,omitempty" doc:"Addresses and networks that are never banned: CIDRs or single addresses. Adding one lifts its active bans." example:"[\"203.0.113.0/24\"]" maxItems:"200"`
 }
 
 // Process is [services.<slug>.processes.<name>], an additional process of a

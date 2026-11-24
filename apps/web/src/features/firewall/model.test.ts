@@ -1,23 +1,36 @@
 import { describe, expect, test } from "bun:test";
 import {
+	AUTOBAN_DURATION_SECONDS,
+	autobanBody,
+	autobanDraftOf,
+	autobanRefusal,
+	autobanUnchanged,
 	BLOCK_RANGE_PHRASE,
 	BLOCK_RANGES,
+	banEndReason,
+	banRuleNames,
 	blockedCounts,
 	blockedCountText,
 	blockedLogsQuery,
 	blockedRuleLabel,
 	decide,
 	type FirewallRule,
+	hasAutoBanErrors,
 	MAX_RULES,
 	parseCountry,
 	RECIPE_GROUPS,
 	RECIPES,
 	recipeFits,
 	removedBlocks,
+	ruleNameIndex,
 	ruleSentence,
+	spanOf,
+	spanPhrase,
+	spanSeconds,
 	summary,
 	type TestRequest,
 	toBody,
+	validateAutoBan,
 	validateRules,
 	withField,
 	withOp,
@@ -762,5 +775,151 @@ describe("blocked requests", () => {
 		for (const range of BLOCK_RANGES) {
 			expect(BLOCK_RANGE_PHRASE[range]).toMatch(/^the last /);
 		}
+	});
+});
+
+describe("auto-ban policy", () => {
+	const policy = {
+		enabled: true,
+		threshold: 10,
+		windowSeconds: 600,
+		durationSeconds: 3600,
+		allow: ["203.0.113.0/24"],
+	};
+
+	test("a span reads in the largest unit that divides it", () => {
+		expect(spanOf(600)).toEqual({ amount: "10", unit: "minutes" });
+		expect(spanOf(3600)).toEqual({ amount: "1", unit: "hours" });
+		expect(spanOf(86400)).toEqual({ amount: "1", unit: "days" });
+		expect(spanOf(90)).toEqual({ amount: "1.5", unit: "minutes" });
+		expect(spanSeconds({ amount: "1.5", unit: "hours" })).toBe(5400);
+		expect(spanSeconds({ amount: "abc", unit: "hours" })).toBeNull();
+		expect(spanSeconds({ amount: "0", unit: "hours" })).toBeNull();
+		expect(spanPhrase(60)).toBe("1 minute");
+		expect(spanPhrase(7 * 86400)).toBe("7 days");
+	});
+
+	test("a policy round-trips through the draft to the PUT body", () => {
+		const draft = autobanDraftOf(policy);
+		expect(draft).toEqual({
+			enabled: true,
+			threshold: "10",
+			window: { amount: "10", unit: "minutes" },
+			duration: { amount: "1", unit: "hours" },
+			allow: ["203.0.113.0/24"],
+		});
+		expect(autobanBody(draft)).toEqual(policy);
+		expect(autobanUnchanged(draft, policy)).toBe(true);
+		expect(autobanUnchanged({ ...draft, threshold: "11" }, policy)).toBe(false);
+		// The same length in another unit is no change.
+		expect(
+			autobanUnchanged(
+				{ ...draft, window: { amount: "0.1666666667", unit: "hours" } },
+				policy,
+			),
+		).toBe(true);
+	});
+
+	test("limits: threshold 3-1000, window 1 min-24 h, duration 5 min-7 d", () => {
+		const draft = autobanDraftOf(policy);
+		expect(hasAutoBanErrors(validateAutoBan(draft))).toBe(false);
+		expect(validateAutoBan({ ...draft, threshold: "2" }).threshold).toMatch(
+			/3 to 1000/,
+		);
+		expect(
+			validateAutoBan({ ...draft, threshold: "1001" }).threshold,
+		).toBeDefined();
+		expect(
+			validateAutoBan({ ...draft, threshold: "3" }).threshold,
+		).toBeUndefined();
+		expect(
+			validateAutoBan({ ...draft, threshold: "1.5" }).threshold,
+		).toBeDefined();
+		const window = (amount: string, unit: "minutes" | "hours") =>
+			validateAutoBan({ ...draft, window: { amount, unit } }).window;
+		expect(window("1", "minutes")).toBeUndefined();
+		expect(window("24", "hours")).toBeUndefined();
+		expect(window("25", "hours")).toMatch(/1 minute to 1 day|24 hours/);
+		expect(window("0.5", "minutes")).toBeDefined();
+		const duration = (amount: string, unit: "minutes" | "days") =>
+			validateAutoBan({ ...draft, duration: { amount, unit } }).duration;
+		expect(duration("4", "minutes")).toBeDefined();
+		expect(duration("5", "minutes")).toBeUndefined();
+		expect(duration("7", "days")).toBeUndefined();
+		expect(duration("8", "days")).toBeDefined();
+		expect(AUTOBAN_DURATION_SECONDS.max).toBe(604800);
+	});
+
+	test("allow entries are validated one by one and capped at 200", () => {
+		const draft = autobanDraftOf(policy);
+		const errors = validateAutoBan({
+			...draft,
+			allow: ["10.0.0.1", "not-an-ip", "", "2001:db8::/32"],
+		});
+		expect(Object.keys(errors.allowRows)).toEqual(["1", "2"]);
+		expect(errors.allowRows[1]).toContain("not-an-ip");
+		const long = validateAutoBan({
+			...draft,
+			allow: Array.from(
+				{ length: 201 },
+				(_, i) => `10.0.${Math.floor(i / 250)}.${i % 250}`,
+			),
+		});
+		expect(long.allow).toMatch(/at most 200/);
+	});
+
+	test("refusals land on the field they are about", () => {
+		expect(autobanRefusal("analytics_required", "x").field).toBe("enabled");
+		expect(autobanRefusal("agent_too_old", "x").message).toMatch(/too old/);
+		expect(autobanRefusal("autoban_unsupported", "x").field).toBe("enabled");
+		expect(
+			autobanRefusal("invalid_autoban", "threshold must be 3-1000"),
+		).toEqual({
+			field: "threshold",
+			message: "threshold must be 3-1000",
+		});
+		expect(
+			autobanRefusal("invalid_autoban", "windowSeconds out of range").field,
+		).toBe("window");
+		expect(autobanRefusal("invalid_autoban", "allow[2] is invalid").field).toBe(
+			"allow",
+		);
+		expect(autobanRefusal(undefined, "boom")).toEqual({ message: "boom" });
+	});
+
+	test("a ban's rules are named, the most counted first", () => {
+		const names = ruleNameIndex({
+			rules: [{ id: "r1", name: "No admin", action: "block", conditions: [] }],
+			standard: [
+				{
+					rule: {
+						id: "stdsecrets",
+						name: "Secret files",
+						action: "block",
+						conditions: [],
+					},
+					description: "",
+					examples: [],
+				},
+			],
+			enforcement: "routes",
+			hosts: [],
+			deployed: true,
+			server: "s",
+			geoAvailable: false,
+			supported: true,
+		});
+		expect(banRuleNames({ r1: 2, stdsecrets: 7, gone: 1 }, names)).toEqual([
+			"Secret files",
+			"No admin",
+			"Removed rule gone",
+		]);
+		expect(banRuleNames(undefined, names)).toEqual([]);
+	});
+
+	test("end reasons read as words", () => {
+		expect(banEndReason("expired")).toBe("Expired");
+		expect(banEndReason("unbanned")).toBe("Unbanned");
+		expect(banEndReason(undefined)).toBe("Ended");
 	});
 });
