@@ -134,12 +134,12 @@
 		"@types/react-dom": "19.3.0",
 		"react": "19.3.1",
 		"react-dom": "19.3.1",
-		"recharts": "3.10.1",
+		"recharts": "3.11.0",
 		"typescript": "7.0.2"
 	},
 	"peerDependencies": {
 		"@base-ui/react": "1.9.0",
 		"react": "19.3.1",
-		"recharts": "3.10.1"
+		"recharts": "3.11.0"
 	}
 }
